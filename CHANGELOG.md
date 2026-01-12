@@ -93,6 +93,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **JSDoc** - Comprehensive documentation on all components
 - **TypeScript** - Strict typing throughout
 
+### Fixed (QA Pass)
+- **sidebar.tsx** - Replace Math.random() with static value to fix ESLint impure function error
+- **swipe-interface.tsx** - Fix useEffect dependency array for keyboard handler
+- **carousel-creator.tsx** - Replace img tags with next/image component for optimization
+- **settings.tsx** - Add API key validation with error feedback UI
+- **template-library.tsx** - Fix undefined template reference in delete handler
+- **post-composer.tsx** - Fix Safari regex incompatibility with lookbehind assertions
+
 ---
 
 ## [0.1.0] - 2026-01-12

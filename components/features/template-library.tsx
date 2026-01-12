@@ -317,7 +317,9 @@ export function TemplateLibrary({
    * Handles template deletion with confirmation
    */
   const handleDelete = (id: string) => {
-    if (window.confirm("Are you sure you want to delete this template?")) {
+    const templateToDelete = templates.find((t) => t.id === id)
+    // TODO: Replace with custom confirmation dialog
+    if (window.confirm(`Are you sure you want to delete the template "${templateToDelete?.name ?? "this template"}"? This action cannot be undone.`)) {
       onDeleteTemplate?.(id)
     }
   }

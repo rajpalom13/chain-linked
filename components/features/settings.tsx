@@ -1,7 +1,11 @@
 "use client"
 
+import Image from "next/image"
+
 import * as React from "react"
 import {
+  IconAlertCircle,
+  IconBell,
   IconBrandLinkedin,
   IconCamera,
   IconCheck,
@@ -17,7 +21,6 @@ import {
   IconTrash,
   IconUser,
   IconUsers,
-  IconBell,
 } from "@tabler/icons-react"
 
 import { cn } from "@/lib/utils"
@@ -225,6 +228,7 @@ export function Settings({
 
   // API Keys state
   const [openaiKey, setOpenaiKey] = React.useState("")
+  const [apiKeyError, setApiKeyError] = React.useState<string | null>(null)
   const [showApiKey, setShowApiKey] = React.useState(false)
   const [hasApiKey, setHasApiKey] = React.useState(false)
 
@@ -263,13 +267,31 @@ export function Settings({
   }
 
   /**
-   * Handles saving the API key
+   * Handles saving the API key with validation
    */
   const handleSaveApiKey = () => {
-    if (openaiKey.trim()) {
-      setHasApiKey(true)
-      setShowApiKey(false)
+    const key = openaiKey.trim()
+
+    // Validate OpenAI API key format (sk-... or sk-proj-...)
+    if (!key) {
+      setApiKeyError("API key is required")
+      return
     }
+
+    if (!key.startsWith("sk-")) {
+      setApiKeyError("Invalid API key format. OpenAI keys start with 'sk-'")
+      return
+    }
+
+    if (key.length < 20) {
+      setApiKeyError("API key appears to be too short")
+      return
+    }
+
+    // Clear any previous errors and save
+    setApiKeyError(null)
+    setHasApiKey(true)
+    setShowApiKey(false)
   }
 
   /**
@@ -564,9 +586,16 @@ export function Settings({
                     <Input
                       type={showApiKey ? "text" : "password"}
                       value={openaiKey}
-                      onChange={(e) => setOpenaiKey(e.target.value)}
+                      onChange={(e) => {
+                        setOpenaiKey(e.target.value)
+                        // Clear error when user starts typing
+                        if (apiKeyError) setApiKeyError(null)
+                      }}
                       placeholder={hasApiKey ? "sk-********...****" : "sk-..."}
-                      className="pl-10 pr-10 font-mono"
+                      className={cn(
+                        "pl-10 pr-10 font-mono",
+                        apiKeyError && "border-red-500 focus-visible:ring-red-500"
+                      )}
                     />
                     <Button
                       variant="ghost"
@@ -593,6 +622,14 @@ export function Settings({
                     </Button>
                   )}
                 </div>
+
+                {/* API Key Error Message */}
+                {apiKeyError && (
+                  <p className="text-sm text-red-500 flex items-center gap-1.5">
+                    <IconAlertCircle className="size-4" />
+                    {apiKeyError}
+                  </p>
+                )}
 
                 <p className="text-xs text-muted-foreground">
                   Your API key is encrypted and stored securely. We never share your keys
@@ -691,10 +728,13 @@ export function Settings({
                 <Label>Brand Logo</Label>
                 <div className="flex items-center gap-4 p-4 rounded-lg border border-dashed">
                   {brandKit.logoUrl ? (
-                    <img
+                    <Image
                       src={brandKit.logoUrl}
                       alt="Brand logo"
+                      width={64}
+                      height={64}
                       className="size-16 object-contain rounded"
+                      unoptimized
                     />
                   ) : (
                     <div className="size-16 rounded bg-muted flex items-center justify-center">

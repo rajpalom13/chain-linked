@@ -1,5 +1,7 @@
 "use client"
 
+import Image from "next/image"
+
 import * as React from "react"
 import {
   IconChevronLeft,
@@ -568,10 +570,13 @@ export function CarouselCreator({
             >
               {/* Brand Logo */}
               {brandKitApplied && brandKit.logoUrl && (
-                <img
+                <Image
                   src={brandKit.logoUrl}
                   alt="Brand logo"
+                  width={80}
+                  height={32}
                   className="absolute top-4 left-4 h-8 w-auto object-contain"
+                  unoptimized
                 />
               )}
 

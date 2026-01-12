@@ -273,7 +273,7 @@ export function SwipeInterface({
 
   // Calculate visual feedback values
   const rotation = swipeOffset * 0.05
-  const opacity = Math.max(0, 1 - Math.abs(swipeOffset) / 300)
+  // Opacity calculation available for future use if needed
   const swipeDirection: "left" | "right" | null =
     swipeOffset > 30 ? "right" : swipeOffset < -30 ? "left" : null
 
