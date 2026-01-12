@@ -8,6 +8,8 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { AnalyticsCards } from "@/components/features/analytics-cards"
 import { AnalyticsChart } from "@/components/features/analytics-chart"
 import { GoalsTracker } from "@/components/features/goals-tracker"
+import { PostPerformance } from "@/components/features/post-performance"
+import { TeamLeaderboard } from "@/components/features/team-leaderboard"
 import { SiteHeader } from "@/components/site-header"
 import {
   SidebarInset,
@@ -16,7 +18,7 @@ import {
 
 /**
  * Analytics page component
- * @returns Analytics page with performance cards, charts, and goals tracker
+ * @returns Analytics page with performance cards, charts, goals tracker, leaderboard, and post performance
  */
 export default function AnalyticsPage() {
   return (
@@ -48,6 +50,15 @@ export default function AnalyticsPage() {
                 <div className="lg:col-span-1">
                   <GoalsTracker />
                 </div>
+              </div>
+
+              {/* Team Leaderboard and Post Performance Row */}
+              <div className="grid grid-cols-1 gap-4 px-4 lg:grid-cols-2 lg:px-6">
+                {/* Team Leaderboard */}
+                <TeamLeaderboard currentUserId="3" />
+
+                {/* Post Performance Drill-down */}
+                <PostPerformance />
               </div>
             </div>
           </div>

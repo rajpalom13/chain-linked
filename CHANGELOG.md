@@ -5,6 +5,64 @@ All notable changes to the ChainLinked project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-01-12
+
+### Added
+
+#### Analytics Dashboard Completion (AGI-55)
+- **Team Leaderboard** - Ranked team member performance with time range filters (week/month/all-time)
+  - Position badges (gold/silver/bronze for top 3)
+  - Rank change indicators (up/down arrows)
+  - Current user highlighting
+- **Post Performance Drill-down** - Individual post analytics view
+  - Line chart showing impressions and engagements over 7 days
+  - Engagement breakdown (likes, comments, shares, clicks)
+  - Remix action from performance view
+
+#### Post Scheduling Completion (AGI-46)
+- **Schedule Calendar View** - Monthly calendar showing scheduled posts
+  - Color-coded post indicators (pending/posted/failed)
+  - Month navigation with today button
+  - Click to view posts on specific dates
+- **Schedule Post Modal** - Date/time picker for scheduling
+  - Mini calendar for date selection
+  - Time picker with AM/PM
+  - Timezone selector (10 common timezones)
+  - Optimal time suggestions
+
+#### Inspiration Tab Completion (AGI-53)
+- **Post Detail Modal** - Expanded view of inspiration posts
+  - Full content display with author info
+  - Engagement metrics and category
+  - Remix and Save actions
+
+#### Post Composer Completion (AGI-47)
+- **Emoji Picker** - Custom popover emoji selector
+  - 8 category tabs with 30+ emojis each
+  - Search functionality
+  - Recently used emojis (localStorage persistence)
+- **Media Upload Handler** - Drag-and-drop file uploads
+  - Image preview grid
+  - Progress indicators per file
+  - Validation (LinkedIn limits: 9 images/1 video, 10MB/200MB)
+
+#### Carousel Creator Completion (AGI-48)
+- **PDF Export** - Generate carousel PDFs using pdf-lib
+  - 4 template styles (bold, minimalist, data, story)
+  - 3 format options (square, portrait, landscape)
+  - Brand kit color application
+  - Slide numbering
+
+### Dependencies Added
+- `pdf-lib` - PDF generation library
+
+### UI Components Added
+- `components/ui/dialog.tsx` - Modal dialog component
+- `components/ui/popover.tsx` - Popover component
+- `components/ui/progress.tsx` - Progress bar component
+
+---
+
 ## [0.2.0] - 2026-01-12
 
 ### Added
