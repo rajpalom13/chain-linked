@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import {
   IconEdit,
   IconLayoutGrid,
@@ -16,6 +17,9 @@ import {
 } from "@tabler/icons-react"
 
 import { cn } from "@/lib/utils"
+import { useDraft } from "@/lib/store/draft-context"
+import { templateToast } from "@/lib/toast-utils"
+import { useConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -227,6 +231,10 @@ export function TemplateLibrary({
   onUseTemplate,
   isLoading = false,
 }: TemplateLibraryProps) {
+  const router = useRouter()
+  const { loadTemplate } = useDraft()
+  const { confirm, ConfirmDialogComponent } = useConfirmDialog()
+
   const [viewMode, setViewMode] = React.useState<"grid" | "list">("grid")
   const [searchQuery, setSearchQuery] = React.useState("")
   const [categoryFilter, setCategoryFilter] = React.useState<string>("all")
@@ -314,13 +322,38 @@ export function TemplateLibrary({
   }
 
   /**
+   * Handles using a template - loads it into the composer and navigates
+   */
+  const handleUseTemplate = (template: Template) => {
+    // Load template into draft context
+    loadTemplate(template.id, template.content)
+
+    // Call optional callback
+    onUseTemplate?.(template.id)
+
+    // Show success toast
+    templateToast.applied(template.name)
+
+    // Navigate to compose page
+    router.push("/dashboard/compose")
+  }
+
+  /**
    * Handles template deletion with confirmation
    */
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     const templateToDelete = templates.find((t) => t.id === id)
-    // TODO: Replace with custom confirmation dialog
-    if (window.confirm(`Are you sure you want to delete the template "${templateToDelete?.name ?? "this template"}"? This action cannot be undone.`)) {
+    const confirmed = await confirm({
+      title: "Delete Template?",
+      description: `Are you sure you want to delete "${templateToDelete?.name ?? "this template"}"? This action cannot be undone.`,
+      variant: "destructive",
+      confirmText: "Delete",
+      cancelText: "Cancel",
+    })
+
+    if (confirmed) {
       onDeleteTemplate?.(id)
+      templateToast.deleted(templateToDelete?.name ?? "Template")
     }
   }
 
@@ -529,7 +562,7 @@ export function TemplateLibrary({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => onUseTemplate?.(template.id)}
+                    onClick={() => handleUseTemplate(template)}
                     className={cn(viewMode === "grid" && "flex-1")}
                   >
                     Use
@@ -684,6 +717,9 @@ export function TemplateLibrary({
           </DrawerFooter>
         </DrawerContent>
       </Drawer>
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialogComponent />
     </Card>
   )
 }

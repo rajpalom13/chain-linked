@@ -2,10 +2,11 @@
 
 import { ThemeProvider } from "next-themes"
 import { Toaster } from "@/components/ui/sonner"
+import { DraftProvider } from "@/lib/store/draft-context"
 
 /**
  * Global providers wrapper component.
- * Includes theme provider and toast notifications.
+ * Includes theme provider, draft state management, and toast notifications.
  */
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -15,7 +16,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       enableSystem
       disableTransitionOnChange
     >
-      {children}
+      <DraftProvider>
+        {children}
+      </DraftProvider>
       <Toaster
         position="bottom-right"
         richColors

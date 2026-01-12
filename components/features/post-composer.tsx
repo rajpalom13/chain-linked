@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import {
   IconBold,
   IconCalendar,
@@ -19,6 +20,8 @@ import {
 } from "@tabler/icons-react"
 
 import { cn } from "@/lib/utils"
+import { useDraft } from "@/lib/store/draft-context"
+import { postToast } from "@/lib/toast-utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -36,6 +39,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { ScheduleModal } from "./schedule-modal"
 
 /**
  * Props for the PostComposer component
@@ -232,10 +236,30 @@ export function PostComposer({
   maxLength = DEFAULT_MAX_LENGTH,
   userProfile = DEFAULT_USER_PROFILE,
 }: PostComposerProps) {
-  const [content, setContent] = React.useState(initialContent)
+  const router = useRouter()
+  const { draft, setContent: setDraftContent, setScheduledFor, clearDraft } = useDraft()
+
+  // Initialize content from draft context if available, otherwise use initialContent
+  const [content, setContent] = React.useState(() => draft.content || initialContent)
   const [isPosting, setIsPosting] = React.useState(false)
   const [isScheduling, setIsScheduling] = React.useState(false)
+  const [showScheduleModal, setShowScheduleModal] = React.useState(false)
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
+
+  // Sync content with draft context (when loaded from template or remix)
+  // We intentionally exclude 'content' from deps to prevent infinite loops
+  React.useEffect(() => {
+    if (draft.content && draft.content !== content) {
+      setContent(draft.content)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.content])
+
+  // Update draft when content changes
+  const handleContentChange = (newContent: string) => {
+    setContent(newContent)
+    setDraftContent(newContent)
+  }
 
   const characterCount = content.length
   const isOverLimit = characterCount > maxLength
@@ -251,23 +275,51 @@ export function PostComposer({
     setIsPosting(true)
     try {
       await onPost(content)
+      clearDraft()
       setContent("")
+      postToast.published()
     } catch (error) {
       console.error("Failed to post:", error)
+      postToast.failed(error instanceof Error ? error.message : undefined)
     } finally {
       setIsPosting(false)
     }
   }
 
   /**
-   * Handles the Schedule button click
+   * Opens the schedule modal
    */
-  const handleSchedule = () => {
-    if (!onSchedule || isOverLimit || !content.trim()) return
+  const handleScheduleClick = () => {
+    if (isOverLimit || !content.trim()) return
+    setShowScheduleModal(true)
+  }
 
+  /**
+   * Handles the schedule confirmation from the modal
+   */
+  const handleScheduleConfirm = async (scheduledFor: Date, _timezone: string) => {
     setIsScheduling(true)
     try {
-      onSchedule(content)
+      // Save to draft context
+      setScheduledFor(scheduledFor)
+
+      // Call the optional onSchedule callback
+      if (onSchedule) {
+        onSchedule(content)
+      }
+
+      // Close modal and show success toast
+      setShowScheduleModal(false)
+      const formattedDate = scheduledFor.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+      postToast.scheduled(formattedDate)
+
+      // Navigate to schedule page
+      router.push("/dashboard/schedule")
     } finally {
       setIsScheduling(false)
     }
@@ -379,7 +431,7 @@ export function PostComposer({
               <textarea
                 ref={textareaRef}
                 value={content}
-                onChange={(e) => setContent(e.target.value)}
+                onChange={(e) => handleContentChange(e.target.value)}
                 placeholder="What do you want to talk about?"
                 className={cn(
                   "border-input bg-background placeholder:text-muted-foreground h-full min-h-[200px] w-full resize-none rounded-md border px-3 py-2 text-sm shadow-xs transition-colors",
@@ -473,7 +525,7 @@ export function PostComposer({
           <CardFooter className="flex justify-end gap-2 border-t pt-4">
             <Button
               variant="outline"
-              onClick={handleSchedule}
+              onClick={handleScheduleClick}
               disabled={isScheduling || isPosting || isOverLimit || !content.trim()}
             >
               {isScheduling ? (
@@ -611,6 +663,18 @@ export function PostComposer({
           </CardFooter>
         </Card>
       </div>
+
+      {/* Schedule Modal */}
+      <ScheduleModal
+        isOpen={showScheduleModal}
+        onClose={() => setShowScheduleModal(false)}
+        onSchedule={handleScheduleConfirm}
+        postPreview={{
+          content,
+          mediaCount: draft.mediaFiles.length,
+        }}
+        isSubmitting={isScheduling}
+      />
     </TooltipProvider>
   )
 }

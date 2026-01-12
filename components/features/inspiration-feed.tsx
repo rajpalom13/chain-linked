@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import {
   IconSearch,
   IconThumbUp,
@@ -20,6 +21,8 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
+import { useDraft } from "@/lib/store/draft-context"
+import { inspirationToast } from "@/lib/toast-utils"
 
 /**
  * Represents an author of an inspiration post.
@@ -566,6 +569,9 @@ export function InspirationFeed({
   isLoading = false,
   className,
 }: InspirationFeedProps) {
+  const router = useRouter()
+  const { loadForRemix } = useDraft()
+
   const [activeCategory, setActiveCategory] =
     React.useState<InspirationCategory>("all")
   const [searchQuery, setSearchQuery] = React.useState("")
@@ -579,6 +585,29 @@ export function InspirationFeed({
       onCategoryChange?.(category)
     },
     [onCategoryChange]
+  )
+
+  /**
+   * Handles remixing a post - loads it into composer and navigates
+   */
+  const handleRemix = React.useCallback(
+    (postId: string) => {
+      const post = posts?.find((p) => p.id === postId)
+      if (!post) return
+
+      // Load content into draft context
+      loadForRemix(post.id, post.content, post.author.name)
+
+      // Call optional callback
+      onRemix?.(postId)
+
+      // Show success toast
+      inspirationToast.remixed()
+
+      // Navigate to compose page
+      router.push("/dashboard/compose")
+    },
+    [posts, loadForRemix, onRemix, router]
   )
 
   /**
@@ -654,7 +683,7 @@ export function InspirationFeed({
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredPosts.map((post) => (
-              <InspirationCard key={post.id} post={post} onRemix={onRemix} />
+              <InspirationCard key={post.id} post={post} onRemix={handleRemix} />
             ))}
           </div>
         )}
