@@ -108,6 +108,12 @@ export const postToast = {
   saved: () =>
     showSuccess("Draft saved", "Your draft has been saved"),
 
+  mediaSaved: () =>
+    showSuccess("Media added", "Your file has been attached"),
+
+  mediaRemoved: () =>
+    showInfo("Media removed", "File has been detached"),
+
   deleted: (onUndo?: () => void) => {
     if (onUndo) {
       showUndo("Post deleted", onUndo)

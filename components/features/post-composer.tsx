@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import {
   IconBold,
   IconCalendar,
+  IconCheck,
   IconFile,
   IconHash,
   IconItalic,
@@ -17,11 +18,13 @@ import {
   IconSend,
   IconThumbUp,
   IconWorld,
+  IconX,
 } from "@tabler/icons-react"
 
 import { cn } from "@/lib/utils"
 import { useDraft } from "@/lib/store/draft-context"
 import { postToast } from "@/lib/toast-utils"
+import { useAutoSave, formatLastSaved } from "@/hooks/use-auto-save"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -39,6 +42,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { EmojiPicker } from "./emoji-picker"
+import { MediaUpload, type MediaFile } from "./media-upload"
 import { ScheduleModal } from "./schedule-modal"
 
 /**
@@ -244,7 +249,12 @@ export function PostComposer({
   const [isPosting, setIsPosting] = React.useState(false)
   const [isScheduling, setIsScheduling] = React.useState(false)
   const [showScheduleModal, setShowScheduleModal] = React.useState(false)
+  const [showEmojiPicker, setShowEmojiPicker] = React.useState(false)
+  const [mediaFiles, setMediaFiles] = React.useState<MediaFile[]>([])
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
+
+  // Auto-save status indicator
+  const { isSaving, lastSaved } = useAutoSave(content, 1500)
 
   // Sync content with draft context (when loaded from template or remix)
   // We intentionally exclude 'content' from deps to prevent infinite loops
@@ -340,7 +350,7 @@ export function PostComposer({
 
     const newContent =
       content.slice(0, start) + prefix + selectedText + suffix + content.slice(end)
-    setContent(newContent)
+    handleContentChange(newContent)
 
     // Set cursor position after formatting
     setTimeout(() => {
@@ -352,13 +362,93 @@ export function PostComposer({
     }, 0)
   }
 
+  /**
+   * Inserts an emoji at the current cursor position
+   * @param emoji - The emoji to insert
+   */
+  const insertEmoji = (emoji: string) => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+
+    const newContent = content.slice(0, start) + emoji + content.slice(end)
+    handleContentChange(newContent)
+
+    // Set cursor position after emoji
+    setTimeout(() => {
+      textarea.focus()
+      const newPosition = start + emoji.length
+      textarea.setSelectionRange(newPosition, newPosition)
+    }, 0)
+  }
+
+  /**
+   * Handles file selection from the toolbar buttons
+   * @param files - The FileList from the input
+   * @param type - Expected file type
+   */
+  const handleFileSelect = (files: FileList, type: "image" | "document") => {
+    const newMediaFiles: MediaFile[] = []
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      // Create a MediaFile entry
+      const mediaFile: MediaFile = {
+        id: `file-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        file,
+        type: type === "image" ? "image" : "document",
+        previewUrl: URL.createObjectURL(file),
+        uploadProgress: 100, // Simulated complete for now
+        status: "complete",
+      }
+      newMediaFiles.push(mediaFile)
+    }
+
+    setMediaFiles((prev) => [...prev, ...newMediaFiles])
+    postToast.mediaSaved()
+  }
+
+  /**
+   * Removes a media file from the list
+   * @param id - The file ID to remove
+   */
+  const handleRemoveMedia = (id: string) => {
+    setMediaFiles((prev) => {
+      const file = prev.find((f) => f.id === id)
+      if (file) {
+        URL.revokeObjectURL(file.previewUrl)
+      }
+      return prev.filter((f) => f.id !== id)
+    })
+  }
+
   return (
     <TooltipProvider>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Editor Column */}
         <Card className="flex flex-col">
           <CardHeader className="pb-4">
-            <CardTitle>Post Editor</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Post Editor</CardTitle>
+              {/* Auto-save indicator */}
+              {(isSaving || lastSaved) && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  {isSaving ? (
+                    <>
+                      <IconLoader2 className="size-3 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : lastSaved ? (
+                    <>
+                      <IconCheck className="size-3 text-green-500" />
+                      <span>Saved {formatLastSaved(lastSaved)}</span>
+                    </>
+                  ) : null}
+                </div>
+              )}
+            </div>
             <CardDescription>
               Compose your LinkedIn post with rich text formatting
             </CardDescription>
@@ -443,37 +533,135 @@ export function PostComposer({
               />
             </div>
 
+            {/* Media Preview */}
+            {mediaFiles.length > 0 && (
+              <div className="rounded-md border p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-sm font-medium">
+                    Attached media ({mediaFiles.length})
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs text-muted-foreground"
+                    onClick={() => {
+                      mediaFiles.forEach((f) => URL.revokeObjectURL(f.previewUrl))
+                      setMediaFiles([])
+                    }}
+                  >
+                    Clear all
+                  </Button>
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {mediaFiles.map((file) => (
+                    <div
+                      key={file.id}
+                      className="group relative aspect-square overflow-hidden rounded-md border bg-muted"
+                    >
+                      {file.type === "image" ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={file.previewUrl}
+                          alt={file.file.name}
+                          className="size-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex size-full flex-col items-center justify-center gap-1 text-muted-foreground">
+                          <IconFile className="size-6" />
+                          <span className="max-w-full truncate px-1 text-xs">
+                            {file.file.name}
+                          </span>
+                        </div>
+                      )}
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        className="absolute right-1 top-1 size-5 opacity-0 transition-opacity group-hover:opacity-100"
+                        onClick={() => handleRemoveMedia(file.id)}
+                        aria-label={`Remove ${file.file.name}`}
+                      >
+                        <IconX className="size-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Character Counter & Media Buttons */}
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-2">
-                {/* Emoji Picker (Placeholder) */}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon-sm" aria-label="Add emoji">
-                      <IconMoodSmile className="size-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Add emoji (coming soon)</TooltipContent>
-                </Tooltip>
+                {/* Emoji Picker */}
+                <EmojiPicker
+                  isOpen={showEmojiPicker}
+                  onClose={() => setShowEmojiPicker(false)}
+                  onSelect={(emoji) => {
+                    insertEmoji(emoji)
+                    setShowEmojiPicker(false)
+                  }}
+                >
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Add emoji"
+                        onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                      >
+                        <IconMoodSmile className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Add emoji</TooltipContent>
+                  </Tooltip>
+                </EmojiPicker>
 
                 {/* Image Attachment */}
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon-sm" aria-label="Add image">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Add image"
+                      onClick={() => {
+                        const input = document.createElement("input")
+                        input.type = "file"
+                        input.accept = "image/*"
+                        input.multiple = true
+                        input.onchange = (e) => {
+                          const files = (e.target as HTMLInputElement).files
+                          if (files) handleFileSelect(files, "image")
+                        }
+                        input.click()
+                      }}
+                    >
                       <IconPhoto className="size-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Add image (coming soon)</TooltipContent>
+                  <TooltipContent>Add image</TooltipContent>
                 </Tooltip>
 
                 {/* Document Attachment */}
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon-sm" aria-label="Add document">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Add document"
+                      onClick={() => {
+                        const input = document.createElement("input")
+                        input.type = "file"
+                        input.accept = ".pdf,.doc,.docx"
+                        input.onchange = (e) => {
+                          const files = (e.target as HTMLInputElement).files
+                          if (files) handleFileSelect(files, "document")
+                        }
+                        input.click()
+                      }}
+                    >
                       <IconFile className="size-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Add document (coming soon)</TooltipContent>
+                  <TooltipContent>Add document</TooltipContent>
                 </Tooltip>
               </div>
 
