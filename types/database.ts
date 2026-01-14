@@ -53,6 +53,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       /** LinkedIn profile snapshots */
       linkedin_profiles: {
@@ -107,12 +108,14 @@ export interface Database {
           captured_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       /** Creator analytics snapshots */
       linkedin_analytics: {
         Row: {
           id: string
           user_id: string
+          page_type: string
           impressions: number | null
           members_reached: number | null
           engagements: number | null
@@ -127,6 +130,7 @@ export interface Database {
         Insert: {
           id?: string
           user_id: string
+          page_type: string
           impressions?: number | null
           members_reached?: number | null
           engagements?: number | null
@@ -141,6 +145,7 @@ export interface Database {
         Update: {
           id?: string
           user_id?: string
+          page_type?: string
           impressions?: number | null
           members_reached?: number | null
           engagements?: number | null
@@ -152,6 +157,7 @@ export interface Database {
           captured_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       /** 90-day trend data */
       analytics_history: {
@@ -188,6 +194,7 @@ export interface Database {
           profile_views?: number | null
           created_at?: string
         }
+        Relationships: []
       }
       /** Individual post performance */
       post_analytics: {
@@ -251,6 +258,7 @@ export interface Database {
           captured_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       /** Follower demographics and audience info */
       audience_data: {
@@ -296,6 +304,7 @@ export interface Database {
           captured_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       /** User's own posts */
       my_posts: {
@@ -344,6 +353,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       /** Posts captured from LinkedIn feed */
       feed_posts: {
@@ -407,6 +417,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       /** Scheduled posts queue */
       scheduled_posts: {
@@ -452,6 +463,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       /** Post templates */
       templates: {
@@ -494,6 +506,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       /** Inspiration/viral posts */
       inspiration_posts: {
@@ -548,6 +561,7 @@ export interface Database {
           source?: string | null
           created_at?: string
         }
+        Relationships: []
       }
       /** Swipe preferences for AI learning */
       swipe_preferences: {
@@ -575,6 +589,7 @@ export interface Database {
           action?: string
           created_at?: string
         }
+        Relationships: []
       }
       /** Teams/Companies */
       teams: {
@@ -602,6 +617,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       /** Team members */
       team_members: {
@@ -626,6 +642,78 @@ export interface Database {
           role?: string
           joined_at?: string
         }
+        Relationships: []
+      }
+      /** Extension settings */
+      extension_settings: {
+        Row: {
+          id: string
+          user_id: string
+          auto_sync: boolean
+          sync_interval: number
+          capture_feed: boolean
+          capture_analytics: boolean
+          dark_mode: boolean
+          notifications: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          auto_sync?: boolean
+          sync_interval?: number
+          capture_feed?: boolean
+          capture_analytics?: boolean
+          dark_mode?: boolean
+          notifications?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          auto_sync?: boolean
+          sync_interval?: number
+          capture_feed?: boolean
+          capture_analytics?: boolean
+          dark_mode?: boolean
+          notifications?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      /** Sync metadata tracking */
+      sync_metadata: {
+        Row: {
+          id: string
+          user_id: string
+          table_name: string
+          last_synced_at: string
+          sync_status: string
+          pending_changes: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          table_name: string
+          last_synced_at?: string
+          sync_status?: string
+          pending_changes?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          table_name?: string
+          last_synced_at?: string
+          sync_status?: string
+          pending_changes?: number
+          created_at?: string
+        }
+        Relationships: []
       }
       /** Posting goals */
       posting_goals: {
@@ -662,6 +750,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
     }
     Views: {
@@ -671,6 +760,9 @@ export interface Database {
       [_ in never]: never
     }
     Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
       [_ in never]: never
     }
   }
