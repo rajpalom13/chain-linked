@@ -12,7 +12,9 @@ import { ScheduleCalendar, sampleScheduledPostItems } from "@/components/feature
 import { TeamActivityFeed, sampleTeamPosts } from "@/components/features/team-activity-feed"
 import { SiteHeader } from "@/components/site-header"
 import { DashboardSkeleton } from "@/components/skeletons/page-skeletons"
-import { usePageLoading } from "@/hooks/use-minimum-loading"
+import { useTeamPosts } from "@/hooks/use-team-posts"
+import { useScheduledPosts } from "@/hooks/use-scheduled-posts"
+import { useAuthContext } from "@/lib/auth/auth-provider"
 import {
   SidebarInset,
   SidebarProvider,
@@ -66,15 +68,26 @@ function QuickActionCard({
 }
 
 /**
- * Dashboard content component
+ * Dashboard content component with real data
  */
 function DashboardContent() {
+  const { user, profile } = useAuthContext()
+  const { posts: teamPosts, isLoading: postsLoading } = useTeamPosts(20)
+  const { posts: scheduledPosts, isLoading: scheduleLoading } = useScheduledPosts(30)
+
+  // Use real data if available, otherwise fall back to sample data
+  const displayTeamPosts = teamPosts.length > 0 ? teamPosts : sampleTeamPosts
+  const displayScheduledPosts = scheduledPosts.length > 0 ? scheduledPosts : sampleScheduledPostItems
+
+  // Get display name for welcome message
+  const displayName = profile?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'there'
+
   return (
     <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 animate-in fade-in duration-500">
       {/* Welcome Section with Quick Actions */}
       <div className="px-4 lg:px-6">
         <div className="mb-4">
-          <h2 className="text-2xl font-bold tracking-tight">Welcome back!</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Welcome back, {displayName}!</h2>
           <p className="text-muted-foreground">
             Here&apos;s an overview of your LinkedIn content management.
           </p>
@@ -111,7 +124,10 @@ function DashboardContent() {
       <div className="grid grid-cols-1 gap-4 px-4 lg:grid-cols-3 lg:px-6">
         {/* Schedule Calendar - Takes 2 columns */}
         <div className="lg:col-span-2">
-          <ScheduleCalendar posts={sampleScheduledPostItems} />
+          <ScheduleCalendar
+            posts={displayScheduledPosts}
+            isLoading={scheduleLoading}
+          />
         </div>
 
         {/* Goals Tracker - Takes 1 column */}
@@ -122,7 +138,10 @@ function DashboardContent() {
 
       {/* Team Activity Feed */}
       <div className="px-4 lg:px-6">
-        <TeamActivityFeed posts={sampleTeamPosts} />
+        <TeamActivityFeed
+          posts={displayTeamPosts}
+          isLoading={postsLoading}
+        />
       </div>
     </div>
   )
@@ -133,7 +152,7 @@ function DashboardContent() {
  * @returns Dashboard page with quick actions, schedule calendar, goals, and team activity
  */
 export default function DashboardPage() {
-  const isLoading = usePageLoading(1000)
+  const { isLoading: authLoading } = useAuthContext()
 
   return (
     <SidebarProvider
@@ -149,7 +168,7 @@ export default function DashboardPage() {
         <SiteHeader title="Dashboard" />
         <main id="main-content" className="flex flex-1 flex-col">
           <div className="@container/main flex flex-1 flex-col gap-2">
-            {isLoading ? <DashboardSkeleton /> : <DashboardContent />}
+            {authLoading ? <DashboardSkeleton /> : <DashboardContent />}
           </div>
         </main>
       </SidebarInset>
