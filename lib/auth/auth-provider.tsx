@@ -198,80 +198,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   /**
    * Initialize auth state and listen for changes
-   * Uses getSession() for initial load and onAuthStateChange for subsequent changes
+   * Uses onAuthStateChange as the primary source of truth for session state
+   * getSession() is called to trigger the INITIAL_SESSION event
    */
   useEffect(() => {
     let isMounted = true
-    let initializationComplete = false
+    let hasInitialized = false
 
     /**
-     * Initialize session on mount
-     * This is the primary initialization path for page loads/reloads
+     * Fetch profile with timeout safety
      */
-    const initializeSession = async () => {
+    const fetchProfileWithTimeout = async (userId: string): Promise<UserProfileWithLinkedIn | null> => {
       try {
-        console.log('[AuthProvider] Initializing session...')
-        const { data: { session }, error } = await supabase.auth.getSession()
-        console.log('[AuthProvider] getSession result:', { hasSession: !!session, hasUser: !!session?.user, error })
-
-        if (error) {
-          console.error('[AuthProvider] Session initialization error:', error)
-          if (isMounted) {
-            setIsLoading(false)
-          }
-          return
-        }
-
-        if (!isMounted) return
-
-        if (session?.user) {
-          console.log('[AuthProvider] Session found, setting user:', session.user.email)
-          setSession(session)
-          setUser(session.user)
-
-          // Fetch profile with timeout safety
-          try {
-            const profilePromise = fetchProfile(session.user.id)
-            const timeoutPromise = new Promise<null>((_, reject) =>
-              setTimeout(() => reject(new Error('Profile fetch timeout')), 10000)
-            )
-
-            const userProfile = await Promise.race([profilePromise, timeoutPromise])
-            if (isMounted) {
-              setProfile(userProfile)
-            }
-          } catch (profileError) {
-            console.error('Profile fetch error during initialization:', profileError)
-            // Continue without profile - user is still authenticated
-          }
-        } else {
-          console.log('[AuthProvider] No session found, clearing state')
-          setSession(null)
-          setUser(null)
-          setProfile(null)
-        }
+        const profilePromise = fetchProfile(userId)
+        const timeoutPromise = new Promise<null>((_, reject) =>
+          setTimeout(() => reject(new Error('Profile fetch timeout')), 10000)
+        )
+        return await Promise.race([profilePromise, timeoutPromise])
       } catch (err) {
-        console.error('[AuthProvider] Unexpected initialization error:', err)
-      } finally {
-        if (isMounted) {
-          console.log('[AuthProvider] Initialization complete, setting isLoading=false')
-          initializationComplete = true
-          setIsLoading(false)
-        }
+        console.error('[AuthProvider] Profile fetch error:', err)
+        return null
       }
     }
 
-    // Listen for auth state changes (for sign-in, sign-out, token refresh after initial load)
+    // Listen for ALL auth state changes including INITIAL_SESSION
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
-        console.log('[AuthProvider] onAuthStateChange:', { event, hasSession: !!newSession, hasUser: !!newSession?.user })
-
-        // Skip INITIAL_SESSION since we handle it via getSession() above
-        // This prevents duplicate profile fetches
-        if (event === 'INITIAL_SESSION') {
-          console.log('[AuthProvider] Skipping INITIAL_SESSION event (handled by getSession)')
-          return
-        }
+        console.log('[AuthProvider] onAuthStateChange:', { event, hasSession: !!newSession, email: newSession?.user?.email })
 
         if (!isMounted) return
 
@@ -281,32 +234,44 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (newSession?.user) {
           setUser(newSession.user)
 
-          // Fetch profile on sign-in or token refresh
-          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-            try {
-              const userProfile = await fetchProfile(newSession.user.id)
-              if (isMounted) {
-                setProfile(userProfile)
-              }
-            } catch (err) {
-              console.error('Profile fetch error on auth change:', err)
+          // Fetch profile on these events
+          if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            console.log('[AuthProvider] Fetching profile for:', newSession.user.email)
+            const userProfile = await fetchProfileWithTimeout(newSession.user.id)
+            if (isMounted) {
+              setProfile(userProfile)
             }
           }
         } else {
+          console.log('[AuthProvider] No user in session, clearing state')
           setUser(null)
           setProfile(null)
         }
 
-        // Ensure loading is false after any auth event (safety fallback)
-        if (isMounted && !initializationComplete) {
-          initializationComplete = true
-          setIsLoading(false)
+        // Mark initialization complete on INITIAL_SESSION or if we haven't initialized yet
+        if (event === 'INITIAL_SESSION' || !hasInitialized) {
+          hasInitialized = true
+          if (isMounted) {
+            console.log('[AuthProvider] Setting isLoading=false after:', event)
+            setIsLoading(false)
+          }
         }
       }
     )
 
-    // Start initialization
-    initializeSession()
+    // Call getSession to trigger the INITIAL_SESSION event
+    // This is required to kick off the auth state detection
+    console.log('[AuthProvider] Calling getSession to trigger INITIAL_SESSION...')
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      console.log('[AuthProvider] getSession completed:', { hasSession: !!session, error })
+      // If there's no session and we haven't initialized, set loading to false
+      // (onAuthStateChange should have fired INITIAL_SESSION, but this is a fallback)
+      if (!session && !hasInitialized && isMounted) {
+        console.log('[AuthProvider] No session from getSession, setting isLoading=false (fallback)')
+        hasInitialized = true
+        setIsLoading(false)
+      }
+    })
 
     return () => {
       isMounted = false
