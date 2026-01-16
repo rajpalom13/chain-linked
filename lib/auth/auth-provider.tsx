@@ -198,31 +198,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   /**
    * Initialize auth state and listen for changes
+   * Uses onAuthStateChange as single source of truth for session state
    */
   useEffect(() => {
-    const initAuth = async () => {
-      const { data: { session: initialSession } } = await supabase.auth.getSession()
-
-      if (initialSession?.user) {
-        setUser(initialSession.user)
-        setSession(initialSession)
-        const userProfile = await fetchProfile(initialSession.user.id)
-        setProfile(userProfile)
-      }
-
-      setIsLoading(false)
-    }
-
-    initAuth()
-
-    // Listen for auth state changes
+    // Listen for auth state changes - this handles all session events including initial load
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
+        // Update session state
         setSession(newSession)
 
         if (newSession?.user) {
           setUser(newSession.user)
-          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+
+          // Fetch profile on session events that indicate authentication
+          // INITIAL_SESSION: Page reload with existing session
+          // SIGNED_IN: Fresh login
+          // TOKEN_REFRESHED: Session token was refreshed
+          if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
             const userProfile = await fetchProfile(newSession.user.id)
             setProfile(userProfile)
           }
@@ -230,8 +222,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
           setUser(null)
           setProfile(null)
         }
+
+        // Mark loading as complete after handling the event
+        // This ensures we wait for the session check before showing content
+        if (event === 'INITIAL_SESSION') {
+          setIsLoading(false)
+        }
       }
     )
+
+    // Also call getSession to trigger the INITIAL_SESSION event
+    // This ensures onAuthStateChange fires even if there's no session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      // If no session, set loading to false immediately
+      // (onAuthStateChange won't fire INITIAL_SESSION without a session)
+      if (!session) {
+        setIsLoading(false)
+      }
+    })
 
     return () => {
       subscription.unsubscribe()
