@@ -1,6 +1,6 @@
 /**
  * Remix API Route
- * @description Handles AI-powered post remix using user's OpenAI API key (BYOK)
+ * @description Handles AI-powered post remix using OpenRouter API (GPT-4.1)
  * @module app/api/remix
  */
 
@@ -11,6 +11,7 @@ import {
   chatCompletion,
   OpenAIError,
   getErrorMessage,
+  DEFAULT_MODEL,
 } from '@/lib/ai/openai-client'
 import {
   getRemixSystemPrompt,
@@ -98,10 +99,10 @@ export async function POST(request: Request) {
   const { content, tone, instructions } = body
 
   // Validate tone
-  const validTones: RemixTone[] = ['professional', 'casual', 'thought-leader', 'storyteller', 'preserve']
+  const validTones: RemixTone[] = ['match-my-style', 'professional', 'casual', 'inspiring', 'educational', 'thought-provoking']
   if (!tone || !validTones.includes(tone)) {
     return NextResponse.json(
-      { error: 'Invalid tone. Must be one of: professional, casual, thought-leader, storyteller, preserve', code: 'invalid_tone' },
+      { error: 'Invalid tone. Must be one of: match-my-style, professional, casual, inspiring, educational, thought-provoking', code: 'invalid_tone' },
       { status: 400 }
     )
   }
@@ -115,36 +116,39 @@ export async function POST(request: Request) {
     )
   }
 
-  // Fetch user's OpenAI API key
-  const { data: apiKeyData, error: keyError } = await supabase
-    .from('user_api_keys')
-    .select('encrypted_key, is_valid')
-    .eq('user_id', user.id)
-    .eq('provider', 'openai')
-    .single()
+  // Fetch user's API key (or fall back to environment variable)
+  let apiKey: string | undefined
 
-  if (keyError || !apiKeyData) {
+  try {
+    const { data: apiKeyData, error: keyError } = await supabase
+      .from('user_api_keys')
+      .select('encrypted_key, is_valid')
+      .eq('user_id', user.id)
+      .eq('provider', 'openai')
+      .single()
+
+    if (!keyError && apiKeyData?.is_valid && apiKeyData.encrypted_key) {
+      apiKey = decryptApiKey(apiKeyData.encrypted_key)
+    }
+  } catch {
+    // Table might not exist, continue to fallback
+    console.log('user_api_keys table not available, using environment variable')
+  }
+
+  // Fallback to environment variable (OpenRouter)
+  if (!apiKey) {
+    apiKey = process.env.OPENROUTER_API_KEY
+  }
+
+  if (!apiKey) {
     return NextResponse.json(
       {
-        error: 'No OpenAI API key found. Please add your API key in Settings.',
+        error: 'No API key found. Please set OPENROUTER_API_KEY in environment or add your API key in Settings.',
         code: 'no_api_key'
       },
       { status: 400 }
     )
   }
-
-  if (!apiKeyData.is_valid) {
-    return NextResponse.json(
-      {
-        error: 'Your OpenAI API key is invalid. Please update it in Settings.',
-        code: 'invalid_api_key'
-      },
-      { status: 400 }
-    )
-  }
-
-  // Decrypt the API key
-  const apiKey = decryptApiKey(apiKeyData.encrypted_key)
 
   // Create OpenAI client
   const client = createOpenAIClient({ apiKey })
@@ -154,11 +158,11 @@ export async function POST(request: Request) {
   const userMessage = formatRemixUserMessage(content)
 
   try {
-    // Make OpenAI API call
+    // Make OpenRouter API call with GPT-4.1
     const response = await chatCompletion(client, {
       systemPrompt,
       userMessage,
-      model: 'gpt-4o-mini',
+      model: DEFAULT_MODEL, // GPT-4.1 via OpenRouter
       temperature: 0.7,
       maxTokens: 1024,
     })

@@ -1,6 +1,6 @@
 /**
- * Next.js Middleware for Supabase Authentication
- * @description Handles session refresh and auth redirects
+ * Next.js Middleware for Supabase Authentication and Onboarding
+ * @description Handles session refresh, auth redirects, and onboarding guards
  * @module middleware
  */
 
@@ -8,9 +8,27 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 /**
- * Middleware to handle Supabase authentication
+ * All paths that are part of the onboarding flow (step-based and legacy)
+ * Users are allowed to access these even if onboarding is not complete
+ * Step 4 is the final step (Review & Complete)
+ */
+const ONBOARDING_STEP_PATHS = [
+  '/onboarding',
+  '/onboarding/step1',
+  '/onboarding/step2',
+  '/onboarding/step3',
+  '/onboarding/step4',
+  '/onboarding/company',
+  '/onboarding/company-context',
+  '/onboarding/invite',
+  '/onboarding/brand-kit',
+]
+
+/**
+ * Middleware to handle Supabase authentication and onboarding
  * - Refreshes user session tokens
  * - Protects routes that require authentication
+ * - Redirects users to company onboarding if not completed
  * @param request - Incoming request
  * @returns Response with updated cookies or redirect
  */
@@ -47,23 +65,25 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  const pathname = request.nextUrl.pathname
+
   // Protected routes - redirect to login if not authenticated
   const protectedPaths = ['/dashboard', '/composer', '/schedule', '/team', '/templates', '/settings', '/onboarding']
   const isProtectedPath = protectedPaths.some(path =>
-    request.nextUrl.pathname.startsWith(path)
+    pathname.startsWith(path)
   )
 
   if (isProtectedPath && !user) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
-    url.searchParams.set('redirect', request.nextUrl.pathname)
+    url.searchParams.set('redirect', pathname)
     return NextResponse.redirect(url)
   }
 
   // Auth pages that should redirect logged-in users
   const authPaths = ['/login', '/signup']
   const isAuthPath = authPaths.some(path =>
-    request.nextUrl.pathname === path
+    pathname === path
   )
 
   if (isAuthPath && user) {
@@ -81,6 +101,57 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)
+  }
+
+  // Cache profile data to avoid duplicate queries
+  // Only fetch if we need it for dashboard or onboarding route checks
+  let profile: {
+    onboarding_completed: boolean | null
+    onboarding_current_step: number | null
+    company_onboarding_completed: boolean | null
+  } | null = null
+
+  const needsProfileCheck =
+    pathname.startsWith('/dashboard') ||
+    ONBOARDING_STEP_PATHS.some(path => pathname === path || pathname.startsWith(path + '/'))
+
+  if (user && needsProfileCheck) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('onboarding_completed, onboarding_current_step, company_onboarding_completed')
+      .eq('id', user.id)
+      .single()
+    profile = data
+  }
+
+  // Onboarding guard for dashboard routes
+  // Check the master onboarding_completed flag first, fall back to company_onboarding_completed
+  if (user && pathname.startsWith('/dashboard')) {
+    // If profile doesn't exist or onboarding not completed, redirect to appropriate step
+    if (!profile || profile.onboarding_completed !== true) {
+      // Check if at least company onboarding is done (legacy fallback)
+      if (profile?.company_onboarding_completed === true) {
+        // Company onboarding done but full onboarding not - allow dashboard access
+        // This handles users who onboarded before the step-based flow existed
+        return supabaseResponse
+      }
+
+      // Redirect to the user's current onboarding step
+      const step = profile?.onboarding_current_step ?? 1
+      const url = request.nextUrl.clone()
+      url.pathname = `/onboarding/step${step}`
+      return NextResponse.redirect(url)
+    }
+  }
+
+  // If user is on any onboarding page but has already completed full onboarding,
+  // redirect to dashboard
+  if (user && ONBOARDING_STEP_PATHS.some(path => pathname === path || pathname.startsWith(path + '/'))) {
+    if (profile?.onboarding_completed === true) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/dashboard'
+      return NextResponse.redirect(url)
+    }
   }
 
   return supabaseResponse

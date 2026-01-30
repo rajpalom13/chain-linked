@@ -9,10 +9,12 @@
 
 import * as React from "react"
 import { AppSidebar } from "@/components/app-sidebar"
+import { ErrorBoundary } from "@/components/error-boundary"
 import { InspirationFeed } from "@/components/features/inspiration-feed"
-import { SwipeInterface } from "@/components/features/swipe-interface"
+import { RemixDialog } from "@/components/features/remix-dialog"
 import { SiteHeader } from "@/components/site-header"
 import { InspirationSkeleton } from "@/components/skeletons/page-skeletons"
+import { useApiKeys } from "@/hooks/use-api-keys"
 import { useInspiration } from "@/hooks/use-inspiration"
 import { useAuthContext } from "@/lib/auth/auth-provider"
 import {
@@ -47,27 +49,32 @@ import { useRouter } from "next/navigation"
 import type { InspirationPost } from "@/components/features/inspiration-feed"
 
 /**
- * Category badge variants mapping
+ * Category badge variants mapping - matches inferred categories
  */
 const CATEGORY_VARIANTS: Record<string, "default" | "secondary" | "outline"> = {
-  "thought-leadership": "default",
-  "personal-stories": "secondary",
-  "industry-news": "default",
-  "how-to": "secondary",
-  "engagement-hooks": "outline",
-  "sales-biz-dev": "default",
+  "marketing": "default",
+  "technology": "secondary",
+  "leadership": "default",
+  "sales": "secondary",
+  "entrepreneurship": "outline",
+  "product-management": "default",
+  "growth": "secondary",
+  "design": "outline",
+  "general": "outline",
 }
 
 /**
- * Category labels mapping
+ * Category labels mapping - matches inferred categories
  */
 const CATEGORY_LABELS: Record<string, string> = {
-  "thought-leadership": "Thought Leadership",
-  "personal-stories": "Personal Stories",
-  "industry-news": "Industry News",
-  "how-to": "How-To",
-  "engagement-hooks": "Engagement Hooks",
-  "sales-biz-dev": "Sales/Biz Dev",
+  "marketing": "Marketing",
+  "technology": "Technology",
+  "leadership": "Leadership",
+  "sales": "Sales",
+  "entrepreneurship": "Startup",
+  "product-management": "Product",
+  "growth": "Growth",
+  "design": "Design",
   "general": "General",
 }
 
@@ -236,9 +243,35 @@ function PostDetailModal({
 }
 
 /**
+ * Quick Create Card Component
+ * @description Allows users to quickly start creating a new post
+ */
+function QuickCreateCard() {
+  const router = useRouter()
+
+  return (
+    <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
+      <CardContent className="flex items-center gap-4 p-4">
+        <div className="flex-1">
+          <h3 className="font-semibold text-lg flex items-center gap-2">
+            <IconSparkles className="size-5 text-primary" />
+            Create Your Next Post
+          </h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            Get inspired by viral content below, then create your own masterpiece
+          </p>
+        </div>
+        <Button onClick={() => router.push("/dashboard/compose")} className="shrink-0">
+          Start Writing
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
  * Inspiration page content component with real data
- * Integrates the enhanced useInspiration hook with filtering, pagination,
- * and save functionality
+ * Clean single-column layout with quick create on top and inspiration feed below
  */
 function InspirationContent() {
   const router = useRouter()
@@ -246,7 +279,6 @@ function InspirationContent() {
 
   const {
     posts,
-    suggestions,
     savedPostIds,
     filters,
     pagination,
@@ -257,13 +289,20 @@ function InspirationContent() {
     loadMore,
     savePost,
     unsavePost,
-    saveSwipePreference,
     isPostSaved,
   } = useInspiration()
 
   // Post detail modal state
   const [selectedPost, setSelectedPost] = React.useState<InspirationPost | null>(null)
   const [isDetailOpen, setIsDetailOpen] = React.useState(false)
+
+  // Remix dialog state
+  const [isRemixOpen, setIsRemixOpen] = React.useState(false)
+  const [postToRemix, setPostToRemix] = React.useState<InspirationPost | null>(null)
+
+  // API key status for remix feature
+  const { status: apiKeyStatus } = useApiKeys()
+  const hasApiKey = apiKeyStatus?.hasKey ?? false
 
   /**
    * Handle expanding a post to show detail modal
@@ -275,14 +314,27 @@ function InspirationContent() {
   }, [])
 
   /**
-   * Handle remixing a post - loads into composer and navigates
+   * Handle remixing a post - opens remix dialog for AI remixing
    * @param post - The post to remix
    */
   const handleRemix = React.useCallback((post: InspirationPost) => {
-    loadForRemix(post.id, post.content, post.author.name)
-    inspirationToast.remixed()
-    router.push("/dashboard/compose")
-  }, [loadForRemix, router])
+    setPostToRemix(post)
+    setIsRemixOpen(true)
+  }, [])
+
+  /**
+   * Handle when remix is complete - loads into composer and navigates
+   * @param remixedContent - The AI-remixed content
+   */
+  const handleRemixComplete = React.useCallback((remixedContent: string) => {
+    if (postToRemix) {
+      loadForRemix(postToRemix.id, remixedContent, postToRemix.author.name)
+      inspirationToast.remixed()
+      router.push("/dashboard/compose")
+    }
+    setIsRemixOpen(false)
+    setPostToRemix(null)
+  }, [postToRemix, loadForRemix, router])
 
   /**
    * Handle saving a post with toast notification
@@ -320,38 +372,26 @@ function InspirationContent() {
 
   return (
     <div className="flex flex-col gap-4 p-4 md:gap-6 md:p-6 animate-in fade-in duration-500">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Swipe Interface - Takes 1 column on desktop */}
-        <div className="lg:col-span-1 order-2 lg:order-1">
-          <SwipeInterface
-            suggestions={suggestions}
-            onSwipe={(id, direction) => {
-              // Find the suggestion content for AI learning
-              const suggestion = suggestions.find(s => s.id === id)
-              const action = direction === 'right' ? 'like' : 'dislike'
-              saveSwipePreference(id, action, suggestion?.content)
-            }}
-          />
-        </div>
+      {/* Quick Create Card - Top */}
+      <QuickCreateCard />
 
-        {/* Inspiration Feed - Takes 2 columns on desktop */}
-        <div className="lg:col-span-2 order-1 lg:order-2">
-          <InspirationFeed
-            posts={posts}
-            savedPostIds={savedPostIds}
-            filters={filters}
-            pagination={pagination}
-            isLoading={isLoading}
-            error={error}
-            onFiltersChange={setFilters}
-            onLoadMore={loadMore}
-            onSave={handleSave}
-            onUnsave={unsavePost}
-            onExpand={handleExpand}
-            onRemix={handleRemix}
-          />
-        </div>
-      </div>
+      {/* Inspiration Feed - Full Width Below */}
+      <ErrorBoundary>
+        <InspirationFeed
+          posts={posts}
+          savedPostIds={savedPostIds}
+          filters={filters}
+          pagination={pagination}
+          isLoading={isLoading}
+          error={error}
+          onFiltersChange={setFilters}
+          onLoadMore={loadMore}
+          onSave={handleSave}
+          onUnsave={unsavePost}
+          onExpand={handleExpand}
+          onRemix={handleRemix}
+        />
+      </ErrorBoundary>
 
       {/* Post Detail Modal */}
       <PostDetailModal
@@ -362,6 +402,19 @@ function InspirationContent() {
         onSave={handleSave}
         onUnsave={unsavePost}
         onRemix={handleRemix}
+      />
+
+      {/* Remix Dialog */}
+      <RemixDialog
+        isOpen={isRemixOpen}
+        onClose={() => {
+          setIsRemixOpen(false)
+          setPostToRemix(null)
+        }}
+        originalContent={postToRemix?.content || ""}
+        originalAuthor={postToRemix?.author.name}
+        onRemixed={handleRemixComplete}
+        hasApiKey={hasApiKey}
       />
     </div>
   )

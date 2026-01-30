@@ -115,11 +115,11 @@ export function createKeyHint(apiKey: string): string {
 }
 
 /**
- * Validates OpenAI API key format
- * @param apiKey - The API key to validate
+ * Validates OpenRouter/OpenAI API key format
+ * @param apiKey - The API key to validate (OpenRouter: sk-or-v1-... or OpenAI: sk-...)
  * @returns Object with isValid boolean and error message if invalid
  * @example
- * const result = validateOpenAIKeyFormat('sk-abc123')
+ * const result = validateOpenAIKeyFormat('sk-or-v1-abc123...')
  * // Returns { isValid: true }
  */
 export function validateOpenAIKeyFormat(apiKey: string): { isValid: boolean; error?: string } {
@@ -129,8 +129,9 @@ export function validateOpenAIKeyFormat(apiKey: string): { isValid: boolean; err
     return { isValid: false, error: 'API key is required' }
   }
 
+  // Accept both OpenRouter (sk-or-) and legacy OpenAI (sk-) keys
   if (!trimmedKey.startsWith('sk-')) {
-    return { isValid: false, error: "Invalid API key format. OpenAI keys start with 'sk-'" }
+    return { isValid: false, error: "Invalid API key format. Keys should start with 'sk-'" }
   }
 
   if (trimmedKey.length < 20) {

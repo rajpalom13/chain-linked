@@ -24,6 +24,12 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 /**
  * Represents a posting goal with period, target, and progress tracking
@@ -178,6 +184,11 @@ function getGoalStatus(goal: Goal): {
 
 /**
  * Custom progress bar component with visual percentage indicator
+ * @param props - Component props
+ * @param props.value - Progress value (0-100)
+ * @param props.className - Additional CSS classes for the track
+ * @param props.indicatorClassName - Additional CSS classes for the fill
+ * @returns Progress bar element
  */
 function ProgressBar({
   value,
@@ -197,12 +208,63 @@ function ProgressBar({
     >
       <div
         className={cn(
-          "bg-primary h-full transition-all duration-500 ease-out",
+          "bg-primary h-full rounded-full transition-all duration-500 ease-out",
           indicatorClassName
         )}
         style={{ width: `${Math.min(value, 100)}%` }}
       />
     </div>
+  )
+}
+
+/**
+ * Circular progress ring SVG component for visual goal tracking
+ * @param props - Component props
+ * @param props.value - Progress value (0-100)
+ * @param props.size - Diameter of the ring in pixels
+ * @param props.strokeWidth - Width of the ring stroke
+ * @param props.className - Additional CSS classes for the indicator stroke
+ * @returns SVG progress ring element
+ */
+function ProgressRing({
+  value,
+  size = 48,
+  strokeWidth = 4,
+  className,
+}: {
+  value: number
+  size?: number
+  strokeWidth?: number
+  className?: string
+}) {
+  const radius = (size - strokeWidth) / 2
+  const circumference = radius * 2 * Math.PI
+  const offset = circumference - (Math.min(value, 100) / 100) * circumference
+
+  return (
+    <svg width={size} height={size} className="-rotate-90">
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        strokeWidth={strokeWidth}
+        fill="none"
+        className="stroke-secondary"
+      />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        strokeWidth={strokeWidth}
+        fill="none"
+        strokeLinecap="round"
+        className={cn("stroke-primary transition-all duration-700 ease-out", className)}
+        style={{
+          strokeDasharray: circumference,
+          strokeDashoffset: offset,
+        }}
+      />
+    </svg>
   )
 }
 
@@ -245,82 +307,123 @@ function GoalCard({
     }
   }
 
+  const periodTooltips = {
+    daily: "Track your daily posting goal. Resets every day at midnight.",
+    weekly: "Track your weekly posting goal. Resets every Monday.",
+    monthly: "Track your monthly posting goal. Resets on the 1st of each month.",
+  }
+
   return (
-    <div className="bg-muted/50 space-y-3 rounded-lg p-4">
+    <div className="bg-muted/50 space-y-3 rounded-lg p-4 transition-colors duration-200 hover:bg-muted/70">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <IconTarget className="text-muted-foreground size-4" />
-          <span className="text-sm font-medium">{getPeriodLabel(goal.period)}</span>
-        </div>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-2 cursor-help">
+                <IconTarget className="text-muted-foreground size-4" />
+                <span className="text-sm font-medium">{getPeriodLabel(goal.period)}</span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{periodTooltips[goal.period]}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
         <Badge variant={status.variant} className="gap-1">
           <status.Icon className="size-3" />
           {status.message}
         </Badge>
       </div>
 
-      <ProgressBar
-        value={progress}
-        indicatorClassName={cn(
-          status.type === "reached" && "bg-green-500",
-          status.type === "behind" && "bg-destructive",
-          status.type === "at-risk" && "bg-yellow-500"
-        )}
-      />
-
-      <div className="flex items-center justify-between">
-        <div className="flex items-baseline gap-1">
-          <span className="text-lg font-semibold tabular-nums">{goal.current}</span>
-          <span className="text-muted-foreground text-sm">/</span>
-          {isEditing ? (
-            <div className="flex items-center gap-1">
-              <Input
-                type="number"
-                min={1}
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                className="h-7 w-16 text-sm"
-                autoFocus
-              />
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={handleSave}
-                className="h-6 w-6"
-              >
-                <IconCheck className="size-3" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={handleCancel}
-                className="h-6 w-6"
-              >
-                <IconX className="size-3" />
-              </Button>
-            </div>
-          ) : (
-            <>
-              <span className="text-lg font-semibold tabular-nums">{goal.target}</span>
-              <span className="text-muted-foreground text-sm">posts</span>
-            </>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-muted-foreground text-sm tabular-nums">
+      <div className="flex items-center gap-4">
+        {/* Progress Ring */}
+        <div className="relative flex-shrink-0">
+          <ProgressRing
+            value={progress}
+            size={48}
+            strokeWidth={4}
+            className={cn(
+              status.type === "reached" && "stroke-green-500",
+              status.type === "behind" && "stroke-destructive",
+              status.type === "at-risk" && "stroke-yellow-500"
+            )}
+          />
+          <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold tabular-nums">
             {progress}%
           </span>
-          {!isEditing && onUpdateGoal && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => setIsEditing(true)}
-              className="h-6 w-6"
-            >
-              <IconPencil className="size-3" />
-            </Button>
-          )}
+        </div>
+
+        {/* Progress Bar and Stats */}
+        <div className="flex-1 space-y-2">
+          <ProgressBar
+            value={progress}
+            className="h-2"
+            indicatorClassName={cn(
+              status.type === "reached" && "bg-green-500",
+              status.type === "behind" && "bg-destructive",
+              status.type === "at-risk" && "bg-yellow-500"
+            )}
+          />
+          <div className="flex items-center justify-between">
+            <div className="flex items-baseline gap-1">
+              <span className="text-lg font-semibold tabular-nums">{goal.current}</span>
+              <span className="text-muted-foreground text-sm">/</span>
+              {isEditing ? (
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="number"
+                    min={1}
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    className="h-7 w-16 text-sm"
+                    autoFocus
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={handleSave}
+                    className="h-6 w-6"
+                  >
+                    <IconCheck className="size-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={handleCancel}
+                    className="h-6 w-6"
+                  >
+                    <IconX className="size-3" />
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <span className="text-lg font-semibold tabular-nums">{goal.target}</span>
+                  <span className="text-muted-foreground text-sm">posts</span>
+                </>
+              )}
+            </div>
+
+            {!isEditing && onUpdateGoal && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setIsEditing(true)}
+                      className="h-6 w-6"
+                    >
+                      <IconPencil className="size-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Adjust your posting goal target</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -341,27 +444,36 @@ function StreakSection({
 
   return (
     <div className="bg-muted/50 flex items-center justify-between rounded-lg p-4">
-      <div className="flex items-center gap-3">
-        <div
-          className={cn(
-            "flex size-10 items-center justify-center rounded-full",
-            currentStreak > 0
-              ? "bg-orange-500/10 text-orange-500"
-              : "bg-muted text-muted-foreground"
-          )}
-        >
-          <IconFlame className="size-5" />
-        </div>
-        <div>
-          <div className="flex items-baseline gap-1">
-            <span className="text-2xl font-bold tabular-nums">{currentStreak}</span>
-            <span className="text-muted-foreground text-sm">
-              {currentStreak === 1 ? "day" : "days"}
-            </span>
-          </div>
-          <p className="text-muted-foreground text-xs">Current Streak</p>
-        </div>
-      </div>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex items-center gap-3 cursor-help">
+              <div
+                className={cn(
+                  "flex size-10 items-center justify-center rounded-full",
+                  currentStreak > 0
+                    ? "bg-orange-500/10 text-orange-500"
+                    : "bg-muted text-muted-foreground"
+                )}
+              >
+                <IconFlame className="size-5" />
+              </div>
+              <div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-2xl font-bold tabular-nums">{currentStreak}</span>
+                  <span className="text-muted-foreground text-sm">
+                    {currentStreak === 1 ? "day" : "days"}
+                  </span>
+                </div>
+                <p className="text-muted-foreground text-xs">Current Streak</p>
+              </div>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs">
+            <p>Your posting streak shows consecutive days you've posted at least once. Keep posting daily to maintain your streak!</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
 
       <div className="text-right">
         {isNewBest && currentStreak > 0 ? (
@@ -475,7 +587,7 @@ export function GoalsTracker({
   const hasStreakData = currentStreak > 0 || bestStreak > 0
 
   return (
-    <Card>
+    <Card hover>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <IconTarget className="size-5" />
@@ -504,8 +616,16 @@ export function GoalsTracker({
 
         {/* Empty state for goals */}
         {!hasGoals && (
-          <div className="text-muted-foreground py-8 text-center text-sm">
-            No goals set. Create a goal to start tracking your progress.
+          <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+            <div className="rounded-full bg-gradient-to-br from-primary/15 to-secondary/10 p-4">
+              <IconTarget className="size-7 text-primary" />
+            </div>
+            <div>
+              <h4 className="text-sm font-medium mb-1">No goals set yet</h4>
+              <p className="text-muted-foreground text-xs max-w-[220px]">
+                Set a posting goal to start tracking your content creation progress.
+              </p>
+            </div>
           </div>
         )}
 

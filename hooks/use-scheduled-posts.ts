@@ -60,6 +60,10 @@ interface UseScheduledPostsReturn {
   error: string | null
   /** Refetch posts */
   refetch: () => Promise<void>
+  /** Delete a scheduled post */
+  deletePost: (postId: string) => Promise<boolean>
+  /** Update a scheduled post */
+  updatePost: (postId: string, data: Partial<Tables<'scheduled_posts'>>) => Promise<boolean>
 }
 
 /**
@@ -178,6 +182,73 @@ export function useScheduledPosts(daysRange: number = 30): UseScheduledPostsRetu
     fetchPosts()
   }, [fetchPosts])
 
+  /**
+   * Delete a scheduled post
+   * @param postId - ID of the post to delete
+   * @returns Whether deletion was successful
+   */
+  const deletePost = useCallback(async (postId: string): Promise<boolean> => {
+    if (!user) return false
+
+    try {
+      const { error: deleteError } = await supabase
+        .from('scheduled_posts')
+        .delete()
+        .eq('id', postId)
+        .eq('user_id', user.id)
+
+      if (deleteError) {
+        console.error('Delete scheduled post error:', deleteError)
+        setError(deleteError.message)
+        return false
+      }
+
+      // Update local state optimistically
+      setPosts(prev => prev.filter(p => p.id !== postId))
+      setRawPosts(prev => prev.filter(p => p.id !== postId))
+      return true
+    } catch (err) {
+      console.error('Delete scheduled post error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to delete post')
+      return false
+    }
+  }, [supabase, user])
+
+  /**
+   * Update a scheduled post
+   * @param postId - ID of the post to update
+   * @param data - Partial data to update
+   * @returns Whether update was successful
+   */
+  const updatePost = useCallback(async (
+    postId: string,
+    data: Partial<Tables<'scheduled_posts'>>
+  ): Promise<boolean> => {
+    if (!user) return false
+
+    try {
+      const { error: updateError } = await supabase
+        .from('scheduled_posts')
+        .update(data)
+        .eq('id', postId)
+        .eq('user_id', user.id)
+
+      if (updateError) {
+        console.error('Update scheduled post error:', updateError)
+        setError(updateError.message)
+        return false
+      }
+
+      // Refetch to get updated data
+      await fetchPosts()
+      return true
+    } catch (err) {
+      console.error('Update scheduled post error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to update post')
+      return false
+    }
+  }, [supabase, user, fetchPosts])
+
   // Combined loading state
   const combinedLoading = authLoading || isLoading
 
@@ -187,5 +258,7 @@ export function useScheduledPosts(daysRange: number = 30): UseScheduledPostsRetu
     isLoading: combinedLoading,
     error,
     refetch: fetchPosts,
+    deletePost,
+    updatePost,
   }
 }

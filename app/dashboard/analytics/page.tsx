@@ -25,7 +25,8 @@ import {
 } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { IconAlertCircle, IconRefresh, IconClock } from "@tabler/icons-react"
+import { IconAlertCircle, IconRefresh, IconClock, IconDownload } from "@tabler/icons-react"
+import { toast } from "sonner"
 import {
   pageVariants,
   staggerContainerVariants,
@@ -50,6 +51,73 @@ function AnalyticsContent() {
     isLoading: postAnalyticsLoading,
     selectPost
   } = usePostAnalytics(user?.id)
+
+  /**
+   * Exports analytics data to CSV format
+   */
+  const handleExportCSV = () => {
+    try {
+      // Prepare CSV data
+      const csvRows = []
+
+      // CSV Header
+      csvRows.push('Metric,Value')
+
+      // Add key metrics
+      if (metrics) {
+        csvRows.push(`Impressions,${metrics.impressions || 0}`)
+        csvRows.push(`Engagement Rate,${metrics.engagementRate || 0}%`)
+        csvRows.push(`Followers,${metrics.followers || 0}`)
+        csvRows.push(`Profile Views,${metrics.profileViews || 0}`)
+        csvRows.push(`Search Appearances,${metrics.searchAppearances || 0}`)
+        csvRows.push(`Connections,${metrics.connections || 0}`)
+        csvRows.push(`Members Reached,${metrics.membersReached || 0}`)
+      }
+
+      // Add blank line
+      csvRows.push('')
+
+      // Add chart data
+      if (chartData && chartData.length > 0) {
+        csvRows.push('Date,Impressions,Engagement,Profile Views')
+        chartData.forEach(data => {
+          csvRows.push(`${data.date},${data.impressions || 0},${data.engagements || 0},${data.profileViews || 0}`)
+        })
+      }
+
+      // Add blank line
+      csvRows.push('')
+
+      // Add goals data
+      if (goals && goals.length > 0) {
+        csvRows.push('Goal Type,Target,Current,Progress')
+        goals.forEach(goal => {
+          const progress = ((goal.current / goal.target) * 100).toFixed(1)
+          csvRows.push(`${goal.period} Posts,${goal.target},${goal.current},${progress}%`)
+        })
+        csvRows.push(`Current Streak,${currentStreak} days`)
+        csvRows.push(`Best Streak,${bestStreak} days`)
+      }
+
+      // Create CSV blob and download
+      const csvContent = csvRows.join('\n')
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+
+      link.setAttribute('href', url)
+      link.setAttribute('download', `analytics_${new Date().toISOString().split('T')[0]}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      toast.success('Analytics data exported successfully')
+    } catch (error) {
+      console.error('Export error:', error)
+      toast.error('Failed to export analytics data')
+    }
+  }
 
   // Show error state with animation
   if (error) {
@@ -88,23 +156,35 @@ function AnalyticsContent() {
       initial="initial"
       animate="animate"
     >
-      {/* Last Updated Timestamp */}
-      {metadata?.lastUpdated && (
-        <motion.div
-          className="flex items-center gap-2 px-4 lg:px-6 text-sm text-muted-foreground"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
+      {/* Last Updated Timestamp and Export Button */}
+      <motion.div
+        className="flex items-center justify-between px-4 lg:px-6"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2 }}
+      >
+        {metadata?.lastUpdated && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <IconClock className="size-4" />
+            <span>Last updated: {new Date(metadata.lastUpdated).toLocaleString()}</span>
+            {metadata.captureMethod && (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
+                {metadata.captureMethod}
+              </span>
+            )}
+          </div>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleExportCSV}
+          disabled={isLoading || !metrics}
+          className="gap-2"
         >
-          <IconClock className="size-4" />
-          <span>Last updated: {new Date(metadata.lastUpdated).toLocaleString()}</span>
-          {metadata.captureMethod && (
-            <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
-              {metadata.captureMethod}
-            </span>
-          )}
-        </motion.div>
-      )}
+          <IconDownload className="size-4" />
+          Export CSV
+        </Button>
+      </motion.div>
 
       {/* Analytics Cards - Key Metrics */}
       <AnalyticsCards

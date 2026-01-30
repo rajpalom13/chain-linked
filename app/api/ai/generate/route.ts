@@ -1,0 +1,384 @@
+/**
+ * AI Post Generation API Route
+ * @description Generates LinkedIn posts using OpenAI with user context and advanced prompting.
+ * Uses the centralized prompt service for prompt management with fallback to defaults.
+ * @module app/api/ai/generate/route
+ */
+
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { createOpenAIClient, chatCompletion, OpenAIError, getErrorMessage, DEFAULT_MODEL } from '@/lib/ai/openai-client'
+import { getSystemPromptForType } from '@/lib/ai/prompt-templates'
+import { PromptService, PromptType, mapPostTypeToPromptType } from '@/lib/prompts'
+
+/**
+ * Request body schema for post generation
+ */
+interface GeneratePostRequest {
+  /** Main topic or idea for the post */
+  topic: string
+  /** Tone/style: professional, casual, inspiring, educational, thought-provoking */
+  tone?: string
+  /** Target length: short (500 chars), medium (1500 chars), long (2500 chars) */
+  length?: 'short' | 'medium' | 'long'
+  /** Additional context or requirements */
+  context?: string
+  /** User's OpenAI API key (optional - will use env var if not provided) */
+  apiKey?: string
+  /** Post type ID for type-specific prompt templates (e.g., 'story', 'listicle') */
+  postType?: string
+}
+
+/**
+ * Character length targets for different post sizes
+ */
+const LENGTH_TARGETS = {
+  short: { min: 400, max: 700, description: 'concise and punchy' },
+  medium: { min: 1200, max: 1800, description: 'detailed with examples' },
+  long: { min: 2200, max: 2900, description: 'comprehensive and in-depth' },
+}
+
+/**
+ * Builds a comprehensive system prompt with user context
+ * @param userContext - User profile and analytics data
+ * @param tone - Desired tone/style
+ * @param length - Target length category
+ * @returns System prompt string
+ */
+function buildSystemPrompt(
+  userContext: {
+    name?: string
+    headline?: string
+    industry?: string
+    recentTopics?: string[]
+    topPerformingPosts?: Array<{ content: string; engagement: number }>
+  },
+  tone: string = 'professional',
+  length: 'short' | 'medium' | 'long' = 'medium'
+): string {
+  const lengthConfig = LENGTH_TARGETS[length]
+
+  return `You are an expert LinkedIn content strategist and copywriter specializing in creating high-engagement professional posts.
+
+## Your Mission
+Generate a compelling LinkedIn post that:
+- Captures attention in the first 2 lines (before "see more")
+- Provides genuine value through insights, stories, or actionable advice
+- Uses strategic formatting for maximum readability
+- Incorporates proven engagement patterns
+
+## User Context
+${userContext.name ? `Author: ${userContext.name}` : ''}
+${userContext.headline ? `Headline: ${userContext.headline}` : ''}
+${userContext.industry ? `Industry: ${userContext.industry}` : ''}
+${userContext.recentTopics?.length ? `Recent topics: ${userContext.recentTopics.join(', ')}` : ''}
+
+## Tone & Style
+Target tone: ${tone}
+${tone === 'professional' ? '- Authoritative yet approachable\n- Industry insights and thought leadership' : ''}
+${tone === 'casual' ? '- Conversational and relatable\n- Personal stories and experiences' : ''}
+${tone === 'inspiring' ? '- Motivational and uplifting\n- Success stories and lessons learned' : ''}
+${tone === 'educational' ? '- Informative and instructive\n- How-to guidance and frameworks' : ''}
+${tone === 'thought-provoking' ? '- Challenging conventional wisdom\n- Deep analysis and predictions' : ''}
+
+## Length Requirements
+Target: ${lengthConfig.description}
+Character range: ${lengthConfig.min}-${lengthConfig.max} characters
+Current setting: ${length}
+
+## Advanced Formatting Rules
+1. **Hook (First 1-2 lines)**: Start with a surprising stat, question, or bold statement
+2. **Structure**: Use line breaks generously (double line breaks between sections)
+3. **Lists**: Use "- " for bullet points when listing items
+4. **Emphasis**: Use **bold** for key phrases (sparingly, 2-3 times max)
+5. **Hashtags**: Include 3-5 relevant hashtags at the end
+6. **Call-to-Action**: End with a question or invitation to comment
+
+## Engagement Optimization
+- Use the "scroll-stop" technique: make first line irresistible
+- Include personal anecdotes or case studies when relevant
+- Ask thought-provoking questions throughout
+- Use the "problem-agitate-solve" framework when appropriate
+- Create curiosity gaps that make people want to read more
+
+## What NOT to Do
+- Don't start with "I'm excited to announce..."
+- Avoid corporate jargon and buzzwords
+- Don't use emoji excessively (1-2 max, if any)
+- No generic motivational quotes
+- Don't write walls of text without breaks
+
+## Output Format
+Return ONLY the post content, no explanations or meta-commentary.`
+}
+
+/**
+ * Builds the user message with topic and context
+ */
+function buildUserMessage(
+  topic: string,
+  context?: string,
+  length: 'short' | 'medium' | 'long' = 'medium'
+): string {
+  const lengthConfig = LENGTH_TARGETS[length]
+
+  let message = `Create a LinkedIn post about: ${topic}\n\n`
+
+  if (context) {
+    message += `Additional context: ${context}\n\n`
+  }
+
+  message += `Remember to:\n`
+  message += `- Keep it between ${lengthConfig.min}-${lengthConfig.max} characters\n`
+  message += `- Start with a compelling hook\n`
+  message += `- Use strategic line breaks and formatting\n`
+  message += `- End with 3-5 relevant hashtags\n`
+  message += `- Include a call-to-action question\n\n`
+  message += `Generate the post now.`
+
+  return message
+}
+
+/**
+ * Fetches user context from Supabase
+ */
+async function getUserContext(userId: string) {
+  try {
+    const supabase = await createClient()
+
+    // Fetch user profile
+    const { data: profile } = await supabase
+      .from('linkedin_profiles')
+      .select('first_name, last_name, headline, industry')
+      .eq('user_id', userId)
+      .single()
+
+    // Fetch recent posts for topic analysis
+    const { data: recentPosts } = await supabase
+      .from('my_posts')
+      .select('content, reactions, comments, reposts')
+      .eq('user_id', userId)
+      .order('posted_at', { ascending: false })
+      .limit(10)
+
+    // Extract topics from recent posts (simple keyword extraction)
+    const recentTopics = recentPosts
+      ?.map((p) => {
+        const hashtags = p.content?.match(/#(\w+)/g)
+        return hashtags?.slice(0, 3)
+      })
+      .flat()
+      .filter(Boolean)
+      .slice(0, 5) as string[] | undefined
+
+    // Get top performing posts (calculate engagement from available metrics)
+    const topPerformingPosts = recentPosts
+      ?.map((p) => ({
+        content: p.content?.slice(0, 200) || '',
+        engagement: (p.reactions || 0) + (p.comments || 0) + (p.reposts || 0),
+      }))
+      .filter((p) => p.engagement > 0)
+      .sort((a, b) => b.engagement - a.engagement)
+      .slice(0, 3)
+
+    // Construct full name from first_name and last_name
+    const fullName = profile
+      ? [profile.first_name, profile.last_name].filter(Boolean).join(' ') || undefined
+      : undefined
+
+    return {
+      name: fullName,
+      headline: profile?.headline ?? undefined,
+      industry: profile?.industry ?? undefined,
+      recentTopics,
+      topPerformingPosts,
+    }
+  } catch (error) {
+    console.error('Failed to fetch user context:', error)
+    return {}
+  }
+}
+
+/**
+ * POST /api/ai/generate
+ * Generates a LinkedIn post using OpenAI with user context
+ */
+export async function POST(request: NextRequest) {
+  try {
+    // Parse request body
+    const body = (await request.json()) as GeneratePostRequest
+    const { topic, tone = 'professional', length = 'medium', context, apiKey, postType } = body
+
+    // Validate required fields
+    if (!topic?.trim()) {
+      return NextResponse.json({ error: 'Topic is required' }, { status: 400 })
+    }
+
+    // Get API key from request or environment variable (OpenRouter)
+    const openAIApiKey = apiKey?.trim() || process.env.OPENROUTER_API_KEY
+
+    if (!openAIApiKey) {
+      return NextResponse.json({ error: 'OpenRouter API key is required. Please set OPENROUTER_API_KEY in environment.' }, { status: 400 })
+    }
+
+    // Get authenticated user
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    // Fetch user context for personalization
+    const userContext = user ? await getUserContext(user.id) : {}
+
+    // Determine the prompt type and get prompt from service
+    let promptType: PromptType | undefined
+    let systemPrompt: string
+    let promptSource: 'database' | 'default' | 'fallback' = 'fallback'
+
+    if (postType) {
+      // Map post type to prompt type and fetch from service
+      promptType = mapPostTypeToPromptType(postType)
+      if (promptType) {
+        // Get prompt from service (with automatic fallback)
+        systemPrompt = await PromptService.getPromptWithFallback(promptType)
+        promptSource = 'database'
+      } else {
+        // Unknown post type, use legacy template
+        systemPrompt = getSystemPromptForType(postType, {
+          industry: userContext.industry,
+          tone,
+          headline: userContext.headline,
+        })
+        promptSource = 'fallback'
+      }
+    } else {
+      // No post type, use generic prompt builder
+      systemPrompt = buildSystemPrompt(userContext, tone, length)
+      promptSource = 'default'
+    }
+
+    const userMessage = buildUserMessage(topic, context, length)
+
+    // Track start time for response metrics
+    const startTime = Date.now()
+
+    // Create OpenAI client with API key
+    const openai = createOpenAIClient({ apiKey: openAIApiKey })
+
+    // Generate post with GPT-4.1 via OpenRouter for best quality
+    const response = await chatCompletion(openai, {
+      systemPrompt,
+      userMessage,
+      model: DEFAULT_MODEL, // Use GPT-4.1 via OpenRouter for best quality
+      temperature: 0.8, // Higher creativity for engaging content
+      maxTokens: 1500, // Allow for longer responses
+    })
+
+    const responseTimeMs = Date.now() - startTime
+
+    // Log usage for analytics (non-blocking)
+    if (user && promptType) {
+      try {
+        await PromptService.logUsage({
+          promptType,
+          promptVersion: 1,
+          userId: user.id,
+          feature: 'compose',
+          inputTokens: response.promptTokens,
+          outputTokens: response.completionTokens,
+          totalTokens: response.totalTokens,
+          model: response.model,
+          responseTimeMs,
+          success: true,
+          metadata: {
+            postType,
+            tone,
+            length,
+            hasContext: !!context?.trim(),
+            promptSource,
+          },
+        })
+      } catch (logError) {
+        // Usage logging should not block the response
+        console.error('[Generate] Failed to log usage:', logError)
+      }
+    }
+
+    // Return generated content
+    return NextResponse.json({
+      content: response.content,
+      metadata: {
+        model: response.model,
+        tokensUsed: response.totalTokens,
+        tone,
+        length,
+        postType: postType ?? null,
+        promptSource,
+        userContext: {
+          hasProfile: !!userContext.name,
+          hasRecentPosts: !!userContext.recentTopics?.length,
+        },
+      },
+    })
+  } catch (error) {
+    console.error('Post generation error:', error)
+
+    // Handle typed OpenAI errors
+    if (error instanceof OpenAIError) {
+      const statusMap: Record<string, number> = {
+        invalid_api_key: 401,
+        rate_limit: 429,
+        insufficient_quota: 402, // Use 402 Payment Required for quota issues
+        server_error: 503,
+        timeout: 504,
+        unknown: 500,
+      }
+
+      return NextResponse.json(
+        {
+          error: getErrorMessage(error),
+          errorType: error.type,
+          // Add helpful info for quota errors
+          ...(error.type === 'insufficient_quota' && {
+            helpUrl: 'https://platform.openai.com/account/billing',
+            helpText: 'Add credits to your OpenAI account to continue using AI generation.',
+          }),
+        },
+        { status: statusMap[error.type] || 500 }
+      )
+    }
+
+    // Handle generic Error instances
+    if (error instanceof Error) {
+      if (error.message.includes('401')) {
+        return NextResponse.json(
+          { error: 'Invalid OpenAI API key. Please check your API key in settings.' },
+          { status: 401 }
+        )
+      }
+
+      if (error.message.includes('quota')) {
+        return NextResponse.json(
+          {
+            error: 'Your OpenAI account has insufficient quota. Please check your billing.',
+            errorType: 'insufficient_quota',
+            helpUrl: 'https://platform.openai.com/account/billing',
+          },
+          { status: 402 }
+        )
+      }
+
+      if (error.message.includes('429')) {
+        return NextResponse.json(
+          { error: 'OpenAI rate limit exceeded. Please try again in a moment.' },
+          { status: 429 }
+        )
+      }
+    }
+
+    return NextResponse.json(
+      { error: 'Failed to generate post. Please try again.' },
+      { status: 500 }
+    )
+  }
+}

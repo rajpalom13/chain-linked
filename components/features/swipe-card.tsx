@@ -15,6 +15,7 @@ import {
   IconTrendingUp,
   IconThumbUp,
   IconX,
+  IconWand,
 } from "@tabler/icons-react"
 
 import { cn } from "@/lib/utils"
@@ -38,6 +39,10 @@ export interface SwipeCardData {
     name: string
     headline?: string
   }
+  /** Post type (e.g., "Story", "Listicle", "How-To") */
+  postType?: string
+  /** Whether this is a personalized suggestion */
+  isPersonalized?: boolean
 }
 
 /**
@@ -245,12 +250,11 @@ export function SwipeCard({
     >
       <Card className={cn(
         "h-full overflow-hidden border-border/50",
-        "bg-gradient-to-br from-card via-card to-primary/5",
-        "dark:from-card dark:via-card dark:to-primary/10",
+        "!bg-background dark:!bg-zinc-900",
         isDragging && "shadow-2xl border-primary/30",
         !isDragging && "transition-shadow duration-200 hover:shadow-lg"
       )}>
-        <CardContent className="relative flex h-full flex-col p-5">
+        <CardContent className="relative flex h-full flex-col p-5 bg-gradient-to-br from-transparent via-transparent to-primary/5 dark:to-primary/10">
           {/* Swipe Direction Indicators with Framer Motion */}
           <AnimatePresence>
             {swipeDirection === "right" && !isExiting && (
@@ -297,20 +301,44 @@ export function SwipeCard({
             )}
           </AnimatePresence>
 
-          {/* Header: Category and Engagement */}
+          {/* Header: Category, Post Type, and Engagement */}
           <div className="flex items-center justify-between gap-2">
-            <Badge
-              variant="secondary"
-              className={cn("shrink-0 gap-1 shadow-sm", getCategoryStyle(data.category))}
-            >
-              <IconSparkles className="size-3" />
-              {data.category}
-            </Badge>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {/* Personalized Badge */}
+              {data.isPersonalized && (
+                <Badge
+                  variant="outline"
+                  className="shrink-0 gap-1 border-primary/50 bg-primary/5 text-primary text-xs"
+                >
+                  <IconWand className="size-3" />
+                  <span className="hidden xs:inline">Personalized</span>
+                </Badge>
+              )}
+
+              {/* Category Badge */}
+              <Badge
+                variant="secondary"
+                className={cn("shrink-0 gap-1 shadow-sm", getCategoryStyle(data.category))}
+              >
+                <IconSparkles className="size-3" />
+                {data.category}
+              </Badge>
+
+              {/* Post Type Badge */}
+              {data.postType && (
+                <Badge
+                  variant="outline"
+                  className="shrink-0 text-xs border-border/50"
+                >
+                  {data.postType}
+                </Badge>
+              )}
+            </div>
 
             {engagementInfo && (
               <motion.div
                 className={cn(
-                  "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium shadow-sm",
+                  "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium shadow-sm shrink-0",
                   engagementInfo.bgClass,
                   engagementInfo.colorClass
                 )}
@@ -455,8 +483,8 @@ export function SwipeCardEmpty() {
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.4 }}
     >
-      <Card className="w-full h-full border-border/50 bg-gradient-to-br from-card via-card to-primary/5">
-        <CardContent className="flex flex-col items-center justify-center h-full text-center">
+      <Card className="w-full h-full border-border/50 !bg-background dark:!bg-zinc-900">
+        <CardContent className="flex flex-col items-center justify-center h-full text-center bg-gradient-to-br from-transparent via-transparent to-primary/5 dark:to-primary/10">
           <motion.div
             className="rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 p-4 mb-4"
             initial={{ scale: 0 }}

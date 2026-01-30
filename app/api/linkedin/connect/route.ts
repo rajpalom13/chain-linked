@@ -15,6 +15,11 @@ import { generateState, generateAuthUrl } from '@/lib/linkedin'
 const STATE_COOKIE_NAME = 'linkedin_oauth_state'
 
 /**
+ * Cookie name for storing redirect URL
+ */
+const REDIRECT_COOKIE_NAME = 'linkedin_oauth_redirect'
+
+/**
  * State cookie max age in seconds (10 minutes)
  */
 const STATE_COOKIE_MAX_AGE = 600
@@ -25,7 +30,8 @@ const STATE_COOKIE_MAX_AGE = 600
  * @returns Redirect to LinkedIn authorization page
  */
 export async function GET(request: Request) {
-  const { origin } = new URL(request.url)
+  const { origin, searchParams } = new URL(request.url)
+  const redirectTo = searchParams.get('redirect') || '/dashboard/settings'
 
   try {
     // Verify user is authenticated
@@ -44,6 +50,15 @@ export async function GET(request: Request) {
     // Store state in cookie
     const cookieStore = await cookies()
     cookieStore.set(STATE_COOKIE_NAME, state, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: STATE_COOKIE_MAX_AGE,
+      path: '/',
+    })
+
+    // Store redirect URL in cookie for callback
+    cookieStore.set(REDIRECT_COOKIE_NAME, redirectTo, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',

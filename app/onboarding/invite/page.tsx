@@ -68,7 +68,7 @@ function InvitePageContent() {
   // Show loading state
   if (isLoadingCompany) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30">
+      <div className="flex flex-col items-center justify-center py-24">
         <div className="flex flex-col items-center gap-4">
           <IconLoader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="text-muted-foreground">Loading...</p>
@@ -80,7 +80,7 @@ function InvitePageContent() {
   // Show error if no team ID available
   if (!teamId) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30">
+      <div className="flex flex-col items-center justify-center py-24">
         <div className="flex flex-col items-center gap-4">
           <IconLoader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="text-muted-foreground">Setting up your team...</p>
@@ -90,26 +90,7 @@ function InvitePageContent() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30 p-4">
-      {/* Progress Indicator */}
-      <div className="fixed top-6 left-1/2 -translate-x-1/2 flex items-center gap-2">
-        <div className="flex items-center gap-2">
-          <div className="size-8 rounded-full bg-green-600 text-white flex items-center justify-center text-sm font-medium">
-            <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <span className="text-sm text-muted-foreground">Create Company</span>
-        </div>
-        <div className="w-8 h-px bg-border" />
-        <div className="flex items-center gap-2">
-          <div className="size-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
-            2
-          </div>
-          <span className="text-sm font-medium">Invite Team</span>
-        </div>
-      </div>
-
+    <div className="flex flex-col items-center justify-start pt-8 pb-12">
       <InviteTeammatesForm
         teamId={teamId}
         companyName={companyName}
@@ -126,7 +107,7 @@ function InvitePageContent() {
  */
 function InvitePageSkeleton() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30 p-4">
+    <div className="flex flex-col items-center justify-start pt-8 pb-12">
       <div className="w-full max-w-lg">
         <div className="border rounded-lg p-6 space-y-6">
           <div className="text-center space-y-4">

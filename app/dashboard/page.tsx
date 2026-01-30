@@ -43,6 +43,7 @@ import {
   IconUser,
   IconTrendingUp,
   IconTrendingDown,
+  IconArrowRight,
 } from "@tabler/icons-react"
 import Link from "next/link"
 import {
@@ -120,10 +121,10 @@ function QuickStatCard({
 
   return (
     <motion.div
-      whileHover={{ y: -2, scale: 1.01 }}
+      whileHover={{ y: -3, scale: 1.01 }}
       transition={{ type: "spring", stiffness: 400, damping: 17 }}
     >
-      <Card className="border-border/50 bg-gradient-to-br from-card via-card to-primary/5 dark:to-primary/10 hover:border-primary/30 hover:shadow-md transition-all duration-300">
+      <Card className="border-border/50 bg-gradient-to-br from-card via-card to-primary/5 dark:to-primary/10 hover:border-primary/30 transition-all duration-300 card-glow hover-lift">
         <CardContent className="p-4">
           <div className="flex items-start justify-between">
             <div>
@@ -132,11 +133,11 @@ function QuickStatCard({
                 <AnimatedNumber value={value} decimals={decimals} suffix={suffix} />
               </p>
             </div>
-            <div className="rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 p-2.5 shadow-sm">
+            <div className="rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 p-2.5 shadow-sm ring-1 ring-primary/10">
               <Icon className="size-5 text-primary" />
             </div>
           </div>
-          <div className="flex items-center gap-1 mt-2">
+          <div className="flex items-center gap-1.5 mt-3 pt-2 border-t border-border/40">
             <TrendIcon className={`size-3.5 ${isPositive ? 'text-green-500' : 'text-red-500'}`} />
             <span className={`text-xs font-medium ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
               {isPositive ? '+' : ''}{change.toFixed(1)}%
@@ -170,13 +171,13 @@ function QuickActionCard({
         whileTap={{ scale: 0.98 }}
         transition={{ type: "spring", stiffness: 400, damping: 17 }}
       >
-        <Card className="h-full overflow-hidden transition-all duration-300 border-border/50 hover:shadow-lg hover:border-primary/40 bg-gradient-to-br from-card via-card to-primary/5 dark:to-primary/10 group relative">
+        <Card className="h-full overflow-hidden transition-all duration-300 border-border/50 hover:shadow-lg hover:border-primary/40 bg-gradient-to-br from-card via-card to-primary/5 dark:to-primary/10 group relative card-glow">
           {/* Subtle glow effect on hover */}
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-secondary/5 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-secondary/5 opacity-0 transition-opacity duration-300 group-hover:opacity-100 pointer-events-none" />
           <CardHeader className="pb-2 relative">
             <div className="flex items-center gap-3">
               <motion.div
-                className="rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 p-2.5 shadow-sm"
+                className="rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 p-2.5 shadow-sm ring-1 ring-primary/10"
                 whileHover={{ rotate: 5, scale: 1.1 }}
                 transition={{ type: "spring", stiffness: 400 }}
               >
@@ -186,7 +187,10 @@ function QuickActionCard({
             </div>
           </CardHeader>
           <CardContent className="relative">
-            <CardDescription>{description}</CardDescription>
+            <div className="flex items-center justify-between">
+              <CardDescription>{description}</CardDescription>
+              <IconArrowRight className="size-4 text-muted-foreground/50 transition-all duration-200 group-hover:text-primary group-hover:translate-x-0.5" />
+            </div>
           </CardContent>
         </Card>
       </motion.div>

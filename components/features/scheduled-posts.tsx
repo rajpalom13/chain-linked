@@ -263,7 +263,7 @@ function ScheduledPostSkeleton() {
  */
 function LoadingSkeleton() {
   return (
-    <Card>
+    <Card hover>
       <CardHeader>
         <CardTitle>Scheduled Posts</CardTitle>
         <CardAction>
@@ -406,16 +406,30 @@ function DateGroupHeader({ label }: { label: DateGroup }) {
 function EmptyState({ onScheduleNew }: { onScheduleNew?: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-12 text-center">
-      <div className="rounded-full bg-muted p-4 mb-4">
-        <IconCalendarEvent className="size-8 text-muted-foreground" />
+      <div className="rounded-full bg-primary/10 p-5 mb-4">
+        <IconCalendarEvent className="size-10 text-primary" />
       </div>
-      <h3 className="font-medium text-sm mb-1">No scheduled posts</h3>
-      <p className="text-xs text-muted-foreground max-w-[280px] mb-4">
+      <h3 className="font-semibold text-base mb-2">No scheduled posts yet</h3>
+      <p className="text-sm text-muted-foreground max-w-[320px] mb-6">
         Schedule your LinkedIn posts in advance to maintain a consistent posting
         schedule and reach your audience at optimal times.
       </p>
+
+      {/* Tutorial Tips */}
+      <div className="w-full max-w-[400px] mb-6 p-4 rounded-lg border bg-muted/30 text-left">
+        <p className="text-xs font-medium mb-2 flex items-center gap-1.5">
+          <IconCalendar className="size-3.5" />
+          Pro Tips for Scheduling
+        </p>
+        <ul className="text-xs text-muted-foreground space-y-1.5 ml-5 list-disc">
+          <li>Best posting times: Tue-Thu, 8-10 AM or 12-1 PM</li>
+          <li>Schedule 3-5 posts per week for optimal engagement</li>
+          <li>Mix content types: insights, stories, and questions</li>
+        </ul>
+      </div>
+
       {onScheduleNew && (
-        <Button size="sm" onClick={onScheduleNew}>
+        <Button size="default" onClick={onScheduleNew} className="gap-2">
           <IconPlus className="size-4" />
           Schedule Your First Post
         </Button>
@@ -479,7 +493,7 @@ export function ScheduledPosts({
   const dateGroupOrder: DateGroup[] = ["Today", "Tomorrow", "This Week", "Later"]
 
   return (
-    <Card className={className}>
+    <Card hover className={className}>
       <CardHeader>
         <CardTitle>Scheduled Posts</CardTitle>
         <CardAction>

@@ -4,6 +4,7 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import {
   IconEdit,
+  IconEye,
   IconLayoutGrid,
   IconList,
   IconLoader2,
@@ -16,6 +17,7 @@ import {
   IconX,
 } from "@tabler/icons-react"
 
+import { trackTemplateAction } from "@/lib/analytics"
 import { cn } from "@/lib/utils"
 import { useDraft } from "@/lib/store/draft-context"
 import { templateToast } from "@/lib/toast-utils"
@@ -31,6 +33,13 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   Drawer,
   DrawerClose,
@@ -242,6 +251,8 @@ export function TemplateLibrary({
   const [editingTemplate, setEditingTemplate] = React.useState<Template | null>(null)
   const [formData, setFormData] = React.useState<TemplateFormData>(INITIAL_FORM_DATA)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [previewTemplate, setPreviewTemplate] = React.useState<Template | null>(null)
+  const [isPreviewOpen, setIsPreviewOpen] = React.useState(false)
 
   /**
    * Filters templates based on search query and category
@@ -308,8 +319,10 @@ export function TemplateLibrary({
       }
 
       if (editingTemplate) {
+        trackTemplateAction("created", editingTemplate.id)
         onEditTemplate?.(editingTemplate.id, templateData)
       } else {
+        trackTemplateAction("created", "new")
         onCreateTemplate?.(templateData)
       }
 
@@ -325,6 +338,8 @@ export function TemplateLibrary({
    * Handles using a template - loads it into the composer and navigates
    */
   const handleUseTemplate = (template: Template) => {
+    trackTemplateAction("used", template.id)
+
     // Load template into draft context
     loadTemplate(template.id, template.content)
 
@@ -352,9 +367,18 @@ export function TemplateLibrary({
     })
 
     if (confirmed) {
+      trackTemplateAction("deleted", id)
       onDeleteTemplate?.(id)
       templateToast.deleted(templateToDelete?.name ?? "Template")
     }
+  }
+
+  /**
+   * Opens the preview modal for a template
+   */
+  const handlePreview = (template: Template) => {
+    setPreviewTemplate(template)
+    setIsPreviewOpen(true)
   }
 
   /**
@@ -382,7 +406,7 @@ export function TemplateLibrary({
   }
 
   return (
-    <Card className="flex flex-col">
+    <Card hover className="flex flex-col">
       <CardHeader className="pb-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -461,19 +485,19 @@ export function TemplateLibrary({
         {/* Empty State */}
         {!isLoading && filteredTemplates.length === 0 && (
           <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-            <div className="bg-muted rounded-full p-4">
-              <IconTemplate className="text-muted-foreground size-8" />
+            <div className="rounded-full bg-gradient-to-br from-primary/15 to-secondary/10 p-5">
+              <IconTemplate className="text-primary/70 size-8" />
             </div>
             <div>
               <h3 className="font-semibold">No templates found</h3>
-              <p className="text-muted-foreground text-sm">
+              <p className="text-muted-foreground text-sm max-w-[260px]">
                 {searchQuery || categoryFilter !== "all"
-                  ? "Try adjusting your search or filter"
-                  : "Create your first template to get started"}
+                  ? "Try adjusting your search or filter criteria"
+                  : "Create your first template to streamline your content creation"}
               </p>
             </div>
             {!searchQuery && categoryFilter === "all" && (
-              <Button onClick={handleCreateNew} variant="outline">
+              <Button onClick={handleCreateNew} variant="outline" className="gap-2 border-primary/30 hover:border-primary/50 hover:bg-primary/5">
                 <IconPlus className="size-4" />
                 Create Template
               </Button>
@@ -494,7 +518,7 @@ export function TemplateLibrary({
               <div
                 key={template.id}
                 className={cn(
-                  "group rounded-lg border bg-card p-4 transition-shadow hover:shadow-md",
+                  "group rounded-lg border bg-card p-4 transition-all duration-200 hover:shadow-md hover:border-primary/20 dark:hover:border-primary/30",
                   viewMode === "list" && "flex items-start gap-4"
                 )}
               >
@@ -566,6 +590,14 @@ export function TemplateLibrary({
                     className={cn(viewMode === "grid" && "flex-1")}
                   >
                     Use
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => handlePreview(template)}
+                    aria-label={`Preview ${template.name}`}
+                  >
+                    <IconEye className="size-4" />
                   </Button>
                   <Button
                     variant="ghost"
@@ -720,6 +752,89 @@ export function TemplateLibrary({
 
       {/* Confirmation Dialog */}
       <ConfirmDialogComponent />
+
+      {/* Template Preview Dialog */}
+      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {previewTemplate?.name}
+              <Badge variant={previewTemplate ? getCategoryVariant(previewTemplate.category) : "default"}>
+                {previewTemplate?.category}
+              </Badge>
+            </DialogTitle>
+            <DialogDescription className="flex items-center gap-4 text-sm">
+              {previewTemplate?.isPublic ? (
+                <span className="flex items-center gap-1">
+                  <IconUsers className="size-3" />
+                  Public
+                </span>
+              ) : (
+                <span className="flex items-center gap-1">
+                  <IconLock className="size-3" />
+                  Private
+                </span>
+              )}
+              <span>
+                Used {previewTemplate?.usageCount} time{previewTemplate?.usageCount !== 1 ? "s" : ""}
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Full Template Content */}
+          <div className="flex-1 overflow-y-auto -mx-6 px-6">
+            <div className="space-y-4 py-4">
+              <div className="p-4 rounded-lg border bg-muted/30">
+                <p className="text-sm leading-relaxed whitespace-pre-wrap font-mono">
+                  {previewTemplate?.content}
+                </p>
+              </div>
+
+              {/* Tags */}
+              {previewTemplate && previewTemplate.tags.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Tags</p>
+                  <div className="flex flex-wrap gap-1">
+                    {previewTemplate.tags.map((tag) => (
+                      <Badge key={tag} variant="outline" className="text-xs">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-2 pt-4 border-t">
+            <Button
+              variant="default"
+              onClick={() => {
+                if (previewTemplate) {
+                  handleUseTemplate(previewTemplate)
+                  setIsPreviewOpen(false)
+                }
+              }}
+              className="flex-1"
+            >
+              Use This Template
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (previewTemplate) {
+                  handleEdit(previewTemplate)
+                  setIsPreviewOpen(false)
+                }
+              }}
+            >
+              <IconEdit className="size-4" />
+              Edit
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

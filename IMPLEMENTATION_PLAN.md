@@ -1,317 +1,244 @@
-# ChainLinked Data Mapping Implementation Plan
+# ChainLinked UX/UI Implementation Plan
 
-## Overview
-Remove all mock/sample data from the frontend and map real Supabase data to all pages.
-
-## Current State Analysis
-
-### User Data Available (omrajpal.exe@gmail.com)
-- **User ID**: `c8cf2bfa-ad7a-4cb4-95c7-30dadecbac41`
-- **Email**: omrajpal.exe@gmail.com
-- **Name**: Om Rajpal (from LinkedIn profile)
-
-### LinkedIn Profile Data (HAS DATA)
-- Headline: "Intern @NOTatMRP | Intern @DRDO | SIH'24 Winner | Junior at TIET"
-- Location: Hisar, Haryana, India
-- Connections: 116
-- Followers: 263
-- Profile Picture: Available via raw_data.profilePhotoUrl
-- Background Image: Available via raw_data.backgroundPhotoUrl
-
-### LinkedIn Analytics (HAS DATA - 6 records)
-- Impressions: 34
-- Profile Views: 95
-- Search Appearances: 44
-- Followers: 263
-- Impression Growth: -63.1%
-
-### Tables WITH Data
-| Table | Records | Notes |
-|-------|---------|-------|
-| users | 1 | User profile |
-| linkedin_profiles | 1 | LinkedIn profile data |
-| linkedin_analytics | 6 | Analytics snapshots |
-| templates | 3 | Public templates |
-| inspiration_posts | 3 | Inspiration content |
-
-### Tables WITHOUT Data (Empty for this user)
-| Table | Notes |
-|-------|-------|
-| my_posts | User hasn't captured their posts |
-| scheduled_posts | No scheduled posts |
-| post_analytics | No post-level analytics |
-| analytics_history | No historical data |
-| audience_data | No audience demographics |
-| team_members | No team membership |
-| posting_goals | No goals set |
+**Created:** January 20, 2026
+**Status:** In Progress
+**Based on:** UX_UI_IMPROVEMENT_REPORT.md
 
 ---
 
-## Mock Data Locations Identified
+## Implementation Checklist
 
-### Components with Sample Data Exports
+### Phase 1: Critical Fixes (Week 1) - 8-12 hours
 
-| File | Export Name | Issue |
-|------|-------------|-------|
-| `components/features/team-activity-feed.tsx` | `sampleTeamPosts` | 5 mock posts |
-| `components/features/team-leaderboard.tsx` | `sampleTeamMembers` | 8 mock members |
-| `components/features/analytics-chart.tsx` | `generateSampleData()` | Generates 30-day mock data |
-| `components/features/schedule-calendar.tsx` | `sampleScheduledPostItems` | 10 mock scheduled posts |
-| `components/features/goals-tracker.tsx` | `SAMPLE_GOALS`, `DEFAULT_CURRENT_STREAK` | Mock goals |
-| `components/features/post-performance.tsx` | `samplePostPerformance` | Mock post metrics |
-| `components/features/inspiration-feed.tsx` | `sampleInspirationPosts` | 10 mock posts |
-| `components/features/template-library.tsx` | `SAMPLE_TEMPLATES` | 8 mock templates |
+- [ ] **Issue #1:** Fix color inconsistencies in forgot-password page
+  - Files: `app/forgot-password/page.tsx` (lines 70, 91-92, 101)
+  - Change: `green-500` → `primary`
+  - Status: Pending
 
-### Pages with Fallback Patterns
+- [ ] **Issue #3:** Add LinkedIn connection status indicator
+  - Files: `app/dashboard/settings/page.tsx`
+  - Add: Status badge, connection metadata, disconnect button, token expiry warning
+  - Status: Pending
 
-| Page | Pattern | Problem |
-|------|---------|---------|
-| `app/dashboard/page.tsx` | `posts.length > 0 ? posts : sampleTeamPosts` | Falls back to mock |
-| `app/dashboard/page.tsx` | `scheduledPosts.length > 0 ? scheduledPosts : sampleScheduledPostItems` | Falls back to mock |
-| `app/dashboard/team/page.tsx` | `posts.length > 0 ? posts : sampleTeamPosts` | Falls back to mock |
-| `app/dashboard/team/page.tsx` | `members.length > 0 ? members : sampleTeamMembers` | Falls back to mock |
+- [ ] **Issue #4:** Add character counter to post composer
+  - Files: `app/dashboard/compose/page.tsx`
+  - Add: Character counter showing X/3000
+  - Status: Pending
 
----
+- [ ] **Issue #2:** Add error boundaries to critical components
+  - Files: Create `components/error-boundary.tsx`, wrap critical sections
+  - Status: Pending
 
-## Implementation Strategy
+- [ ] **Issue #5:** Add empty state to schedule page
+  - Files: `app/dashboard/schedule/page.tsx`
+  - Add: Empty state with illustration, CTA button, tutorial overlay
+  - Status: Pending
 
-### Strategy: Replace Mock Fallbacks with Empty States
+### Phase 2: Important Improvements (Week 2-3) - 20-25 hours
 
-Instead of showing fake data when real data is empty, show meaningful empty states that encourage users to take action (capture data via extension, create posts, etc.)
+- [ ] **Issue #6:** Standardize button heights across all forms
+  - Files: `app/signup/page.tsx`, other forms
+  - Change: Add `h-11` to all primary action buttons
+  - Status: Pending
 
----
+- [ ] **Issue #7:** Add template previews to template library
+  - Files: `app/dashboard/templates/page.tsx`
+  - Add: Thumbnails, preview modal, categories/filters
+  - Status: Pending
 
-## Phase 1: Dashboard Page Fix
+- [ ] **Issue #8:** Add data export to analytics
+  - Files: `app/dashboard/analytics/page.tsx`
+  - Add: Export CSV button, export PDF report, date range selector
+  - Status: Pending
 
-### Task 1.1: Update Dashboard Page
-**File**: `app/dashboard/page.tsx`
+- [ ] **Issue #9:** Add filtering and sorting to team page
+  - Files: `app/dashboard/team/page.tsx`
+  - Add: Filters (all/member/date), sorting options, search bar
+  - Status: Pending
 
-**Changes**:
-1. Remove imports for sample data
-2. Remove fallback pattern - use real data directly
-3. Pass `isLoading` to components for loading states
-4. Components will handle empty states internally
+- [ ] **Issue #10:** Add "Why recommended" insights to inspiration
+  - Files: `app/dashboard/inspiration/page.tsx`
+  - Add: Tooltip with AI analysis, highlight key elements, tags
+  - Status: Pending
 
-**Before**:
-```typescript
-const displayTeamPosts = teamPosts.length > 0 ? teamPosts : sampleTeamPosts
-const displayScheduledPosts = scheduledPosts.length > 0 ? scheduledPosts : sampleScheduledPostItems
-```
+- [ ] **Issue #11:** Make swipe keyboard shortcut more prominent
+  - Files: `components/features/swipe-interface.tsx`
+  - Add: Prominent hint on first visit, tooltip on hover
+  - Status: Pending
 
-**After**:
-```typescript
-// Use real data directly - components handle empty states
-<TeamActivityFeed posts={teamPosts} isLoading={postsLoading} />
-<ScheduleCalendar posts={scheduledPosts} isLoading={scheduleLoading} />
-```
+- [ ] **Issue #12:** Fix onboarding progress indicator color
+  - Files: `app/onboarding/invite/page.tsx` (line 97)
+  - Change: `bg-green-600` → CSS variable
+  - Status: Pending
 
-### Task 1.2: Update TeamActivityFeed Component
-**File**: `components/features/team-activity-feed.tsx`
+- [ ] **Issue #13:** Add auto-save indicator to settings
+  - Files: `app/dashboard/settings/page.tsx`
+  - Add: "Saving..." → "Saved ✓", timestamp, undo button
+  - Status: Pending
 
-**Changes**:
-1. Keep `sampleTeamPosts` export for backward compatibility (marked deprecated)
-2. Add empty state UI when `posts.length === 0`
-3. Show message: "No team activity yet. Posts from your team will appear here."
+### Phase 3: Nice-to-Have Enhancements (Week 4-6) - 30-40 hours
 
-### Task 1.3: Update ScheduleCalendar Component
-**File**: `components/features/schedule-calendar.tsx`
+- [ ] **Issue #14:** Add tooltips to icon-only buttons
+  - Files: Multiple components
+  - Add: Tooltip component wrapper with descriptive text
+  - Status: Pending
 
-**Changes**:
-1. Keep `sampleScheduledPostItems` export (marked deprecated)
-2. Add empty state UI when `posts.length === 0`
-3. Show message: "No scheduled posts. Create your first post to get started!"
+- [ ] **Issue #15:** Enhanced loading skeletons
+  - Files: Multiple pages
+  - Change: Replace spinners with content-shaped skeletons
+  - Status: Pending
 
----
+- [ ] **Issue #16:** Add confirmation dialogs for destructive actions
+  - Files: Templates, schedule pages
+  - Add: Confirmation dialog before delete, "Don't ask again" option
+  - Status: Pending
 
-## Phase 2: Analytics Page Fix
+- [ ] **Issue #17:** Add draft auto-save timestamp to compose
+  - Files: `app/dashboard/compose/page.tsx`
+  - Add: "Last saved X minutes ago" display
+  - Status: Pending
 
-### Task 2.1: Update Analytics Chart
-**File**: `components/features/analytics-chart.tsx`
+- [ ] **Issue #18:** Add keyboard shortcuts throughout app
+  - Files: All pages
+  - Add: Cmd+K search, Cmd+N new post, Cmd+S save, ? help modal
+  - Status: Pending
 
-**Changes**:
-1. Remove `generateSampleData()` usage
-2. When no data provided, show empty state instead of fake chart
-3. Use real data from `linkedin_analytics` table
+- [ ] **Issue #19:** Add member profile cards to team page
+  - Files: `app/dashboard/team/page.tsx`
+  - Add: Profile photo, role, join date, metrics, recent activity
+  - Status: Pending
 
-### Task 2.2: Update GoalsTracker
-**File**: `components/features/goals-tracker.tsx`
+- [ ] **Issue #20:** Add drag-and-drop to schedule calendar
+  - Files: `app/dashboard/schedule/page.tsx`
+  - Add: Draggable posts, visual feedback, confirmation toast
+  - Status: Pending
 
-**Changes**:
-1. Remove `SAMPLE_GOALS` and `DEFAULT_CURRENT_STREAK` defaults
-2. Fetch real goals from `posting_goals` table
-3. Show empty state: "Set your first posting goal to track progress"
+### Quick Wins (Can be done anytime) - 10-15 hours
 
-### Task 2.3: Update PostPerformance Component
-**File**: `components/features/post-performance.tsx`
+- [ ] **Quick Win #23:** Add "Back to Dashboard" links
+  - Files: Login, signup, forgot-password, reset-password, onboarding
+  - Add: Subtle back link in header for authenticated users
+  - Status: Pending
 
-**Changes**:
-1. Remove `samplePostPerformance` usage
-2. Fetch from `my_posts` or `post_analytics` table
-3. Show empty state when no posts captured
+- [ ] **Quick Win #24:** Improve password strength indicator
+  - Files: `app/signup/page.tsx`, `app/reset-password/page.tsx`
+  - Add: Visual strength meter, requirements checklist, real-time validation
+  - Status: Pending
 
----
+- [ ] **Quick Win #25:** Add page transition animations
+  - Files: All dashboard pages
+  - Add: `className="animate-in fade-in duration-300"` to main containers
+  - Status: Pending
 
-## Phase 3: Team Page Fix
+- [ ] **Quick Win #26:** Standardize card hover effects
+  - Files: Multiple pages with cards
+  - Add: `className="transition-all hover:shadow-md hover:border-primary/20"`
+  - Status: Pending
 
-### Task 3.1: Update Team Page
-**File**: `app/dashboard/team/page.tsx`
+- [ ] **Quick Win #27:** Add shimmer to user menu skeleton
+  - Files: `components/user-menu.tsx`
+  - Add: Shimmer animation effect
+  - Status: Pending
 
-**Changes**:
-1. Remove fallback patterns
-2. Pass real data directly to components
-3. Components handle empty states
+### Accessibility Improvements - 15-20 hours
 
-### Task 3.2: Update TeamLeaderboard Component
-**File**: `components/features/team-leaderboard.tsx`
+- [ ] **A11y #1:** Add ARIA labels to icon-only buttons
+  - Files: All components with icon buttons
+  - Add: `aria-label` attributes
+  - Status: Pending
 
-**Changes**:
-1. Remove `sampleTeamMembers` usage
-2. Show empty state: "Join or create a team to see the leaderboard"
-3. Keep export marked as deprecated
+- [ ] **A11y #2:** Add skip-to-content link
+  - Files: `app/layout.tsx` or main layout
+  - Add: Keyboard-accessible skip link
+  - Status: Pending
 
----
+- [ ] **A11y #3:** Improve focus indicators
+  - Files: Custom button components
+  - Add: Enhanced focus states
+  - Status: Pending
 
-## Phase 4: Schedule Page Fix
+- [ ] **A11y #4:** Add aria-live regions for dynamic updates
+  - Files: Loading states, notifications
+  - Add: `aria-live`, `aria-busy` attributes
+  - Status: Pending
 
-### Task 4.1: Verify Schedule Page
-**File**: `app/dashboard/schedule/page.tsx`
+- [ ] **A11y #5:** Add role="alert" to error messages
+  - Files: All forms with validation
+  - Add: Alert roles to error messages
+  - Status: Pending
 
-**Changes**:
-1. Ensure no mock data fallbacks
-2. Show calendar with empty dates when no posts scheduled
+- [ ] **A11y #6:** Verify color contrast ratios
+  - Task: Run Chrome DevTools accessibility audit
+  - Status: Pending
 
----
+### Mobile Responsiveness - 10-15 hours
 
-## Phase 5: Templates & Inspiration Pages
+- [ ] **Mobile #1:** Optimize schedule calendar for mobile
+  - Files: `app/dashboard/schedule/page.tsx`
+  - Change: Default to list view on mobile, add swipe gestures
+  - Status: Pending
 
-### Task 5.1: Update Template Library
-**File**: `components/features/template-library.tsx`
+- [ ] **Mobile #2:** Add carousel navigation for analytics charts on mobile
+  - Files: `app/dashboard/analytics/page.tsx`
+  - Add: Swipe navigation between chart groups
+  - Status: Pending
 
-**Changes**:
-1. Create `useTemplates` hook to fetch from database
-2. Remove `SAMPLE_TEMPLATES` default
-3. Templates table HAS 3 records - should display them
-4. Show "Create your first template" when empty
+- [ ] **Mobile #3:** Make compose toolbar sticky on mobile
+  - Files: `app/dashboard/compose/page.tsx`
+  - Add: Sticky bottom toolbar on mobile
+  - Status: Pending
 
-### Task 5.2: Update Inspiration Feed
-**File**: `components/features/inspiration-feed.tsx`
+- [ ] **Mobile #4:** Stack leaderboard vertically on mobile
+  - Files: `app/dashboard/team/page.tsx`
+  - Add: Responsive card layout for mobile
+  - Status: Pending
 
-**Changes**:
-1. Create `useInspirationPosts` hook
-2. Fetch from `inspiration_posts` table (has 3 records)
-3. Remove `sampleInspirationPosts` usage
-4. Show real viral posts from database
-
----
-
-## Phase 6: Create Missing Hooks
-
-### Task 6.1: Create useTemplates Hook
-**File**: `hooks/use-templates.ts`
-
-```typescript
-// Fetch templates from Supabase
-// Support filtering by category
-// Include user's templates + public templates
-```
-
-### Task 6.2: Create useInspirationPosts Hook
-**File**: `hooks/use-inspiration-posts.ts`
-
-```typescript
-// Fetch inspiration_posts from Supabase
-// Support pagination
-// Filter by category/industry
-```
-
-### Task 6.3: Create usePostingGoals Hook
-**File**: `hooks/use-posting-goals.ts`
-
-```typescript
-// Fetch posting_goals for current user
-// Calculate streak from my_posts
-// Return goal progress metrics
-```
-
----
-
-## Empty State Design Guidelines
-
-All empty states should:
-1. Use a muted icon (from Tabler Icons)
-2. Display a friendly message explaining why it's empty
-3. Include a CTA button to take action
-4. Match the existing UI design system
-
-**Example**:
-```tsx
-<div className="flex flex-col items-center justify-center p-8 text-center">
-  <IconInbox className="size-12 text-muted-foreground/50 mb-4" />
-  <h3 className="font-medium">No posts yet</h3>
-  <p className="text-sm text-muted-foreground mt-1">
-    Your team's posts will appear here once captured.
-  </p>
-  <Button variant="outline" className="mt-4" asChild>
-    <Link href="/dashboard/compose">Create your first post</Link>
-  </Button>
-</div>
-```
+- [ ] **Mobile #5:** Convert settings tabs to accordion on mobile
+  - Files: `app/dashboard/settings/page.tsx`
+  - Add: Accordion view for mobile
+  - Status: Pending
 
 ---
 
-## Testing Checklist
+## Progress Tracking
 
-### Dashboard Page
-- [ ] Shows real scheduled posts from `scheduled_posts` table
-- [ ] Shows real team activity from `my_posts` table
-- [ ] Shows empty state when no data (not mock data)
-- [ ] Loading skeleton displays correctly
-- [ ] No console errors
+**Total Issues:** 44
+**Completed:** 0
+**In Progress:** 0
+**Remaining:** 44
 
-### Analytics Page
-- [ ] Charts use real data from `linkedin_analytics`
-- [ ] Empty charts show empty state, not fake data
-- [ ] Goals show real data from `posting_goals`
-- [ ] Post performance shows real posts
-
-### Team Page
-- [ ] Leaderboard shows real team members
-- [ ] Activity feed shows real team posts
-- [ ] Empty states display when no team
-
-### Schedule Page
-- [ ] Calendar shows real scheduled posts
-- [ ] Empty dates are truly empty
-- [ ] Create post action works
-
-### Templates Page
-- [ ] Shows 3 real templates from database
-- [ ] Template preview works
-- [ ] Create template works
-
-### Inspiration Page
-- [ ] Shows 3 real inspiration posts
-- [ ] Swipe interface works
-- [ ] No mock data visible
+**Estimated Total Time:** 93-127 hours
 
 ---
 
-## Execution Order
+## Quality Assurance Checklist
 
-1. **Dashboard Page** (highest traffic)
-2. **Analytics Page** (core feature)
-3. **Team Page**
-4. **Schedule Page**
-5. **Templates Page**
-6. **Inspiration Page**
-7. **Final QA pass**
-8. **Commit and cleanup**
+After all implementations, verify:
+
+- [ ] All components render without errors
+- [ ] All props properly typed
+- [ ] Loading states work correctly
+- [ ] Error states handled gracefully
+- [ ] Responsive design works (mobile, tablet, desktop)
+- [ ] Dark mode works correctly
+- [ ] Accessibility basics (focus states, aria labels)
+- [ ] No console errors or warnings
+- [ ] Build succeeds without errors
+- [ ] Manual testing of all implemented features
+- [ ] Cross-browser testing (Chrome, Firefox, Safari)
+- [ ] Lighthouse accessibility score 95+
+- [ ] All Quick Wins implemented and tested
 
 ---
 
 ## Notes
 
-1. Keep sample data exports temporarily for components that might be used elsewhere
-2. Mark deprecated exports with JSDoc `@deprecated` tag
-3. Each phase gets committed separately after QA
-4. Run `npm run build` after each phase to verify no errors
+- Prioritize Phase 1 critical fixes for immediate user impact
+- Quick wins can be interspersed throughout other phases
+- Accessibility and mobile improvements should be continuous
+- Each implementation should be tested before moving to next
+- Update this plan as issues are completed
+
+---
+
+**Last Updated:** January 20, 2026

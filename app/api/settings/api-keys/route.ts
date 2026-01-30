@@ -25,18 +25,21 @@ interface ApiKeyStatusResponse {
 }
 
 /**
- * Validates an OpenAI API key by making a test request
- * @param apiKey - The OpenAI API key to validate
+ * Validates an API key by making a test request to OpenRouter
+ * @param apiKey - The OpenRouter API key to validate (sk-or-v1-...) or OpenAI key (sk-...)
  * @returns Object with isValid boolean and error message if invalid
+ * @see https://openrouter.ai/docs/api/reference/authentication
  */
 async function validateOpenAIKey(apiKey: string): Promise<{ isValid: boolean; error?: string }> {
   try {
-    // Make a lightweight request to OpenAI to verify the key
-    const response = await fetch('https://api.openai.com/v1/models', {
+    // Make a lightweight request to OpenRouter to verify the key
+    const response = await fetch('https://openrouter.ai/api/v1/models', {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
+        'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+        'X-Title': 'ChainLinked',
       },
     })
 
@@ -57,7 +60,7 @@ async function validateOpenAIKey(apiKey: string): Promise<{ isValid: boolean; er
 
     return { isValid: false, error: errorMessage }
   } catch (error) {
-    console.error('OpenAI validation error:', error)
+    console.error('OpenRouter validation error:', error)
     return { isValid: false, error: 'Failed to validate API key. Please try again.' }
   }
 }
@@ -66,8 +69,11 @@ async function validateOpenAIKey(apiKey: string): Promise<{ isValid: boolean; er
  * GET - Check if user has API key configured
  * @returns API key status for the authenticated user
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    // Log request for debugging
+    console.log('[API Keys] GET request received')
+
     const supabase = await createClient()
 
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -84,16 +90,39 @@ export async function GET() {
       .eq('provider', 'openai')
       .single()
 
+    // Check if environment variable is set (server-side key via OpenRouter)
+    const hasEnvKey = !!process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== 'your_openrouter_key_here'
+
+    // Handle database errors gracefully
+    // PGRST116 = no rows found (expected when user has no key)
+    // 42P01 = table doesn't exist (table not created yet)
+    // Other errors = log but don't fail - return "no key" status
     if (fetchError && fetchError.code !== 'PGRST116') {
-      console.error('API key fetch error:', fetchError)
-      return NextResponse.json({ error: 'Failed to fetch API key status' }, { status: 500 })
+      // Log the error for debugging but don't fail the request
+      // This allows the UI to work even if the table hasn't been set up yet
+      console.warn('API key fetch warning:', fetchError.code, fetchError.message)
+
+      // Return response with env key status
+      const defaultResponse: ApiKeyStatusResponse = {
+        hasKey: hasEnvKey,
+        provider: 'openai',
+        keyHint: hasEnvKey ? '(Server-configured)' : null,
+        isValid: hasEnvKey,
+        lastValidated: null,
+      }
+      return NextResponse.json(defaultResponse)
     }
 
+    // If user has a key in the database, use that
+    // Otherwise, fall back to environment variable
+    const hasUserKey = !!apiKeyData
+    const hasKey = hasUserKey || hasEnvKey
+
     const response: ApiKeyStatusResponse = {
-      hasKey: !!apiKeyData,
+      hasKey,
       provider: 'openai',
-      keyHint: apiKeyData?.key_hint || null,
-      isValid: apiKeyData?.is_valid ?? false,
+      keyHint: apiKeyData?.key_hint || (hasEnvKey ? '(Server-configured)' : null),
+      isValid: apiKeyData?.is_valid ?? hasEnvKey,
       lastValidated: apiKeyData?.last_validated_at || null,
     }
 
@@ -174,7 +203,15 @@ export async function POST(request: Request) {
       })
 
     if (upsertError) {
-      console.error('API key upsert error:', upsertError)
+      console.error('API key upsert error:', upsertError.code, upsertError.message)
+
+      // Check if it's a "table doesn't exist" error
+      if (upsertError.code === '42P01') {
+        return NextResponse.json({
+          error: 'API keys table not configured. Please contact support or run database migrations.',
+        }, { status: 503 })
+      }
+
       return NextResponse.json({ error: 'Failed to save API key' }, { status: 500 })
     }
 
@@ -212,7 +249,13 @@ export async function DELETE() {
       .eq('provider', 'openai')
 
     if (deleteError) {
-      console.error('API key delete error:', deleteError)
+      console.error('API key delete error:', deleteError.code, deleteError.message)
+
+      // Check if it's a "table doesn't exist" error - treat as success (nothing to delete)
+      if (deleteError.code === '42P01') {
+        return NextResponse.json({ success: true })
+      }
+
       return NextResponse.json({ error: 'Failed to delete API key' }, { status: 500 })
     }
 
@@ -246,6 +289,10 @@ export async function PATCH() {
       .single()
 
     if (fetchError || !apiKeyData) {
+      // Check if table doesn't exist
+      if (fetchError?.code === '42P01') {
+        return NextResponse.json({ error: 'No API key found' }, { status: 404 })
+      }
       return NextResponse.json({ error: 'No API key found' }, { status: 404 })
     }
 

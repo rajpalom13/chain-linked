@@ -21,7 +21,7 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
-      /** User accounts with Google OAuth integration */
+      /** User accounts with Google OAuth integration (legacy) */
       users: {
         Row: {
           id: string
@@ -52,6 +52,165 @@ export interface Database {
           linkedin_profile_url?: string | null
           created_at?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      /** User profiles linked to auth.users */
+      profiles: {
+        Row: {
+          id: string
+          full_name: string | null
+          avatar_url: string | null
+          email: string | null
+          created_at: string | null
+          linkedin_access_token: string | null
+          linkedin_user_id: string | null
+          linkedin_connected_at: string | null
+          linkedin_token_expires_at: string | null
+          /** LinkedIn profile picture URL (from OAuth) */
+          linkedin_avatar_url: string | null
+          /** LinkedIn headline */
+          linkedin_headline: string | null
+          /** LinkedIn profile URL */
+          linkedin_profile_url: string | null
+          /** Company onboarding completion status */
+          company_onboarding_completed: boolean
+          /** Company name for AI context */
+          company_name: string | null
+          /** Company description for AI context */
+          company_description: string | null
+          /** Company products/services for AI context */
+          company_products: string | null
+          /** Ideal Customer Profile for AI context */
+          company_icp: string | null
+          /** Value propositions for AI context */
+          company_value_props: string | null
+          /** Company website URL */
+          company_website: string | null
+          /** Whether the user has completed the full onboarding flow */
+          onboarding_completed: boolean
+          /** Current step in the onboarding flow (1-6) */
+          onboarding_current_step: number
+        }
+        Insert: {
+          id: string
+          full_name?: string | null
+          avatar_url?: string | null
+          email?: string | null
+          created_at?: string | null
+          linkedin_access_token?: string | null
+          linkedin_user_id?: string | null
+          linkedin_connected_at?: string | null
+          linkedin_token_expires_at?: string | null
+          linkedin_avatar_url?: string | null
+          linkedin_headline?: string | null
+          linkedin_profile_url?: string | null
+          company_onboarding_completed?: boolean
+          company_name?: string | null
+          company_description?: string | null
+          company_products?: string | null
+          company_icp?: string | null
+          company_value_props?: string | null
+          company_website?: string | null
+          /** Whether the user has completed the full onboarding flow */
+          onboarding_completed?: boolean
+          /** Current step in the onboarding flow (1-6) */
+          onboarding_current_step?: number
+        }
+        Update: {
+          id?: string
+          full_name?: string | null
+          avatar_url?: string | null
+          email?: string | null
+          created_at?: string | null
+          linkedin_access_token?: string | null
+          linkedin_user_id?: string | null
+          linkedin_connected_at?: string | null
+          linkedin_token_expires_at?: string | null
+          linkedin_avatar_url?: string | null
+          linkedin_headline?: string | null
+          linkedin_profile_url?: string | null
+          company_onboarding_completed?: boolean
+          company_name?: string | null
+          company_description?: string | null
+          company_products?: string | null
+          company_icp?: string | null
+          company_value_props?: string | null
+          company_website?: string | null
+          /** Whether the user has completed the full onboarding flow */
+          onboarding_completed?: boolean
+          /** Current step in the onboarding flow (1-6) */
+          onboarding_current_step?: number
+        }
+        Relationships: []
+      }
+      /** Company context from AI analysis */
+      company_context: {
+        Row: {
+          id: string
+          user_id: string
+          company_name: string
+          website_url: string | null
+          industry: string | null
+          target_audience_input: string | null
+          value_proposition: string | null
+          company_summary: string | null
+          products_and_services: Json
+          target_audience: Json
+          tone_of_voice: Json
+          brand_colors: Json
+          scraped_content: string | null
+          perplexity_research: string | null
+          status: string
+          error_message: string | null
+          inngest_run_id: string | null
+          created_at: string
+          updated_at: string
+          completed_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          company_name: string
+          website_url?: string | null
+          industry?: string | null
+          target_audience_input?: string | null
+          value_proposition?: string | null
+          company_summary?: string | null
+          products_and_services?: Json
+          target_audience?: Json
+          tone_of_voice?: Json
+          brand_colors?: Json
+          scraped_content?: string | null
+          perplexity_research?: string | null
+          status?: string
+          error_message?: string | null
+          inngest_run_id?: string | null
+          created_at?: string
+          updated_at?: string
+          completed_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          company_name?: string
+          website_url?: string | null
+          industry?: string | null
+          target_audience_input?: string | null
+          value_proposition?: string | null
+          company_summary?: string | null
+          products_and_services?: Json
+          target_audience?: Json
+          tone_of_voice?: Json
+          brand_colors?: Json
+          scraped_content?: string | null
+          perplexity_research?: string | null
+          status?: string
+          error_message?: string | null
+          inngest_run_id?: string | null
+          created_at?: string
+          updated_at?: string
+          completed_at?: string | null
         }
         Relationships: []
       }
@@ -434,12 +593,13 @@ export interface Database {
           id: string
           user_id: string
           content: string
-          media_urls: Json | null
           scheduled_for: string
           timezone: string | null
-          status: string
-          posted_at: string | null
+          status: 'pending' | 'scheduled' | 'posting' | 'posted' | 'failed' | 'cancelled'
+          visibility: 'PUBLIC' | 'CONNECTIONS'
+          media_urls: string[] | null
           linkedin_post_id: string | null
+          posted_at: string | null
           error_message: string | null
           created_at: string
           updated_at: string
@@ -448,12 +608,13 @@ export interface Database {
           id?: string
           user_id: string
           content: string
-          media_urls?: Json | null
           scheduled_for: string
           timezone?: string | null
-          status?: string
-          posted_at?: string | null
+          status?: 'pending' | 'scheduled' | 'posting' | 'posted' | 'failed' | 'cancelled'
+          visibility?: 'PUBLIC' | 'CONNECTIONS'
+          media_urls?: string[] | null
           linkedin_post_id?: string | null
+          posted_at?: string | null
           error_message?: string | null
           created_at?: string
           updated_at?: string
@@ -462,12 +623,13 @@ export interface Database {
           id?: string
           user_id?: string
           content?: string
-          media_urls?: Json | null
           scheduled_for?: string
           timezone?: string | null
-          status?: string
-          posted_at?: string | null
+          status?: 'pending' | 'scheduled' | 'posting' | 'posted' | 'failed' | 'cancelled'
+          visibility?: 'PUBLIC' | 'CONNECTIONS'
+          media_urls?: string[] | null
           linkedin_post_id?: string | null
+          posted_at?: string | null
           error_message?: string | null
           created_at?: string
           updated_at?: string
@@ -1087,6 +1249,379 @@ export interface Database {
         }
         Relationships: []
       }
+      /** Discover posts - curated/scraped industry content */
+      discover_posts: {
+        Row: {
+          id: string
+          linkedin_url: string
+          author_name: string
+          author_headline: string
+          author_avatar_url: string | null
+          author_profile_url: string | null
+          content: string
+          post_type: string | null
+          likes_count: number
+          comments_count: number
+          reposts_count: number
+          impressions_count: number | null
+          posted_at: string
+          scraped_at: string
+          topics: string[]
+          is_viral: boolean
+          engagement_rate: number | null
+          source: string
+        }
+        Insert: {
+          id?: string
+          linkedin_url: string
+          author_name: string
+          author_headline: string
+          author_avatar_url?: string | null
+          author_profile_url?: string | null
+          content: string
+          post_type?: string | null
+          likes_count?: number
+          comments_count?: number
+          reposts_count?: number
+          impressions_count?: number | null
+          posted_at: string
+          scraped_at?: string
+          topics?: string[]
+          is_viral?: boolean
+          engagement_rate?: number | null
+          source?: string
+        }
+        Update: {
+          id?: string
+          linkedin_url?: string
+          author_name?: string
+          author_headline?: string
+          author_avatar_url?: string | null
+          author_profile_url?: string | null
+          content?: string
+          post_type?: string | null
+          likes_count?: number
+          comments_count?: number
+          reposts_count?: number
+          impressions_count?: number | null
+          posted_at?: string
+          scraped_at?: string
+          topics?: string[]
+          is_viral?: boolean
+          engagement_rate?: number | null
+          source?: string
+        }
+        Relationships: []
+      }
+      /** AI-generated post suggestions personalized to each user */
+      generated_suggestions: {
+        Row: {
+          id: string
+          user_id: string
+          content: string
+          post_type: string | null
+          tone: string | null
+          category: string | null
+          prompt_context: Json
+          generation_batch_id: string | null
+          estimated_engagement: number | null
+          status: 'active' | 'used' | 'dismissed' | 'expired'
+          created_at: string
+          expires_at: string
+          used_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          content: string
+          post_type?: string | null
+          tone?: string | null
+          category?: string | null
+          prompt_context?: Json
+          generation_batch_id?: string | null
+          estimated_engagement?: number | null
+          status?: 'active' | 'used' | 'dismissed' | 'expired'
+          created_at?: string
+          expires_at?: string
+          used_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          content?: string
+          post_type?: string | null
+          tone?: string | null
+          category?: string | null
+          prompt_context?: Json
+          generation_batch_id?: string | null
+          estimated_engagement?: number | null
+          status?: 'active' | 'used' | 'dismissed' | 'expired'
+          created_at?: string
+          expires_at?: string
+          used_at?: string | null
+        }
+        Relationships: []
+      }
+      /** Stores liked post suggestions for later scheduling or posting */
+      swipe_wishlist: {
+        Row: {
+          id: string
+          user_id: string
+          suggestion_id: string | null
+          content: string
+          post_type: string | null
+          category: string | null
+          notes: string | null
+          is_scheduled: boolean
+          scheduled_post_id: string | null
+          status: 'saved' | 'scheduled' | 'posted' | 'removed'
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          suggestion_id?: string | null
+          content: string
+          post_type?: string | null
+          category?: string | null
+          notes?: string | null
+          is_scheduled?: boolean
+          scheduled_post_id?: string | null
+          status?: 'saved' | 'scheduled' | 'posted' | 'removed'
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          suggestion_id?: string | null
+          content?: string
+          post_type?: string | null
+          category?: string | null
+          notes?: string | null
+          is_scheduled?: boolean
+          scheduled_post_id?: string | null
+          status?: 'saved' | 'scheduled' | 'posted' | 'removed'
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      /** Tracks AI suggestion generation job runs for audit and rate limiting */
+      suggestion_generation_runs: {
+        Row: {
+          id: string
+          user_id: string
+          status: 'pending' | 'generating' | 'completed' | 'failed'
+          suggestions_requested: number
+          suggestions_generated: number
+          company_context_id: string | null
+          post_types_used: string[] | null
+          inngest_run_id: string | null
+          error_message: string | null
+          created_at: string
+          completed_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          status?: 'pending' | 'generating' | 'completed' | 'failed'
+          suggestions_requested?: number
+          suggestions_generated?: number
+          company_context_id?: string | null
+          post_types_used?: string[] | null
+          inngest_run_id?: string | null
+          error_message?: string | null
+          created_at?: string
+          completed_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          status?: 'pending' | 'generating' | 'completed' | 'failed'
+          suggestions_requested?: number
+          suggestions_generated?: number
+          company_context_id?: string | null
+          post_types_used?: string[] | null
+          inngest_run_id?: string | null
+          error_message?: string | null
+          created_at?: string
+          completed_at?: string | null
+        }
+        Relationships: []
+      }
+      /** LinkedIn research posts - curated viral posts from influencers */
+      linkedin_research_posts: {
+        Row: {
+          id: string
+          activity_urn: string | null
+          text: string | null
+          url: string | null
+          post_type: string | null
+          posted_date: string | null
+          author_first_name: string | null
+          author_last_name: string | null
+          author_headline: string | null
+          author_username: string | null
+          author_profile_url: string | null
+          author_profile_picture: string | null
+          total_reactions: number | null
+          likes: number | null
+          comments: number | null
+          reposts: number | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          activity_urn?: string | null
+          text?: string | null
+          url?: string | null
+          post_type?: string | null
+          posted_date?: string | null
+          author_first_name?: string | null
+          author_last_name?: string | null
+          author_headline?: string | null
+          author_username?: string | null
+          author_profile_url?: string | null
+          author_profile_picture?: string | null
+          total_reactions?: number | null
+          likes?: number | null
+          comments?: number | null
+          reposts?: number | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          activity_urn?: string | null
+          text?: string | null
+          url?: string | null
+          post_type?: string | null
+          posted_date?: string | null
+          author_first_name?: string | null
+          author_last_name?: string | null
+          author_headline?: string | null
+          author_username?: string | null
+          author_profile_url?: string | null
+          author_profile_picture?: string | null
+          total_reactions?: number | null
+          likes?: number | null
+          comments?: number | null
+          reposts?: number | null
+          created_at?: string | null
+        }
+        Relationships: []
+      }
+      /** Research sessions for tracking deep research workflows */
+      research_sessions: {
+        Row: {
+          id: string
+          user_id: string
+          topics: string[]
+          depth: string
+          status: string
+          posts_discovered: number | null
+          posts_generated: number | null
+          error_message: string | null
+          failed_step: string | null
+          started_at: string | null
+          completed_at: string | null
+          created_at: string
+          updated_at: string
+          inngest_run_id: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          topics: string[]
+          depth?: string
+          status?: string
+          posts_discovered?: number | null
+          posts_generated?: number | null
+          error_message?: string | null
+          failed_step?: string | null
+          started_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          updated_at?: string
+          inngest_run_id?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          topics?: string[]
+          depth?: string
+          status?: string
+          posts_discovered?: number | null
+          posts_generated?: number | null
+          error_message?: string | null
+          failed_step?: string | null
+          started_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          updated_at?: string
+          inngest_run_id?: string | null
+        }
+        Relationships: []
+      }
+      /** AI-generated LinkedIn post drafts from research */
+      generated_posts: {
+        Row: {
+          id: string
+          user_id: string
+          discover_post_id: string | null
+          research_session_id: string | null
+          content: string
+          post_type: string
+          hook: string | null
+          cta: string | null
+          word_count: number | null
+          estimated_read_time: number | null
+          status: string
+          source_url: string | null
+          source_title: string | null
+          source_snippet: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          discover_post_id?: string | null
+          research_session_id?: string | null
+          content: string
+          post_type: string
+          hook?: string | null
+          cta?: string | null
+          word_count?: number | null
+          estimated_read_time?: number | null
+          status?: string
+          source_url?: string | null
+          source_title?: string | null
+          source_snippet?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          discover_post_id?: string | null
+          research_session_id?: string | null
+          content?: string
+          post_type?: string
+          hook?: string | null
+          cta?: string | null
+          word_count?: number | null
+          estimated_read_time?: number | null
+          status?: string
+          source_url?: string | null
+          source_title?: string | null
+          source_snippet?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -1101,6 +1636,48 @@ export interface Database {
       [_ in never]: never
     }
   }
+}
+
+/**
+ * Discover post type for the Discover tab content feed
+ */
+export interface DiscoverPost {
+  /** Unique identifier */
+  id: string
+  /** LinkedIn URL of the original post */
+  linkedin_url: string
+  /** Author display name */
+  author_name: string
+  /** Author headline/title */
+  author_headline: string
+  /** Author avatar image URL */
+  author_avatar_url: string | null
+  /** Author LinkedIn profile URL */
+  author_profile_url: string | null
+  /** Full post content text */
+  content: string
+  /** Post type (text, image, video, carousel, etc.) */
+  post_type: string | null
+  /** Number of likes/reactions */
+  likes_count: number
+  /** Number of comments */
+  comments_count: number
+  /** Number of reposts/shares */
+  reposts_count: number
+  /** Number of impressions (if available) */
+  impressions_count: number | null
+  /** When the post was originally published */
+  posted_at: string
+  /** When the post was scraped/imported */
+  scraped_at: string
+  /** Topic tags for categorization */
+  topics: string[]
+  /** Whether the post is classified as viral */
+  is_viral: boolean
+  /** Calculated engagement rate */
+  engagement_rate: number | null
+  /** Data source: 'apify' | 'manual' | 'import' */
+  source: string
 }
 
 /** Helper type to extract table row types */
@@ -1182,3 +1759,209 @@ export interface TeamInvitationWithInviter extends TeamInvitation {
     }
   }
 }
+
+/**
+ * Scheduled post type alias for convenience
+ */
+export type ScheduledPost = Tables<'scheduled_posts'>
+
+/**
+ * Scheduled post insert type alias
+ */
+export type ScheduledPostInsert = TablesInsert<'scheduled_posts'>
+
+/**
+ * Scheduled post update type alias
+ */
+export type ScheduledPostUpdate = TablesUpdate<'scheduled_posts'>
+
+/**
+ * Scheduled post status enum type
+ */
+export type ScheduledPostStatus = 'pending' | 'scheduled' | 'posting' | 'posted' | 'failed' | 'cancelled'
+
+/**
+ * Post visibility enum type
+ */
+export type PostVisibility = 'PUBLIC' | 'CONNECTIONS'
+
+/**
+ * Research session status enum type
+ */
+export type ResearchSessionStatus =
+  | 'pending'
+  | 'initializing'
+  | 'searching'
+  | 'enriching'
+  | 'generating'
+  | 'saving'
+  | 'completed'
+  | 'failed'
+
+/**
+ * Research depth enum type
+ */
+export type ResearchDepth = 'basic' | 'deep'
+
+/**
+ * Generated post type enum
+ */
+export type GeneratedPostType =
+  | 'thought-leadership'
+  | 'storytelling'
+  | 'educational'
+  | 'contrarian'
+  | 'data-driven'
+  | 'how-to'
+  | 'listicle'
+
+/**
+ * Generated post status enum type
+ */
+export type GeneratedPostStatus = 'draft' | 'scheduled' | 'posted' | 'archived'
+
+/**
+ * Research session for tracking deep research workflows
+ */
+export interface ResearchSession {
+  /** Unique identifier */
+  id: string
+  /** User who created the session */
+  user_id: string
+  /** Topics being researched */
+  topics: string[]
+  /** Research depth level */
+  depth: ResearchDepth
+  /** Current status */
+  status: ResearchSessionStatus
+  /** Number of discover posts created */
+  posts_discovered: number | null
+  /** Number of AI-generated posts created */
+  posts_generated: number | null
+  /** Error message if failed */
+  error_message: string | null
+  /** Which step failed */
+  failed_step: string | null
+  /** When the research started */
+  started_at: string | null
+  /** When the research completed */
+  completed_at: string | null
+  /** Record creation timestamp */
+  created_at: string
+  /** Last update timestamp */
+  updated_at: string
+  /** Inngest run ID for tracking */
+  inngest_run_id: string | null
+}
+
+/**
+ * Generated post from AI content generation
+ */
+export interface GeneratedPost {
+  /** Unique identifier */
+  id: string
+  /** User who owns this post */
+  user_id: string
+  /** Reference to source discover post */
+  discover_post_id: string | null
+  /** Reference to research session */
+  research_session_id: string | null
+  /** Generated post content */
+  content: string
+  /** Type of post (thought-leadership, storytelling, etc.) */
+  post_type: GeneratedPostType
+  /** Opening hook line */
+  hook: string | null
+  /** Call to action */
+  cta: string | null
+  /** Word count */
+  word_count: number | null
+  /** Estimated read time in seconds */
+  estimated_read_time: number | null
+  /** Current status */
+  status: GeneratedPostStatus
+  /** Source URL */
+  source_url: string | null
+  /** Source title */
+  source_title: string | null
+  /** Source content snippet */
+  source_snippet: string | null
+  /** Record creation timestamp */
+  created_at: string
+  /** Last update timestamp */
+  updated_at: string
+}
+
+/**
+ * Research session insert type
+ */
+export interface ResearchSessionInsert {
+  id?: string
+  user_id: string
+  topics: string[]
+  depth?: ResearchDepth
+  status?: ResearchSessionStatus
+  posts_discovered?: number
+  posts_generated?: number
+  error_message?: string | null
+  failed_step?: string | null
+  started_at?: string | null
+  completed_at?: string | null
+  inngest_run_id?: string | null
+}
+
+/**
+ * Generated post insert type
+ */
+export interface GeneratedPostInsert {
+  id?: string
+  user_id: string
+  discover_post_id?: string | null
+  research_session_id?: string | null
+  content: string
+  post_type: GeneratedPostType
+  hook?: string | null
+  cta?: string | null
+  word_count?: number
+  estimated_read_time?: number
+  status?: GeneratedPostStatus
+  source_url?: string | null
+  source_title?: string | null
+  source_snippet?: string | null
+}
+
+/** Generated suggestion type alias */
+export type GeneratedSuggestion = Tables<'generated_suggestions'>
+
+/** Generated suggestion insert type alias */
+export type GeneratedSuggestionInsert = TablesInsert<'generated_suggestions'>
+
+/** Generated suggestion update type alias */
+export type GeneratedSuggestionUpdate = TablesUpdate<'generated_suggestions'>
+
+/** Wishlist item type alias */
+export type WishlistItem = Tables<'swipe_wishlist'>
+
+/** Wishlist item insert type alias */
+export type WishlistItemInsert = TablesInsert<'swipe_wishlist'>
+
+/** Wishlist item update type alias */
+export type WishlistItemUpdate = TablesUpdate<'swipe_wishlist'>
+
+/** Generation run type alias */
+export type GenerationRun = Tables<'suggestion_generation_runs'>
+
+/** Generation run insert type alias */
+export type GenerationRunInsert = TablesInsert<'suggestion_generation_runs'>
+
+/** Generation run update type alias */
+export type GenerationRunUpdate = TablesUpdate<'suggestion_generation_runs'>
+
+/** Suggestion status enum */
+export type SuggestionStatus = 'active' | 'used' | 'dismissed' | 'expired'
+
+/** Wishlist status enum */
+export type WishlistStatus = 'saved' | 'scheduled' | 'posted' | 'removed'
+
+/** Generation run status enum */
+export type GenerationRunStatus = 'pending' | 'generating' | 'completed' | 'failed'

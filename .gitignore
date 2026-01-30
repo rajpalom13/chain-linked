@@ -19,6 +19,7 @@
 
 # production
 /build
+/dist
 
 # misc
 .DS_Store
@@ -39,4 +40,66 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Claude/AI tooling
 tmpclaude-*
+.claude/
+.claude-flow/
+.hive-mind/
+.mcp.json
+
+# IDE/Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+nul
+
+# Logs
+logs/
+*.log
+lerna-debug.log*
+
+# Cache
+.cache/
+.eslintcache
+.stylelintcache
+*.cache
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Package manager locks (keep one, ignore others if not used)
+# Uncomment the ones you don't use:
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# Supabase
+.supabase/
+
+# Sentry
+.sentryclirc
+
+# Storybook
+storybook-static/
+
+# Playwright
+/playwright-report/
+/playwright/.cache/
+
+# Turbo
+.turbo/

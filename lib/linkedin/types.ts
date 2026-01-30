@@ -5,18 +5,33 @@
  */
 
 /**
- * LinkedIn OAuth scopes required for posting
+ * LinkedIn OAuth scopes
+ * Products required in LinkedIn Developer Console:
+ * - "Sign In with LinkedIn using OpenID Connect" (provides openid, profile, email)
+ * - "Share on LinkedIn" (provides w_member_social)
+ *
+ * IMPORTANT: The /v2/me endpoint is FULLY DEPRECATED by LinkedIn.
+ * You MUST enable "Sign In with LinkedIn using OpenID Connect" product.
  */
 export const LINKEDIN_SCOPES = [
-  'openid',
-  'profile',
-  'w_member_social',
+  'openid',           // Required for OpenID Connect authentication
+  'profile',          // Required to get user's name and profile picture
+  'email',            // Required to get user's email address
+  'w_member_social',  // Required for posting to LinkedIn
 ] as const
 
 export type LinkedInScope = typeof LINKEDIN_SCOPES[number]
 
 /**
+ * Get LinkedIn scopes for OAuth
+ */
+export function getLinkedInScopes(): string[] {
+  return [...LINKEDIN_SCOPES]
+}
+
+/**
  * LinkedIn OAuth token response
+ * When using OpenID Connect (openid scope), also includes id_token
  */
 export interface LinkedInTokenResponse {
   access_token: string
@@ -24,20 +39,58 @@ export interface LinkedInTokenResponse {
   refresh_token?: string
   refresh_token_expires_in?: number
   scope: string
+  /** JWT containing user info when openid scope is used */
+  id_token?: string
 }
 
 /**
- * LinkedIn user info response from /v2/userinfo
+ * LinkedIn user info response from /v2/userinfo endpoint (OpenID Connect)
+ * Requires openid scope
  */
 export interface LinkedInUserInfo {
+  /** OpenID Connect subject - LinkedIn member ID */
   sub: string
-  name: string
-  given_name: string
-  family_name: string
+  /** Full name */
+  name?: string
+  /** Given name / First name */
+  given_name?: string
+  /** Family name / Last name */
+  family_name?: string
+  /** Profile picture URL */
   picture?: string
+  /** Email address (requires email scope) */
   email?: string
+  /** Whether email is verified */
   email_verified?: boolean
-  locale?: string
+  /** Locale */
+  locale?: {
+    country: string
+    language: string
+  }
+}
+
+/**
+ * LinkedIn user info response from /v2/me endpoint (legacy)
+ * Used when openid scope is not available
+ */
+export interface LinkedInMeResponse {
+  /** LinkedIn member ID (used to construct URN) */
+  id: string
+  /** Localized first name */
+  localizedFirstName: string
+  /** Localized last name */
+  localizedLastName: string
+  /** Profile picture data */
+  profilePicture?: {
+    displayImage: string
+    'displayImage~'?: {
+      elements?: Array<{
+        identifiers?: Array<{
+          identifier: string
+        }>
+      }>
+    }
+  }
 }
 
 /**
@@ -194,12 +247,17 @@ export interface CreatePostResponse {
 }
 
 /**
- * LinkedIn connection status
+ * LinkedIn connection status returned by the /api/linkedin/status endpoint
  */
 export interface LinkedInConnectionStatus {
-  isConnected: boolean
-  linkedinUrn?: string
-  expiresAt?: string
+  /** Whether the user currently has a valid LinkedIn connection */
+  connected: boolean
+  /** ISO timestamp of when the token expires, or null if not connected */
+  expiresAt: string | null
+  /** Display name from the LinkedIn profile, or null if not available */
+  profileName: string | null
+  /** Whether the token is expired or within 7 days of expiry and needs reconnection */
+  needsReconnect: boolean
 }
 
 /**
@@ -228,7 +286,10 @@ export const DEFAULT_RETRY_CONFIG: RetryConfig = {
 export const LINKEDIN_API = {
   AUTHORIZATION: 'https://www.linkedin.com/oauth/v2/authorization',
   ACCESS_TOKEN: 'https://www.linkedin.com/oauth/v2/accessToken',
-  USER_INFO: 'https://api.linkedin.com/v2/userinfo',
+  /** OpenID Connect userinfo endpoint - requires openid scope */
+  USERINFO: 'https://api.linkedin.com/v2/userinfo',
+  /** User profile endpoint - fallback when openid scope is not available */
+  ME: 'https://api.linkedin.com/v2/me',
   UGC_POSTS: 'https://api.linkedin.com/v2/ugcPosts',
   ASSETS: 'https://api.linkedin.com/v2/assets',
 } as const

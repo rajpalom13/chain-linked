@@ -17,7 +17,7 @@ import type { Tables } from '@/types/database'
  */
 interface AuthState {
   user: User | null
-  profile: Tables<'users'> | null
+  profile: Tables<'profiles'> | null
   session: Session | null
   isLoading: boolean
   isAuthenticated: boolean
@@ -53,7 +53,7 @@ export function useAuth(): UseAuthReturn {
    */
   const fetchProfile = useCallback(async (userId: string) => {
     const { data: profile, error } = await supabase
-      .from('users')
+      .from('profiles')
       .select('*')
       .eq('id', userId)
       .single()

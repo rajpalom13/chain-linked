@@ -6,9 +6,11 @@
 
 import {
   LINKEDIN_API,
-  LINKEDIN_SCOPES,
+  LINKEDIN_API_VERSION,
+  getLinkedInScopes,
   type LinkedInTokenResponse,
   type LinkedInUserInfo,
+  type LinkedInMeResponse,
   type LinkedInTokenData,
 } from './types'
 
@@ -23,13 +25,19 @@ interface LinkedInOAuthConfig {
 
 /**
  * Get LinkedIn OAuth configuration from environment
+ * @param origin - Optional origin URL to construct redirect_uri dynamically
  * @returns LinkedIn OAuth configuration
  * @throws Error if environment variables are not set
  */
-export function getLinkedInConfig(): LinkedInOAuthConfig {
+export function getLinkedInConfig(origin?: string): LinkedInOAuthConfig {
   const clientId = process.env.LINKEDIN_CLIENT_ID
   const clientSecret = process.env.LINKEDIN_CLIENT_SECRET
-  const redirectUri = process.env.LINKEDIN_REDIRECT_URI
+
+  // Use dynamic origin-based redirect_uri if provided, otherwise fall back to env var
+  let redirectUri = process.env.LINKEDIN_REDIRECT_URI
+  if (origin) {
+    redirectUri = `${origin}/api/linkedin/callback`
+  }
 
   if (!clientId || !clientSecret || !redirectUri) {
     throw new Error(
@@ -66,7 +74,8 @@ export function generateState(): string {
  */
 export function generateAuthUrl(state: string): string {
   const config = getLinkedInConfig()
-  const scope = LINKEDIN_SCOPES.join(' ')
+  const scopes = getLinkedInScopes()
+  const scope = scopes.join(' ')
 
   const params = new URLSearchParams({
     response_type: 'code',
@@ -116,6 +125,13 @@ export async function exchangeCodeForTokens(
   }
 
   const data = await response.json() as LinkedInTokenResponse
+  console.log('LinkedIn token exchange successful:', {
+    hasAccessToken: !!data.access_token,
+    hasRefreshToken: !!data.refresh_token,
+    hasIdToken: !!data.id_token,
+    expiresIn: data.expires_in,
+    scope: data.scope,
+  })
   return data
 }
 
@@ -193,27 +209,143 @@ export async function revokeToken(accessToken: string): Promise<boolean> {
 
 /**
  * Get LinkedIn user info using access token
- * @param accessToken - Valid LinkedIn access token
- * @returns User info including LinkedIn URN (sub field)
+ * Uses /v2/userinfo endpoint (OpenID Connect)
+ *
+ * IMPORTANT: The /v2/me endpoint is DEPRECATED. You must enable
+ * "Sign In with LinkedIn using OpenID Connect" in LinkedIn Developer Portal.
+ *
+ * @param accessToken - Valid LinkedIn access token with openid scope
+ * @returns User info including LinkedIn member ID (sub)
  * @throws Error if user info fetch fails
  */
 export async function getLinkedInUserInfo(
   accessToken: string
 ): Promise<LinkedInUserInfo> {
-  const response = await fetch(LINKEDIN_API.USER_INFO, {
+  console.log('Fetching LinkedIn user info from:', LINKEDIN_API.USERINFO)
+
+  const response = await fetch(LINKEDIN_API.USERINFO, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
+      'LinkedIn-Version': LINKEDIN_API_VERSION,
     },
   })
 
   if (!response.ok) {
     const errorText = await response.text()
-    console.error('LinkedIn user info error:', errorText)
-    throw new Error(`Failed to get LinkedIn user info: ${response.status}`)
+    console.error('LinkedIn userinfo error response:', {
+      status: response.status,
+      statusText: response.statusText,
+      body: errorText,
+    })
+
+    // Try to parse error as JSON for more details
+    let errorDetails = ''
+    try {
+      const errorJson = JSON.parse(errorText)
+      errorDetails = errorJson.message || errorJson.error_description || errorJson.error || ''
+      console.error('LinkedIn error details:', errorJson)
+    } catch {
+      errorDetails = errorText.substring(0, 200)
+    }
+
+    if (response.status === 403) {
+      throw new Error(
+        `LinkedIn API access forbidden (403). ${errorDetails ? `Details: ${errorDetails}. ` : ''}` +
+        'Please verify: 1) "Sign In with LinkedIn using OpenID Connect" product is ADDED (not just requested) ' +
+        'in your LinkedIn Developer Portal (https://www.linkedin.com/developers/apps). ' +
+        '2) Wait 5-10 minutes after enabling for LinkedIn to provision access. ' +
+        '3) The app may need to be verified if requesting sensitive scopes.'
+      )
+    }
+
+    if (response.status === 401) {
+      throw new Error(
+        `LinkedIn authentication failed (401). ${errorDetails ? `Details: ${errorDetails}. ` : ''}` +
+        'The access token may be invalid or expired.'
+      )
+    }
+
+    throw new Error(`Failed to get LinkedIn user info: ${response.status}${errorDetails ? ` - ${errorDetails}` : ''}`)
   }
 
-  const data = await response.json() as LinkedInUserInfo
-  return data
+  const userInfo = await response.json() as LinkedInUserInfo
+  console.log('LinkedIn user info received:', { sub: userInfo.sub, name: userInfo.name })
+  return userInfo
+}
+
+/**
+ * Decode a JWT ID token without verification
+ * LinkedIn ID tokens are JWTs that contain user info in the payload
+ *
+ * @param idToken - The JWT ID token from LinkedIn
+ * @returns Decoded payload with user info, or null if decoding fails
+ */
+export function decodeIdToken(idToken: string): LinkedInUserInfo | null {
+  try {
+    const parts = idToken.split('.')
+    if (parts.length !== 3) {
+      console.error('Invalid ID token format: expected 3 parts')
+      return null
+    }
+
+    // Decode the payload (second part)
+    const payload = parts[1]
+    // Handle URL-safe base64
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const decoded = Buffer.from(base64, 'base64').toString('utf8')
+    const claims = JSON.parse(decoded)
+
+    console.log('Decoded ID token claims:', {
+      sub: claims.sub,
+      name: claims.name,
+      email: claims.email,
+      iss: claims.iss,
+      aud: claims.aud,
+    })
+
+    // Map JWT claims to LinkedInUserInfo
+    return {
+      sub: claims.sub,
+      name: claims.name,
+      given_name: claims.given_name,
+      family_name: claims.family_name,
+      picture: claims.picture,
+      email: claims.email,
+      email_verified: claims.email_verified,
+      locale: claims.locale,
+    }
+  } catch (error) {
+    console.error('Failed to decode ID token:', error)
+    return null
+  }
+}
+
+/**
+ * Get LinkedIn user info from ID token or userinfo endpoint
+ * Tries ID token first (more reliable), falls back to userinfo endpoint
+ *
+ * @param accessToken - Valid LinkedIn access token
+ * @param idToken - Optional ID token from token exchange
+ * @returns User info including LinkedIn member ID (sub)
+ */
+export async function getLinkedInUserInfoFromTokens(
+  accessToken: string,
+  idToken?: string
+): Promise<LinkedInUserInfo> {
+  // Try to decode ID token first - this is more reliable
+  if (idToken) {
+    console.log('Attempting to get user info from ID token...')
+    const userInfo = decodeIdToken(idToken)
+    if (userInfo && userInfo.sub) {
+      console.log('Successfully got user info from ID token')
+      return userInfo
+    }
+    console.log('ID token decode failed or missing sub, falling back to userinfo endpoint')
+  }
+
+  // Fall back to userinfo endpoint
+  console.log('Fetching user info from userinfo endpoint...')
+  return getLinkedInUserInfo(accessToken)
 }
 
 /**

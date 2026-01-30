@@ -129,7 +129,9 @@ Before committing any feature:
 8. Update CHANGELOG.md
 
 ## Supabase Configuration
-- URL: https://nlgxwnhpgjfilxxrmypy.supabase.co
+- Project ID: baurjucvzdboavbcuxjh
+- URL: https://baurjucvzdboavbcuxjh.supabase.co
+- Region: ap-south-1
 - Environment variables should be in .env.local
 
 ## Database Tables (from LinkedIn extension)

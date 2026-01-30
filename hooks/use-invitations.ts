@@ -146,8 +146,8 @@ export function useInvitations(options: UseInvitationsOptions = {}): UseInvitati
         (data || []).map(async (invitation) => {
           // Get inviter info
           const { data: inviter } = await supabase
-            .from('users')
-            .select('name, email, avatar_url')
+            .from('profiles')
+            .select('full_name, email, avatar_url')
             .eq('id', invitation.invited_by)
             .single()
 
@@ -170,7 +170,11 @@ export function useInvitations(options: UseInvitationsOptions = {}): UseInvitati
 
           return {
             ...invitation,
-            inviter: inviter || undefined,
+            inviter: inviter ? {
+              name: inviter.full_name,
+              email: inviter.email || '',
+              avatar_url: inviter.avatar_url,
+            } : undefined,
             team: team ? {
               name: team.name,
               company: companyInfo || undefined,
@@ -190,7 +194,8 @@ export function useInvitations(options: UseInvitationsOptions = {}): UseInvitati
   }, [supabase, teamId, pendingOnly])
 
   /**
-   * Send invitations to multiple email addresses
+   * Send invitations to multiple email addresses via API
+   * This sends emails using Resend through the server-side API route
    * @param teamId - Team to invite users to
    * @param emails - List of email addresses
    * @param role - Role to assign (default: member)
@@ -201,131 +206,37 @@ export function useInvitations(options: UseInvitationsOptions = {}): UseInvitati
     emails: string[],
     role: TeamMemberRole = 'member'
   ): Promise<SendInvitationsResult> => {
-    const result: SendInvitationsResult = {
-      success: true,
-      sent: [],
-      failed: [],
-    }
-
     try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
+      // Call the API endpoint which handles validation, record creation, and email sending
+      const response = await fetch(`/api/teams/${teamId}/invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emails, role }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
         return {
           success: false,
           sent: [],
-          failed: emails.map(email => ({ email, reason: 'Not authenticated' })),
+          failed: emails.map(email => ({
+            email,
+            reason: result.error || 'Failed to send invitation',
+          })),
         }
       }
-
-      // Verify user has permission to invite (is team owner or admin)
-      const { data: membership } = await supabase
-        .from('team_members')
-        .select('role')
-        .eq('team_id', teamId)
-        .eq('user_id', user.id)
-        .single()
-
-      if (!membership || !['owner', 'admin'].includes(membership.role)) {
-        return {
-          success: false,
-          sent: [],
-          failed: emails.map(email => ({ email, reason: 'No permission to invite' })),
-        }
-      }
-
-      // Check for existing team members
-      const { data: existingMembers } = await supabase
-        .from('team_members')
-        .select('user_id')
-        .eq('team_id', teamId)
-
-      const memberUserIds = existingMembers?.map(m => m.user_id) || []
-
-      // Get emails of existing members
-      const { data: memberUsers } = await supabase
-        .from('users')
-        .select('email')
-        .in('id', memberUserIds)
-
-      const existingEmails = new Set(memberUsers?.map(u => u.email.toLowerCase()) || [])
-
-      // Check for pending invitations
-      const { data: pendingInvitations } = await supabase
-        .from('team_invitations')
-        .select('email')
-        .eq('team_id', teamId)
-        .eq('status', 'pending')
-
-      const pendingEmails = new Set(pendingInvitations?.map(i => i.email.toLowerCase()) || [])
-
-      // Process each email
-      for (const email of emails) {
-        const normalizedEmail = email.trim().toLowerCase()
-
-        // Validate email format
-        if (!isValidEmail(normalizedEmail)) {
-          result.failed.push({ email: normalizedEmail, reason: 'Invalid email format' })
-          continue
-        }
-
-        // Check if already a team member
-        if (existingEmails.has(normalizedEmail)) {
-          result.failed.push({ email: normalizedEmail, reason: 'Already a team member' })
-          continue
-        }
-
-        // Check if already has pending invitation
-        if (pendingEmails.has(normalizedEmail)) {
-          result.failed.push({ email: normalizedEmail, reason: 'Invitation already pending' })
-          continue
-        }
-
-        // Generate secure token
-        const token = generateSecureToken()
-
-        // Calculate expiration (7 days from now)
-        const expiresAt = new Date()
-        expiresAt.setDate(expiresAt.getDate() + 7)
-
-        // Create invitation
-        const invitation: TeamInvitationInsert = {
-          team_id: teamId,
-          email: normalizedEmail,
-          role: role === 'owner' ? 'admin' : role, // Can't invite as owner
-          token,
-          invited_by: user.id,
-          status: 'pending',
-          expires_at: expiresAt.toISOString(),
-        }
-
-        const { error: insertError } = await supabase
-          .from('team_invitations')
-          .insert(invitation)
-
-        if (insertError) {
-          console.error('Invitation insert error:', insertError)
-          result.failed.push({ email: normalizedEmail, reason: 'Failed to create invitation' })
-          continue
-        }
-
-        // TODO: Send email using Supabase Edge Function or email service
-        // For now, we just create the invitation record
-        // The email sending would be implemented via:
-        // - Supabase Edge Function with Resend
-        // - Or direct API call to email service
-
-        result.sent.push(normalizedEmail)
-      }
-
-      result.success = result.failed.length === 0
 
       // Refetch invitations to update the list
-      if (result.sent.length > 0) {
+      if (result.sent?.length > 0) {
         await fetchInvitations()
       }
 
-      return result
+      return {
+        success: result.success ?? false,
+        sent: result.sent || [],
+        failed: result.failed || [],
+      }
     } catch (err) {
       console.error('Send invitations error:', err)
       return {
@@ -337,7 +248,7 @@ export function useInvitations(options: UseInvitationsOptions = {}): UseInvitati
         })),
       }
     }
-  }, [supabase, fetchInvitations])
+  }, [fetchInvitations])
 
   /**
    * Get invitation by token (for acceptance flow)
@@ -358,8 +269,8 @@ export function useInvitations(options: UseInvitationsOptions = {}): UseInvitati
 
       // Get inviter info
       const { data: inviter } = await supabase
-        .from('users')
-        .select('name, email, avatar_url')
+        .from('profiles')
+        .select('full_name, email, avatar_url')
         .eq('id', invitation.invited_by)
         .single()
 
@@ -382,7 +293,11 @@ export function useInvitations(options: UseInvitationsOptions = {}): UseInvitati
 
       return {
         ...invitation,
-        inviter: inviter || undefined,
+        inviter: inviter ? {
+          name: inviter.full_name,
+          email: inviter.email || '',
+          avatar_url: inviter.avatar_url,
+        } : undefined,
         team: team ? {
           name: team.name,
           company: companyInfo || undefined,
@@ -395,98 +310,32 @@ export function useInvitations(options: UseInvitationsOptions = {}): UseInvitati
   }, [supabase])
 
   /**
-   * Accept an invitation
+   * Accept an invitation via API
+   * This handles adding user to team and sends welcome email
    * @param token - Invitation token
    * @returns Result of acceptance
    */
   const acceptInvitation = useCallback(async (token: string): Promise<AcceptInvitationResult> => {
     try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        return { success: false, error: 'You must be logged in to accept an invitation' }
+      const response = await fetch('/api/teams/accept-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: result.error || 'Failed to accept invitation',
+        }
       }
 
-      // Get invitation
-      const { data: invitation, error: fetchError } = await supabase
-        .from('team_invitations')
-        .select('*')
-        .eq('token', token)
-        .single()
-
-      if (fetchError || !invitation) {
-        return { success: false, error: 'Invitation not found' }
+      return {
+        success: true,
+        teamId: result.team_id,
       }
-
-      // Verify email matches
-      if (invitation.email.toLowerCase() !== user.email?.toLowerCase()) {
-        return { success: false, error: 'This invitation was sent to a different email address' }
-      }
-
-      // Check if already accepted
-      if (invitation.status === 'accepted') {
-        return { success: false, error: 'This invitation has already been accepted' }
-      }
-
-      // Check if expired
-      if (new Date(invitation.expires_at) < new Date()) {
-        // Update status to expired
-        await supabase
-          .from('team_invitations')
-          .update({ status: 'expired' })
-          .eq('id', invitation.id)
-        return { success: false, error: 'This invitation has expired' }
-      }
-
-      // Check if cancelled
-      if (invitation.status === 'cancelled') {
-        return { success: false, error: 'This invitation has been cancelled' }
-      }
-
-      // Check if user is already a team member
-      const { data: existingMembership } = await supabase
-        .from('team_members')
-        .select('id')
-        .eq('team_id', invitation.team_id)
-        .eq('user_id', user.id)
-        .single()
-
-      if (existingMembership) {
-        // Update invitation to accepted anyway
-        await supabase
-          .from('team_invitations')
-          .update({
-            status: 'accepted',
-            accepted_at: new Date().toISOString(),
-          })
-          .eq('id', invitation.id)
-        return { success: true, teamId: invitation.team_id }
-      }
-
-      // Add user to team
-      const { error: memberError } = await supabase
-        .from('team_members')
-        .insert({
-          team_id: invitation.team_id,
-          user_id: user.id,
-          role: invitation.role,
-        })
-
-      if (memberError) {
-        console.error('Add team member error:', memberError)
-        return { success: false, error: 'Failed to join team' }
-      }
-
-      // Update invitation status
-      await supabase
-        .from('team_invitations')
-        .update({
-          status: 'accepted',
-          accepted_at: new Date().toISOString(),
-        })
-        .eq('id', invitation.id)
-
-      return { success: true, teamId: invitation.team_id }
     } catch (err) {
       console.error('Accept invitation error:', err)
       return {
@@ -494,7 +343,7 @@ export function useInvitations(options: UseInvitationsOptions = {}): UseInvitati
         error: err instanceof Error ? err.message : 'Failed to accept invitation',
       }
     }
-  }, [supabase])
+  }, [])
 
   /**
    * Cancel a pending invitation

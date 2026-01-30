@@ -7,7 +7,6 @@
  */
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   IconSearch,
@@ -39,8 +38,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { trackDiscoverAction } from "@/lib/analytics"
 import { cn } from "@/lib/utils"
-import { useDraft } from "@/lib/store/draft-context"
 import { inspirationToast } from "@/lib/toast-utils"
 import {
   InspirationPostCard,
@@ -128,15 +127,17 @@ export interface InspirationFeedProps {
   className?: string
 }
 
-/** Available category options for filtering */
+/** Available category options for filtering - matches inferred categories from posts */
 export const INSPIRATION_CATEGORIES = [
   { id: "all", label: "All" },
-  { id: "thought-leadership", label: "Thought Leadership" },
-  { id: "personal-stories", label: "Personal Stories" },
-  { id: "industry-news", label: "Industry News" },
-  { id: "how-to", label: "How-To" },
-  { id: "engagement-hooks", label: "Engagement Hooks" },
-  { id: "sales-biz-dev", label: "Sales/Biz Dev" },
+  { id: "marketing", label: "Marketing" },
+  { id: "technology", label: "Technology" },
+  { id: "leadership", label: "Leadership" },
+  { id: "sales", label: "Sales" },
+  { id: "entrepreneurship", label: "Startup" },
+  { id: "product-management", label: "Product" },
+  { id: "growth", label: "Growth" },
+  { id: "design", label: "Design" },
 ] as const
 
 /** Category type derived from the constants */
@@ -355,9 +356,6 @@ export function InspirationFeed({
   error,
   className,
 }: InspirationFeedProps) {
-  const router = useRouter()
-  const { loadForRemix } = useDraft()
-
   // Local state for internal filtering when props not provided
   const [localCategory, setLocalCategory] = React.useState<InspirationCategory>("all")
   const [localSearchQuery, setLocalSearchQuery] = React.useState("")
@@ -406,6 +404,7 @@ export function InspirationFeed({
    */
   const handleNicheChange = React.useCallback(
     (niche: string) => {
+      trackDiscoverAction("topic_changed", niche)
       if (onFiltersChange) {
         onFiltersChange({ niche: niche as InspirationNiche | "all" })
       } else {
@@ -431,24 +430,16 @@ export function InspirationFeed({
   )
 
   /**
-   * Handles remixing a post - loads it into composer and navigates
+   * Handles remixing a post - calls the onRemix callback to let parent handle the flow
    * @param post - The post to remix
    */
   const handleRemix = React.useCallback(
     (post: InspirationPost) => {
-      // Load content into draft context
-      loadForRemix(post.id, post.content, post.author.name)
-
-      // Call optional callback
+      trackDiscoverAction("remixed")
+      // Call the callback - parent handles dialog/navigation
       onRemix?.(post)
-
-      // Show success toast
-      inspirationToast.remixed()
-
-      // Navigate to compose page
-      router.push("/dashboard/compose")
     },
-    [loadForRemix, onRemix, router]
+    [onRemix]
   )
 
   /**
@@ -457,6 +448,7 @@ export function InspirationFeed({
    */
   const handleSave = React.useCallback(
     (postId: string) => {
+      trackDiscoverAction("viewed")
       onSave?.(postId)
       inspirationToast.saved()
     },
@@ -511,8 +503,9 @@ export function InspirationFeed({
       <Card className={cn(
         "group relative overflow-hidden border-border/50",
         "bg-gradient-to-br from-card via-card to-primary/5",
-        "transition-all duration-300 hover:border-primary/30",
+        "transition-all duration-300 hover:border-primary/30 hover:shadow-lg",
         "dark:from-card dark:via-card dark:to-primary/10",
+        "card-glow",
         className
       )}>
         {/* Subtle glow effect */}

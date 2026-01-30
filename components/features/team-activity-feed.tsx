@@ -7,13 +7,22 @@ import {
   IconMessageCircle,
   IconShare,
   IconSparkles,
+  IconFilter,
+  IconSortDescending,
 } from "@tabler/icons-react"
 import { formatDistanceToNow } from "date-fns"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 
@@ -63,6 +72,8 @@ export interface TeamActivityFeedProps {
   isLoading?: boolean
   /** Additional CSS classes to apply to the container */
   className?: string
+  /** Compact mode - hides filters and shows fewer posts */
+  compact?: boolean
 }
 
 /** Maximum character count before content is truncated */
@@ -402,7 +413,7 @@ function EmptyState() {
 
 /**
  * TeamActivityFeed displays a real-time feed of posts from team members
- * with their engagement metrics and the ability to remix post ideas.
+ * with their engagement metrics, filtering, sorting, and the ability to remix post ideas.
  *
  * @example
  * ```tsx
@@ -431,10 +442,64 @@ export function TeamActivityFeed({
   onRemix,
   isLoading = false,
   className,
+  compact = false,
 }: TeamActivityFeedProps) {
+  const [filterType, setFilterType] = React.useState<string>("all")
+  const [sortBy, setSortBy] = React.useState<string>("recent")
+
+  // Filter and sort posts
+  const filteredAndSortedPosts = React.useMemo(() => {
+    if (!posts) return []
+
+    // Filter by post type
+    let filtered = posts
+    if (filterType !== "all") {
+      filtered = posts.filter(post => post.postType === filterType)
+    }
+
+    // Sort posts
+    const sorted = [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case "engagement":
+          // Sort by total engagement (reactions + comments + reposts)
+          const engagementA = a.metrics.reactions + a.metrics.comments + a.metrics.reposts
+          const engagementB = b.metrics.reactions + b.metrics.comments + b.metrics.reposts
+          return engagementB - engagementA
+        case "impressions":
+          return b.metrics.impressions - a.metrics.impressions
+        case "recent":
+        default:
+          return new Date(b.postedAt).getTime() - new Date(a.postedAt).getTime()
+      }
+    })
+
+    return sorted
+  }, [posts, filterType, sortBy])
+
+  // Compact mode: simpler loading state
   if (isLoading) {
+    if (compact) {
+      return (
+        <div className={cn("space-y-3", className)}>
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div key={index} className="flex items-start gap-3 p-3 border rounded-lg">
+              <Skeleton className="size-8 rounded-full flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-3 w-full" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )
+    }
     return (
       <div className={cn("space-y-4", className)}>
+        <Card hover>
+          <CardHeader className="pb-4">
+            <CardTitle>Team Activity</CardTitle>
+          </CardHeader>
+        </Card>
         {Array.from({ length: 3 }).map((_, index) => (
           <PostCardSkeleton key={index} />
         ))}
@@ -442,19 +507,134 @@ export function TeamActivityFeed({
     )
   }
 
+  // Empty state
   if (!posts || posts.length === 0) {
+    if (compact) {
+      return (
+        <div className={cn("py-6 text-center text-sm text-muted-foreground", className)}>
+          No recent activity from team members
+        </div>
+      )
+    }
     return (
       <div className={className}>
+        <Card hover>
+          <CardHeader className="pb-4">
+            <CardTitle>Team Activity</CardTitle>
+          </CardHeader>
+        </Card>
         <EmptyState />
       </div>
     )
   }
 
+  // Compact mode: simplified list without filters
+  if (compact) {
+    return (
+      <div className={cn("space-y-3", className)}>
+        {filteredAndSortedPosts.map((post) => (
+          <div key={post.id} className="flex items-start gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+            <Avatar className="size-8 flex-shrink-0">
+              {post.author.avatar && (
+                <AvatarImage src={post.author.avatar} alt={post.author.name} />
+              )}
+              <AvatarFallback className="text-xs">
+                {getInitials(post.author.name)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-sm font-medium truncate">{post.author.name}</span>
+                <span className="text-xs text-muted-foreground">
+                  {formatDistanceToNow(new Date(post.postedAt), { addSuffix: true })}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground line-clamp-2">
+                {post.content}
+              </p>
+              <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <IconEye className="size-3" />
+                  {formatMetricNumber(post.metrics.impressions)}
+                </span>
+                <span className="flex items-center gap-1">
+                  <IconThumbUp className="size-3" />
+                  {formatMetricNumber(post.metrics.reactions)}
+                </span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  // Full mode with filters
   return (
     <div className={cn("space-y-4", className)}>
-      {posts.map((post) => (
-        <PostCard key={post.id} post={post} onRemix={onRemix} />
-      ))}
+      {/* Filter and Sort Controls */}
+      <Card hover>
+        <CardHeader className="pb-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle>Team Activity</CardTitle>
+            <div className="flex items-center gap-2">
+              {/* Post Type Filter */}
+              <Select value={filterType} onValueChange={setFilterType}>
+                <SelectTrigger className="w-[140px]">
+                  <IconFilter className="size-4 mr-2" />
+                  <SelectValue placeholder="Filter" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="text">Text Posts</SelectItem>
+                  <SelectItem value="article">Articles</SelectItem>
+                  <SelectItem value="image">Images</SelectItem>
+                  <SelectItem value="video">Videos</SelectItem>
+                  <SelectItem value="poll">Polls</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Sort By */}
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-[140px]">
+                  <IconSortDescending className="size-4 mr-2" />
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="recent">Most Recent</SelectItem>
+                  <SelectItem value="engagement">Most Engaging</SelectItem>
+                  <SelectItem value="impressions">Most Views</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+
+      {/* Filtered and Sorted Posts */}
+      {filteredAndSortedPosts.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="rounded-full bg-muted p-3 mb-4">
+              <IconFilter className="size-6 text-muted-foreground" />
+            </div>
+            <h3 className="font-medium text-sm mb-1">No posts match your filters</h3>
+            <p className="text-xs text-muted-foreground max-w-[240px] mb-3">
+              Try adjusting your filter settings to see more activity.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => {
+              setFilterType("all")
+              setSortBy("recent")
+            }}>
+              Clear Filters
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        filteredAndSortedPosts.map((post) => (
+          <PostCard key={post.id} post={post} onRemix={onRemix} />
+        ))
+      )}
     </div>
   )
 }

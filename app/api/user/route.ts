@@ -22,7 +22,7 @@ export async function GET() {
 
   // Get user profile with LinkedIn data
   const { data: profile, error: profileError } = await supabase
-    .from('users')
+    .from('profiles')
     .select(`
       *,
       linkedin_profiles (*)
@@ -57,11 +57,9 @@ export async function PATCH(request: Request) {
     const { name, linkedin_profile_url } = body
 
     const { data: updatedUser, error: updateError } = await supabase
-      .from('users')
+      .from('profiles')
       .update({
-        name,
-        linkedin_profile_url,
-        updated_at: new Date().toISOString(),
+        full_name: name,
       })
       .eq('id', user.id)
       .select()

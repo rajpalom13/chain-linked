@@ -145,31 +145,31 @@ export function useSettings(): UseSettingsReturn {
         return
       }
 
-      // Fetch user profile from users table
-      const { data: userData, error: userError } = await supabase
-        .from('users')
+      // Fetch user profile from profiles table
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
         .select('*')
         .eq('id', authUser.id)
         .single()
 
-      if (userError && userError.code !== 'PGRST116') {
-        console.warn('Error fetching user:', userError)
+      if (profileError && profileError.code !== 'PGRST116') {
+        console.warn('Error fetching profile:', profileError)
       }
 
-      // Set user profile
-      if (userData) {
+      // Set user profile from profiles table
+      if (profileData) {
         setUser({
-          name: userData.name || authUser.email?.split('@')[0] || 'User',
-          email: userData.email || authUser.email || '',
-          avatarUrl: userData.avatar_url || undefined,
-          linkedinProfileUrl: userData.linkedin_profile_url || undefined,
+          name: profileData.full_name || authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User',
+          email: profileData.email || authUser.email || '',
+          avatarUrl: profileData.avatar_url || undefined,
+          linkedinProfileUrl: undefined, // Not stored in profiles table
         })
       } else {
-        // Fallback to auth user data
+        // Fallback to auth user metadata
         setUser({
-          name: authUser.email?.split('@')[0] || 'User',
+          name: authUser.user_metadata?.full_name || authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'User',
           email: authUser.email || '',
-          avatarUrl: undefined,
+          avatarUrl: authUser.user_metadata?.avatar_url || undefined,
         })
       }
 
@@ -188,14 +188,22 @@ export function useSettings(): UseSettingsReturn {
       setLinkedinConnected(!!linkedinData)
 
       // Fetch team members - first get user's team(s)
-      const { data: teamMemberData, error: teamMemberError } = await supabase
-        .from('team_members')
-        .select('team_id')
-        .eq('user_id', authUser.id)
-        .limit(1)
+      // Handle gracefully if table doesn't exist or RLS blocks access
+      let teamMemberData: { team_id: string }[] | null = null
+      try {
+        const { data, error: teamMemberError } = await supabase
+          .from('team_members')
+          .select('team_id')
+          .eq('user_id', authUser.id)
+          .limit(1)
 
-      if (teamMemberError) {
-        console.warn('Error fetching team membership:', teamMemberError)
+        // Only log non-standard errors (not 406/table issues or PGRST116/not found)
+        if (teamMemberError && teamMemberError.code !== 'PGRST116' && !teamMemberError.message?.includes('406')) {
+          console.warn('Error fetching team membership:', teamMemberError)
+        }
+        teamMemberData = data
+      } catch {
+        // Table might not exist, continue without team data
       }
 
       if (teamMemberData && teamMemberData.length > 0) {
@@ -247,10 +255,10 @@ export function useSettings(): UseSettingsReturn {
         // No team - just show current user as owner
         setTeamMembers([{
           id: authUser.id,
-          name: userData?.name || authUser.email?.split('@')[0] || 'User',
-          email: userData?.email || authUser.email || '',
+          name: profileData?.full_name || authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User',
+          email: profileData?.email || authUser.email || '',
           role: 'owner',
-          avatarUrl: userData?.avatar_url || undefined,
+          avatarUrl: profileData?.avatar_url || undefined,
         }])
       }
 
@@ -301,14 +309,13 @@ export function useSettings(): UseSettingsReturn {
         return false
       }
 
-      const dbUpdates: Partial<Tables<'users'>> = {}
-      if (updates.name !== undefined) dbUpdates.name = updates.name
+      const dbUpdates: Partial<Tables<'profiles'>> = {}
+      if (updates.name !== undefined) dbUpdates.full_name = updates.name
       if (updates.email !== undefined) dbUpdates.email = updates.email
       if (updates.avatarUrl !== undefined) dbUpdates.avatar_url = updates.avatarUrl
-      if (updates.linkedinProfileUrl !== undefined) dbUpdates.linkedin_profile_url = updates.linkedinProfileUrl
 
       const { error: updateError } = await supabase
-        .from('users')
+        .from('profiles')
         .update(dbUpdates)
         .eq('id', authUser.id)
 

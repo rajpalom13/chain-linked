@@ -38,6 +38,9 @@ import type { InspirationPost } from "@/components/features/inspiration-feed"
 /** Maximum character count before content is truncated */
 const CONTENT_TRUNCATE_LENGTH = 200
 
+/** Fixed content height in lines for consistent card display */
+const CONTENT_MAX_LINES = 4
+
 /**
  * Props for the InspirationPostCard component
  */
@@ -53,27 +56,32 @@ export interface InspirationPostCardProps {
 }
 
 /**
- * Category badge variants mapping
+ * Category badge variants mapping - matches inferred categories
  */
 const CATEGORY_VARIANTS: Record<string, "default" | "secondary" | "outline"> = {
-  "thought-leadership": "default",
-  "personal-stories": "secondary",
-  "industry-news": "default",
-  "how-to": "secondary",
-  "engagement-hooks": "outline",
-  "sales-biz-dev": "default",
+  "marketing": "default",
+  "technology": "secondary",
+  "leadership": "default",
+  "sales": "secondary",
+  "entrepreneurship": "outline",
+  "product-management": "default",
+  "growth": "secondary",
+  "design": "outline",
+  "general": "outline",
 }
 
 /**
- * Category labels mapping
+ * Category labels mapping - matches inferred categories
  */
 const CATEGORY_LABELS: Record<string, string> = {
-  "thought-leadership": "Thought Leadership",
-  "personal-stories": "Personal Stories",
-  "industry-news": "Industry News",
-  "how-to": "How-To",
-  "engagement-hooks": "Engagement Hooks",
-  "sales-biz-dev": "Sales/Biz Dev",
+  "marketing": "Marketing",
+  "technology": "Technology",
+  "leadership": "Leadership",
+  "sales": "Sales",
+  "entrepreneurship": "Startup",
+  "product-management": "Product",
+  "growth": "Growth",
+  "design": "Design",
   "general": "General",
 }
 
@@ -225,14 +233,7 @@ export function InspirationPostCard({
   className,
   compact = false,
 }: InspirationPostCardProps) {
-  const [isExpanded, setIsExpanded] = React.useState(false)
   const [isHovered, setIsHovered] = React.useState(false)
-
-  const shouldTruncate = post.content.length > CONTENT_TRUNCATE_LENGTH
-  const displayContent =
-    shouldTruncate && !isExpanded
-      ? `${post.content.slice(0, CONTENT_TRUNCATE_LENGTH)}...`
-      : post.content
 
   const relativeTime = formatDistanceToNow(new Date(post.postedAt), {
     addSuffix: true,
@@ -274,7 +275,7 @@ export function InspirationPostCard({
         className
       )}>
         {/* Subtle glow effect on hover */}
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 opacity-0 transition-opacity duration-300 group-hover:opacity-100 pointer-events-none" />
 
         <CardContent className={cn(
           "flex flex-col flex-1 gap-3 relative",
@@ -352,23 +353,23 @@ export function InspirationPostCard({
             </TooltipProvider>
           </div>
 
-          {/* Content Section */}
-          <div className="flex-1">
-            <p className={cn(
-              "leading-relaxed whitespace-pre-wrap text-foreground/90",
-              compact ? "text-xs" : "text-sm"
-            )}>
-              {displayContent}
-            </p>
-            {shouldTruncate && (
-              <button
-                type="button"
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="text-xs font-medium text-primary hover:underline mt-1 transition-colors"
-              >
-                {isExpanded ? "see less" : "see more"}
-              </button>
+          {/* Content Section - Fixed height for consistent cards */}
+          <div
+            className={cn(
+              "cursor-pointer hover:opacity-80 transition-opacity",
+              compact ? "h-16" : "h-24"
             )}
+            onClick={handleExpand}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === 'Enter' && handleExpand()}
+          >
+            <p className={cn(
+              "leading-relaxed text-foreground/90 overflow-hidden",
+              compact ? "text-xs line-clamp-4" : "text-sm line-clamp-5"
+            )}>
+              {post.content}
+            </p>
           </div>
 
           {/* Metrics and Actions Section */}

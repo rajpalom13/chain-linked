@@ -125,8 +125,8 @@ export function useTeamPosts(limit: number = 20): UseTeamPostsReturn {
 
       // Fetch user's profile for author info
       const { data: userData } = await supabase
-        .from('users')
-        .select('id, name, email, avatar_url, linkedin_profile_url')
+        .from('profiles')
+        .select('id, full_name, email, avatar_url')
         .eq('id', user.id)
         .single()
 
@@ -159,8 +159,8 @@ export function useTeamPosts(limit: number = 20): UseTeamPostsReturn {
       const transformedPosts: TeamActivityItem[] = postsData.map((post) => ({
         id: post.id,
         author: {
-          name: userData?.name || user.email?.split('@')[0] || 'Unknown User',
-          headline: userData?.linkedin_profile_url || userData?.email || '',
+          name: userData?.full_name || user.email?.split('@')[0] || 'Unknown User',
+          headline: userData?.email || '',
           avatar: userData?.avatar_url || null,
         },
         content: post.content || '',

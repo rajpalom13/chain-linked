@@ -52,7 +52,7 @@
 }
 
 /* =============================================================================
-   CHAINLINKED DESIGN SYSTEM - Sage Green + Terracotta Palette
+   CHAINLINKED DESIGN SYSTEM - LinkedIn Blue + Terracotta Palette
    ============================================================================= */
 
 :root {
@@ -60,22 +60,22 @@
   --radius: 0.75rem;
 
   /* ==========================================================================
-     Primary Colors - Sage Green
+     Primary Colors - LinkedIn Blue
      ========================================================================== */
-  --primary: oklch(0.45 0.1 140);
-  --primary-foreground: oklch(0.98 0.005 140);
+  --primary: oklch(0.47 0.13 230);
+  --primary-foreground: oklch(0.98 0.005 230);
 
   /* Primary scale for gradients and variations */
-  --primary-50: oklch(0.97 0.02 140);
-  --primary-100: oklch(0.93 0.04 140);
-  --primary-200: oklch(0.87 0.06 140);
-  --primary-300: oklch(0.75 0.08 140);
-  --primary-400: oklch(0.58 0.1 140);
-  --primary-500: oklch(0.45 0.1 140);
-  --primary-600: oklch(0.38 0.09 140);
-  --primary-700: oklch(0.32 0.08 140);
-  --primary-800: oklch(0.26 0.06 140);
-  --primary-900: oklch(0.20 0.04 140);
+  --primary-50: oklch(0.97 0.02 230);
+  --primary-100: oklch(0.93 0.04 230);
+  --primary-200: oklch(0.87 0.06 230);
+  --primary-300: oklch(0.75 0.08 230);
+  --primary-400: oklch(0.58 0.11 230);
+  --primary-500: oklch(0.47 0.13 230);
+  --primary-600: oklch(0.40 0.12 230);
+  --primary-700: oklch(0.34 0.10 230);
+  --primary-800: oklch(0.28 0.08 230);
+  --primary-900: oklch(0.22 0.06 230);
 
   /* ==========================================================================
      Secondary Colors - Terracotta
@@ -110,8 +110,8 @@
   --muted: oklch(0.96 0.005 90);
   --muted-foreground: oklch(0.45 0.01 90);
 
-  --accent: oklch(0.93 0.02 140);
-  --accent-foreground: oklch(0.20 0.04 140);
+  --accent: oklch(0.93 0.02 230);
+  --accent-foreground: oklch(0.20 0.04 230);
 
   /* ==========================================================================
      Semantic Colors
@@ -130,12 +130,12 @@
      ========================================================================== */
   --border: oklch(0.90 0.01 90);
   --input: oklch(0.90 0.01 90);
-  --ring: oklch(0.45 0.1 140);
+  --ring: oklch(0.47 0.13 230);
 
   /* ==========================================================================
      Chart Colors - Vibrant & Distinct
      ========================================================================== */
-  --chart-1: oklch(0.45 0.1 140);      /* Sage Green */
+  --chart-1: oklch(0.47 0.13 230);     /* LinkedIn Blue */
   --chart-2: oklch(0.65 0.12 45);      /* Terracotta */
   --chart-3: oklch(0.60 0.18 250);     /* Blue */
   --chart-4: oklch(0.65 0.18 165);     /* Emerald */
@@ -146,12 +146,12 @@
      ========================================================================== */
   --sidebar: oklch(0.985 0.005 90);
   --sidebar-foreground: oklch(0.25 0.02 90);
-  --sidebar-primary: oklch(0.45 0.1 140);
-  --sidebar-primary-foreground: oklch(0.98 0.005 140);
-  --sidebar-accent: oklch(0.93 0.02 140);
-  --sidebar-accent-foreground: oklch(0.20 0.04 140);
+  --sidebar-primary: oklch(0.47 0.13 230);
+  --sidebar-primary-foreground: oklch(0.98 0.005 230);
+  --sidebar-accent: oklch(0.93 0.02 230);
+  --sidebar-accent-foreground: oklch(0.20 0.04 230);
   --sidebar-border: oklch(0.90 0.01 90);
-  --sidebar-ring: oklch(0.45 0.1 140);
+  --sidebar-ring: oklch(0.47 0.13 230);
 
   /* ==========================================================================
      Animation Timing
@@ -182,9 +182,9 @@
    ============================================================================= */
 
 .dark {
-  /* Primary - Brighter sage for dark mode */
-  --primary: oklch(0.65 0.1 140);
-  --primary-foreground: oklch(0.15 0.02 140);
+  /* Primary - Brighter LinkedIn blue for dark mode */
+  --primary: oklch(0.62 0.15 230);
+  --primary-foreground: oklch(0.15 0.02 230);
 
   /* Secondary - Brighter terracotta for dark mode */
   --secondary: oklch(0.72 0.11 45);
@@ -203,8 +203,8 @@
   --muted: oklch(0.22 0.01 90);
   --muted-foreground: oklch(0.65 0.01 90);
 
-  --accent: oklch(0.25 0.03 140);
-  --accent-foreground: oklch(0.85 0.06 140);
+  --accent: oklch(0.25 0.03 230);
+  --accent-foreground: oklch(0.85 0.06 230);
 
   /* Semantic - Brighter for dark mode */
   --success: oklch(0.65 0.12 145);
@@ -216,13 +216,13 @@
   --destructive: oklch(0.65 0.18 25);
   --destructive-foreground: oklch(0.15 0.02 25);
 
-  /* UI */
-  --border: oklch(0.28 0.01 90);
-  --input: oklch(0.28 0.01 90);
-  --ring: oklch(0.65 0.1 140);
+  /* UI - slightly brighter borders for better visibility */
+  --border: oklch(0.32 0.01 90);
+  --input: oklch(0.32 0.01 90);
+  --ring: oklch(0.62 0.15 230);
 
   /* Charts - Vibrant for dark mode */
-  --chart-1: oklch(0.65 0.12 140);
+  --chart-1: oklch(0.62 0.15 230);
   --chart-2: oklch(0.72 0.14 45);
   --chart-3: oklch(0.68 0.18 250);
   --chart-4: oklch(0.70 0.18 165);
@@ -231,12 +231,12 @@
   /* Sidebar */
   --sidebar: oklch(0.12 0.01 90);
   --sidebar-foreground: oklch(0.90 0.005 90);
-  --sidebar-primary: oklch(0.65 0.1 140);
-  --sidebar-primary-foreground: oklch(0.15 0.02 140);
-  --sidebar-accent: oklch(0.22 0.02 140);
-  --sidebar-accent-foreground: oklch(0.85 0.06 140);
+  --sidebar-primary: oklch(0.62 0.15 230);
+  --sidebar-primary-foreground: oklch(0.15 0.02 230);
+  --sidebar-accent: oklch(0.22 0.02 230);
+  --sidebar-accent-foreground: oklch(0.85 0.06 230);
   --sidebar-border: oklch(0.25 0.01 90);
-  --sidebar-ring: oklch(0.65 0.1 140);
+  --sidebar-ring: oklch(0.62 0.15 230);
 
   /* Shadows - For dark mode */
   --shadow-xs: 0 1px 2px oklch(0 0 0 / 0.2);
@@ -244,7 +244,7 @@
   --shadow-md: 0 4px 8px oklch(0 0 0 / 0.3);
   --shadow-lg: 0 8px 16px oklch(0 0 0 / 0.35);
   --shadow-xl: 0 16px 32px oklch(0 0 0 / 0.4);
-  --shadow-primary: 0 4px 14px oklch(0.65 0.1 140 / 0.3);
+  --shadow-primary: 0 4px 14px oklch(0.62 0.15 230 / 0.3);
   --shadow-secondary: 0 4px 14px oklch(0.72 0.11 45 / 0.3);
 }
 
@@ -266,11 +266,11 @@
 
   /* Selection color using primary */
   ::selection {
-    background-color: oklch(0.45 0.1 140 / 0.2);
+    background-color: oklch(0.47 0.13 230 / 0.2);
   }
 
   .dark ::selection {
-    background-color: oklch(0.65 0.1 140 / 0.3);
+    background-color: oklch(0.62 0.15 230 / 0.3);
   }
 }
 
@@ -313,7 +313,7 @@
 @layer utilities {
   /* Gradient backgrounds */
   .bg-gradient-primary {
-    background: linear-gradient(135deg, oklch(0.45 0.1 140) 0%, oklch(0.38 0.09 140) 100%);
+    background: linear-gradient(135deg, oklch(0.47 0.13 230) 0%, oklch(0.40 0.12 230) 100%);
   }
 
   .bg-gradient-secondary {
@@ -321,7 +321,7 @@
   }
 
   .bg-gradient-subtle {
-    background: linear-gradient(180deg, oklch(0.97 0.02 140 / 0.5) 0%, transparent 100%);
+    background: linear-gradient(180deg, oklch(0.97 0.02 230 / 0.5) 0%, transparent 100%);
   }
 
   /* Glass effect */
@@ -337,7 +337,7 @@
 
   /* Text gradients */
   .text-gradient-primary {
-    background: linear-gradient(135deg, oklch(0.45 0.1 140) 0%, oklch(0.55 0.11 45) 100%);
+    background: linear-gradient(135deg, oklch(0.47 0.13 230) 0%, oklch(0.55 0.11 45) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -356,11 +356,11 @@
 
   /* Glow effects */
   .glow-primary {
-    box-shadow: 0 0 20px oklch(0.45 0.1 140 / 0.3);
+    box-shadow: 0 0 20px oklch(0.47 0.13 230 / 0.3);
   }
 
   .dark .glow-primary {
-    box-shadow: 0 0 25px oklch(0.65 0.1 140 / 0.4);
+    box-shadow: 0 0 25px oklch(0.62 0.15 230 / 0.4);
   }
 
   .glow-secondary {
@@ -373,7 +373,7 @@
 
   /* Dark mode gradient backgrounds */
   .dark .bg-gradient-primary {
-    background: linear-gradient(135deg, oklch(0.65 0.1 140) 0%, oklch(0.55 0.09 140) 100%);
+    background: linear-gradient(135deg, oklch(0.62 0.15 230) 0%, oklch(0.52 0.13 230) 100%);
   }
 
   .dark .bg-gradient-secondary {
@@ -381,7 +381,7 @@
   }
 
   .dark .bg-gradient-subtle {
-    background: linear-gradient(180deg, oklch(0.25 0.03 140 / 0.4) 0%, transparent 100%);
+    background: linear-gradient(180deg, oklch(0.25 0.03 230 / 0.4) 0%, transparent 100%);
   }
 
   /* Card hover glow for dark mode */
@@ -390,11 +390,11 @@
   }
 
   .card-glow:hover {
-    box-shadow: 0 0 30px oklch(0.45 0.1 140 / 0.15);
+    box-shadow: 0 0 30px oklch(0.47 0.13 230 / 0.15);
   }
 
   .dark .card-glow:hover {
-    box-shadow: 0 0 40px oklch(0.65 0.1 140 / 0.2);
+    box-shadow: 0 0 40px oklch(0.62 0.15 230 / 0.2);
   }
 
   /* Animation classes */
@@ -525,4 +525,9 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+::view-transition-old(root), ::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
 }

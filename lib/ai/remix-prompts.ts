@@ -1,6 +1,6 @@
 /**
  * AI Remix System Prompts
- * @description System prompts for post rewriting with different tones
+ * @description System prompts for post rewriting with different tones and user context
  * @module lib/ai/remix-prompts
  */
 
@@ -8,11 +8,33 @@
  * Available tone options for remix
  */
 export type RemixTone =
+  | 'match-my-style'
   | 'professional'
   | 'casual'
-  | 'thought-leader'
-  | 'storyteller'
-  | 'preserve'
+  | 'inspiring'
+  | 'educational'
+  | 'thought-provoking'
+
+/**
+ * User's content profile for personalized remixing
+ */
+export interface UserContentProfile {
+  /** User's recent posts for style analysis */
+  recentPosts: {
+    content: string
+    reactions?: number
+    comments?: number
+    impressions?: number
+  }[]
+  /** Common topics/niches the user posts about */
+  niches?: string[]
+  /** Average post length */
+  avgPostLength?: number
+  /** Common hashtags used */
+  commonHashtags?: string[]
+  /** Engagement metrics */
+  avgEngagementRate?: number
+}
 
 /**
  * Tone option with label and description
@@ -31,29 +53,34 @@ export interface ToneOption {
  */
 export const TONE_OPTIONS: ToneOption[] = [
   {
+    id: 'match-my-style',
+    label: 'Match My Style',
+    description: 'Analyze your posts and match your unique voice',
+  },
+  {
     id: 'professional',
     label: 'Professional',
-    description: 'Formal, polished, and corporate-appropriate',
+    description: 'Authoritative and industry-focused',
   },
   {
     id: 'casual',
     label: 'Casual',
-    description: 'Conversational, relatable, and personal',
+    description: 'Conversational and relatable',
   },
   {
-    id: 'thought-leader',
-    label: 'Thought Leader',
-    description: 'Bold opinions, industry insights, contrarian views',
+    id: 'inspiring',
+    label: 'Inspiring',
+    description: 'Motivational and uplifting',
   },
   {
-    id: 'storyteller',
-    label: 'Storyteller',
-    description: 'Narrative arc, emotional hooks, personal anecdotes',
+    id: 'educational',
+    label: 'Educational',
+    description: 'Informative how-to content',
   },
   {
-    id: 'preserve',
-    label: 'Preserve Original',
-    description: 'Keep the original tone, just rephrase and restructure',
+    id: 'thought-provoking',
+    label: 'Thought-Provoking',
+    description: 'Challenges conventional thinking',
   },
 ]
 
@@ -81,6 +108,15 @@ Return ONLY the rewritten post content. No explanations, no preamble, no quotes 
  * Tone-specific prompt additions
  */
 const TONE_PROMPTS: Record<RemixTone, string> = {
+  'match-my-style': `
+## Tone: Match My Style
+- Analyze the writing patterns from the user's previous posts
+- Match their exact sentence structure, vocabulary level, and formatting style
+- Replicate their emoji usage (or lack thereof)
+- Use similar hashtag patterns
+- Match their typical post length
+- The goal is to make this post indistinguishable from their own writing`,
+
   professional: `
 ## Tone: Professional
 - Use formal language and industry terminology
@@ -97,34 +133,29 @@ const TONE_PROMPTS: Record<RemixTone, string> = {
 - Feel free to use appropriate emojis sparingly
 - Be authentic and approachable`,
 
-  'thought-leader': `
-## Tone: Thought Leader
-- Take bold, confident positions on the topic
-- Challenge conventional wisdom when appropriate
-- Share unique insights and predictions
-- Use authoritative language without being arrogant
-- Include contrarian or unexpected perspectives
-- Position the content as industry-shaping ideas`,
+  inspiring: `
+## Tone: Inspiring
+- Focus on motivation and upliftment
+- Share encouraging perspectives and success stories
+- Use empowering language that inspires action
+- Include calls to aspire and achieve
+- Make the reader feel capable and motivated`,
 
-  storyteller: `
-## Tone: Storyteller
-- Transform the content into a narrative arc
-- Start with a compelling hook or scenario
-- Build tension or curiosity
-- Include sensory details and emotional elements
-- End with a meaningful takeaway or lesson
-- Make the reader feel something`,
+  educational: `
+## Tone: Educational
+- Focus on teaching and explaining
+- Break down complex concepts into digestible parts
+- Use clear, structured formatting (bullets, numbered lists)
+- Include actionable takeaways
+- Provide how-to guidance and practical tips`,
 
-  preserve: `
-## Tone: Preserve Original Style
-- Analyze the original post's writing style carefully:
-  - Sentence length and structure patterns
-  - Vocabulary level (technical vs accessible)
-  - Emoji usage patterns
-  - Formatting preferences (lists, line breaks)
-  - Level of formality
-- Replicate these stylistic elements in your rewrite
-- The goal is to create a fresh version that sounds like it could have been written by the same author`,
+  'thought-provoking': `
+## Tone: Thought-Provoking
+- Challenge conventional wisdom and assumptions
+- Pose questions that make readers think differently
+- Share unique perspectives and contrarian views
+- Encourage deeper reflection
+- Start conversations and debates`,
 }
 
 /**

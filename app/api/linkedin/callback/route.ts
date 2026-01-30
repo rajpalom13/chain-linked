@@ -9,15 +9,20 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import {
   exchangeCodeForTokens,
-  getLinkedInUserInfo,
+  getLinkedInUserInfoFromTokens,
   calculateExpiresAt,
-  LINKEDIN_SCOPES,
+  getLinkedInScopes,
 } from '@/lib/linkedin'
 
 /**
  * Cookie name for storing OAuth state
  */
 const STATE_COOKIE_NAME = 'linkedin_oauth_state'
+
+/**
+ * Cookie name for storing redirect URL
+ */
+const REDIRECT_COOKIE_NAME = 'linkedin_oauth_redirect'
 
 /**
  * Handles OAuth callback from LinkedIn
@@ -33,31 +38,37 @@ export async function GET(request: Request) {
 
   const cookieStore = await cookies()
 
+  // Get redirect URL from cookie (read early so it's available for error handling)
+  const storedState = cookieStore.get(STATE_COOKIE_NAME)?.value
+  const redirectTo = cookieStore.get(REDIRECT_COOKIE_NAME)?.value || '/dashboard/settings'
+
   // Handle OAuth errors from LinkedIn
   if (error) {
     console.error('LinkedIn OAuth error:', error, errorDescription)
+    cookieStore.delete(STATE_COOKIE_NAME)
+    cookieStore.delete(REDIRECT_COOKIE_NAME)
     return NextResponse.redirect(
-      `${origin}/dashboard/settings?linkedin_error=${encodeURIComponent(errorDescription || error)}`
+      `${origin}${redirectTo}?linkedin_error=${encodeURIComponent(errorDescription || error)}`
     )
   }
 
   // Verify state parameter for CSRF protection
-  const storedState = cookieStore.get(STATE_COOKIE_NAME)?.value
 
   if (!state || !storedState || state !== storedState) {
     console.error('LinkedIn OAuth state mismatch')
     return NextResponse.redirect(
-      `${origin}/dashboard/settings?linkedin_error=${encodeURIComponent('Invalid state parameter')}`
+      `${origin}${redirectTo}?linkedin_error=${encodeURIComponent('Invalid state parameter')}`
     )
   }
 
-  // Clear the state cookie
+  // Clear the cookies
   cookieStore.delete(STATE_COOKIE_NAME)
+  cookieStore.delete(REDIRECT_COOKIE_NAME)
 
   if (!code) {
     console.error('LinkedIn OAuth missing code')
     return NextResponse.redirect(
-      `${origin}/dashboard/settings?linkedin_error=${encodeURIComponent('Missing authorization code')}`
+      `${origin}${redirectTo}?linkedin_error=${encodeURIComponent('Missing authorization code')}`
     )
   }
 
@@ -65,8 +76,9 @@ export async function GET(request: Request) {
     // Exchange code for tokens
     const tokens = await exchangeCodeForTokens(code)
 
-    // Get user info to get LinkedIn URN
-    const userInfo = await getLinkedInUserInfo(tokens.access_token)
+    // Get user info from ID token (preferred) or userinfo endpoint (fallback)
+    // The 'sub' field contains the LinkedIn member ID
+    const userInfo = await getLinkedInUserInfoFromTokens(tokens.access_token, tokens.id_token)
     const linkedInUrn = `urn:li:person:${userInfo.sub}`
 
     // Get current user from Supabase
@@ -93,7 +105,7 @@ export async function GET(request: Request) {
           refresh_token: tokens.refresh_token || null,
           expires_at: expiresAt,
           linkedin_urn: linkedInUrn,
-          scopes: [...LINKEDIN_SCOPES],
+          scopes: getLinkedInScopes(),
           updated_at: new Date().toISOString(),
         },
         {
@@ -104,20 +116,25 @@ export async function GET(request: Request) {
     if (upsertError) {
       console.error('Failed to store LinkedIn tokens:', upsertError)
       return NextResponse.redirect(
-        `${origin}/dashboard/settings?linkedin_error=${encodeURIComponent('Failed to save connection')}`
+        `${origin}${redirectTo}?linkedin_error=${encodeURIComponent('Failed to save connection')}`
       )
     }
 
-    // Optionally update user's linkedin_profile with fresh data
+    // Update user's linkedin_profile with fresh data
+    const linkedInFirstName = userInfo.given_name || userInfo.name?.split(' ')[0] || null
+    const linkedInLastName = userInfo.family_name || userInfo.name?.split(' ').slice(1).join(' ') || null
+    const linkedInPictureUrl = userInfo.picture || null
+
+    // Try to save to linkedin_profiles table
     const { error: profileError } = await supabase
       .from('linkedin_profiles')
       .upsert(
         {
           user_id: user.id,
-          profile_urn: linkedInUrn,
-          first_name: userInfo.given_name,
-          last_name: userInfo.family_name,
-          profile_picture_url: userInfo.picture || null,
+          linkedin_id: userInfo.sub,
+          first_name: linkedInFirstName,
+          last_name: linkedInLastName,
+          profile_picture_url: linkedInPictureUrl,
           updated_at: new Date().toISOString(),
         },
         {
@@ -130,16 +147,33 @@ export async function GET(request: Request) {
       console.error('Failed to update LinkedIn profile:', profileError)
     }
 
-    // Redirect to settings with success message
+    // Also update the main profiles table with LinkedIn avatar for easier access
+    const { error: mainProfileError } = await supabase
+      .from('profiles')
+      .update({
+        linkedin_avatar_url: linkedInPictureUrl,
+        linkedin_connected_at: new Date().toISOString(),
+        // Only update name if not already set
+        ...(linkedInFirstName && linkedInLastName ? {
+          full_name: `${linkedInFirstName} ${linkedInLastName}`.trim() || undefined,
+        } : {}),
+      })
+      .eq('id', user.id)
+
+    if (mainProfileError) {
+      console.error('Failed to update main profile with LinkedIn data:', mainProfileError)
+    }
+
+    // Redirect back to original page with success message
     return NextResponse.redirect(
-      `${origin}/dashboard/settings?linkedin_connected=true`
+      `${origin}${redirectTo}?linkedin_connected=true`
     )
 
   } catch (err) {
     console.error('LinkedIn OAuth callback error:', err)
     const errorMessage = err instanceof Error ? err.message : 'Unknown error'
     return NextResponse.redirect(
-      `${origin}/dashboard/settings?linkedin_error=${encodeURIComponent(errorMessage)}`
+      `${origin}${redirectTo}?linkedin_error=${encodeURIComponent(errorMessage)}`
     )
   }
 }

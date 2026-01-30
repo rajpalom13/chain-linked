@@ -29,6 +29,44 @@ export default function ResetPasswordPage() {
   const [hasSession, setHasSession] = useState(false)
   const router = useRouter()
 
+  /**
+   * Calculate password strength
+   * @param pwd - Password to evaluate
+   * @returns strength score (0-4) and label
+   */
+  const getPasswordStrength = (pwd: string): { score: number; label: string; color: string } => {
+    if (!pwd) return { score: 0, label: '', color: '' }
+
+    let score = 0
+
+    // Length check
+    if (pwd.length >= 6) score++
+    if (pwd.length >= 10) score++
+
+    // Has uppercase and lowercase
+    if (/[a-z]/.test(pwd) && /[A-Z]/.test(pwd)) score++
+
+    // Has numbers
+    if (/\d/.test(pwd)) score++
+
+    // Has special characters
+    if (/[^A-Za-z0-9]/.test(pwd)) score++
+
+    // Map score to strength label
+    const strengthMap = {
+      0: { label: '', color: '' },
+      1: { label: 'Weak', color: 'bg-destructive' },
+      2: { label: 'Fair', color: 'bg-yellow-500' },
+      3: { label: 'Good', color: 'bg-primary' },
+      4: { label: 'Strong', color: 'bg-green-600' },
+      5: { label: 'Very Strong', color: 'bg-green-600' },
+    }
+
+    return { score, ...strengthMap[Math.min(score, 5) as keyof typeof strengthMap] }
+  }
+
+  const passwordStrength = getPasswordStrength(password)
+
   // Check if user has a valid session (from reset link)
   useEffect(() => {
     const checkSession = async () => {
@@ -89,8 +127,8 @@ export default function ResetPasswordPage() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30 p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center space-y-4">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-500/10">
-              <IconCheck className="h-8 w-8 text-green-500" />
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+              <IconCheck className="h-8 w-8 text-primary" />
             </div>
             <div>
               <CardTitle className="text-2xl font-bold">Password updated</CardTitle>
@@ -173,6 +211,27 @@ export default function ResetPasswordPage() {
                 required
                 minLength={6}
               />
+              {password && (
+                <div className="space-y-1.5">
+                  <div className="flex gap-1">
+                    {[...Array(4)].map((_, i) => (
+                      <div
+                        key={i}
+                        className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                          i < passwordStrength.score
+                            ? passwordStrength.color
+                            : 'bg-muted'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  {passwordStrength.label && (
+                    <p className="text-xs text-muted-foreground">
+                      Password strength: <span className="font-medium">{passwordStrength.label}</span>
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>

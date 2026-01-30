@@ -29,6 +29,12 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
   staggerContainerVariants,
   staggerItemVariants,
   cardHoverProps,
@@ -189,6 +195,7 @@ interface MetricCardProps {
     negative: string
   }
   description: string
+  tooltip: string
 }
 
 function MetricCard({
@@ -200,6 +207,7 @@ function MetricCard({
   decimals = 0,
   footerText,
   description,
+  tooltip,
 }: MetricCardProps) {
   const trend = getTrend(change)
   const sparklineData = generateSparklineData(trend.isPositive)
@@ -209,19 +217,28 @@ function MetricCard({
       variants={staggerItemVariants}
       {...cardHoverProps}
     >
-      <Card className="@container/card group relative overflow-hidden border-border/50 bg-gradient-to-br from-card via-card to-primary/5 transition-all duration-300 hover:border-primary/30 hover:shadow-lg dark:from-card dark:via-card dark:to-primary/10">
+      <Card className="@container/card group relative overflow-hidden border-border/50 bg-gradient-to-br from-card via-card to-primary/5 transition-all duration-300 hover:border-primary/30 hover:shadow-lg dark:from-card dark:via-card dark:to-primary/10 card-glow">
         {/* Subtle glow effect on hover */}
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 opacity-0 transition-opacity duration-300 group-hover:opacity-100 pointer-events-none" />
 
         <CardHeader className="relative">
           <div className="flex items-start justify-between">
             <div>
-              <CardDescription className="flex items-center gap-2">
-                <div className="rounded-lg bg-primary/10 p-1.5">
-                  <Icon className="size-3.5 text-primary" />
-                </div>
-                {title}
-              </CardDescription>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <CardDescription className="flex items-center gap-2 cursor-help">
+                      <div className="rounded-lg bg-primary/10 p-1.5">
+                        <Icon className="size-3.5 text-primary" />
+                      </div>
+                      {title}
+                    </CardDescription>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>{tooltip}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               <CardTitle className="mt-2 text-2xl font-bold tabular-nums @[250px]/card:text-3xl">
                 <AnimatedNumber value={value} decimals={decimals} suffix={suffix} />
               </CardTitle>
@@ -288,6 +305,7 @@ export function AnalyticsCards({
         negative: 'Content reach declining',
       },
       description: 'Views across all posts this period',
+      tooltip: 'The total number of times your posts were displayed to LinkedIn members. This includes multiple views by the same person. Higher impressions indicate broader content visibility.',
     },
     {
       title: 'Engagement Rate',
@@ -301,6 +319,7 @@ export function AnalyticsCards({
         negative: 'Engagement needs focus',
       },
       description: 'Likes, comments, and shares',
+      tooltip: 'Percentage of people who engaged with your content (likes, comments, shares, clicks) divided by total impressions. A higher rate means your content resonates with your audience.',
     },
     {
       title: 'Total Followers',
@@ -312,6 +331,7 @@ export function AnalyticsCards({
         negative: 'Follower growth slowing',
       },
       description: 'Your total follower count',
+      tooltip: 'People who have chosen to follow your LinkedIn profile to see your posts in their feed. Growing your follower base increases your content\'s organic reach.',
     },
     {
       title: 'Profile Views',
@@ -323,6 +343,7 @@ export function AnalyticsCards({
         negative: 'Profile visibility down',
       },
       description: 'Unique visitors to your profile',
+      tooltip: 'The number of times your LinkedIn profile was viewed by members. High profile views often correlate with increased engagement and connection requests.',
     },
     {
       title: 'Search Appearances',
@@ -334,6 +355,7 @@ export function AnalyticsCards({
         negative: 'Search visibility down',
       },
       description: 'Times you appeared in search results',
+      tooltip: 'How often you appeared in LinkedIn search results when members searched for keywords, skills, or job titles. Improving this metric helps with discoverability.',
     },
     {
       title: 'Connections',
@@ -345,6 +367,7 @@ export function AnalyticsCards({
         negative: 'Network stable',
       },
       description: 'Your LinkedIn connections',
+      tooltip: 'Your first-degree connections on LinkedIn. These are professionals you\'ve directly connected with and can message freely. A larger network expands your content reach.',
     },
     {
       title: 'Members Reached',
@@ -356,6 +379,7 @@ export function AnalyticsCards({
         negative: 'Reach steady',
       },
       description: 'Unique members who saw your content',
+      tooltip: 'The total number of unique LinkedIn members who saw any of your content during this period. This metric shows your true audience size beyond just impressions.',
     },
   ]
 

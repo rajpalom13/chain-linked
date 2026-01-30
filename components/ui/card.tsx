@@ -2,12 +2,30 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-function Card({ className, ...props }: React.ComponentProps<"div">) {
+/**
+ * Props for Card component with optional hover effect
+ */
+interface CardProps extends React.ComponentProps<"div"> {
+  /**
+   * Enable subtle hover effect (lift and shadow enhancement)
+   * @default false
+   */
+  hover?: boolean
+}
+
+/**
+ * Card component with optional hover effect
+ * @param props - Card props
+ * @param props.hover - Enable hover effect
+ * @param props.className - Additional CSS classes
+ */
+function Card({ className, hover = false, ...props }: CardProps) {
   return (
     <div
       data-slot="card"
       className={cn(
         "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm",
+        hover && "transition-all duration-200 hover:-translate-y-1 hover:shadow-md hover:border-primary/20 cursor-pointer",
         className
       )}
       {...props}

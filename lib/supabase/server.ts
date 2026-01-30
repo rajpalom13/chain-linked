@@ -13,7 +13,7 @@ import type { Database } from '@/types/database'
  * @returns Promise resolving to Supabase server client instance
  * @example
  * const supabase = await createClient()
- * const { data } = await supabase.from('users').select()
+ * const { data } = await supabase.from('profiles').select()
  */
 export async function createClient() {
   const cookieStore = await cookies()

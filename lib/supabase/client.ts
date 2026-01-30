@@ -9,11 +9,11 @@ import type { Database } from '@/types/database'
 
 /**
  * Creates a Supabase client for browser-side operations
- * Uses localStorage for session persistence to ensure reliable session restoration
+ * Uses default cookie storage for PKCE compatibility with server-side auth callbacks
  * @returns Supabase browser client instance
  * @example
  * const supabase = createClient()
- * const { data } = await supabase.from('users').select()
+ * const { data } = await supabase.from('profiles').select()
  */
 export function createClient() {
   return createBrowserClient<Database>(
@@ -21,14 +21,13 @@ export function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       auth: {
-        // Use localStorage for session persistence (more reliable than cookies for SPA)
-        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-        // Automatically refresh token before expiry
+        // Use default cookie storage (required for PKCE flow with server-side callbacks)
+        // This ensures code verifier is accessible during email verification
         autoRefreshToken: true,
-        // Persist session across browser sessions
         persistSession: true,
-        // Detect session from URL (for OAuth callbacks)
         detectSessionInUrl: true,
+        // Use PKCE flow for enhanced security
+        flowType: 'pkce',
       },
     }
   )

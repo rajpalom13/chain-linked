@@ -18,8 +18,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
-import { IconLogout, IconSettings, IconUser } from '@tabler/icons-react'
+import { IconLogout, IconSettings, IconUser, IconMoon, IconSun } from '@tabler/icons-react'
 import Link from 'next/link'
+import { useTheme } from 'next-themes'
+import { useEffect, useState } from 'react'
 
 /**
  * Get user initials from name or email
@@ -45,6 +47,13 @@ function getInitials(name: string | null, email: string | null): string {
  */
 export function UserMenu() {
   const { user, profile, isLoading, isAuthenticated, signOut } = useAuthContext()
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  // Prevent hydration mismatch
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   if (isLoading) {
     return <Skeleton className="h-8 w-8 rounded-full" />
@@ -60,6 +69,7 @@ export function UserMenu() {
 
   const displayName = profile?.name || user.user_metadata?.full_name || user.email
   const avatarUrl = profile?.avatar_url || user.user_metadata?.avatar_url
+  const isDark = mounted && theme === 'dark'
 
   return (
     <DropdownMenu>
@@ -94,6 +104,23 @@ export function UserMenu() {
             <IconSettings className="mr-2 h-4 w-4" />
             Settings
           </Link>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="cursor-pointer"
+          onClick={() => setTheme(isDark ? 'light' : 'dark')}
+        >
+          {isDark ? (
+            <>
+              <IconSun className="mr-2 h-4 w-4" />
+              Light Mode
+            </>
+          ) : (
+            <>
+              <IconMoon className="mr-2 h-4 w-4" />
+              Dark Mode
+            </>
+          )}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem

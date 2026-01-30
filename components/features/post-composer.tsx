@@ -4,8 +4,11 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import {
   IconBold,
+  IconBrandLinkedin,
   IconCalendar,
   IconCheck,
+  IconClipboardCopy,
+  IconExternalLink,
   IconFile,
   IconHash,
   IconItalic,
@@ -13,17 +16,22 @@ import {
   IconLoader2,
   IconMessageCircle,
   IconMoodSmile,
+  IconPencil,
   IconPhoto,
   IconRepeat,
   IconSend,
+  IconSparkles,
   IconThumbUp,
   IconWorld,
   IconX,
 } from "@tabler/icons-react"
 
+import { trackPostCreated, trackPostScheduled, trackFeatureUsed } from "@/lib/analytics"
 import { cn } from "@/lib/utils"
+import { type PostTypeId } from "@/lib/ai/post-types"
 import { useDraft } from "@/lib/store/draft-context"
-import { postToast } from "@/lib/toast-utils"
+import { toast } from "sonner"
+import { postToast, showSuccess } from "@/lib/toast-utils"
 import { useAutoSave, formatLastSaved } from "@/hooks/use-auto-save"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -45,6 +53,10 @@ import {
 import { EmojiPicker } from "./emoji-picker"
 import { MediaUpload, type MediaFile } from "./media-upload"
 import { ScheduleModal } from "./schedule-modal"
+import { AIGenerationDialog } from "./ai-generation-dialog"
+import { PostActionsMenu } from "./post-actions-menu"
+import { PostTypeSelector } from "./post-type-selector"
+import { LinkedInStatusBadge } from "./linkedin-status-badge"
 
 /**
  * Props for the PostComposer component
@@ -54,8 +66,10 @@ export interface PostComposerProps {
   initialContent?: string
   /** Callback fired when the "Post Now" button is clicked */
   onPost?: (content: string) => Promise<void>
-  /** Callback fired when the "Schedule" button is clicked */
+  /** Callback fired when the "Schedule" button is clicked (after modal confirms) */
   onSchedule?: (content: string) => void
+  /** Callback fired when schedule is confirmed with date - used to save to database */
+  onScheduleConfirm?: (content: string, scheduledFor: Date, timezone: string) => Promise<void>
   /** Maximum character limit for the post (defaults to 3000 for LinkedIn) */
   maxLength?: number
   /** User profile information for the preview */
@@ -238,6 +252,7 @@ export function PostComposer({
   initialContent = "",
   onPost,
   onSchedule,
+  onScheduleConfirm,
   maxLength = DEFAULT_MAX_LENGTH,
   userProfile = DEFAULT_USER_PROFILE,
 }: PostComposerProps) {
@@ -250,7 +265,10 @@ export function PostComposer({
   const [isScheduling, setIsScheduling] = React.useState(false)
   const [showScheduleModal, setShowScheduleModal] = React.useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = React.useState(false)
+  const [showAIDialog, setShowAIDialog] = React.useState(false)
   const [mediaFiles, setMediaFiles] = React.useState<MediaFile[]>([])
+  const [hasApiKey, setHasApiKey] = React.useState<boolean>(false)
+  const [selectedPostType, setSelectedPostType] = React.useState<PostTypeId | undefined>(undefined)
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
 
   // Auto-save status indicator
@@ -264,6 +282,22 @@ export function PostComposer({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.content])
+
+  // Fetch user's OpenAI API key status for AI generation
+  React.useEffect(() => {
+    async function fetchApiKeyStatus() {
+      try {
+        const response = await fetch('/api/settings/api-keys')
+        if (response.ok) {
+          const data = await response.json()
+          setHasApiKey(data.hasKey === true)
+        }
+      } catch (error) {
+        console.error('Failed to fetch API key status:', error)
+      }
+    }
+    fetchApiKeyStatus()
+  }, [])
 
   // Update draft when content changes
   const handleContentChange = (newContent: string) => {
@@ -285,6 +319,7 @@ export function PostComposer({
     setIsPosting(true)
     try {
       await onPost(content)
+      trackPostCreated("text", "manual")
       clearDraft()
       setContent("")
       postToast.published()
@@ -293,6 +328,31 @@ export function PostComposer({
       postToast.failed(error instanceof Error ? error.message : undefined)
     } finally {
       setIsPosting(false)
+    }
+  }
+
+  /**
+   * Copies content to clipboard and shows a toast with an "Open LinkedIn" action button
+   */
+  const handleCopyToLinkedIn = async () => {
+    if (!content.trim()) return
+
+    try {
+      await navigator.clipboard.writeText(content)
+      toast.success("Content copied!", {
+        description: "Paste it into a new LinkedIn post.",
+        action: {
+          label: "Open LinkedIn",
+          onClick: () => {
+            window.open("https://www.linkedin.com/feed/", "_blank", "noopener,noreferrer")
+          },
+        },
+        duration: 6000,
+      })
+    } catch {
+      toast.error("Failed to copy", {
+        description: "Please select the text and copy manually.",
+      })
     }
   }
 
@@ -307,9 +367,16 @@ export function PostComposer({
   /**
    * Handles the schedule confirmation from the modal
    */
-  const handleScheduleConfirm = async (scheduledFor: Date, _timezone: string) => {
+  const handleScheduleConfirm = async (scheduledFor: Date, timezone: string) => {
     setIsScheduling(true)
     try {
+      // Save to database if callback provided
+      if (onScheduleConfirm) {
+        await onScheduleConfirm(content, scheduledFor, timezone)
+      }
+
+      trackPostScheduled(scheduledFor.toISOString())
+
       // Save to draft context
       setScheduledFor(scheduledFor)
 
@@ -328,8 +395,15 @@ export function PostComposer({
       })
       postToast.scheduled(formattedDate)
 
+      // Clear the content after scheduling
+      clearDraft()
+      setContent("")
+
       // Navigate to schedule page
       router.push("/dashboard/schedule")
+    } catch (error) {
+      console.error("Failed to schedule post:", error)
+      postToast.failed(error instanceof Error ? error.message : "Failed to schedule post")
     } finally {
       setIsScheduling(false)
     }
@@ -431,7 +505,10 @@ export function PostComposer({
         <Card className="flex flex-col">
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
-              <CardTitle>Post Editor</CardTitle>
+              <div className="flex items-center gap-3">
+                <CardTitle>Post Editor</CardTitle>
+                <LinkedInStatusBadge variant="badge" showReconnect={false} />
+              </div>
               {/* Auto-save indicator */}
               {(isSaving || lastSaved) && (
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -455,6 +532,28 @@ export function PostComposer({
           </CardHeader>
 
           <CardContent className="flex flex-1 flex-col gap-4">
+            {/* Post Type Selector */}
+            <PostTypeSelector
+              value={selectedPostType}
+              onChange={setSelectedPostType}
+              showTip
+            />
+
+            {/* AI Generation Button */}
+            <Button
+              variant="outline"
+              onClick={() => setShowAIDialog(true)}
+              className="w-full justify-start gap-2 border-dashed border-primary/30 hover:border-primary/50 hover:bg-primary/5 transition-all duration-200"
+            >
+              <div className="rounded-md bg-primary/10 p-1">
+                <IconSparkles className="size-3.5 text-primary" />
+              </div>
+              <div className="flex flex-col items-start">
+                <span className="text-sm font-medium">Generate with AI</span>
+                <span className="text-xs text-muted-foreground">Create a post using AI assistance</span>
+              </div>
+            </Button>
+
             {/* Formatting Toolbar */}
             <div className="flex flex-wrap items-center gap-1 rounded-md border p-1">
               <Tooltip>
@@ -710,37 +809,65 @@ export function PostComposer({
             )}
           </CardContent>
 
-          <CardFooter className="flex justify-end gap-2 border-t pt-4">
-            <Button
-              variant="outline"
-              onClick={handleScheduleClick}
-              disabled={isScheduling || isPosting || isOverLimit || !content.trim()}
-            >
-              {isScheduling ? (
-                <IconLoader2 className="size-4 animate-spin" />
-              ) : (
-                <IconCalendar className="size-4" />
-              )}
-              Schedule
-            </Button>
-            <Button
-              onClick={handlePost}
-              disabled={isPosting || isScheduling || isOverLimit || !content.trim()}
-            >
-              {isPosting ? (
-                <IconLoader2 className="size-4 animate-spin" />
-              ) : (
-                <IconSend className="size-4" />
-              )}
-              Post Now
-            </Button>
+          <CardFooter className="flex justify-between gap-2 border-t pt-4">
+            <div className="flex items-center gap-2">
+              <PostActionsMenu content={content} variant="ghost" />
+              {/* Copy & Post to LinkedIn fallback button */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCopyToLinkedIn}
+                    disabled={!content.trim()}
+                    className="gap-1.5"
+                  >
+                    <IconClipboardCopy className="size-4" />
+                    <IconBrandLinkedin className="size-4 text-[#0077b5]" />
+                    Copy & Post
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Copy content to clipboard and open LinkedIn to paste
+                </TooltipContent>
+              </Tooltip>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={handleScheduleClick}
+                disabled={isScheduling || isPosting || isOverLimit || !content.trim()}
+              >
+                {isScheduling ? (
+                  <IconLoader2 className="size-4 animate-spin" />
+                ) : (
+                  <IconCalendar className="size-4" />
+                )}
+                Schedule
+              </Button>
+              <Button
+                onClick={handlePost}
+                disabled={isPosting || isScheduling || isOverLimit || !content.trim()}
+              >
+                {isPosting ? (
+                  <IconLoader2 className="size-4 animate-spin" />
+                ) : (
+                  <IconSend className="size-4" />
+                )}
+                Post Now
+              </Button>
+            </div>
           </CardFooter>
         </Card>
 
         {/* Preview Column */}
         <Card className="flex flex-col">
           <CardHeader className="pb-4">
-            <CardTitle>LinkedIn Preview</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <IconBrandLinkedin className="size-4 text-[#0A66C2]" />
+              LinkedIn Preview
+            </CardTitle>
             <CardDescription>
               See how your post will appear on LinkedIn
             </CardDescription>
@@ -748,10 +875,10 @@ export function PostComposer({
 
           <CardContent className="flex-1">
             {/* LinkedIn Post Preview Card */}
-            <div className="rounded-lg border bg-white shadow-sm dark:bg-zinc-900">
+            <div className="rounded-lg border bg-white shadow-sm dark:bg-zinc-900 dark:border-zinc-700/60 overflow-hidden">
               {/* Profile Header */}
-              <div className="flex items-start gap-3 p-4">
-                <Avatar className="size-12">
+              <div className="flex items-start gap-3 p-4 pb-3">
+                <Avatar className="size-12 ring-1 ring-border/50">
                   {userProfile.avatarUrl ? (
                     <AvatarImage src={userProfile.avatarUrl} alt={userProfile.name} />
                   ) : null}
@@ -765,14 +892,14 @@ export function PostComposer({
                   </AvatarFallback>
                 </Avatar>
 
-                <div className="flex-1">
-                  <h4 className="font-semibold leading-tight">{userProfile.name}</h4>
-                  <p className="text-muted-foreground text-sm leading-tight">
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-semibold leading-tight text-sm">{userProfile.name}</h4>
+                  <p className="text-muted-foreground text-xs leading-tight mt-0.5 line-clamp-1">
                     {userProfile.headline}
                   </p>
                   <p className="text-muted-foreground mt-0.5 flex items-center gap-1 text-xs">
                     <span>Just now</span>
-                    <span>*</span>
+                    <span className="leading-none">&#183;</span>
                     <IconWorld className="size-3" />
                   </p>
                 </div>
@@ -785,24 +912,38 @@ export function PostComposer({
                     {parseMarkdownLikeSyntax(content)}
                   </div>
                 ) : (
-                  <p className="text-muted-foreground text-sm italic">
-                    Your post content will appear here...
-                  </p>
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <div className="rounded-full bg-muted/60 p-3 mb-2">
+                      <IconPencil className="size-5 text-muted-foreground/50" />
+                    </div>
+                    <p className="text-muted-foreground text-sm italic">
+                      Your post content will appear here...
+                    </p>
+                  </div>
                 )}
               </div>
 
               {/* Engagement Stats (Placeholder) */}
-              <div className="text-muted-foreground flex items-center gap-4 border-t px-4 py-2 text-xs">
-                <span>0 reactions</span>
-                <span>0 comments</span>
+              <div className="text-muted-foreground flex items-center px-4 py-1.5 text-xs border-t">
+                <span className="flex items-center gap-1">
+                  <span className="inline-flex items-center justify-center size-4 rounded-full bg-blue-500 text-white">
+                    <IconThumbUp className="size-2.5" />
+                  </span>
+                  0
+                </span>
+                <span className="ml-auto flex items-center gap-1.5">
+                  <span>0 comments</span>
+                  <span className="leading-none">&#183;</span>
+                  <span>0 reposts</span>
+                </span>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-around border-t py-1">
+              <div className="flex items-center justify-around border-t py-0.5 px-2">
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground flex-1"
+                  className="text-muted-foreground flex-1 gap-1.5 text-xs font-medium"
                   disabled
                 >
                   <IconThumbUp className="size-4" />
@@ -811,7 +952,7 @@ export function PostComposer({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground flex-1"
+                  className="text-muted-foreground flex-1 gap-1.5 text-xs font-medium"
                   disabled
                 >
                   <IconMessageCircle className="size-4" />
@@ -820,7 +961,7 @@ export function PostComposer({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground flex-1"
+                  className="text-muted-foreground flex-1 gap-1.5 text-xs font-medium"
                   disabled
                 >
                   <IconRepeat className="size-4" />
@@ -829,7 +970,7 @@ export function PostComposer({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground flex-1"
+                  className="text-muted-foreground flex-1 gap-1.5 text-xs font-medium"
                   disabled
                 >
                   <IconSend className="size-4" />
@@ -862,6 +1003,19 @@ export function PostComposer({
           mediaCount: draft.mediaFiles.length,
         }}
         isSubmitting={isScheduling}
+      />
+
+      {/* AI Generation Dialog */}
+      <AIGenerationDialog
+        isOpen={showAIDialog}
+        onClose={() => setShowAIDialog(false)}
+        onGenerated={(generatedContent) => {
+          handleContentChange(generatedContent)
+          trackFeatureUsed("ai_generation_dialog")
+          showSuccess('Post generated successfully!')
+        }}
+        hasApiKey={hasApiKey}
+        defaultPostType={selectedPostType}
       />
     </TooltipProvider>
   )

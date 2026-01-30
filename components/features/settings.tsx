@@ -5,12 +5,14 @@ import Image from "next/image"
 import * as React from "react"
 import { useTheme } from "next-themes"
 import {
+  IconAlertCircle,
   IconBell,
   IconBrandLinkedin,
   IconBriefcase,
   IconBuilding,
   IconCamera,
   IconCheck,
+  IconCloudCheck,
   IconCookie,
   IconDeviceDesktop,
   IconKey,
@@ -30,7 +32,9 @@ import {
   IconUsersGroup,
 } from "@tabler/icons-react"
 
+import { trackSettingsChanged, trackLinkedInAction } from "@/lib/analytics"
 import { ApiKeySettings } from "@/components/features/api-key-settings"
+import { LinkedInStatusBadge } from "@/components/features/linkedin-status-badge"
 
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -292,16 +296,32 @@ export function Settings({
 
   // Saving state
   const [isSaving, setIsSaving] = React.useState(false)
+  const [saveStatus, setSaveStatus] = React.useState<'idle' | 'saving' | 'saved'>('idle')
 
   /**
-   * Handles refreshing the LinkedIn connection
+   * Handles connecting/refreshing the LinkedIn connection via OAuth
    */
-  const handleRefreshLinkedIn = async () => {
+  const handleConnectLinkedIn = () => {
     setIsRefreshingLinkedIn(true)
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    setCookieStatus("valid")
-    setIsRefreshingLinkedIn(false)
+    trackLinkedInAction("connected")
+    // Redirect to OAuth connect endpoint
+    window.location.href = '/api/linkedin/connect'
+  }
+
+  /**
+   * Handles disconnecting LinkedIn account
+   */
+  const handleDisconnectLinkedIn = async () => {
+    try {
+      const response = await fetch('/api/linkedin/disconnect', { method: 'POST' })
+      if (response.ok) {
+        trackLinkedInAction("disconnected")
+        setCookieStatus("missing")
+        window.location.reload()
+      }
+    } catch (error) {
+      console.error('Failed to disconnect LinkedIn:', error)
+    }
   }
 
   /**
@@ -320,6 +340,7 @@ export function Settings({
    */
   const handleSave = async (section: string) => {
     setIsSaving(true)
+    setSaveStatus('saving')
 
     const settings: Record<string, unknown> = {
       section,
@@ -346,8 +367,15 @@ export function Settings({
 
     // Simulate API call
     await new Promise((resolve) => setTimeout(resolve, 800))
+    trackSettingsChanged(section)
     onSave?.(settings)
     setIsSaving(false)
+    setSaveStatus('saved')
+
+    // Auto-hide the "Saved" indicator after 3 seconds
+    setTimeout(() => {
+      setSaveStatus('idle')
+    }, 3000)
   }
 
   return (
@@ -388,10 +416,33 @@ export function Settings({
         <TabsContent value="profile">
           <Card>
             <CardHeader>
-              <CardTitle>Profile Settings</CardTitle>
-              <CardDescription>
-                Manage your personal information and avatar
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Profile Settings</CardTitle>
+                  <CardDescription>
+                    Manage your personal information and avatar
+                  </CardDescription>
+                </div>
+                {saveStatus !== 'idle' && (
+                  <div className={cn(
+                    "flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full transition-all duration-200",
+                    saveStatus === 'saving' && "bg-muted text-muted-foreground",
+                    saveStatus === 'saved' && "bg-primary/10 text-primary"
+                  )}>
+                    {saveStatus === 'saving' ? (
+                      <>
+                        <IconLoader2 className="size-3 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <IconCloudCheck className="size-3" />
+                        Saved
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Avatar Section */}
@@ -461,10 +512,33 @@ export function Settings({
         <TabsContent value="linkedin">
           <Card>
             <CardHeader>
-              <CardTitle>LinkedIn Connection</CardTitle>
-              <CardDescription>
-                Manage your LinkedIn account connection and authentication
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>LinkedIn Connection</CardTitle>
+                  <CardDescription>
+                    Manage your LinkedIn account connection and authentication
+                  </CardDescription>
+                </div>
+                {saveStatus !== 'idle' && (
+                  <div className={cn(
+                    "flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full transition-all duration-200",
+                    saveStatus === 'saving' && "bg-muted text-muted-foreground",
+                    saveStatus === 'saved' && "bg-primary/10 text-primary"
+                  )}>
+                    {saveStatus === 'saving' ? (
+                      <>
+                        <IconLoader2 className="size-3 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <IconCloudCheck className="size-3" />
+                        Saved
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Connection Status */}
@@ -488,28 +562,111 @@ export function Settings({
                     <div className="flex items-center gap-2">
                       <Badge
                         variant={linkedinConnected ? "default" : "destructive"}
-                        className={cn(
-                          linkedinConnected && "bg-green-600 hover:bg-green-600"
-                        )}
                       >
                         {linkedinConnected ? "Connected" : "Not Connected"}
                       </Badge>
+                      {linkedinConnected && linkedinProfile?.lastSynced && (
+                        <span className="text-xs text-muted-foreground">
+                          since {new Date(linkedinProfile.lastSynced).toLocaleDateString()}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
-                <Button
-                  variant={linkedinConnected ? "outline" : "default"}
-                  onClick={handleRefreshLinkedIn}
-                  disabled={isRefreshingLinkedIn}
-                >
-                  {isRefreshingLinkedIn ? (
-                    <IconLoader2 className="size-4 animate-spin" />
-                  ) : (
-                    <IconRefresh className="size-4" />
+                <div className="flex gap-2">
+                  <Button
+                    variant={linkedinConnected ? "outline" : "default"}
+                    onClick={handleConnectLinkedIn}
+                    disabled={isRefreshingLinkedIn}
+                  >
+                    {isRefreshingLinkedIn ? (
+                      <IconLoader2 className="size-4 animate-spin" />
+                    ) : (
+                      <IconRefresh className="size-4" />
+                    )}
+                    {linkedinConnected ? "Refresh" : "Connect"}
+                  </Button>
+                  {linkedinConnected && (
+                    <Button
+                      variant="ghost"
+                      onClick={handleDisconnectLinkedIn}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      Disconnect
+                    </Button>
                   )}
-                  {linkedinConnected ? "Refresh" : "Connect"}
-                </Button>
+                </div>
               </div>
+
+              {/* Live OAuth Status Badge */}
+              <div className="flex items-center justify-between p-4 rounded-lg border">
+                <div className="flex items-center gap-3">
+                  <IconKey className="size-5 text-muted-foreground flex-shrink-0" />
+                  <div>
+                    <p className="font-medium text-sm">OAuth Token Status</p>
+                    <p className="text-xs text-muted-foreground">
+                      Real-time connection and token validity
+                    </p>
+                  </div>
+                </div>
+                <LinkedInStatusBadge variant="badge" showReconnect />
+              </div>
+
+              {/* Token Expiry Warning */}
+              {linkedinConnected && linkedinProfile?.lastSynced && (() => {
+                const lastSync = new Date(linkedinProfile.lastSynced)
+                const now = new Date()
+                const daysSinceSync = Math.floor((now.getTime() - lastSync.getTime()) / (1000 * 60 * 60 * 24))
+                const daysUntilExpiry = 60 - daysSinceSync
+
+                if (daysSinceSync >= 60) {
+                  return (
+                    <div className="flex items-start gap-3 p-4 rounded-lg border border-destructive bg-destructive/5">
+                      <IconAlertCircle className="size-5 text-destructive flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="font-medium text-destructive">LinkedIn Token Expired</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Your LinkedIn connection expired {daysSinceSync - 60} days ago. Please reconnect to continue posting.
+                        </p>
+                      </div>
+                      <Button size="sm" onClick={handleConnectLinkedIn}>
+                        Reconnect
+                      </Button>
+                    </div>
+                  )
+                } else if (daysUntilExpiry <= 7) {
+                  return (
+                    <div className="flex items-start gap-3 p-4 rounded-lg border border-yellow-500 bg-yellow-500/5">
+                      <IconAlertCircle className="size-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="font-medium text-yellow-600">Token Expiring Soon</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Your LinkedIn connection will expire in {daysUntilExpiry} day{daysUntilExpiry !== 1 ? 's' : ''}. Refresh now to avoid interruption.
+                        </p>
+                      </div>
+                      <Button size="sm" variant="outline" onClick={handleConnectLinkedIn}>
+                        Refresh
+                      </Button>
+                    </div>
+                  )
+                }
+                return null
+              })()}
+
+              {/* Connection Permissions Info */}
+              {linkedinConnected && (
+                <div className="flex items-start gap-3 p-4 rounded-lg border bg-muted/30">
+                  <IconKey className="size-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">Granted Permissions</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      • Post on behalf of your account<br />
+                      • Access basic profile information<br />
+                      • View connection count and followers
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* LinkedIn Profile Information */}
               {linkedinConnected && linkedinProfile && (
@@ -713,10 +870,33 @@ export function Settings({
         <TabsContent value="brand-kit">
           <Card>
             <CardHeader>
-              <CardTitle>Brand Kit</CardTitle>
-              <CardDescription>
-                Customize your brand colors and logo for consistent posts
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Brand Kit</CardTitle>
+                  <CardDescription>
+                    Customize your brand colors and logo for consistent posts
+                  </CardDescription>
+                </div>
+                {saveStatus !== 'idle' && (
+                  <div className={cn(
+                    "flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full transition-all duration-200",
+                    saveStatus === 'saving' && "bg-muted text-muted-foreground",
+                    saveStatus === 'saved' && "bg-primary/10 text-primary"
+                  )}>
+                    {saveStatus === 'saving' ? (
+                      <>
+                        <IconLoader2 className="size-3 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <IconCloudCheck className="size-3" />
+                        Saved
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Color Pickers */}
@@ -854,10 +1034,31 @@ export function Settings({
                 <CardTitle>Team Members</CardTitle>
                 <CardDescription>Manage your team and their permissions</CardDescription>
               </div>
-              <Button>
-                <IconPlus className="size-4" />
-                Invite Member
-              </Button>
+              <div className="flex items-center gap-3">
+                {saveStatus !== 'idle' && (
+                  <div className={cn(
+                    "flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full transition-all duration-200",
+                    saveStatus === 'saving' && "bg-muted text-muted-foreground",
+                    saveStatus === 'saved' && "bg-primary/10 text-primary"
+                  )}>
+                    {saveStatus === 'saving' ? (
+                      <>
+                        <IconLoader2 className="size-3 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <IconCloudCheck className="size-3" />
+                        Saved
+                      </>
+                    )}
+                  </div>
+                )}
+                <Button>
+                  <IconPlus className="size-4" />
+                  Invite Member
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Team Members List */}
@@ -932,10 +1133,33 @@ export function Settings({
         <TabsContent value="notifications">
           <Card>
             <CardHeader>
-              <CardTitle>Notification Preferences</CardTitle>
-              <CardDescription>
-                Choose what notifications you want to receive
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Notification Preferences</CardTitle>
+                  <CardDescription>
+                    Choose what notifications you want to receive
+                  </CardDescription>
+                </div>
+                {saveStatus !== 'idle' && (
+                  <div className={cn(
+                    "flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full transition-all duration-200",
+                    saveStatus === 'saving' && "bg-muted text-muted-foreground",
+                    saveStatus === 'saved' && "bg-primary/10 text-primary"
+                  )}>
+                    {saveStatus === 'saving' ? (
+                      <>
+                        <IconLoader2 className="size-3 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <IconCloudCheck className="size-3" />
+                        Saved
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Email Notifications Master Toggle */}

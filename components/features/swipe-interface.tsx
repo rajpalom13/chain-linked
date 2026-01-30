@@ -8,8 +8,10 @@ import {
   IconSparkles,
   IconMoodEmpty,
   IconChartBar,
+  IconWand,
 } from "@tabler/icons-react"
 
+import { trackSwipeAction } from "@/lib/analytics"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -40,6 +42,8 @@ export interface SwipeInterfaceProps {
   onSwipe?: (id: string, direction: "left" | "right") => void
   /** Callback fired when user wants to post a suggestion (right swipe or post button) */
   onPost?: (suggestion: PostSuggestion) => void
+  /** Callback fired when user wants to remix a suggestion with AI */
+  onRemix?: (suggestion: PostSuggestion) => void
   /** Shows loading skeleton when true */
   isLoading?: boolean
 }
@@ -119,14 +123,17 @@ function SwipeInterfaceSkeleton() {
 }
 
 /**
- * Empty state when no more suggestions are available
+ * Empty state displayed when no more swipe suggestions are available
+ * @returns JSX element with illustration and encouraging message
  */
 function EmptyState() {
   return (
-    <div className="flex h-[400px] w-full max-w-md flex-col items-center justify-center rounded-xl border-2 border-dashed border-muted-foreground/25 bg-muted/30 p-8 text-center">
-      <IconMoodEmpty className="mb-4 size-16 text-muted-foreground/50" />
+    <div className="flex h-[400px] w-full max-w-md flex-col items-center justify-center rounded-xl border-2 border-dashed border-muted-foreground/25 bg-gradient-to-br from-muted/30 to-primary/5 p-8 text-center">
+      <div className="rounded-full bg-gradient-to-br from-primary/15 to-secondary/10 p-5 mb-4">
+        <IconMoodEmpty className="size-10 text-muted-foreground/60" />
+      </div>
       <h3 className="mb-2 text-lg font-semibold">No more suggestions</h3>
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm text-muted-foreground max-w-[280px]">
         Check back later for fresh AI-generated post ideas tailored to your audience.
       </p>
     </div>
@@ -160,6 +167,7 @@ export function SwipeInterface({
   suggestions = [],
   onSwipe,
   onPost,
+  onRemix,
   isLoading = false,
 }: SwipeInterfaceProps) {
   // Card stack state (reversed so first item is on top visually)
@@ -202,6 +210,7 @@ export function SwipeInterface({
         setExitDirection(null)
 
         // Fire callbacks
+        trackSwipeAction(direction, currentCard.id)
         onSwipe?.(currentCard.id, direction)
         if (direction === "right") {
           onPost?.(currentCard)
@@ -355,7 +364,7 @@ export function SwipeInterface({
         {/* Current (top) card */}
         <Card
           className={cn(
-            "absolute inset-0 cursor-grab transition-shadow active:cursor-grabbing",
+            "absolute inset-0 cursor-grab transition-shadow active:cursor-grabbing border-border/60 dark:border-border",
             isDragging && "shadow-xl",
             isAnimatingOut && "transition-all duration-300 ease-out"
           )}
@@ -376,7 +385,7 @@ export function SwipeInterface({
               )}
             >
               <div className="rounded-lg bg-green-500 px-4 py-2 text-lg font-bold text-white">
-                POST IT
+                EDIT & SAVE
               </div>
             </div>
             <div
@@ -421,7 +430,7 @@ export function SwipeInterface({
       </div>
 
       {/* Action Buttons */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         <Button
           variant="outline"
           size="icon-lg"
@@ -445,6 +454,21 @@ export function SwipeInterface({
         </Button>
 
         <Button
+          variant="outline"
+          className="rounded-full border-primary/30 text-primary hover:border-primary hover:bg-primary/10"
+          onClick={() => {
+            if (currentCard) {
+              onRemix?.(currentCard)
+            }
+          }}
+          disabled={isAnimatingOut}
+          aria-label="Remix suggestion with AI"
+        >
+          <IconWand className="size-4" />
+          Remix
+        </Button>
+
+        <Button
           variant="default"
           className="rounded-full"
           onClick={() => {
@@ -455,7 +479,7 @@ export function SwipeInterface({
           disabled={isAnimatingOut}
         >
           <IconPencil className="size-4" />
-          Edit & Post
+          Edit & Save
         </Button>
       </div>
 

@@ -67,7 +67,7 @@ export default function ForgotPasswordPage() {
         {/* Background decoration */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <motion.div
-            className="absolute -top-1/2 -right-1/2 w-full h-full bg-gradient-to-br from-green-500/10 via-transparent to-transparent rounded-full blur-3xl"
+            className="absolute -top-1/2 -right-1/2 w-full h-full bg-gradient-to-br from-primary/10 via-transparent to-transparent rounded-full blur-3xl"
             animate={{
               scale: [1, 1.1, 1],
               opacity: [0.3, 0.5, 0.3],
@@ -88,7 +88,7 @@ export default function ForgotPasswordPage() {
           <Card className="w-full max-w-md border-border/50 bg-card/95 backdrop-blur-sm shadow-xl">
             <CardHeader className="text-center space-y-4">
               <motion.div
-                className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-green-500/20 to-green-500/5 shadow-sm"
+                className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/5 shadow-sm"
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ delay: 0.2, type: "spring", stiffness: 200, damping: 15 }}
@@ -98,7 +98,7 @@ export default function ForgotPasswordPage() {
                   animate={{ scale: 1 }}
                   transition={{ delay: 0.4, type: "spring", stiffness: 400 }}
                 >
-                  <IconCheck className="h-8 w-8 text-green-500" />
+                  <IconCheck className="h-8 w-8 text-primary" />
                 </motion.div>
               </motion.div>
               <motion.div

@@ -1,21 +1,44 @@
 /**
  * Inspiration Hook
- * @description Fetches and manages inspiration posts from Supabase with filtering,
- * pagination, personalization, and save functionality
+ * @description Fetches and manages inspiration posts from linkedin_research_posts table
+ * with filtering, pagination, personalization, and save functionality.
+ * Uses real viral posts from LinkedIn influencers.
  * @module hooks/use-inspiration
  */
 
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthContext } from '@/lib/auth/auth-provider'
-import type { Tables } from '@/types/database'
 import type { InspirationPost, InspirationCategory } from '@/components/features/inspiration-feed'
 import type { PostSuggestion } from '@/components/features/swipe-interface'
 
 /** Number of posts per page for pagination */
 const PAGE_SIZE = 24
+
+/**
+ * Raw research post from linkedin_research_posts table
+ */
+interface LinkedInResearchPost {
+  id: string
+  activity_urn: string | null
+  text: string | null
+  url: string | null
+  post_type: string | null
+  posted_date: string | null
+  author_first_name: string | null
+  author_last_name: string | null
+  author_headline: string | null
+  author_username: string | null
+  author_profile_url: string | null
+  author_profile_picture: string | null
+  total_reactions: number | null
+  likes: number | null
+  comments: number | null
+  reposts: number | null
+  created_at: string | null
+}
 
 /**
  * Demo inspiration posts for when database is empty or unavailable
@@ -132,7 +155,7 @@ interface UseInspirationReturn {
   /** Formatted suggestions for swipe interface */
   suggestions: PostSuggestion[]
   /** Raw data from database */
-  rawPosts: Tables<'inspiration_posts'>[]
+  rawPosts: LinkedInResearchPost[]
   /** Set of saved post IDs */
   savedPostIds: Set<string>
   /** User's niches for personalization */
@@ -187,7 +210,7 @@ export function useInspiration(initialLimit = PAGE_SIZE): UseInspirationReturn {
   // State initialization
   const [posts, setPosts] = useState<InspirationPost[]>([])
   const [suggestions, setSuggestions] = useState<PostSuggestion[]>([])
-  const [rawPosts, setRawPosts] = useState<Tables<'inspiration_posts'>[]>([])
+  const [rawPosts, setRawPosts] = useState<LinkedInResearchPost[]>([])
   const [savedPostIds, setSavedPostIds] = useState<Set<string>>(new Set())
   const [userNiches, setUserNiches] = useState<string[]>([])
   const [filters, setFiltersState] = useState<InspirationFilters>(defaultFilters)
@@ -199,11 +222,16 @@ export function useInspiration(initialLimit = PAGE_SIZE): UseInspirationReturn {
   })
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // Track if we've already attempted to fetch user-specific data (to avoid repeated 404s)
+  // Using ref to avoid triggering re-renders or effect dependencies
+  const hasAttemptedUserDataFetchRef = useRef(false)
+  const lastUserIdRef = useRef<string | null>(null)
 
   const supabase = createClient()
 
   /**
    * Fetch user's saved inspiration posts
+   * Gracefully handles missing table (404) since it may not be created yet
    */
   const fetchSavedPosts = useCallback(async (userId: string) => {
     try {
@@ -213,7 +241,14 @@ export function useInspiration(initialLimit = PAGE_SIZE): UseInspirationReturn {
         .eq('user_id', userId)
 
       if (fetchError) {
-        console.error('Error fetching saved posts:', fetchError)
+        // 404 means table doesn't exist - this is expected if migrations haven't run
+        // PGRST116 = row not found, 42P01 = relation doesn't exist
+        if (fetchError.code === '42P01' || fetchError.message?.includes('does not exist')) {
+          // Table doesn't exist yet - silently skip
+          return
+        }
+        // Only log unexpected errors
+        console.warn('Saved posts not available:', fetchError.message)
         return
       }
 
@@ -221,12 +256,14 @@ export function useInspiration(initialLimit = PAGE_SIZE): UseInspirationReturn {
         setSavedPostIds(new Set(data.map(item => item.inspiration_post_id)))
       }
     } catch (err) {
-      console.error('Failed to fetch saved posts:', err)
+      // Network errors or other issues - don't spam console
+      console.warn('Saved posts fetch skipped:', err instanceof Error ? err.message : 'Unknown error')
     }
   }, [supabase])
 
   /**
    * Fetch user's niches for personalization
+   * Gracefully handles missing table (404) since it may not be created yet
    */
   const fetchUserNiches = useCallback(async (userId: string) => {
     try {
@@ -237,7 +274,14 @@ export function useInspiration(initialLimit = PAGE_SIZE): UseInspirationReturn {
         .order('confidence', { ascending: false })
 
       if (fetchError) {
-        console.error('Error fetching user niches:', fetchError)
+        // 404 means table doesn't exist - this is expected if migrations haven't run
+        // PGRST116 = row not found, 42P01 = relation doesn't exist
+        if (fetchError.code === '42P01' || fetchError.message?.includes('does not exist')) {
+          // Table doesn't exist yet - silently skip
+          return
+        }
+        // Only log unexpected errors
+        console.warn('User niches not available:', fetchError.message)
         return
       }
 
@@ -245,39 +289,66 @@ export function useInspiration(initialLimit = PAGE_SIZE): UseInspirationReturn {
         setUserNiches(data.map(item => item.niche))
       }
     } catch (err) {
-      console.error('Failed to fetch user niches:', err)
+      // Network errors or other issues - don't spam console
+      console.warn('User niches fetch skipped:', err instanceof Error ? err.message : 'Unknown error')
     }
   }, [supabase])
 
   /**
+   * Infer category from post content or type
+   */
+  const inferCategory = useCallback((post: LinkedInResearchPost): string => {
+    const text = (post.text || '').toLowerCase()
+    const headline = (post.author_headline || '').toLowerCase()
+
+    // Check for common themes in content and headline
+    if (text.includes('marketing') || headline.includes('marketing')) return 'marketing'
+    if (text.includes('sales') || headline.includes('sales')) return 'sales'
+    if (text.includes('leadership') || headline.includes('ceo') || headline.includes('founder')) return 'leadership'
+    if (text.includes('ai') || text.includes('tech') || headline.includes('engineer')) return 'technology'
+    if (text.includes('growth') || headline.includes('growth')) return 'growth'
+    if (text.includes('startup') || headline.includes('startup')) return 'entrepreneurship'
+    if (text.includes('product') || headline.includes('product')) return 'product-management'
+    if (text.includes('design') || headline.includes('design')) return 'design'
+
+    return 'general'
+  }, [])
+
+  /**
    * Transform raw post data to InspirationPost format
    */
-  const transformPost = useCallback((post: Tables<'inspiration_posts'>): InspirationPost => ({
-    id: post.id,
-    author: {
-      name: post.author_name || 'Unknown Author',
-      headline: post.author_headline || '',
-      avatar: post.author_avatar_url || undefined,
-    },
-    content: post.content,
-    category: post.category || 'general',
-    metrics: {
-      reactions: post.reactions || 0,
-      comments: post.comments || 0,
-      reposts: post.reposts || 0,
-    },
-    postedAt: post.posted_at || post.created_at,
-  }), [])
+  const transformPost = useCallback((post: LinkedInResearchPost): InspirationPost => {
+    const authorName = [post.author_first_name, post.author_last_name]
+      .filter(Boolean)
+      .join(' ') || 'Unknown Author'
+
+    return {
+      id: post.id,
+      author: {
+        name: authorName,
+        headline: post.author_headline || '',
+        avatar: post.author_profile_picture || undefined,
+      },
+      content: post.text || '',
+      category: inferCategory(post),
+      metrics: {
+        reactions: post.total_reactions || 0,
+        comments: post.comments || 0,
+        reposts: post.reposts || 0,
+      },
+      postedAt: post.posted_date || post.created_at || new Date().toISOString(),
+    }
+  }, [inferCategory])
 
   /**
    * Transform raw post data to PostSuggestion format
    */
-  const transformToSuggestion = useCallback((post: Tables<'inspiration_posts'>): PostSuggestion => ({
+  const transformToSuggestion = useCallback((post: LinkedInResearchPost): PostSuggestion => ({
     id: post.id,
-    content: post.content,
-    category: post.category || 'General',
-    estimatedEngagement: post.engagement_score || undefined,
-  }), [])
+    content: post.text || '',
+    category: inferCategory(post),
+    estimatedEngagement: post.total_reactions || undefined,
+  }), [inferCategory])
 
   /**
    * Fetch inspiration posts from database
@@ -299,27 +370,16 @@ export function useInspiration(initialLimit = PAGE_SIZE): UseInspirationReturn {
       }
       setError(null)
 
-      // Build query
-      let query = supabase
-        .from('inspiration_posts')
-        .select('*', { count: 'exact' })
-
-      // Apply category filter
-      if (filters.category !== 'all') {
-        query = query.eq('category', filters.category)
-      }
-
-      // Apply niche filter or use user niches for personalization
-      if (filters.niche !== 'all') {
-        query = query.eq('niche', filters.niche)
-      } else if (userNiches.length > 0 && !filters.savedOnly) {
-        query = query.or(`niche.in.(${userNiches.join(',')}),niche.is.null`)
-      }
+      // Build query - now using linkedin_research_posts table with viral content
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let query = (supabase as any)
+        .from('linkedin_research_posts')
+        .select('id, activity_urn, text, url, post_type, posted_date, author_first_name, author_last_name, author_headline, author_username, author_profile_url, author_profile_picture, total_reactions, likes, comments, reposts, created_at', { count: 'exact' })
 
       // Apply search filter
       if (filters.searchQuery.trim()) {
         const searchTerm = `%${filters.searchQuery.trim()}%`
-        query = query.or(`content.ilike.${searchTerm},author_name.ilike.${searchTerm},author_headline.ilike.${searchTerm}`)
+        query = query.or(`text.ilike.${searchTerm},author_first_name.ilike.${searchTerm},author_last_name.ilike.${searchTerm},author_headline.ilike.${searchTerm}`)
       }
 
       // If showing only saved posts, filter by saved IDs
@@ -340,10 +400,12 @@ export function useInspiration(initialLimit = PAGE_SIZE): UseInspirationReturn {
         return
       }
 
-      // Order by engagement score
+      // Filter out posts with no content
+      query = query.not('text', 'is', null)
+
+      // Order by total reactions (engagement) - most viral first
       query = query
-        .order('engagement_score', { ascending: false, nullsFirst: false })
-        .order('reactions', { ascending: false, nullsFirst: false })
+        .order('total_reactions', { ascending: false, nullsFirst: false })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
 
       const { data: postsData, error: fetchError, count } = await query
@@ -382,17 +444,29 @@ export function useInspiration(initialLimit = PAGE_SIZE): UseInspirationReturn {
         return
       }
 
-      // Transform posts
-      const transformedPosts = postsData.map(transformPost)
-      const transformedSuggestions = postsData.slice(0, 10).map(transformToSuggestion)
+      // Transform posts (cast to our interface)
+      const typedPosts = postsData as LinkedInResearchPost[]
+      const transformedPosts = typedPosts.map(transformPost)
+
+      // Apply category filter (categories are inferred, so filter after transform)
+      const filteredPosts = filters.category === 'all'
+        ? transformedPosts
+        : transformedPosts.filter(post => post.category === filters.category)
+
+      // Apply niche filter (niches map to categories in our current model)
+      const nicheFilteredPosts = filters.niche === 'all'
+        ? filteredPosts
+        : filteredPosts.filter(post => post.category === filters.niche)
+
+      const transformedSuggestions = typedPosts.slice(0, 10).map(transformToSuggestion)
 
       if (append) {
-        setPosts(prev => [...prev, ...transformedPosts])
-        setRawPosts(prev => [...prev, ...postsData])
+        setPosts(prev => [...prev, ...nicheFilteredPosts])
+        setRawPosts(prev => [...prev, ...typedPosts])
       } else {
-        setPosts(transformedPosts)
+        setPosts(nicheFilteredPosts)
         setSuggestions(transformedSuggestions)
-        setRawPosts(postsData)
+        setRawPosts(typedPosts)
       }
 
       // Update pagination
@@ -404,12 +478,22 @@ export function useInspiration(initialLimit = PAGE_SIZE): UseInspirationReturn {
         isLoadingMore: false,
       })
 
-      // Fetch user data if authenticated and on first page
+      // Fetch user data if authenticated, on first page, and haven't attempted yet
+      // This prevents repeated 404 errors when tables don't exist
       if (user && page === 0) {
-        await Promise.all([
-          fetchSavedPosts(user.id),
-          fetchUserNiches(user.id),
-        ])
+        // Reset flag if user changed
+        if (lastUserIdRef.current !== user.id) {
+          lastUserIdRef.current = user.id
+          hasAttemptedUserDataFetchRef.current = false
+        }
+
+        if (!hasAttemptedUserDataFetchRef.current) {
+          hasAttemptedUserDataFetchRef.current = true
+          await Promise.all([
+            fetchSavedPosts(user.id),
+            fetchUserNiches(user.id),
+          ])
+        }
       }
     } catch (err) {
       console.error('Inspiration fetch error:', err)

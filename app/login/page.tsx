@@ -6,7 +6,7 @@
 
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
@@ -26,11 +26,61 @@ import { toast } from 'sonner'
 function LoginForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
+  const [isResendingEmail, setIsResendingEmail] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const searchParams = useSearchParams()
   const router = useRouter()
   const redirectTo = searchParams.get('redirect') || '/dashboard'
+  const errorParam = searchParams.get('error')
+  const successParam = searchParams.get('success')
+
+  // Check if error is related to expired/verification issues
+  const showResendOption = errorParam && (
+    errorParam.toLowerCase().includes('expired') ||
+    errorParam.toLowerCase().includes('verification') ||
+    errorParam.toLowerCase().includes('verify')
+  )
+
+  // Show error or success message from URL params on mount
+  useEffect(() => {
+    if (errorParam) {
+      toast.error(errorParam)
+    }
+    if (successParam) {
+      toast.success(successParam)
+    }
+  }, [errorParam, successParam])
+
+  /**
+   * Handle resending verification email via API
+   */
+  const handleResendVerification = async () => {
+    const userEmail = email || window.prompt('Enter your email address:')
+    if (!userEmail) return
+
+    setIsResendingEmail(true)
+    try {
+      const response = await fetch('/api/auth/resend-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: userEmail }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        toast.error(data.error || 'Failed to resend verification email')
+      } else {
+        toast.success(data.message || 'Verification email sent! Please check your inbox.')
+      }
+    } catch (err) {
+      console.error('Resend verification error:', err)
+      toast.error('Failed to resend verification email')
+    } finally {
+      setIsResendingEmail(false)
+    }
+  }
 
   /**
    * Handle email/password sign in
@@ -210,6 +260,32 @@ function LoginForm() {
         </Button>
       </motion.div>
 
+      {/* Resend verification email */}
+      {showResendOption && (
+        <motion.div
+          className="text-center"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.65, duration: 0.3 }}
+        >
+          <Button
+            variant="link"
+            className="text-sm text-primary hover:underline"
+            onClick={handleResendVerification}
+            disabled={isResendingEmail}
+          >
+            {isResendingEmail ? (
+              <>
+                <IconLoader2 className="mr-2 h-3 w-3 animate-spin" />
+                Sending...
+              </>
+            ) : (
+              'Resend verification email'
+            )}
+          </Button>
+        </motion.div>
+      )}
+
       {/* Sign up link */}
       <motion.p
         className="text-center text-sm text-muted-foreground"
@@ -243,8 +319,8 @@ function LoginFormSkeleton() {
   return (
     <CardContent className="space-y-6">
       <div className="space-y-4">
-        <Skeleton className="w-full h-10" />
-        <Skeleton className="w-full h-10" />
+        <Skeleton className="w-full h-11" />
+        <Skeleton className="w-full h-11" />
         <Skeleton className="w-full h-11" />
       </div>
       <Skeleton className="w-full h-4" />

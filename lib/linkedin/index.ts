@@ -16,6 +16,8 @@ export {
   refreshAccessToken,
   revokeToken,
   getLinkedInUserInfo,
+  getLinkedInUserInfoFromTokens,
+  decodeIdToken,
   isTokenExpired,
   calculateExpiresAt,
   getValidAccessToken,

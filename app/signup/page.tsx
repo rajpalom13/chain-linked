@@ -33,6 +33,42 @@ function SignupForm() {
   const router = useRouter()
 
   /**
+   * Calculate password strength
+   * @param pwd - Password to evaluate
+   * @returns strength score (0-4) and label
+   */
+  const getPasswordStrength = (pwd: string): { score: number; label: string; color: string } => {
+    if (!pwd) return { score: 0, label: '', color: '' }
+
+    let score = 0
+
+    // Length check
+    if (pwd.length >= 6) score++
+    if (pwd.length >= 10) score++
+
+    // Has uppercase and lowercase
+    if (/[a-z]/.test(pwd) && /[A-Z]/.test(pwd)) score++
+
+    // Has numbers
+    if (/\d/.test(pwd)) score++
+
+    // Has special characters
+    if (/[^A-Za-z0-9]/.test(pwd)) score++
+
+    // Map score to strength label
+    const strengthMap = {
+      0: { label: '', color: '' },
+      1: { label: 'Weak', color: 'bg-destructive' },
+      2: { label: 'Fair', color: 'bg-yellow-500' },
+      3: { label: 'Good', color: 'bg-primary' },
+      4: { label: 'Strong', color: 'bg-green-600' },
+      5: { label: 'Very Strong', color: 'bg-green-600' },
+    }
+
+    return { score, ...strengthMap[Math.min(score, 5) as keyof typeof strengthMap] }
+  }
+
+  /**
    * Validate password strength
    * @param pwd - Password to validate
    * @returns true if password meets requirements
@@ -44,6 +80,8 @@ function SignupForm() {
     }
     return true
   }
+
+  const passwordStrength = getPasswordStrength(password)
 
   /**
    * Handle email/password signup
@@ -93,13 +131,11 @@ function SignupForm() {
       }
 
       if (data.user) {
-        // Create user profile in database
-        const { error: profileError } = await supabase.from('users').upsert({
+        // Update user profile in database (trigger auto-creates on signup)
+        const { error: profileError } = await supabase.from('profiles').upsert({
           id: data.user.id,
-          email: data.user.email || email, // Use form email as fallback
-          name: name || email.split('@')[0],
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          email: data.user.email || email,
+          full_name: name || email.split('@')[0],
         }, {
           onConflict: 'id',
         })
@@ -210,6 +246,27 @@ function SignupForm() {
             minLength={6}
             className="h-11 transition-all duration-200 focus:ring-2 focus:ring-primary/20"
           />
+          {password && (
+            <div className="space-y-1.5">
+              <div className="flex gap-1">
+                {[...Array(4)].map((_, i) => (
+                  <div
+                    key={i}
+                    className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                      i < passwordStrength.score
+                        ? passwordStrength.color
+                        : 'bg-muted'
+                    }`}
+                  />
+                ))}
+              </div>
+              {passwordStrength.label && (
+                <p className="text-xs text-muted-foreground">
+                  Password strength: <span className="font-medium">{passwordStrength.label}</span>
+                </p>
+              )}
+            </div>
+          )}
         </div>
         <div className="space-y-2">
           <Label htmlFor="confirmPassword">Confirm Password</Label>
@@ -314,10 +371,10 @@ function SignupFormSkeleton() {
   return (
     <CardContent className="space-y-6">
       <div className="space-y-4">
-        <Skeleton className="w-full h-10" />
-        <Skeleton className="w-full h-10" />
-        <Skeleton className="w-full h-10" />
-        <Skeleton className="w-full h-10" />
+        <Skeleton className="w-full h-11" />
+        <Skeleton className="w-full h-11" />
+        <Skeleton className="w-full h-11" />
+        <Skeleton className="w-full h-11" />
         <Skeleton className="w-full h-11" />
       </div>
       <Skeleton className="w-full h-4" />

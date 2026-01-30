@@ -7,9 +7,11 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import {
   IconCalendar,
   IconChartBar,
+  IconCompass,
   IconDashboard,
   IconHelp,
   IconLink,
@@ -36,6 +38,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { useAuthContext } from "@/lib/auth/auth-provider"
+import { LinkedInStatusBadge } from "@/components/features/linkedin-status-badge"
 
 /**
  * Static navigation data for the ChainLinked application sidebar.
@@ -76,7 +79,7 @@ const navigationData = {
 
   /**
    * Content section navigation - collapsible group for content management.
-   * Includes templates, inspiration, swipe interface, and carousel management.
+   * Includes templates, inspiration, discover, swipe interface, and carousel management.
    */
   navContent: [
     {
@@ -85,9 +88,19 @@ const navigationData = {
       icon: IconTemplate,
     },
     {
+      title: "Prompt Playground",
+      url: "/dashboard/prompts",
+      icon: IconSparkles,
+    },
+    {
       title: "Inspiration",
       url: "/dashboard/inspiration",
       icon: IconSparkles,
+    },
+    {
+      title: "Discover",
+      url: "/dashboard/discover",
+      icon: IconCompass,
     },
     {
       title: "Swipe",
@@ -151,6 +164,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   /**
    * Derive user display data from auth context
    * Prioritizes LinkedIn profile data, falls back to Supabase user data
+   * Always ensures user metadata is available as final fallback
    */
   const userData = React.useMemo(() => {
     if (!user) {
@@ -162,24 +176,28 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       }
     }
 
-    // Get name: LinkedIn raw_data.name > profile.name > user metadata > email
+    // Get name: LinkedIn raw_data.name > profile.full_name > profile.name > user metadata > email
     const linkedInName = profile?.linkedin_profile?.raw_data?.name
+    const profileFullName = profile?.full_name
     const profileName = profile?.name
     const metadataName = user.user_metadata?.name || user.user_metadata?.full_name
     const emailName = user.email?.split('@')[0] || 'User'
 
-    const name = linkedInName || profileName || metadataName || emailName
+    const name = linkedInName || profileFullName || profileName || metadataName || emailName
 
-    // Get avatar: LinkedIn profilePhotoUrl > profile_picture_url > user metadata
+    // Get avatar: LinkedIn profilePhotoUrl > profile.linkedin_avatar_url > profile.avatar_url > profile_picture_url > user metadata
     const linkedInAvatar = profile?.linkedin_profile?.raw_data?.profilePhotoUrl ||
-                          profile?.linkedin_profile?.profile_picture_url
+                          profile?.linkedin_profile?.profile_picture_url ||
+                          profile?.linkedin_avatar_url // From profiles table (saved during OAuth)
+    const profileAvatar = profile?.avatar_url
     const metadataAvatar = user.user_metadata?.avatar_url || user.user_metadata?.picture
 
-    const avatar = linkedInAvatar || metadataAvatar || ""
+    const avatar = linkedInAvatar || profileAvatar || metadataAvatar || ""
 
-    // Get headline from LinkedIn profile
+    // Get headline from LinkedIn profile or profiles table
     const headline = profile?.linkedin_profile?.headline ||
-                     profile?.linkedin_profile?.raw_data?.headline
+                     profile?.linkedin_profile?.raw_data?.headline ||
+                     profile?.linkedin_headline // From profiles table
 
     return {
       name: name as string,
@@ -199,13 +217,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               asChild
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
-              <a href="/dashboard">
+              <Link href="/dashboard">
                 <IconLink className="!size-5" />
                 <span className="text-base font-semibold">ChainLinked</span>
-              </a>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+        {/* LinkedIn Connection Status Indicator */}
+        <div className="px-2 pb-1">
+          <LinkedInStatusBadge variant="dot" showReconnect />
+        </div>
       </SidebarHeader>
 
       {/* Sidebar Content - Navigation Groups */}

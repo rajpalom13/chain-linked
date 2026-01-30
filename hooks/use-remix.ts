@@ -1,13 +1,28 @@
 /**
  * useRemix Hook
- * @description Hook for AI-powered post remix functionality
+ * @description Hook for AI-powered post remix functionality with user context
  * @module hooks/use-remix
  */
 
 'use client'
 
 import { useState, useCallback } from 'react'
-import type { RemixTone } from '@/lib/ai/remix-prompts'
+
+/**
+ * Available remix tones
+ */
+export type RemixTone =
+  | 'match-my-style'
+  | 'professional'
+  | 'casual'
+  | 'inspiring'
+  | 'educational'
+  | 'thought-provoking'
+
+/**
+ * Available remix lengths
+ */
+export type RemixLength = 'short' | 'medium' | 'long'
 
 /**
  * Remix request parameters
@@ -16,7 +31,9 @@ export interface RemixParams {
   /** Original post content to remix */
   content: string
   /** Desired tone for the remix */
-  tone: RemixTone
+  tone?: RemixTone
+  /** Target length */
+  length?: RemixLength
   /** Optional custom instructions */
   instructions?: string
 }
@@ -26,17 +43,22 @@ export interface RemixParams {
  */
 export interface RemixResult {
   /** Remixed content */
-  remixedContent: string
+  content: string
   /** Original content (echoed back) */
   originalContent: string
-  /** Tokens used in the request */
-  tokensUsed: {
-    prompt: number
-    completion: number
-    total: number
+  /** Metadata about the remix */
+  metadata: {
+    model: string
+    tokensUsed: number
+    tone: string
+    length: string
+    userContext: {
+      hasProfile: boolean
+      postsAnalyzed: number
+      nichesDetected: number
+      styleMatched: boolean
+    }
   }
-  /** Model used for generation */
-  model: string
 }
 
 /**
@@ -89,10 +111,11 @@ export type UseRemixReturn = UseRemixState & UseRemixActions
  * const handleRemix = async () => {
  *   const result = await remix({
  *     content: 'Original post content...',
- *     tone: 'professional',
+ *     tone: 'match-my-style',
+ *     apiKey: userApiKey,
  *   })
  *   if (result) {
- *     console.log('Remixed:', result.remixedContent)
+ *     console.log('Remixed:', result.content)
  *   }
  * }
  */
@@ -105,19 +128,34 @@ export function useRemix(): UseRemixReturn {
    * Execute a remix request
    */
   const remix = useCallback(async (params: RemixParams): Promise<RemixResult | null> => {
+    const {
+      content,
+      tone = 'match-my-style',
+      length = 'medium',
+      instructions,
+    } = params
+
+    // Validate inputs
+    if (!content?.trim()) {
+      setError({ message: 'No content to remix', code: 'invalid_content' })
+      return null
+    }
+
     setIsLoading(true)
     setError(null)
 
     try {
-      const response = await fetch('/api/remix', {
+      const response = await fetch('/api/ai/remix', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
-          content: params.content,
-          tone: params.tone,
-          instructions: params.instructions,
+          originalContent: content.trim(),
+          tone,
+          length,
+          customInstructions: instructions?.trim() || undefined,
         }),
       })
 
@@ -181,6 +219,75 @@ export function useRemix(): UseRemixReturn {
     reset,
   }
 }
+
+/**
+ * Tone options for UI display
+ */
+export const REMIX_TONE_OPTIONS: {
+  value: RemixTone
+  label: string
+  description: string
+}[] = [
+  {
+    value: 'match-my-style',
+    label: 'Match My Style',
+    description: 'Analyze your posts and match your unique voice',
+  },
+  {
+    value: 'professional',
+    label: 'Professional',
+    description: 'Authoritative and industry-focused',
+  },
+  {
+    value: 'casual',
+    label: 'Casual',
+    description: 'Conversational and relatable',
+  },
+  {
+    value: 'inspiring',
+    label: 'Inspiring',
+    description: 'Motivational and uplifting',
+  },
+  {
+    value: 'educational',
+    label: 'Educational',
+    description: 'Informative how-to content',
+  },
+  {
+    value: 'thought-provoking',
+    label: 'Thought-Provoking',
+    description: 'Challenges conventional thinking',
+  },
+]
+
+/**
+ * Length options for UI display
+ */
+export const REMIX_LENGTH_OPTIONS: {
+  value: RemixLength
+  label: string
+  description: string
+  charRange: { min: number; max: number }
+}[] = [
+  {
+    value: 'short',
+    label: 'Short',
+    description: '400-700 characters',
+    charRange: { min: 400, max: 700 },
+  },
+  {
+    value: 'medium',
+    label: 'Medium',
+    description: '1200-1800 characters',
+    charRange: { min: 1200, max: 1800 },
+  },
+  {
+    value: 'long',
+    label: 'Long',
+    description: '2200-2900 characters',
+    charRange: { min: 2200, max: 2900 },
+  },
+]
 
 /**
  * Checks if the error indicates missing API key

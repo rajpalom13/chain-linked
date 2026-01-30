@@ -101,32 +101,42 @@ export function useTeamLeaderboard(): UseTeamLeaderboardReturn {
       setIsLoading(true)
       setError(null)
 
-      // Get user's team membership
-      const { data: teamMembership } = await supabase
-        .from('team_members')
-        .select('team_id')
-        .eq('user_id', user!.id)
-        .single()
-
-      // If user is not in a team, show only their own stats
+      // Get user's team membership - handle gracefully if table doesn't exist
       let teamMemberIds: string[] = [user!.id]
 
-      if (teamMembership?.team_id) {
-        // Get all team members
-        const { data: teamMembersData } = await supabase
+      try {
+        const { data: teamMembership, error: teamError } = await supabase
           .from('team_members')
-          .select('user_id')
-          .eq('team_id', teamMembership.team_id)
+          .select('team_id')
+          .eq('user_id', user!.id)
+          .single()
 
-        if (teamMembersData && teamMembersData.length > 0) {
-          teamMemberIds = teamMembersData.map(m => m.user_id)
+        // If table doesn't exist or RLS blocks access, continue with solo user
+        if (teamError) {
+          // 406 = Not Acceptable (often RLS/table issues), PGRST116 = not found
+          if (teamError.code !== 'PGRST116' && teamError.code !== '406' && !teamError.message?.includes('406')) {
+            console.warn('Team membership query error:', teamError.message)
+          }
+        } else if (teamMembership?.team_id) {
+          // Get all team members
+          const { data: teamMembersData, error: membersError } = await supabase
+            .from('team_members')
+            .select('user_id')
+            .eq('team_id', teamMembership.team_id)
+
+          if (!membersError && teamMembersData && teamMembersData.length > 0) {
+            teamMemberIds = teamMembersData.map(m => m.user_id)
+          }
         }
+      } catch {
+        // Silently continue with solo user if team_members table is unavailable
+        console.info('Team members table unavailable, using solo mode')
       }
 
       // Get user profiles for team members
       const { data: usersData } = await supabase
-        .from('users')
-        .select('id, name, email, avatar_url')
+        .from('profiles')
+        .select('id, full_name, email, avatar_url')
         .in('id', teamMemberIds)
 
       if (!usersData || usersData.length === 0) {
@@ -223,7 +233,7 @@ export function useTeamLeaderboard(): UseTeamLeaderboardReturn {
 
         return {
           id: userData.id,
-          name: userData.name || userData.email?.split('@')[0] || 'Unknown User',
+          name: userData.full_name || userData.email?.split('@')[0] || 'Unknown User',
           avatarUrl: userData.avatar_url || undefined,
           role: profile?.headline || 'Team Member',
           postsThisWeek: stats.postsThisWeek,

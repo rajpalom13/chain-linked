@@ -1,6 +1,8 @@
 /**
  * Company Setup Page
- * @description Onboarding page for creating a new company
+ * @description Onboarding page for creating a new company.
+ * Part of the company onboarding flow that users must complete
+ * before accessing the dashboard.
  * @module app/onboarding/company
  */
 
@@ -12,6 +14,8 @@ import { IconLoader2 } from '@tabler/icons-react'
 
 import { CompanySetupForm } from '@/components/features/company-setup-form'
 import { useCompany } from '@/hooks/use-company'
+import { useAuthContext } from '@/lib/auth/auth-provider'
+import { markCompanyOnboardingComplete, completeOnboardingInDatabase } from '@/services/onboarding'
 import type { CompanyWithTeam } from '@/types/database'
 
 /**
@@ -19,28 +23,74 @@ import type { CompanyWithTeam } from '@/types/database'
  *
  * Onboarding step 1: Create a company.
  * Redirects to invite page after successful company creation.
- * If user already has a company, redirects to dashboard.
+ * If user already has a company and completed onboarding, redirects to dashboard.
+ *
+ * Flow:
+ * 1. Check if user has completed company onboarding
+ * 2. If yes, redirect to dashboard
+ * 3. If no, show company setup form
+ * 4. On form completion, mark onboarding complete and redirect
  *
  * @returns Company setup page JSX
+ * @example
+ * // Route: /onboarding/company
+ * <CompanySetupPage />
  */
 export default function CompanySetupPage() {
   const router = useRouter()
-  const { company, isLoading, hasCompany } = useCompany()
+  const { company, isLoading: isCompanyLoading, hasCompany } = useCompany()
+  const { isLoading: isAuthLoading, hasCompletedCompanyOnboarding, refreshProfile } = useAuthContext()
   const [isRedirecting, setIsRedirecting] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
-  // If user already has a company, redirect to dashboard
+  // Combine loading states
+  const isLoading = isCompanyLoading || isAuthLoading
+
+  // If user already completed company onboarding, redirect to dashboard
   useEffect(() => {
-    if (!isLoading && hasCompany) {
+    if (!isLoading && hasCompletedCompanyOnboarding) {
       router.replace('/dashboard')
     }
-  }, [isLoading, hasCompany, router])
+  }, [isLoading, hasCompletedCompanyOnboarding, router])
+
+  // If user already has a company but hasn't completed onboarding,
+  // mark onboarding complete and redirect to dashboard
+  useEffect(() => {
+    if (!isLoading && hasCompany && !hasCompletedCompanyOnboarding && !isSaving) {
+      const completeAndRedirect = async () => {
+        setIsSaving(true)
+        await markCompanyOnboardingComplete({
+          companyName: company?.name ?? undefined,
+        })
+        await refreshProfile()
+        router.replace('/dashboard')
+      }
+      completeAndRedirect()
+    }
+  }, [isLoading, hasCompany, hasCompletedCompanyOnboarding, company, isSaving, refreshProfile, router])
 
   /**
    * Handle successful company creation
+   * Marks both company_onboarding_completed and onboarding_completed as true
+   * and navigates to invite page or dashboard
    * @param createdCompany - Newly created company data
    */
-  const handleComplete = (createdCompany: CompanyWithTeam) => {
+  const handleComplete = async (createdCompany: CompanyWithTeam) => {
     setIsRedirecting(true)
+
+    // Mark company onboarding as complete in the database
+    const companySuccess = await markCompanyOnboardingComplete({
+      companyName: createdCompany.name,
+    })
+
+    // Also mark full onboarding as complete
+    await completeOnboardingInDatabase()
+
+    if (companySuccess) {
+      // Refresh the profile to update the context
+      await refreshProfile()
+    }
+
     // Navigate to invite page with team ID
     const teamId = createdCompany.team?.id
     if (teamId) {
@@ -50,24 +100,39 @@ export default function CompanySetupPage() {
     }
   }
 
+  /**
+   * Handle skip action - mark both onboarding flags complete and go to dashboard
+   */
+  const handleSkip = async () => {
+    setIsRedirecting(true)
+    // Mark company onboarding as complete
+    await markCompanyOnboardingComplete()
+    // Mark full onboarding as complete
+    await completeOnboardingInDatabase()
+    await refreshProfile()
+    router.push('/dashboard')
+  }
+
   // Show loading state while checking company status
-  if (isLoading || isRedirecting) {
+  if (isLoading || isRedirecting || isSaving) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30">
+      <div className="flex flex-col items-center justify-center py-24">
         <div className="flex flex-col items-center gap-4">
           <IconLoader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="text-muted-foreground">
-            {isRedirecting ? 'Setting up your company...' : 'Loading...'}
+            {isRedirecting ? 'Setting up your company...' :
+             isSaving ? 'Saving your progress...' :
+             'Loading...'}
           </p>
         </div>
       </div>
     )
   }
 
-  // If user has company, show loading while redirect happens
-  if (hasCompany) {
+  // If user has already completed onboarding, show loading while redirect happens
+  if (hasCompletedCompanyOnboarding) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30">
+      <div className="flex flex-col items-center justify-center py-24">
         <div className="flex flex-col items-center gap-4">
           <IconLoader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="text-muted-foreground">Redirecting to dashboard...</p>
@@ -77,27 +142,11 @@ export default function CompanySetupPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30 p-4">
-      {/* Progress Indicator */}
-      <div className="fixed top-6 left-1/2 -translate-x-1/2 flex items-center gap-2">
-        <div className="flex items-center gap-2">
-          <div className="size-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
-            1
-          </div>
-          <span className="text-sm font-medium">Create Company</span>
-        </div>
-        <div className="w-8 h-px bg-border" />
-        <div className="flex items-center gap-2">
-          <div className="size-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-sm font-medium">
-            2
-          </div>
-          <span className="text-sm text-muted-foreground">Invite Team</span>
-        </div>
-      </div>
-
+    <div className="flex flex-col items-center justify-start pt-8 pb-12">
       <CompanySetupForm
         onComplete={handleComplete}
-        showSkip={false}
+        onSkip={handleSkip}
+        showSkip={true}
       />
     </div>
   )

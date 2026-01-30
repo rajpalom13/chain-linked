@@ -79,7 +79,7 @@ export interface ScheduleModalProps {
 /** Day names for the calendar header (short form) */
 const DAY_NAMES_SHORT = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
 
-/** Top 10 common timezones */
+/** Common timezones */
 const COMMON_TIMEZONES = [
   { value: "America/New_York", label: "Eastern Time (ET)", offset: "UTC-5" },
   { value: "America/Chicago", label: "Central Time (CT)", offset: "UTC-6" },
@@ -88,8 +88,10 @@ const COMMON_TIMEZONES = [
   { value: "Europe/London", label: "London (GMT)", offset: "UTC+0" },
   { value: "Europe/Paris", label: "Paris (CET)", offset: "UTC+1" },
   { value: "Europe/Berlin", label: "Berlin (CET)", offset: "UTC+1" },
+  { value: "Asia/Kolkata", label: "India (IST)", offset: "UTC+5:30" },
   { value: "Asia/Tokyo", label: "Tokyo (JST)", offset: "UTC+9" },
   { value: "Asia/Singapore", label: "Singapore (SGT)", offset: "UTC+8" },
+  { value: "Asia/Dubai", label: "Dubai (GST)", offset: "UTC+4" },
   { value: "Australia/Sydney", label: "Sydney (AEDT)", offset: "UTC+11" },
 ]
 
@@ -359,8 +361,8 @@ export function ScheduleModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <IconCalendar className="size-5" />
             Schedule Post
@@ -370,7 +372,7 @@ export function ScheduleModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="space-y-6 py-4 overflow-y-auto flex-1 pr-2">
           {/* Post Preview */}
           {postPreview && (
             <div className="rounded-md border bg-muted/50 p-3 space-y-2">
@@ -523,7 +525,7 @@ export function ScheduleModal({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0 border-t pt-4 mt-2">
           <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>

@@ -1,21 +1,36 @@
 /**
- * OpenAI Client with BYOK (Bring Your Own Key) Support
- * @description Handles OpenAI API interactions using user-provided API keys
+ * OpenRouter AI Client with BYOK (Bring Your Own Key) Support
+ * @description Handles AI API interactions via OpenRouter for access to GPT-4.1 and other models
  * @module lib/ai/openai-client
  */
 
 import OpenAI from 'openai'
 
 /**
- * Configuration for creating an OpenAI client instance
+ * OpenRouter API base URL
+ * @see https://openrouter.ai/docs/api/reference/overview
+ */
+const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
+
+/**
+ * Default model to use for AI generation
+ * GPT-4.1 is optimized for instruction following and coding tasks
+ * @see https://openrouter.ai/openai/gpt-4.1
+ */
+export const DEFAULT_MODEL = 'openai/gpt-4.1'
+
+/**
+ * Configuration for creating an OpenRouter client instance
  */
 export interface OpenAIClientConfig {
-  /** User's OpenAI API key */
+  /** User's OpenRouter API key (or OpenAI key for backward compatibility) */
   apiKey: string
   /** Optional timeout in milliseconds (default: 30000) */
   timeout?: number
   /** Optional max retries (default: 2) */
   maxRetries?: number
+  /** Optional custom base URL (defaults to OpenRouter) */
+  baseURL?: string
 }
 
 /**
@@ -26,7 +41,7 @@ export interface ChatCompletionRequest {
   systemPrompt: string
   /** User message/content to process */
   userMessage: string
-  /** Optional model to use (default: gpt-4o-mini) */
+  /** Optional model to use (default: openai/gpt-4.1 via OpenRouter) */
   model?: string
   /** Optional temperature for creativity (default: 0.7) */
   temperature?: number
@@ -81,28 +96,36 @@ export class OpenAIError extends Error {
 }
 
 /**
- * Creates an OpenAI client instance with the user's API key
+ * Creates an OpenRouter client instance with the user's API key
+ * Uses OpenAI SDK with OpenRouter base URL for GPT-4.1 and other models
  * @param config - Client configuration
- * @returns Configured OpenAI client instance
+ * @returns Configured OpenAI-compatible client instance
+ * @see https://openrouter.ai/docs/quickstart
  * @example
- * const client = createOpenAIClient({ apiKey: 'sk-...' })
+ * const client = createOpenAIClient({ apiKey: 'sk-or-v1-...' })
  */
 export function createOpenAIClient(config: OpenAIClientConfig): OpenAI {
   return new OpenAI({
     apiKey: config.apiKey,
+    baseURL: config.baseURL ?? OPENROUTER_BASE_URL,
     timeout: config.timeout ?? 30000,
     maxRetries: config.maxRetries ?? 2,
+    defaultHeaders: {
+      'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+      'X-Title': 'ChainLinked',
+    },
   })
 }
 
 /**
- * Validates an OpenAI API key by making a test request
- * @param apiKey - The API key to validate
+ * Validates an OpenRouter API key by making a test request
+ * @param apiKey - The API key to validate (OpenRouter: sk-or-v1-... or legacy OpenAI: sk-...)
  * @returns True if the key is valid, false otherwise
  * @example
- * const isValid = await validateOpenAIKey('sk-...')
+ * const isValid = await validateOpenAIKey('sk-or-v1-...')
  */
 export async function validateOpenAIKey(apiKey: string): Promise<boolean> {
+  // Accept both OpenRouter (sk-or-) and legacy OpenAI (sk-) keys
   if (!apiKey || !apiKey.startsWith('sk-')) {
     return false
   }
@@ -110,7 +133,7 @@ export async function validateOpenAIKey(apiKey: string): Promise<boolean> {
   try {
     const client = createOpenAIClient({ apiKey, timeout: 10000, maxRetries: 1 })
 
-    // Make a minimal request to validate the key
+    // Make a minimal request to validate the key via OpenRouter
     await client.models.list()
     return true
   } catch (error) {
@@ -138,7 +161,7 @@ export async function chatCompletion(
   const {
     systemPrompt,
     userMessage,
-    model = 'gpt-4o-mini',
+    model = DEFAULT_MODEL,
     temperature = 0.7,
     maxTokens = 1024,
   } = request

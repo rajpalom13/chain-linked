@@ -7,3 +7,4 @@
 export * from './types'
 export * from './client'
 export * from './brand-extractor'
+export * from './scraper'

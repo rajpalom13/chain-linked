@@ -60,11 +60,12 @@ export interface RemixModalProps {
  * Tone option icon mapping
  */
 const TONE_ICONS: Record<RemixTone, React.ElementType> = {
+  'match-my-style': IconWand,
   professional: IconBriefcase,
   casual: IconMessage,
-  'thought-leader': IconBulb,
-  storyteller: IconBook,
-  preserve: IconPencil,
+  inspiring: IconSparkles,
+  educational: IconBook,
+  'thought-provoking': IconBulb,
 }
 
 /**
@@ -114,14 +115,14 @@ export function RemixModal({
   const { isLoading, result, error, remix, reset } = useRemix()
 
   // Local state
-  const [selectedTone, setSelectedTone] = React.useState<RemixTone>('professional')
+  const [selectedTone, setSelectedTone] = React.useState<RemixTone>('match-my-style')
   const [customInstructions, setCustomInstructions] = React.useState('')
   const [editedContent, setEditedContent] = React.useState('')
 
   // Reset state when modal opens/closes
   React.useEffect(() => {
     if (isOpen) {
-      setSelectedTone('professional')
+      setSelectedTone('match-my-style')
       setCustomInstructions('')
       setEditedContent('')
       reset()
@@ -130,10 +131,10 @@ export function RemixModal({
 
   // Update edited content when result arrives
   React.useEffect(() => {
-    if (result?.remixedContent) {
-      setEditedContent(result.remixedContent)
+    if (result?.content) {
+      setEditedContent(result.content)
     }
-  }, [result?.remixedContent])
+  }, [result?.content])
 
   /**
    * Handles generating a remix
@@ -411,7 +412,7 @@ export function RemixModal({
                   {editedContent.length} characters
                 </span>
                 <span>
-                  Tokens used: {result.tokensUsed.total}
+                  Tokens used: {result.metadata.tokensUsed}
                 </span>
               </div>
             </div>

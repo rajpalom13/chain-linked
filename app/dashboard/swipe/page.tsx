@@ -8,6 +8,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   IconX,
@@ -20,17 +21,25 @@ import {
   IconAlertCircle,
   IconInfoCircle,
   IconSparkles,
+  IconWand,
+  IconLoader2,
+  IconBookmark,
 } from "@tabler/icons-react"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { SwipeCard, SwipeCardStack, SwipeCardEmpty, type SwipeCardData } from "@/components/features/swipe-card"
 import { SiteHeader } from "@/components/site-header"
 import { SwipeSkeleton } from "@/components/skeletons/page-skeletons"
-import { useSwipeSuggestions } from "@/hooks/use-swipe-suggestions"
+import { RemixDialog } from "@/components/features/remix-dialog"
+import { GenerationProgress } from "@/components/features/generation-progress"
+import { useGeneratedSuggestions } from "@/hooks/use-generated-suggestions"
+import { useSwipeWishlist } from "@/hooks/use-swipe-wishlist"
 import { useSwipeActions } from "@/hooks/use-swipe-actions"
+import { useApiKeys } from "@/hooks/use-api-keys"
 import { useAuthContext } from "@/lib/auth/auth-provider"
 import { useDraft } from "@/lib/store/draft-context"
 import { swipeToast } from "@/lib/toast-utils"
+import { toast } from "sonner"
 import {
   SidebarInset,
   SidebarProvider,
@@ -53,7 +62,7 @@ import {
   staggerItemVariants,
   fadeSlideUpVariants,
 } from "@/lib/animations"
-import type { PostSuggestion } from "@/components/features/swipe-interface"
+import type { GeneratedSuggestion } from "@/types/database"
 
 /** Threshold in pixels for swipe to be considered a decision */
 const SWIPE_THRESHOLD = 100
@@ -61,7 +70,17 @@ const SWIPE_THRESHOLD = 100
 /**
  * Empty state when no more suggestions are available
  */
-function EmptyState({ onRefresh }: { onRefresh: () => void }) {
+function EmptyState({
+  onRefresh,
+  onGenerate,
+  canGenerate,
+  isGenerating,
+}: {
+  onRefresh: () => void
+  onGenerate: () => void
+  canGenerate: boolean
+  isGenerating: boolean
+}) {
   return (
     <motion.div
       className="flex h-[400px] w-full max-w-md flex-col items-center justify-center rounded-xl border-2 border-dashed border-muted-foreground/25 bg-gradient-to-br from-muted/30 via-muted/20 to-primary/5 p-8 text-center"
@@ -83,7 +102,7 @@ function EmptyState({ onRefresh }: { onRefresh: () => void }) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
       >
-        No more suggestions
+        No suggestions available
       </motion.h3>
       <motion.p
         className="mb-4 text-sm text-muted-foreground max-w-[280px]"
@@ -91,18 +110,47 @@ function EmptyState({ onRefresh }: { onRefresh: () => void }) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
       >
-        You've reviewed all available suggestions. Check back later for fresh AI-generated post ideas.
+        {canGenerate
+          ? "Generate personalized AI suggestions tailored to your company and audience."
+          : "You've reviewed all available suggestions. Check back later for fresh AI-generated post ideas."}
       </motion.p>
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
-        whileTap={{ scale: 0.98 }}
+        className="flex gap-2"
       >
-        <Button onClick={onRefresh} variant="outline" className="gap-2 border-primary/30 hover:border-primary/50">
-          <IconRefresh className="size-4" />
-          Refresh Suggestions
-        </Button>
+        {canGenerate && (
+          <motion.div whileTap={{ scale: 0.98 }}>
+            <Button
+              onClick={onGenerate}
+              disabled={isGenerating}
+              className="gap-2 bg-gradient-to-r from-primary to-primary/80"
+            >
+              {isGenerating ? (
+                <>
+                  <IconLoader2 className="size-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <IconSparkles className="size-4" />
+                  Generate Ideas
+                </>
+              )}
+            </Button>
+          </motion.div>
+        )}
+        <motion.div whileTap={{ scale: 0.98 }}>
+          <Button
+            onClick={onRefresh}
+            variant="outline"
+            className="gap-2 border-primary/30 hover:border-primary/50"
+          >
+            <IconRefresh className="size-4" />
+            Refresh
+          </Button>
+        </motion.div>
       </motion.div>
     </motion.div>
   )
@@ -230,23 +278,47 @@ function SwipeStatsCard({
 }
 
 /**
+ * Extract unique categories from suggestions
+ */
+function extractCategories(suggestions: GeneratedSuggestion[]): string[] {
+  const categories = new Set<string>()
+  suggestions.forEach((s) => {
+    if (s.category) {
+      categories.add(s.category)
+    }
+  })
+  return Array.from(categories).sort()
+}
+
+/**
  * Main swipe interface content
  */
 function SwipeContent() {
   const router = useRouter()
   const { loadForRemix } = useDraft()
 
-  // Suggestion management
+  // Generated suggestion management
   const {
+    suggestions,
     remainingSuggestions,
     isLoading: suggestionsLoading,
     error: suggestionsError,
     refetch,
-    markAsSeen,
-    categories,
-    filters,
-    setFilters,
-  } = useSwipeSuggestions()
+    markAsUsed,
+    dismissSuggestion,
+    generateNew,
+    canGenerate,
+    activeCount,
+    isGenerating,
+    generationProgress,
+    generationError,
+  } = useGeneratedSuggestions()
+
+  // Wishlist management
+  const {
+    addToWishlist,
+    totalItems: wishlistCount,
+  } = useSwipeWishlist()
 
   // Swipe action recording
   const {
@@ -256,6 +328,16 @@ function SwipeContent() {
     suggestionsShown,
     incrementShown,
   } = useSwipeActions()
+
+  // API Keys for remix
+  const { status: apiKeyStatus } = useApiKeys()
+
+  // Local state
+  const [categoryFilter, setCategoryFilter] = React.useState<string>("all")
+
+  // Remix dialog state
+  const [showRemixDialog, setShowRemixDialog] = React.useState(false)
+  const [remixContent, setRemixContent] = React.useState("")
 
   // Local UI state
   const [swipeOffset, setSwipeOffset] = React.useState(0)
@@ -267,8 +349,19 @@ function SwipeContent() {
   const containerRef = React.useRef<HTMLDivElement>(null)
   const startXRef = React.useRef(0)
 
-  // Current card is the first in remaining suggestions
-  const currentCard = remainingSuggestions.length > 0 ? remainingSuggestions[0] : null
+  // Get categories for filter
+  const categories = React.useMemo(() => extractCategories(suggestions), [suggestions])
+
+  // Filter suggestions by category
+  const filteredSuggestions = React.useMemo(() => {
+    if (categoryFilter === "all") {
+      return remainingSuggestions
+    }
+    return remainingSuggestions.filter((s) => s.category === categoryFilter)
+  }, [remainingSuggestions, categoryFilter])
+
+  // Current card is the first in filtered suggestions
+  const currentCard = filteredSuggestions.length > 0 ? filteredSuggestions[0] : null
 
   // Track when a new card is shown
   React.useEffect(() => {
@@ -292,22 +385,32 @@ function SwipeContent() {
       const action = direction === "right" ? "like" : "dislike"
       await recordSwipe(currentCard.id, action, currentCard.content)
 
+      // Handle right swipe (like) - add to wishlist
+      if (direction === "right") {
+        await addToWishlist(currentCard)
+        await markAsUsed(currentCard.id)
+      } else {
+        // Left swipe (skip) - dismiss suggestion
+        await dismissSuggestion(currentCard.id)
+      }
+
       // Mark as seen after animation
       setTimeout(() => {
-        markAsSeen(currentCard.id)
         setSwipeOffset(0)
         setIsAnimatingOut(false)
         setExitDirection(null)
 
         // Show toast for feedback
         if (direction === "right") {
-          swipeToast.liked()
+          toast.success("Added to wishlist!", {
+            description: "View your saved suggestions in the Wishlist",
+          })
         } else {
           swipeToast.skipped()
         }
       }, 300)
     },
-    [currentCard, isAnimatingOut, recordSwipe, markAsSeen]
+    [currentCard, isAnimatingOut, recordSwipe, markAsUsed, dismissSuggestion, addToWishlist]
   )
 
   /**
@@ -318,7 +421,7 @@ function SwipeContent() {
 
     // Record as a like
     recordSwipe(currentCard.id, "like", currentCard.content)
-    markAsSeen(currentCard.id)
+    markAsUsed(currentCard.id)
 
     // Load into composer
     loadForRemix(currentCard.id, currentCard.content, "AI Suggestion")
@@ -326,7 +429,35 @@ function SwipeContent() {
     // Show toast and navigate
     swipeToast.editAndPost()
     router.push("/dashboard/compose")
-  }, [currentCard, recordSwipe, markAsSeen, loadForRemix, router])
+  }, [currentCard, recordSwipe, markAsUsed, loadForRemix, router])
+
+  /**
+   * Handle Remix action - opens the remix dialog
+   */
+  const handleOpenRemix = React.useCallback(() => {
+    if (!currentCard) return
+    setRemixContent(currentCard.content)
+    setShowRemixDialog(true)
+  }, [currentCard])
+
+  /**
+   * Handle remixed content - load into composer
+   */
+  const handleRemixComplete = React.useCallback((remixedContent: string) => {
+    if (!currentCard) return
+
+    // Record as a like since they're using the content
+    recordSwipe(currentCard.id, "like", currentCard.content)
+    markAsUsed(currentCard.id)
+
+    // Load remixed content into composer
+    loadForRemix(currentCard.id, remixedContent, "AI Remix")
+
+    // Close dialog and navigate
+    setShowRemixDialog(false)
+    swipeToast.editAndPost()
+    router.push("/dashboard/compose")
+  }, [currentCard, recordSwipe, markAsUsed, loadForRemix, router])
 
   // Drag handlers
   const handleDragStart = React.useCallback(
@@ -387,12 +518,14 @@ function SwipeContent() {
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [handleSwipe])
 
-  // Transform PostSuggestion to SwipeCardData
-  const cardData: SwipeCardData[] = remainingSuggestions.map(s => ({
+  // Transform GeneratedSuggestion to SwipeCardData
+  const cardData: SwipeCardData[] = filteredSuggestions.map((s) => ({
     id: s.id,
     content: s.content,
-    category: s.category,
-    estimatedEngagement: s.estimatedEngagement,
+    category: s.category || "General",
+    estimatedEngagement: s.estimated_engagement ?? undefined,
+    postType: s.post_type ?? undefined,
+    isPersonalized: true,
   }))
 
   // Error state
@@ -450,16 +583,25 @@ function SwipeContent() {
       initial="initial"
       animate="animate"
     >
-      {/* Category Filter */}
+      {/* Generation Progress */}
+      <GenerationProgress
+        progress={generationProgress}
+        isGenerating={isGenerating}
+        error={generationError}
+        className="w-full max-w-md"
+      />
+
+      {/* Header Controls */}
       <motion.div
-        className="flex w-full max-w-md items-center justify-between gap-4"
+        className="flex w-full max-w-md items-center justify-between gap-4 flex-wrap"
         variants={fadeSlideUpVariants}
       >
+        {/* Left: Filter */}
         <div className="flex items-center gap-2">
           <IconFilter className="size-4 text-muted-foreground" />
           <Select
-            value={filters.category || "all"}
-            onValueChange={(value) => setFilters({ category: value === "all" ? undefined : value })}
+            value={categoryFilter}
+            onValueChange={setCategoryFilter}
           >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="All categories" />
@@ -468,17 +610,56 @@ function SwipeContent() {
               <SelectItem value="all">All categories</SelectItem>
               {categories.map((category) => (
                 <SelectItem key={category} value={category}>
-                  {category.charAt(0).toUpperCase() + category.slice(1).replace(/-/g, ' ')}
+                  {category.charAt(0).toUpperCase() + category.slice(1).replace(/-/g, " ")}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
-        <Badge variant="outline" className="shrink-0 border-primary/30">
-          <IconSparkles className="size-3 mr-1 text-primary" />
-          {remainingSuggestions.length} remaining
-        </Badge>
+        {/* Right: Stats, Generate, and Wishlist */}
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="shrink-0 border-primary/30">
+            <IconSparkles className="size-3 mr-1 text-primary" />
+            {activeCount}/10 suggestions
+          </Badge>
+
+          {canGenerate && !isGenerating && (
+            <Button
+              onClick={generateNew}
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+            >
+              <IconRefresh className="size-4" />
+              Generate
+            </Button>
+          )}
+
+          {isGenerating && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <IconLoader2 className="size-4 animate-spin" />
+              <span className="hidden sm:inline">{Math.round(generationProgress)}%</span>
+            </div>
+          )}
+
+          <Button
+            variant="outline"
+            size="sm"
+            asChild
+            className="gap-1.5"
+          >
+            <Link href="/dashboard/swipe/wishlist">
+              <IconBookmark className="size-4" />
+              <span className="hidden sm:inline">Wishlist</span>
+              {wishlistCount > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                  {wishlistCount}
+                </Badge>
+              )}
+            </Link>
+          </Button>
+        </div>
       </motion.div>
 
       {/* Card Stack */}
@@ -503,7 +684,12 @@ function SwipeContent() {
           />
         </div>
       ) : (
-        <EmptyState onRefresh={refetch} />
+        <EmptyState
+          onRefresh={refetch}
+          onGenerate={generateNew}
+          canGenerate={canGenerate}
+          isGenerating={isGenerating}
+        />
       )}
 
       {/* Action Buttons */}
@@ -533,9 +719,22 @@ function SwipeContent() {
             className="rounded-full border-green-200 text-green-500 hover:border-green-300 hover:bg-green-50 hover:text-green-600 dark:border-green-800 dark:hover:border-green-700 dark:hover:bg-green-950 shadow-sm transition-all duration-200"
             onClick={() => handleSwipe("right")}
             disabled={isAnimatingOut || !currentCard}
-            aria-label="Like suggestion"
+            aria-label="Save to wishlist"
           >
             <IconHeart className="size-6" />
+          </Button>
+        </motion.div>
+
+        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+          <Button
+            variant="outline"
+            className="rounded-full gap-2 border-primary/30 text-primary hover:border-primary hover:bg-primary/10 shadow-sm"
+            onClick={handleOpenRemix}
+            disabled={isAnimatingOut || !currentCard}
+            aria-label="Remix with AI"
+          >
+            <IconWand className="size-4" />
+            Remix
           </Button>
         </motion.div>
 
@@ -559,8 +758,8 @@ function SwipeContent() {
         animate={{ opacity: 1 }}
         transition={{ delay: 0.4 }}
       >
-        Use <kbd className="rounded border border-primary/20 bg-muted px-1.5 py-0.5 font-mono text-[10px]">←</kbd>{" "}
-        <kbd className="rounded border border-primary/20 bg-muted px-1.5 py-0.5 font-mono text-[10px]">→</kbd> arrow
+        Use <kbd className="rounded border border-primary/20 bg-muted px-1.5 py-0.5 font-mono text-[10px]">{'<-'}</kbd>{" "}
+        <kbd className="rounded border border-primary/20 bg-muted px-1.5 py-0.5 font-mono text-[10px]">{'->'}</kbd> arrow
         keys to swipe
       </motion.p>
 
@@ -569,6 +768,16 @@ function SwipeContent() {
         sessionStats={sessionStats}
         captureRate={captureRate}
         suggestionsShown={suggestionsShown}
+      />
+
+      {/* Remix Dialog */}
+      <RemixDialog
+        isOpen={showRemixDialog}
+        onClose={() => setShowRemixDialog(false)}
+        originalContent={remixContent}
+        originalAuthor="AI Suggestion"
+        onRemixed={handleRemixComplete}
+        hasApiKey={apiKeyStatus?.hasKey ?? false}
       />
     </motion.div>
   )

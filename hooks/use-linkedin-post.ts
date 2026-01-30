@@ -85,7 +85,7 @@ export function useLinkedInPost(): UseLinkedInPostReturn {
 
       if (!response.ok) {
         if (response.status === 401) {
-          setConnectionStatus({ isConnected: false })
+          setConnectionStatus({ connected: false, expiresAt: null, profileName: null, needsReconnect: false })
           return
         }
         throw new Error('Failed to fetch connection status')
@@ -96,7 +96,7 @@ export function useLinkedInPost(): UseLinkedInPostReturn {
       setError(null)
     } catch (err) {
       console.error('Failed to fetch LinkedIn status:', err)
-      setConnectionStatus({ isConnected: false })
+      setConnectionStatus({ connected: false, expiresAt: null, profileName: null, needsReconnect: false })
     } finally {
       setIsLoading(false)
     }
@@ -177,7 +177,7 @@ export function useLinkedInPost(): UseLinkedInPostReturn {
         throw new Error('Failed to disconnect LinkedIn')
       }
 
-      setConnectionStatus({ isConnected: false })
+      setConnectionStatus({ connected: false, expiresAt: null, profileName: null, needsReconnect: false })
       setError(null)
       return true
     } catch (err) {
@@ -199,7 +199,7 @@ export function useLinkedInPost(): UseLinkedInPostReturn {
     refreshStatus,
     isPosting,
     isLoading,
-    isConnected: connectionStatus?.isConnected ?? false,
+    isConnected: connectionStatus?.connected ?? false,
     error,
     connectionStatus,
   }
