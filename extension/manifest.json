@@ -1,0 +1,88 @@
+{
+  "manifest_version": 3,
+  "name": "LinkedIn Data Extractor",
+  "version": "4.1.0",
+  "description": "Extract your LinkedIn profile data, analytics, and network insights with cloud sync",
+  "author": "AGI Ready",
+
+  "permissions": [
+    "cookies",
+    "storage",
+    "activeTab",
+    "scripting",
+    "alarms",
+    "notifications",
+    "identity"
+  ],
+
+  "host_permissions": [
+    "https://*.linkedin.com/*",
+    "https://www.linkedin.com/*",
+    "https://*.supabase.co/*"
+  ],
+
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.googleapis.com;"
+  },
+
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["https://*.linkedin.com/*"],
+      "js": ["content/main-world-interceptor.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://*.linkedin.com/*"],
+      "js": [
+        "content/dom-extractor.js",
+        "content/company-extractor.js",
+        "content/auto-capture.js",
+        "content/content-script.js"
+      ],
+      "css": ["content/styles.css"],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ],
+
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "LinkedIn Data Extractor"
+  },
+
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+
+  "web_accessible_resources": [
+    {
+      "resources": ["content/injected.js"],
+      "matches": ["https://*.linkedin.com/*"]
+    }
+  ],
+
+  "oauth2": {
+    "client_id": "316179618836-6q8qiu0d8gd3tak9fvat7m93dlksifs4.apps.googleusercontent.com",
+    "scopes": [
+      "openid",
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/userinfo.profile"
+    ]
+  },
+
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqi1/89ZqYNbFnLug/11KVrELpZ+EqV77qeA71gZNk4b4LUZaCYjiIZZiMbLzy0vxxqtQrwPeIXY9S21wjw04YsGZRFyetx/sWpvSeUBzR6/vFYgQOPHH7KduR7EdbLj1FIjnW8l9wLrktiTGR92NpEVy4mpZzJvbQDnt9faUbbI7OnRfsKd+RN349GTEjl/K59t7uiexaeo1/2X7OngNj5Nqg3DHoGFKyASRzcf+K1fjhVksG3DqfYP+inDaupALF8rz4ZqlgDnBmsM1bSM1ldbFSNltfVOnfg0/41x4p/nXHKO07KDZML26KEhpt4ClJALbr68RX2Bh6LD5AxPMewIDAQAB"
+}

@@ -1,0 +1,366 @@
+// LinkedIn Data Extractor - Shared Types
+
+// Profile Data Types
+export interface ProfileData {
+  memberUrn: string;
+  publicIdentifier: string;
+  firstName: string;
+  lastName: string;
+  headline?: string;
+  location?: string;
+  profilePhoto?: string;
+  connectionCount?: number;
+  followerCount?: number;
+  followers_count?: number; // Alias for trend tracking
+  capturedAt: number;
+}
+
+// Analytics Types
+export interface CreatorAnalytics {
+  impressions: number;
+  membersReached: number;
+  engagementRate?: number;
+  topPosts: TopPost[];
+  period: string;
+  capturedAt: number;
+  // Trend tracking aliases (populated during capture)
+  impressions_last_7_days?: number;
+  followers_count?: number;
+  engagements_last_7_days?: number;
+}
+
+export interface TopPost {
+  title: string;
+  impressions: number;
+  reactions?: number;
+  comments?: number;
+  shares?: number;
+  postUrl?: string;
+}
+
+export interface PostAnalytics {
+  postUrn: string;
+  impressions: number;
+  reactions: number;
+  comments: number;
+  shares: number;
+  demographics?: PostDemographics;
+  capturedAt: number;
+}
+
+export interface PostDemographics {
+  topCompanies: DemographicItem[];
+  topTitles: DemographicItem[];
+  topLocations: DemographicItem[];
+  topIndustries: DemographicItem[];
+}
+
+export interface DemographicItem {
+  name: string;
+  percentage: number;
+  count?: number;
+}
+
+export interface AudienceAnalytics {
+  totalFollowers: number;
+  newFollowers?: number;
+  growthRate?: number;
+  demographics?: AudienceDemographics;
+  capturedAt: number;
+}
+
+export interface AudienceDemographics {
+  companies: DemographicItem[];
+  titles: DemographicItem[];
+  locations: DemographicItem[];
+  industries: DemographicItem[];
+}
+
+// Company Analytics Types (v4.0 Phase 5)
+export interface CompanyAnalytics {
+  companyId: string;
+  companyName: string;
+  companyUrl?: string;
+  capturedAt: number;
+  followers: number;
+  employees?: number;
+  updates?: number;
+  pageViews?: number;
+  uniqueVisitors?: number;
+  customButtonClicks?: number;
+  industry?: string;
+  headquarters?: string;
+  companySize?: string;
+  founded?: string;
+  specialties?: string[];
+}
+
+// Content Calendar Types (v4.0 Phase 5)
+export interface ContentItem {
+  id: string;
+  type: 'post' | 'article' | 'poll' | 'video' | 'document';
+  status: 'published' | 'scheduled' | 'draft';
+  title?: string;
+  content?: string;
+  publishedAt?: number;
+  scheduledFor?: number;
+  impressions?: number;
+  reactions?: number;
+  comments?: number;
+  shares?: number;
+  engagement?: number;
+  postUrl?: string;
+}
+
+export interface ContentCalendarData {
+  items: ContentItem[];
+  capturedAt: number;
+  period: {
+    start: string;
+    end: string;
+  };
+}
+
+// Capture Types
+export interface CaptureLog {
+  id: string;
+  timestamp: number;
+  type: CaptureType | string; // Allow string for flexibility
+  pageUrl?: string;
+  dataSize: number;
+  success: boolean;
+  errorMessage?: string;
+}
+
+// Backup Metadata Types
+export interface BackupMetadata {
+  id: string;
+  timestamp: number;
+  size: number;
+  type: 'manual' | 'scheduled';
+  destination?: 'local' | 'google-drive';
+  filename?: string;
+}
+
+export type CaptureType =
+  | 'creator_analytics'
+  | 'post_analytics'
+  | 'audience_analytics'
+  | 'audience_demographics'
+  | 'post_demographics'
+  | 'profile_views'
+  | 'profile'
+  | 'network'
+  | 'company_analytics'
+  | 'content_calendar';
+
+// Trend Data Types
+export interface TrendDataPoint {
+  id?: string;
+  date: string;
+  type: TrendType;
+  value: number;
+  source: string;
+  capturedAt: number;
+}
+
+export type TrendType =
+  | 'impressions'
+  | 'followers'
+  | 'engagements'
+  | 'profile_views'
+  | 'connections';
+
+// Settings Types
+export interface ExtensionSettings {
+  autoCapture: boolean;
+  storeImages: boolean;
+  captureNotifications: boolean;
+  growthAlerts: boolean;
+}
+
+export interface AlertConfig {
+  id: string;
+  type: TrendType;
+  condition: 'above' | 'below' | 'change_percent';
+  threshold: number;
+  enabled: boolean;
+  lastTriggered?: number;
+}
+
+export interface BackupSchedule {
+  enabled: boolean;
+  frequency: 'daily' | 'weekly';
+  dayOfWeek?: number; // 0-6 for weekly
+  time: string; // HH:mm format
+  lastBackup?: number;
+}
+
+// Message Types
+export interface ExtensionMessage {
+  type: MessageType;
+  key?: string;
+  data?: unknown;
+  url?: string;
+  timestamp?: number;
+}
+
+export type MessageType =
+  | 'GET_COOKIES'
+  | 'GET_DATA'
+  | 'SAVE_DATA'
+  | 'EXPORT_DATA'
+  | 'CLEAR_DATA'
+  | 'API_RESPONSE'
+  | 'EXTRACT_NOW'
+  | 'AUTO_CAPTURE_CREATOR_ANALYTICS'
+  | 'AUTO_CAPTURE_POST_ANALYTICS'
+  | 'AUTO_CAPTURE_AUDIENCE'
+  | 'AUTO_CAPTURE_AUDIENCE_DEMOGRAPHICS'
+  | 'AUTO_CAPTURE_POST_DEMOGRAPHICS'
+  | 'AUTO_CAPTURE_PROFILE_VIEWS'
+  | 'AUTO_CAPTURE_PROFILE'
+  | 'AUTO_CAPTURE_LOG'
+  | 'GET_CAPTURE_STATS'
+  | 'GET_ANALYTICS_GROWTH'
+  | 'GET_AUDIENCE_GROWTH'
+  // IndexedDB operations (v4.0)
+  | 'GET_TREND_DATA'
+  | 'GET_TREND_SUMMARY'
+  | 'EXPORT_TRENDS_CSV'
+  | 'EXPORT_TRENDS_JSON'
+  | 'EXPORT_CAPTURE_LOGS'
+  | 'EXPORT_FULL_BACKUP'
+  | 'GET_STORAGE_STATS'
+  | 'RUN_MAINTENANCE'
+  // Alarms & Notifications (v4.0)
+  | 'GET_BACKUP_SCHEDULE'
+  | 'UPDATE_BACKUP_SCHEDULE'
+  | 'GET_ALERT_CONFIGS'
+  | 'SAVE_ALERT_CONFIG'
+  | 'DELETE_ALERT_CONFIG'
+  | 'GET_NOTIFICATION_SETTINGS'
+  | 'SAVE_NOTIFICATION_SETTINGS'
+  | 'GET_ALL_ALARMS'
+  | 'TRIGGER_MANUAL_BACKUP'
+  // Company Analytics (v4.0 Phase 5)
+  | 'AUTO_CAPTURE_COMPANY_ANALYTICS'
+  | 'AUTO_CAPTURE_CONTENT_CALENDAR'
+  | 'GET_COMPANY_ANALYTICS'
+  | 'GET_CONTENT_CALENDAR'
+  // Google Drive Sync (v4.0 Phase 6)
+  | 'GOOGLE_AUTH_START'
+  | 'GOOGLE_AUTH_STATUS'
+  | 'GOOGLE_AUTH_LOGOUT'
+  | 'DRIVE_SYNC_NOW'
+  | 'DRIVE_SYNC_STATUS'
+  | 'DRIVE_GET_BACKUPS'
+  | 'DRIVE_RESTORE_BACKUP'
+  | 'DRIVE_DELETE_BACKUP'
+  // Quick Post Composer (v4.1)
+  | 'CREATE_LINKEDIN_POST'
+  // Supabase Sync (v4.1)
+  | 'SUPABASE_AUTH_STATUS'
+  | 'SUPABASE_AUTH_SIGN_IN'
+  | 'SUPABASE_AUTH_SIGN_UP'
+  | 'SUPABASE_AUTH_SIGN_OUT'
+  | 'SUPABASE_SYNC_STATUS'
+  | 'SUPABASE_SYNC_NOW'
+  | 'SUPABASE_FULL_SYNC'
+  | 'SUPABASE_MIGRATE_DATA'
+  // Legacy/compatibility message types
+  | 'CHECK_AUTH'
+  | 'GET_ALL_DATA'
+  | 'EXPORT_JSON'
+  | 'EXPORT_CSV';
+
+// Storage Keys
+export type StorageKey =
+  | 'extension_settings'
+  | 'profile_data'
+  | 'creator_analytics'
+  | 'post_analytics'
+  | 'audience_analytics'
+  | 'capture_history'
+  | 'capture_log'
+  | 'api_responses';
+
+// API Response Types
+export interface VoyagerResponse {
+  endpoint: string;
+  data: unknown;
+  timestamp: number;
+}
+
+// Growth Calculation Types
+export interface GrowthData {
+  current: number;
+  previous: number;
+  change: number;
+  changePercent: number;
+  trend: 'up' | 'down' | 'stable';
+}
+
+// Export Types
+export type ExportFormat = 'json' | 'csv';
+
+export interface ExportOptions {
+  format: ExportFormat;
+  includeHistory: boolean;
+  dateRange?: {
+    start: Date;
+    end: Date;
+  };
+}
+
+// Google Drive Sync Types (v4.0 Phase 6)
+export interface GoogleAuthState {
+  isAuthenticated: boolean;
+  userEmail?: string;
+  userName?: string;
+  userPhoto?: string;
+  accessToken?: string;
+  expiresAt?: number;
+}
+
+export interface DriveSyncStatus {
+  lastSync?: number;
+  lastSyncSuccess?: boolean;
+  lastSyncError?: string;
+  syncInProgress: boolean;
+  autoSyncEnabled: boolean;
+  backupCount?: number;
+}
+
+export interface DriveBackupFile {
+  id: string;
+  name: string;
+  createdTime: string;
+  modifiedTime: string;
+  size: number;
+  mimeType: string;
+}
+
+export interface DriveSyncSettings {
+  enabled: boolean;
+  autoSync: boolean;
+  syncFrequency: 'daily' | 'weekly' | 'manual';
+  lastSync?: number;
+  keepBackups: number; // Number of backups to retain
+}
+
+// Page Detection Types
+export type LinkedInPageType =
+  | 'creator_analytics'
+  | 'post_analytics'
+  | 'audience_analytics'
+  | 'audience_demographics'
+  | 'post_demographics'
+  | 'profile_views'
+  | 'company_analytics'
+  | 'company_admin'
+  | 'content_calendar'
+  | 'feed'
+  | 'profile'
+  | 'company'
+  | 'unknown';
