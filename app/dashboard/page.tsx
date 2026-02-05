@@ -9,6 +9,10 @@
 import { motion, useSpring, useTransform } from "framer-motion"
 import { useEffect } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
+import {
+  ExtensionInstallPrompt,
+  useExtensionPrompt,
+} from "@/components/features/extension-install-prompt"
 import { GoalsTracker } from "@/components/features/goals-tracker"
 import { ScheduleCalendar } from "@/components/features/schedule-calendar"
 import { TeamActivityFeed } from "@/components/features/team-activity-feed"
@@ -214,6 +218,16 @@ function DashboardContent() {
   } = usePostingGoals(user?.id)
   const { metrics, isLoading: analyticsLoading } = useAnalytics(user?.id)
 
+  // Extension install prompt - shows after login if extension not installed
+  const { showPrompt, setShowPrompt, checkAndShowPrompt } = useExtensionPrompt({
+    delay: 2000, // Show after 2 seconds for better UX
+  })
+
+  // Check for extension on first dashboard load
+  useEffect(() => {
+    checkAndShowPrompt()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Get display name for welcome message
   const displayName = profile?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'there'
 
@@ -375,6 +389,12 @@ function DashboardContent() {
           isLoading={postsLoading}
         />
       </motion.div>
+
+      {/* Extension Install Prompt - shows after login if extension not installed */}
+      <ExtensionInstallPrompt
+        open={showPrompt}
+        onOpenChange={setShowPrompt}
+      />
     </motion.div>
   )
 }

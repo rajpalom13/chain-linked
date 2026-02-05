@@ -34,23 +34,23 @@ Enhance UX by implementing partial loading with skeleton placeholders during slo
 ---
 
 ### Task 2: Chrome Extension Installation Prompt at Login
-**Status:** Pending
+**Status:** Completed
 **Priority:** High
 **Description:**
 Add a confirmation popup prompting users to install the Chrome extension if missing at login.
 
 **Acceptance Criteria:**
-- [ ] Create extension detection utility
-- [ ] Create `ExtensionInstallPrompt` dialog component
-- [ ] Show popup after successful login if extension not detected
-- [ ] Store "don't show again" preference in localStorage
-- [ ] Add link to Chrome Web Store
-- [ ] Track conversion metrics for extension installs
+- [x] Create extension detection utility
+- [x] Create `ExtensionInstallPrompt` dialog component
+- [x] Show popup after successful login if extension not detected
+- [x] Store "don't show again" preference in localStorage
+- [x] Add link to Chrome Web Store
+- [ ] Track conversion metrics for extension installs (future enhancement)
 
-**Files to Modify:**
-- `app/login/page.tsx`
-- Create: `lib/extension/detect.ts`
-- Create: `components/features/extension-install-prompt.tsx`
+**Files Created/Modified:**
+- Created: `lib/extension/detect.ts` - Extension detection utilities
+- Created: `components/features/extension-install-prompt.tsx` - Dialog component with hook
+- Modified: `app/dashboard/page.tsx` - Integrated prompt on dashboard after login
 
 ---
 
@@ -124,6 +124,17 @@ Audit the front-end for quality, UX issues, and potential improvements.
   - Skeleton components in team-activity-feed
   - ErrorBoundary with retry functionality
   - Shimmer animation in globals.css
+
+### Task 2 - Chrome Extension Prompt (2026-02-05)
+- Created `lib/extension/detect.ts` with:
+  - Multiple detection methods (global var, DOM marker, custom event)
+  - Dismissal persistence with cooldown period
+  - `shouldShowExtensionPrompt()` helper
+- Created `components/features/extension-install-prompt.tsx` with:
+  - Animated dialog with feature list
+  - "Don't show again" checkbox
+  - `useExtensionPrompt()` hook for easy integration
+- Integrated into dashboard page to show after login
 
 ---
 
