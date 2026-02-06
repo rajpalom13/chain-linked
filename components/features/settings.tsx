@@ -15,6 +15,7 @@ import {
   IconCloudCheck,
   IconCookie,
   IconDeviceDesktop,
+  IconExternalLink,
   IconKey,
   IconLink,
   IconLoader2,
@@ -32,6 +33,7 @@ import {
   IconUsersGroup,
 } from "@tabler/icons-react"
 
+import type { BrandKit as SavedBrandKit } from "@/types/brand-kit"
 import { trackSettingsChanged, trackLinkedInAction } from "@/lib/analytics"
 import { ApiKeySettings } from "@/components/features/api-key-settings"
 import { LinkedInStatusBadge } from "@/components/features/linkedin-status-badge"
@@ -183,12 +185,18 @@ interface NotificationPreferences {
 }
 
 /**
- * Brand kit state structure
+ * Editable brand kit fields for local state
  */
-interface BrandKit {
+interface BrandKitFormState {
   primaryColor: string
   secondaryColor: string
-  logoUrl?: string
+  accentColor: string
+  backgroundColor: string
+  textColor: string
+  fontPrimary: string
+  fontSecondary: string
+  logoUrl: string
+  websiteUrl: string
 }
 
 /**
@@ -275,10 +283,18 @@ export function Settings({
   )
 
   // Brand Kit state
-  const [brandKit, setBrandKit] = React.useState<BrandKit>({
+  const [savedBrandKit, setSavedBrandKit] = React.useState<SavedBrandKit | null>(null)
+  const [brandKitLoading, setBrandKitLoading] = React.useState(true)
+  const [brandKit, setBrandKit] = React.useState<BrandKitFormState>({
     primaryColor: "#0066cc",
-    secondaryColor: "#00aa55",
-    logoUrl: undefined,
+    secondaryColor: "#4D94DB",
+    accentColor: "#00A3E0",
+    backgroundColor: "#FFFFFF",
+    textColor: "#1A1A1A",
+    fontPrimary: "",
+    fontSecondary: "",
+    logoUrl: "",
+    websiteUrl: "",
   })
 
   // Team state
@@ -297,6 +313,41 @@ export function Settings({
   // Saving state
   const [isSaving, setIsSaving] = React.useState(false)
   const [saveStatus, setSaveStatus] = React.useState<'idle' | 'saving' | 'saved'>('idle')
+
+  // Fetch saved brand kit on mount
+  React.useEffect(() => {
+    async function fetchBrandKit() {
+      try {
+        const res = await fetch('/api/brand-kit')
+        if (!res.ok) {
+          setBrandKitLoading(false)
+          return
+        }
+        const data = await res.json()
+        const kits: SavedBrandKit[] = data.brandKits || []
+        const activeKit = kits.find(k => k.isActive) || kits[0]
+        if (activeKit) {
+          setSavedBrandKit(activeKit)
+          setBrandKit({
+            primaryColor: activeKit.primaryColor || "#0066cc",
+            secondaryColor: activeKit.secondaryColor || "#4D94DB",
+            accentColor: activeKit.accentColor || "#00A3E0",
+            backgroundColor: activeKit.backgroundColor || "#FFFFFF",
+            textColor: activeKit.textColor || "#1A1A1A",
+            fontPrimary: activeKit.fontPrimary || "",
+            fontSecondary: activeKit.fontSecondary || "",
+            logoUrl: activeKit.logoUrl || "",
+            websiteUrl: activeKit.websiteUrl || "",
+          })
+        }
+      } catch (error) {
+        console.error('Failed to fetch brand kit:', error)
+      } finally {
+        setBrandKitLoading(false)
+      }
+    }
+    fetchBrandKit()
+  }, [])
 
   /**
    * Handles connecting/refreshing the LinkedIn connection via OAuth
@@ -337,6 +388,7 @@ export function Settings({
 
   /**
    * Handles saving all settings
+   * @param section - The settings section being saved
    */
   const handleSave = async (section: string) => {
     setIsSaving(true)
@@ -347,35 +399,61 @@ export function Settings({
       timestamp: new Date().toISOString(),
     }
 
-    switch (section) {
-      case "profile":
-        settings.profile = { name: profileName, email: profileEmail }
-        break
-      case "linkedin":
-        settings.linkedin = { connected: linkedinConnected, cookieStatus }
-        break
-      case "brandKit":
-        settings.brandKit = brandKit
-        break
-      case "team":
-        settings.team = { members }
-        break
-      case "notifications":
-        settings.notifications = notifications
-        break
-    }
+    try {
+      switch (section) {
+        case "profile":
+          settings.profile = { name: profileName, email: profileEmail }
+          await new Promise((resolve) => setTimeout(resolve, 800))
+          break
+        case "linkedin":
+          settings.linkedin = { connected: linkedinConnected, cookieStatus }
+          await new Promise((resolve) => setTimeout(resolve, 800))
+          break
+        case "brandKit": {
+          if (!savedBrandKit?.id) break
+          const res = await fetch('/api/brand-kit', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: savedBrandKit.id,
+              primaryColor: brandKit.primaryColor,
+              secondaryColor: brandKit.secondaryColor,
+              accentColor: brandKit.accentColor,
+              backgroundColor: brandKit.backgroundColor,
+              textColor: brandKit.textColor,
+              fontPrimary: brandKit.fontPrimary || null,
+              fontSecondary: brandKit.fontSecondary || null,
+            }),
+          })
+          if (!res.ok) throw new Error('Failed to save brand kit')
+          const data = await res.json()
+          if (data.brandKit) setSavedBrandKit(data.brandKit)
+          settings.brandKit = brandKit
+          break
+        }
+        case "team":
+          settings.team = { members }
+          await new Promise((resolve) => setTimeout(resolve, 800))
+          break
+        case "notifications":
+          settings.notifications = notifications
+          await new Promise((resolve) => setTimeout(resolve, 800))
+          break
+      }
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 800))
-    trackSettingsChanged(section)
-    onSave?.(settings)
-    setIsSaving(false)
-    setSaveStatus('saved')
-
-    // Auto-hide the "Saved" indicator after 3 seconds
-    setTimeout(() => {
+      trackSettingsChanged(section)
+      onSave?.(settings)
+      setSaveStatus('saved')
+    } catch (error) {
+      console.error(`Failed to save ${section}:`, error)
       setSaveStatus('idle')
-    }, 3000)
+    } finally {
+      setIsSaving(false)
+      // Auto-hide the "Saved" indicator after 3 seconds
+      setTimeout(() => {
+        setSaveStatus('idle')
+      }, 3000)
+    }
   }
 
   return (
@@ -868,162 +946,257 @@ export function Settings({
 
         {/* Brand Kit Tab */}
         <TabsContent value="brand-kit">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Brand Kit</CardTitle>
-                  <CardDescription>
-                    Customize your brand colors and logo for consistent posts
-                  </CardDescription>
+          {brandKitLoading ? (
+            <Card>
+              <CardContent className="flex items-center justify-center py-16">
+                <IconLoader2 className="size-6 animate-spin text-muted-foreground" />
+              </CardContent>
+            </Card>
+          ) : !savedBrandKit ? (
+            /* Empty state — no brand kit saved yet */
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16 text-center space-y-4">
+                <div className="size-16 rounded-full bg-muted flex items-center justify-center">
+                  <IconPalette className="size-8 text-muted-foreground" />
                 </div>
-                {saveStatus !== 'idle' && (
-                  <div className={cn(
-                    "flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full transition-all duration-200",
-                    saveStatus === 'saving' && "bg-muted text-muted-foreground",
-                    saveStatus === 'saved' && "bg-primary/10 text-primary"
-                  )}>
-                    {saveStatus === 'saving' ? (
-                      <>
-                        <IconLoader2 className="size-3 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <IconCloudCheck className="size-3" />
-                        Saved
-                      </>
-                    )}
+                <div className="space-y-1">
+                  <h3 className="font-semibold text-lg">No Brand Kit Found</h3>
+                  <p className="text-sm text-muted-foreground max-w-sm">
+                    Extract your brand colors, fonts, and logo from your website to keep your LinkedIn posts on-brand.
+                  </p>
+                </div>
+                <Button asChild>
+                  <a href="/onboarding/step4">
+                    <IconPalette className="size-4" />
+                    Extract Brand Kit
+                  </a>
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Brand Kit</CardTitle>
+                    <CardDescription>
+                      Customize your brand colors, fonts, and logo for consistent posts
+                    </CardDescription>
+                  </div>
+                  {saveStatus !== 'idle' && (
+                    <div className={cn(
+                      "flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full transition-all duration-200",
+                      saveStatus === 'saving' && "bg-muted text-muted-foreground",
+                      saveStatus === 'saved' && "bg-primary/10 text-primary"
+                    )}>
+                      {saveStatus === 'saving' ? (
+                        <>
+                          <IconLoader2 className="size-3 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <IconCloudCheck className="size-3" />
+                          Saved
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Source URL */}
+                {brandKit.websiteUrl && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <IconLink className="size-4 shrink-0" />
+                    <span>Extracted from:</span>
+                    <a
+                      href={brandKit.websiteUrl.startsWith('http') ? brandKit.websiteUrl : `https://${brandKit.websiteUrl}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline inline-flex items-center gap-1"
+                    >
+                      {brandKit.websiteUrl}
+                      <IconExternalLink className="size-3" />
+                    </a>
                   </div>
                 )}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Color Pickers */}
-              <div className="grid gap-6 sm:grid-cols-2">
-                {/* Primary Color */}
-                <div className="space-y-2">
-                  <Label htmlFor="primary-color">Primary Color</Label>
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="size-10 rounded-lg border shadow-sm"
-                      style={{ backgroundColor: brandKit.primaryColor }}
-                    />
-                    <Input
-                      id="primary-color"
-                      type="color"
-                      value={brandKit.primaryColor}
-                      onChange={(e) =>
-                        setBrandKit((prev) => ({ ...prev, primaryColor: e.target.value }))
-                      }
-                      className="h-10 w-20 p-1 cursor-pointer"
-                    />
-                    <Input
-                      type="text"
-                      value={brandKit.primaryColor}
-                      onChange={(e) =>
-                        setBrandKit((prev) => ({ ...prev, primaryColor: e.target.value }))
-                      }
-                      className="flex-1 font-mono uppercase"
-                      maxLength={7}
-                    />
+
+                {/* All 5 Color Pickers */}
+                <div className="space-y-3">
+                  <Label className="text-base font-medium">Colors</Label>
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {([
+                      { key: 'primaryColor' as const, label: 'Primary' },
+                      { key: 'secondaryColor' as const, label: 'Secondary' },
+                      { key: 'accentColor' as const, label: 'Accent' },
+                      { key: 'backgroundColor' as const, label: 'Background' },
+                      { key: 'textColor' as const, label: 'Text' },
+                    ]).map(({ key, label }) => (
+                      <div key={key} className="space-y-1.5">
+                        <Label htmlFor={`brand-${key}`} className="text-xs text-muted-foreground">{label}</Label>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="size-9 rounded-md border shadow-sm shrink-0"
+                            style={{ backgroundColor: brandKit[key] }}
+                          />
+                          <Input
+                            id={`brand-${key}`}
+                            type="color"
+                            value={brandKit[key]}
+                            onChange={(e) => setBrandKit(prev => ({ ...prev, [key]: e.target.value }))}
+                            className="h-9 w-14 p-0.5 cursor-pointer"
+                          />
+                          <Input
+                            type="text"
+                            value={brandKit[key]}
+                            onChange={(e) => setBrandKit(prev => ({ ...prev, [key]: e.target.value }))}
+                            className="flex-1 font-mono uppercase text-xs h-9"
+                            maxLength={7}
+                          />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
-                {/* Secondary Color */}
-                <div className="space-y-2">
-                  <Label htmlFor="secondary-color">Secondary Color</Label>
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="size-10 rounded-lg border shadow-sm"
-                      style={{ backgroundColor: brandKit.secondaryColor }}
-                    />
-                    <Input
-                      id="secondary-color"
-                      type="color"
-                      value={brandKit.secondaryColor}
-                      onChange={(e) =>
-                        setBrandKit((prev) => ({ ...prev, secondaryColor: e.target.value }))
-                      }
-                      className="h-10 w-20 p-1 cursor-pointer"
-                    />
-                    <Input
-                      type="text"
-                      value={brandKit.secondaryColor}
-                      onChange={(e) =>
-                        setBrandKit((prev) => ({ ...prev, secondaryColor: e.target.value }))
-                      }
-                      className="flex-1 font-mono uppercase"
-                      maxLength={7}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Logo Upload */}
-              <div className="space-y-2">
-                <Label>Brand Logo</Label>
-                <div className="flex items-center gap-4 p-4 rounded-lg border border-dashed">
-                  {brandKit.logoUrl ? (
-                    <Image
-                      src={brandKit.logoUrl}
-                      alt="Brand logo"
-                      width={64}
-                      height={64}
-                      className="size-16 object-contain rounded"
-                      unoptimized
-                    />
-                  ) : (
-                    <div className="size-16 rounded bg-muted flex items-center justify-center">
-                      <IconPalette className="size-8 text-muted-foreground" />
+                {/* Typography */}
+                <div className="space-y-3">
+                  <Label className="text-base font-medium">Typography</Label>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="font-primary" className="text-xs text-muted-foreground">Primary Font</Label>
+                      <Input
+                        id="font-primary"
+                        placeholder="e.g. Inter, Roboto"
+                        value={brandKit.fontPrimary}
+                        onChange={(e) => setBrandKit(prev => ({ ...prev, fontPrimary: e.target.value }))}
+                      />
                     </div>
-                  )}
-                  <div className="space-y-2">
-                    <Button variant="outline" size="sm">
-                      <IconCamera className="size-4" />
-                      Upload Logo
-                    </Button>
-                    <p className="text-xs text-muted-foreground">
-                      SVG, PNG or JPG. Recommended 200x200px.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Color Preview */}
-              <div className="space-y-2">
-                <Label>Preview</Label>
-                <div className="p-4 rounded-lg border">
-                  <div className="flex items-center gap-4">
-                    <div
-                      className="h-12 flex-1 rounded-lg flex items-center justify-center text-white font-medium"
-                      style={{ backgroundColor: brandKit.primaryColor }}
-                    >
-                      Primary Button
-                    </div>
-                    <div
-                      className="h-12 flex-1 rounded-lg flex items-center justify-center text-white font-medium"
-                      style={{ backgroundColor: brandKit.secondaryColor }}
-                    >
-                      Secondary Button
+                    <div className="space-y-1.5">
+                      <Label htmlFor="font-secondary" className="text-xs text-muted-foreground">Secondary Font</Label>
+                      <Input
+                        id="font-secondary"
+                        placeholder="e.g. Georgia, Merriweather"
+                        value={brandKit.fontSecondary}
+                        onChange={(e) => setBrandKit(prev => ({ ...prev, fontSecondary: e.target.value }))}
+                      />
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Save Button */}
-              <div className="flex justify-end pt-4 border-t">
-                <Button onClick={() => handleSave("brandKit")} disabled={isSaving}>
-                  {isSaving ? (
-                    <IconLoader2 className="size-4 animate-spin" />
-                  ) : (
-                    <IconCheck className="size-4" />
-                  )}
-                  Save Changes
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+                {/* Logo */}
+                <div className="space-y-3">
+                  <Label className="text-base font-medium">Brand Logo</Label>
+                  <div className="flex items-center gap-4 p-4 rounded-lg border border-dashed">
+                    {brandKit.logoUrl ? (
+                      <Image
+                        src={brandKit.logoUrl}
+                        alt="Brand logo"
+                        width={64}
+                        height={64}
+                        className="size-16 object-contain rounded"
+                        unoptimized
+                      />
+                    ) : (
+                      <div className="size-16 rounded bg-muted flex items-center justify-center">
+                        <IconPalette className="size-8 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="space-y-1">
+                      {brandKit.logoUrl ? (
+                        <p className="text-sm text-muted-foreground">
+                          Logo extracted from your website
+                        </p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          No logo was detected during extraction
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Live Preview Card */}
+                <div className="space-y-3">
+                  <Label className="text-base font-medium">Preview</Label>
+                  <div
+                    className="p-5 rounded-lg border overflow-hidden"
+                    style={{ backgroundColor: brandKit.backgroundColor, color: brandKit.textColor }}
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        {brandKit.logoUrl && (
+                          <Image
+                            src={brandKit.logoUrl}
+                            alt="Logo"
+                            width={28}
+                            height={28}
+                            className="size-7 object-contain rounded"
+                            unoptimized
+                          />
+                        )}
+                        <span
+                          className="font-semibold text-sm"
+                          style={{ fontFamily: brandKit.fontPrimary || undefined }}
+                        >
+                          Sample Post Header
+                        </span>
+                      </div>
+                      <p
+                        className="text-sm opacity-80"
+                        style={{ fontFamily: brandKit.fontSecondary || brandKit.fontPrimary || undefined }}
+                      >
+                        This is how your brand colors and typography will look in generated content.
+                      </p>
+                      <div className="flex items-center gap-3 pt-1">
+                        <div
+                          className="h-9 px-4 rounded-md flex items-center justify-center text-white text-xs font-medium"
+                          style={{ backgroundColor: brandKit.primaryColor }}
+                        >
+                          Primary
+                        </div>
+                        <div
+                          className="h-9 px-4 rounded-md flex items-center justify-center text-white text-xs font-medium"
+                          style={{ backgroundColor: brandKit.secondaryColor }}
+                        >
+                          Secondary
+                        </div>
+                        <div
+                          className="h-9 px-4 rounded-md flex items-center justify-center text-white text-xs font-medium"
+                          style={{ backgroundColor: brandKit.accentColor }}
+                        >
+                          Accent
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Re-extract link */}
+                <div className="flex items-center gap-2 pt-2">
+                  <Button variant="ghost" size="sm" asChild>
+                    <a href="/onboarding/step4">
+                      <IconRefresh className="size-4" />
+                      Re-extract from website
+                    </a>
+                  </Button>
+                </div>
+
+                {/* Save Button */}
+                <div className="flex justify-end pt-4 border-t">
+                  <Button onClick={() => handleSave("brandKit")} disabled={isSaving}>
+                    {isSaving ? (
+                      <IconLoader2 className="size-4 animate-spin" />
+                    ) : (
+                      <IconCheck className="size-4" />
+                    )}
+                    Save Changes
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* Team Tab */}
