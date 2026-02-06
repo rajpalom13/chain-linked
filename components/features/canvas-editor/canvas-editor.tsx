@@ -8,13 +8,16 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import dynamic from 'next/dynamic';
 import type Konva from 'konva';
+import { toast } from 'sonner';
 import { useCanvasEditor } from '@/hooks/use-canvas-editor';
+import { useCarouselTemplates } from '@/hooks/use-carousel-templates';
 import { CanvasToolbar } from './canvas-toolbar';
 import { SlideThumbnails } from './slide-thumbnails';
 import { PropertyPanel } from './property-panel';
 import { TemplateSelectorModal } from './template-selector-modal';
 import { ExportDialog } from './export-dialog';
 import { AiContentGenerator } from './ai-content-generator';
+import { SaveTemplateDialog } from './save-template-dialog';
 import {
   exportCarouselToPDF,
   exportSlideToDataUrl,
@@ -67,7 +70,11 @@ export function CanvasEditor({
   const [showTemplateModal, setShowTemplateModal] = useState(!initialTemplate);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [showAiGenerator, setShowAiGenerator] = useState(false);
+  const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
+
+  // Carousel template persistence
+  const { saveTemplate, isSaving: isSavingTemplate } = useCarouselTemplates();
 
   // Canvas editor state
   const {
@@ -90,6 +97,7 @@ export function CanvasEditor({
     selectElement,
     updateElement,
     addElement,
+    addImageElement,
     deleteElement,
     applyTemplate,
     setZoom,
@@ -279,6 +287,35 @@ export function CanvasEditor({
     }
   }, [resetEditor]);
 
+  /**
+   * Handle saving the current carousel as a reusable template
+   * Persists slides, brand colors, and fonts via the API
+   * @param data - Form data containing name, description, and category
+   */
+  const handleSaveTemplate = useCallback(
+    async (data: { name: string; description?: string; category: string }) => {
+      const fonts = template?.fonts || [];
+      const brandColors = template?.brandColors || [];
+
+      const result = await saveTemplate({
+        name: data.name,
+        description: data.description,
+        category: data.category,
+        slides,
+        brandColors,
+        fonts,
+      });
+
+      if (result) {
+        toast.success('Template saved successfully');
+        setShowSaveTemplateDialog(false);
+      } else {
+        toast.error('Failed to save template');
+      }
+    },
+    [slides, template, saveTemplate]
+  );
+
   // Get template colors for color picker
   const templateColors = template?.brandColors || [];
 
@@ -298,6 +335,7 @@ export function CanvasEditor({
         onToggleGrid={toggleGrid}
         onOpenTemplates={() => setShowTemplateModal(true)}
         onOpenAiGenerator={() => setShowAiGenerator(true)}
+        onSaveTemplate={() => setShowSaveTemplateDialog(true)}
         onExport={() => setShowExportDialog(true)}
         onReset={handleReset}
       />
@@ -326,6 +364,7 @@ export function CanvasEditor({
               onElementUpdate={updateElement}
               zoom={zoom}
               showGrid={showGrid}
+              onImageDrop={addImageElement}
             />
           )}
         </div>
@@ -338,6 +377,7 @@ export function CanvasEditor({
           onElementUpdate={handleElementUpdate}
           onSlideBackgroundChange={handleSlideBackgroundChange}
           onAddElement={addElement}
+          onAddImageElement={addImageElement}
           onDeleteElement={deleteElement}
         />
       </div>
@@ -366,6 +406,15 @@ export function CanvasEditor({
         onGenerated={handleAiGenerated}
         currentTemplate={template}
         currentSlides={slides}
+      />
+
+      {/* Save Template dialog */}
+      <SaveTemplateDialog
+        open={showSaveTemplateDialog}
+        onOpenChange={setShowSaveTemplateDialog}
+        onSave={handleSaveTemplate}
+        isSaving={isSavingTemplate}
+        brandColors={templateColors}
       />
     </div>
   );

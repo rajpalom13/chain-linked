@@ -16,6 +16,7 @@ import {
   IconTemplate,
   IconTrash,
   IconSparkles,
+  IconDeviceFloppy,
 } from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -43,6 +44,7 @@ interface CanvasToolbarProps {
   onToggleGrid: () => void;
   onOpenTemplates: () => void;
   onOpenAiGenerator: () => void;
+  onSaveTemplate: () => void;
   onExport: () => void;
   onReset: () => void;
 }
@@ -107,6 +109,7 @@ export function CanvasToolbar({
   onToggleGrid,
   onOpenTemplates,
   onOpenAiGenerator,
+  onSaveTemplate,
   onExport,
   onReset,
 }: CanvasToolbarProps) {
@@ -197,6 +200,11 @@ export function CanvasToolbar({
               <p>Clear all slides and start fresh</p>
             </TooltipContent>
           </Tooltip>
+
+          <Button variant="outline" size="sm" onClick={onSaveTemplate}>
+            <IconDeviceFloppy className="mr-2 h-4 w-4" />
+            Save Template
+          </Button>
 
           <Button size="sm" onClick={onExport}>
             <IconDownload className="mr-2 h-4 w-4" />

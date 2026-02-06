@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
     // Parse query parameters
     const searchParams = request.nextUrl.searchParams
     const status = searchParams.get('status') || 'saved'
+    const collectionId = searchParams.get('collection_id')
     const limit = Math.min(parseInt(searchParams.get('limit') || String(DEFAULT_LIMIT)), 100)
     const offset = parseInt(searchParams.get('offset') || '0')
 
@@ -49,12 +50,24 @@ export async function GET(request: NextRequest) {
 
     const typedStatus = status as WishlistStatus
 
-    // Get total count for pagination
-    const { count: totalCount, error: countError } = await supabase
+    // Build count query with optional collection filter
+    let countQuery = supabase
       .from('swipe_wishlist')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
       .eq('status', typedStatus)
+
+    // Add collection filter if provided
+    if (collectionId) {
+      if (collectionId === 'uncategorized') {
+        countQuery = countQuery.is('collection_id', null)
+      } else {
+        countQuery = countQuery.eq('collection_id', collectionId)
+      }
+    }
+
+    // Get total count for pagination
+    const { count: totalCount, error: countError } = await countQuery
 
     if (countError) {
       console.error('[API] Error counting wishlist items:', countError)
@@ -64,12 +77,24 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fetch wishlist items
-    const { data: items, error: fetchError } = await supabase
+    // Build fetch query with optional collection filter
+    let fetchQuery = supabase
       .from('swipe_wishlist')
       .select('*')
       .eq('user_id', user.id)
       .eq('status', typedStatus)
+
+    // Add collection filter if provided
+    if (collectionId) {
+      if (collectionId === 'uncategorized') {
+        fetchQuery = fetchQuery.is('collection_id', null)
+      } else {
+        fetchQuery = fetchQuery.eq('collection_id', collectionId)
+      }
+    }
+
+    // Fetch wishlist items
+    const { data: items, error: fetchError } = await fetchQuery
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
 
@@ -118,7 +143,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { suggestionId, content, postType, category, notes } = body
+    const { suggestionId, content, postType, category, notes, collectionId } = body
 
     // Validate required fields
     if (!content || typeof content !== 'string' || content.trim().length === 0) {
@@ -126,6 +151,38 @@ export async function POST(request: NextRequest) {
         { error: 'Content is required' },
         { status: 400 }
       )
+    }
+
+    // Determine which collection to use
+    let targetCollectionId = collectionId
+
+    // If collectionId provided, verify it belongs to the user
+    if (collectionId) {
+      const { data: collection, error: collectionError } = await supabase
+        .from('wishlist_collections')
+        .select('id')
+        .eq('id', collectionId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (collectionError || !collection) {
+        return NextResponse.json(
+          { error: 'Collection not found or unauthorized' },
+          { status: 404 }
+        )
+      }
+    } else {
+      // No collection specified - assign to user's default collection
+      const { data: defaultCollection } = await supabase
+        .from('wishlist_collections')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('is_default', true)
+        .single()
+
+      if (defaultCollection) {
+        targetCollectionId = defaultCollection.id
+      }
     }
 
     // Check for duplicate (user_id, content)
@@ -162,6 +219,7 @@ export async function POST(request: NextRequest) {
       .insert({
         user_id: user.id,
         suggestion_id: suggestionId || null,
+        collection_id: targetCollectionId || null,
         content: content.trim(),
         post_type: postType || null,
         category: category || null,
@@ -300,7 +358,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { itemId, notes, category, content } = body
+    const { itemId, notes, category, content, collectionId } = body
 
     // Validate required fields
     if (!itemId) {
@@ -308,6 +366,23 @@ export async function PATCH(request: NextRequest) {
         { error: 'itemId is required' },
         { status: 400 }
       )
+    }
+
+    // If collectionId provided (including null to remove from collection), verify ownership
+    if (collectionId !== undefined && collectionId !== null) {
+      const { data: collection, error: collectionError } = await supabase
+        .from('wishlist_collections')
+        .select('id')
+        .eq('id', collectionId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (collectionError || !collection) {
+        return NextResponse.json(
+          { error: 'Collection not found or unauthorized' },
+          { status: 404 }
+        )
+      }
     }
 
     // Build update object with only provided fields
@@ -331,6 +406,11 @@ export async function PATCH(request: NextRequest) {
         )
       }
       updateData.content = content.trim()
+    }
+
+    // Allow moving to a collection or removing from collection (null)
+    if (collectionId !== undefined) {
+      updateData.collection_id = collectionId
     }
 
     // Update the item

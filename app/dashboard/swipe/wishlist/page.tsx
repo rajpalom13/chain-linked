@@ -23,7 +23,9 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SwipeWishlist } from "@/components/features/swipe-wishlist"
 import { ScheduleModal } from "@/components/features/schedule-modal"
+import { WishlistCollectionSidebar } from "@/components/features/wishlist-collection-sidebar"
 import { useSwipeWishlist, type ScheduleOptions } from "@/hooks/use-swipe-wishlist"
+import { useWishlistCollections } from "@/hooks/use-wishlist-collections"
 import { useDraft } from "@/lib/store/draft-context"
 import { useAuthContext } from "@/lib/auth/auth-provider"
 import { swipeToast } from "@/lib/toast-utils"
@@ -77,7 +79,22 @@ function WishlistContent() {
   const router = useRouter()
   const { loadForRemix } = useDraft()
 
-  // Wishlist hook
+  // Collections hook
+  const {
+    collections,
+    selectedCollectionId,
+    totalItems: collectionTotalItems,
+    uncategorizedCount,
+    isLoading: collectionsLoading,
+    selectCollection,
+    createCollection,
+    updateCollection,
+    deleteCollection,
+    moveItemToCollection,
+    refetch: refetchCollections,
+  } = useWishlistCollections()
+
+  // Wishlist hook - filter by selected collection
   const {
     items,
     savedItems,
@@ -88,7 +105,10 @@ function WishlistContent() {
     totalItems,
     savedCount,
     scheduledCount,
-  } = useSwipeWishlist()
+    refetch: refetchItems,
+  } = useSwipeWishlist({
+    collectionId: selectedCollectionId,
+  })
 
   // Local state
   const [filter, setFilter] = React.useState<WishlistFilter>("all")
@@ -159,103 +179,140 @@ function WishlistContent() {
     await removeFromWishlist(itemId)
   }, [removeFromWishlist])
 
+  /**
+   * Handle move to collection
+   */
+  const handleMoveToCollection = React.useCallback(async (itemId: string, collectionId: string | null) => {
+    const success = await moveItemToCollection(itemId, collectionId)
+    if (success) {
+      // Refetch items to reflect the move
+      await refetchItems()
+    }
+  }, [moveItemToCollection, refetchItems])
+
   // Loading state
-  if (isLoading) {
+  if (isLoading && collectionsLoading) {
     return <WishlistSkeleton />
   }
 
   return (
-    <motion.div
-      className="space-y-6 p-4 md:p-6"
-      variants={pageVariants}
-      initial="initial"
-      animate="animate"
-    >
-      {/* Header */}
+    <div className="flex h-full">
+      {/* Collections Sidebar */}
+      <WishlistCollectionSidebar
+        collections={collections}
+        selectedId={selectedCollectionId}
+        totalItems={collectionTotalItems}
+        uncategorizedCount={uncategorizedCount}
+        isLoading={collectionsLoading}
+        onSelect={selectCollection}
+        onCreate={createCollection}
+        onUpdate={updateCollection}
+        onDelete={deleteCollection}
+      />
+
+      {/* Main Content */}
       <motion.div
-        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-        variants={fadeSlideUpVariants}
+        className="flex-1 space-y-6 p-4 md:p-6 overflow-auto"
+        variants={pageVariants}
+        initial="initial"
+        animate="animate"
       >
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            asChild
-            className="shrink-0"
-          >
-            <Link href="/dashboard/swipe">
-              <IconArrowLeft className="size-5" />
-              <span className="sr-only">Back to Swipe</span>
-            </Link>
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <IconBookmark className="size-6 text-primary" />
-              Wishlist
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {totalItems} saved suggestion{totalItems !== 1 ? "s" : ""}
-            </p>
-          </div>
-        </div>
-
-        {/* Filter Tabs */}
-        <Tabs
-          value={filter}
-          onValueChange={(value) => setFilter(value as WishlistFilter)}
-          className="w-full sm:w-auto"
+        {/* Header */}
+        <motion.div
+          className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+          variants={fadeSlideUpVariants}
         >
-          <TabsList className="grid w-full grid-cols-3 sm:w-auto">
-            <TabsTrigger value="all" className="gap-1.5">
-              <IconFilter className="size-4" />
-              All
-              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                {totalItems}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger value="saved" className="gap-1.5">
-              <IconBookmark className="size-4" />
-              Saved
-              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                {savedCount}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger value="scheduled" className="gap-1.5">
-              <IconCheck className="size-4" />
-              Scheduled
-              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                {scheduledCount}
-              </Badge>
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </motion.div>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              asChild
+              className="shrink-0"
+            >
+              <Link href="/dashboard/swipe">
+                <IconArrowLeft className="size-5" />
+                <span className="sr-only">Back to Swipe</span>
+              </Link>
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold flex items-center gap-2">
+                <IconBookmark className="size-6 text-primary" />
+                Wishlist
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                {totalItems} saved suggestion{totalItems !== 1 ? "s" : ""}
+                {selectedCollectionId && selectedCollectionId !== 'uncategorized' && (
+                  <span className="ml-1">
+                    in {collections.find(c => c.id === selectedCollectionId)?.name || 'collection'}
+                  </span>
+                )}
+                {selectedCollectionId === 'uncategorized' && (
+                  <span className="ml-1">uncategorized</span>
+                )}
+              </p>
+            </div>
+          </div>
 
-      {/* Wishlist Items */}
-      <motion.div variants={fadeSlideUpVariants}>
-        <SwipeWishlist
-          items={filteredItems}
-          isLoading={false}
-          onSchedule={handleScheduleClick}
-          onEditAndPost={handleEditAndPost}
-          onRemove={handleRemove}
+          {/* Filter Tabs */}
+          <Tabs
+            value={filter}
+            onValueChange={(value) => setFilter(value as WishlistFilter)}
+            className="w-full sm:w-auto"
+          >
+            <TabsList className="grid w-full grid-cols-3 sm:w-auto">
+              <TabsTrigger value="all" className="gap-1.5">
+                <IconFilter className="size-4" />
+                All
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                  {totalItems}
+                </Badge>
+              </TabsTrigger>
+              <TabsTrigger value="saved" className="gap-1.5">
+                <IconBookmark className="size-4" />
+                Saved
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                  {savedCount}
+                </Badge>
+              </TabsTrigger>
+              <TabsTrigger value="scheduled" className="gap-1.5">
+                <IconCheck className="size-4" />
+                Scheduled
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                  {scheduledCount}
+                </Badge>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </motion.div>
+
+        {/* Wishlist Items */}
+        <motion.div variants={fadeSlideUpVariants}>
+          <SwipeWishlist
+            items={filteredItems}
+            isLoading={isLoading}
+            onSchedule={handleScheduleClick}
+            onEditAndPost={handleEditAndPost}
+            onRemove={handleRemove}
+            collections={collections}
+            onMoveToCollection={handleMoveToCollection}
+          />
+        </motion.div>
+
+        {/* Schedule Modal */}
+        <ScheduleModal
+          isOpen={scheduleModalOpen}
+          onClose={() => {
+            setScheduleModalOpen(false)
+            setSelectedItem(null)
+          }}
+          onSchedule={handleScheduleConfirm}
+          postPreview={selectedItem ? {
+            content: selectedItem.content,
+          } : undefined}
+          isSubmitting={isScheduling}
         />
       </motion.div>
-
-      {/* Schedule Modal */}
-      <ScheduleModal
-        isOpen={scheduleModalOpen}
-        onClose={() => {
-          setScheduleModalOpen(false)
-          setSelectedItem(null)
-        }}
-        onSchedule={handleScheduleConfirm}
-        postPreview={selectedItem ? {
-          content: selectedItem.content,
-        } : undefined}
-        isSubmitting={isScheduling}
-      />
-    </motion.div>
+    </div>
   )
 }
 

@@ -21,6 +21,9 @@ import {
   IconChevronRight,
   IconClock,
   IconHeart,
+  IconUser,
+  IconTrash,
+  IconLoader2,
 } from '@tabler/icons-react';
 import {
   Dialog,
@@ -32,8 +35,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { canvasTemplates, getTemplatesByCategory } from '@/lib/canvas-templates';
+import { useCarouselTemplates } from '@/hooks/use-carousel-templates';
 import type { CanvasTemplate, TemplateCategory, CanvasSlide } from '@/types/canvas-editor';
 
 const FAVORITES_STORAGE_KEY = 'chainlinked-template-favorites';
@@ -523,8 +528,138 @@ function SectionHeader({
 }
 
 /**
+ * Saved template card with delete button
+ * Displays a user-saved template with a delete action overlay
+ * @param props - Component props
+ * @param props.template - The CanvasTemplate to display
+ * @param props.isSelected - Whether this card is currently selected
+ * @param props.onSelect - Callback when the card is clicked
+ * @param props.onPreview - Callback for the preview action
+ * @param props.onDelete - Callback to delete this saved template
+ * @param props.isDeleting - Whether a delete operation is in progress
+ * @returns JSX element rendering a saved template card
+ */
+function SavedTemplateCard({
+  template,
+  isSelected,
+  onSelect,
+  onPreview,
+  onDelete,
+  isDeleting,
+}: {
+  template: CanvasTemplate;
+  isSelected: boolean;
+  onSelect: () => void;
+  onPreview: () => void;
+  onDelete: () => void;
+  isDeleting: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        'relative flex flex-col overflow-hidden rounded-lg border-2 bg-card transition-all',
+        'hover:shadow-lg hover:scale-[1.02]',
+        isSelected ? 'border-primary ring-2 ring-primary/20' : 'border-border'
+      )}
+    >
+      {/* Selected indicator */}
+      {isSelected && (
+        <div className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
+          <IconCheck className="h-4 w-4" />
+        </div>
+      )}
+
+      {/* Delete button */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete();
+        }}
+        disabled={isDeleting}
+        className={cn(
+          'absolute left-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full transition-colors',
+          'bg-background/80 text-muted-foreground hover:bg-destructive hover:text-destructive-foreground'
+        )}
+        aria-label="Delete saved template"
+      >
+        {isDeleting ? (
+          <IconLoader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <IconTrash className="h-4 w-4" />
+        )}
+      </button>
+
+      {/* Clickable area for selection */}
+      <button
+        type="button"
+        onClick={onSelect}
+        className="flex flex-col"
+      >
+        {/* Color thumbnail */}
+        <div className="p-2 pb-0">
+          <TemplateColorThumbnail template={template} />
+        </div>
+
+        {/* Slide previews */}
+        <div className="grid grid-cols-3 gap-1 p-2">
+          {template.defaultSlides.slice(0, 3).map((slide, index) => (
+            <TemplateSlidePreview key={index} slide={slide} />
+          ))}
+        </div>
+
+        {/* Template info */}
+        <div className="flex flex-col gap-1 border-t p-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-medium text-left">{template.name}</h4>
+            <Badge variant="secondary" className="text-xs">
+              {template.defaultSlides.length} slides
+            </Badge>
+          </div>
+          {template.description && (
+            <p className="text-xs text-muted-foreground text-left line-clamp-2">
+              {template.description}
+            </p>
+          )}
+
+          {/* Color palette preview */}
+          {template.brandColors.length > 0 && (
+            <div className="mt-2 flex gap-1">
+              {template.brandColors.slice(0, 5).map((color, index) => (
+                <div
+                  key={index}
+                  className="h-3 w-3 rounded-full border border-border/50"
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </button>
+
+      {/* Preview button */}
+      <div className="border-t px-3 py-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full text-xs"
+          onClick={(e) => {
+            e.stopPropagation();
+            onPreview();
+          }}
+        >
+          <IconEye className="mr-1.5 h-3.5 w-3.5" />
+          Preview
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Template Selector Modal
  * Displays available templates organized by category with favorites and recently used sections
+ * Includes a "My Templates" tab for user-saved templates
  * @param props - Component props
  * @param props.open - Whether the modal is open
  * @param props.onOpenChange - Callback for open state changes
@@ -538,21 +673,33 @@ export function TemplateSelectorModal({
 }: TemplateSelectorModalProps) {
   const [selectedTemplate, setSelectedTemplate] = useState<CanvasTemplate | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState<CanvasTemplate | null>(null);
-  const [activeCategory, setActiveCategory] = useState<'all' | TemplateCategory>('all');
+  const [activeCategory, setActiveCategory] = useState<'all' | TemplateCategory | 'my-templates'>('all');
   const [favorites, setFavorites] = useState<string[]>([]);
   const [recentlyUsed, setRecentlyUsed] = useState<string[]>([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [deletingTemplateId, setDeletingTemplateId] = useState<string | null>(null);
+
+  // Saved templates hook
+  const {
+    savedTemplates,
+    isLoading: isLoadingSaved,
+    fetchTemplates,
+    deleteTemplate,
+    incrementUsage,
+    toCanvasTemplate,
+  } = useCarouselTemplates();
 
   /**
-   * Load favorites and recently used on mount
+   * Load favorites, recently used, and saved templates when modal opens
    */
   useEffect(() => {
     if (open) {
       setFavorites(loadFavorites());
       setRecentlyUsed(loadRecentlyUsed());
       setShowFavoritesOnly(false);
+      fetchTemplates();
     }
-  }, [open]);
+  }, [open, fetchTemplates]);
 
   /**
    * Toggle a template's favorite status
@@ -572,7 +719,7 @@ export function TemplateSelectorModal({
   );
 
   const categoryTemplates =
-    activeCategory === 'all'
+    activeCategory === 'all' || activeCategory === 'my-templates'
       ? canvasTemplates
       : getTemplatesByCategory(activeCategory);
 
@@ -608,6 +755,11 @@ export function TemplateSelectorModal({
   const handleApplyTemplate = () => {
     if (selectedTemplate) {
       saveRecentlyUsed(selectedTemplate.id);
+      // Increment usage if it is a saved template
+      const savedMatch = savedTemplates.find((s) => s.id === selectedTemplate.id);
+      if (savedMatch) {
+        incrementUsage(savedMatch.id);
+      }
       onSelectTemplate(selectedTemplate);
       onOpenChange(false);
       setSelectedTemplate(null);
@@ -621,10 +773,38 @@ export function TemplateSelectorModal({
   const handleApplyFromPreview = () => {
     if (previewTemplate) {
       saveRecentlyUsed(previewTemplate.id);
+      // Increment usage if it is a saved template
+      const savedMatch = savedTemplates.find((s) => s.id === previewTemplate.id);
+      if (savedMatch) {
+        incrementUsage(savedMatch.id);
+      }
       onSelectTemplate(previewTemplate);
       onOpenChange(false);
       setSelectedTemplate(null);
       setPreviewTemplate(null);
+    }
+  };
+
+  /**
+   * Handle deleting a saved template
+   * @param id - ID of the saved template to delete
+   */
+  const handleDeleteSavedTemplate = async (id: string) => {
+    setDeletingTemplateId(id);
+    const success = await deleteTemplate(id);
+    setDeletingTemplateId(null);
+
+    if (success) {
+      toast.success('Template deleted');
+      // Clear selection if the deleted template was selected
+      if (selectedTemplate?.id === id) {
+        setSelectedTemplate(null);
+      }
+      if (previewTemplate?.id === id) {
+        setPreviewTemplate(null);
+      }
+    } else {
+      toast.error('Failed to delete template');
     }
   };
 
@@ -675,11 +855,11 @@ export function TemplateSelectorModal({
             <Tabs
               value={activeCategory}
               onValueChange={(value) =>
-                setActiveCategory(value as 'all' | TemplateCategory)
+                setActiveCategory(value as 'all' | TemplateCategory | 'my-templates')
               }
               className="flex-1 flex flex-col min-h-0"
             >
-              <TabsList className="grid w-full grid-cols-5">
+              <TabsList className="grid w-full grid-cols-6">
                 <TabsTrigger value="all">All</TabsTrigger>
                 {(Object.keys(categoryConfig) as TemplateCategory[]).map((category) => (
                   <TabsTrigger key={category} value={category} className="gap-1.5">
@@ -689,28 +869,78 @@ export function TemplateSelectorModal({
                     </span>
                   </TabsTrigger>
                 ))}
+                <TabsTrigger value="my-templates" className="gap-1.5">
+                  <IconUser className="h-4 w-4" />
+                  <span className="hidden sm:inline">My Templates</span>
+                </TabsTrigger>
               </TabsList>
 
-              {/* Favorites filter toggle */}
-              <div className="flex items-center justify-end mt-3">
-                <Button
-                  variant={showFavoritesOnly ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setShowFavoritesOnly((prev) => !prev)}
-                  className="gap-1.5 text-xs"
-                  aria-pressed={showFavoritesOnly}
-                  aria-label={showFavoritesOnly ? 'Show all templates' : 'Show favorites only'}
-                >
-                  {showFavoritesOnly ? (
-                    <IconStarFilled className="h-3.5 w-3.5" />
-                  ) : (
-                    <IconStar className="h-3.5 w-3.5" />
-                  )}
-                  {showFavoritesOnly ? 'Showing Favorites' : 'Favorites Only'}
-                </Button>
-              </div>
+              {/* Favorites filter toggle - hidden on My Templates tab */}
+              {activeCategory !== 'my-templates' && (
+                <div className="flex items-center justify-end mt-3">
+                  <Button
+                    variant={showFavoritesOnly ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setShowFavoritesOnly((prev) => !prev)}
+                    className="gap-1.5 text-xs"
+                    aria-pressed={showFavoritesOnly}
+                    aria-label={showFavoritesOnly ? 'Show all templates' : 'Show favorites only'}
+                  >
+                    {showFavoritesOnly ? (
+                      <IconStarFilled className="h-3.5 w-3.5" />
+                    ) : (
+                      <IconStar className="h-3.5 w-3.5" />
+                    )}
+                    {showFavoritesOnly ? 'Showing Favorites' : 'Favorites Only'}
+                  </Button>
+                </div>
+              )}
 
-              <TabsContent value={activeCategory} className="flex-1 overflow-y-auto mt-4">
+              {/* My Templates tab content */}
+              <TabsContent value="my-templates" className="flex-1 overflow-y-auto mt-4">
+                <div className="space-y-6 pb-4">
+                  {isLoadingSaved ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <IconLoader2 className="h-8 w-8 animate-spin text-muted-foreground mb-3" />
+                      <p className="text-muted-foreground">Loading your templates...</p>
+                    </div>
+                  ) : savedTemplates.length > 0 ? (
+                    <div>
+                      <SectionHeader
+                        icon={<IconUser className="h-4 w-4 text-muted-foreground" />}
+                        title="My Saved Templates"
+                        count={savedTemplates.length}
+                      />
+                      <div className="grid grid-cols-2 gap-4">
+                        {savedTemplates.map((saved) => {
+                          const converted = toCanvasTemplate(saved);
+                          return (
+                            <SavedTemplateCard
+                              key={saved.id}
+                              template={converted}
+                              isSelected={selectedTemplate?.id === saved.id}
+                              onSelect={() => handleSelectTemplate(converted)}
+                              onPreview={() => setPreviewTemplate(converted)}
+                              onDelete={() => handleDeleteSavedTemplate(saved.id)}
+                              isDeleting={deletingTemplateId === saved.id}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <p className="text-muted-foreground">
+                        No saved templates yet. Use the &quot;Save Template&quot; button in the
+                        toolbar to save your carousel designs for reuse.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
+              {/* Built-in templates tab content (all category tabs share this) */}
+              <TabsContent value={activeCategory === 'my-templates' ? '__hidden__' : activeCategory} className="flex-1 overflow-y-auto mt-4">
                 <div className="space-y-6 pb-4">
                   {/* Recently Used section - only on "All" tab */}
                   {activeCategory === 'all' && recentTemplates.length > 0 && (

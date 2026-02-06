@@ -164,11 +164,13 @@ export function useSwipeActions(): UseSwipeActionsReturn {
       }
 
       // Insert swipe preference
+      // Note: post_id is set to null for AI suggestions since they don't exist in posts tables
+      // The content is stored in suggestion_content for AI learning purposes
       const { data, error: insertError } = await supabase
         .from('swipe_preferences')
         .insert({
           user_id: user.id,
-          post_id: suggestionId,
+          post_id: null, // AI suggestions don't have real post IDs
           suggestion_content: content || null,
           action: action,
         })

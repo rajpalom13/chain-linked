@@ -14,6 +14,7 @@ import type {
   ElementType,
   CanvasTextElement,
   CanvasShapeElement,
+  CanvasImageElement,
   CANVAS_DIMENSIONS,
   MAX_SLIDES,
 } from '@/types/canvas-editor';
@@ -77,6 +78,34 @@ function createDefaultShapeElement(x = 100, y = 100): CanvasShapeElement {
     stroke: undefined,
     strokeWidth: 0,
     cornerRadius: 0,
+  };
+}
+
+/**
+ * Create a default image element
+ * @param src - Image source URL or data URL
+ * @param x - X position
+ * @param y - Y position
+ * @param width - Image width (default 300)
+ * @param height - Image height (default 300)
+ */
+function createDefaultImageElement(
+  src: string,
+  x = 100,
+  y = 100,
+  width = 300,
+  height = 300
+): CanvasImageElement {
+  return {
+    id: generateId(),
+    type: 'image',
+    x,
+    y,
+    width,
+    height,
+    rotation: 0,
+    src,
+    alt: 'Uploaded image',
   };
 }
 
@@ -426,6 +455,34 @@ export function useCanvasEditor() {
     [state.currentSlideIndex, state.selectedElementId, saveToHistory]
   );
 
+  /**
+   * Add an image element to the current slide
+   * @param src - Image source URL or data URL
+   * @param width - Optional image width (auto-calculated if not provided)
+   * @param height - Optional image height (auto-calculated if not provided)
+   */
+  const addImageElement = useCallback(
+    (src: string, width?: number, height?: number) => {
+      saveToHistory();
+      const centerX = 540 - (width ? width / 2 : 150);
+      const centerY = 540 - (height ? height / 2 : 150);
+
+      const element = createDefaultImageElement(
+        src,
+        centerX,
+        centerY,
+        width || 300,
+        height || 300
+      );
+
+      dispatch({
+        type: 'ADD_ELEMENT',
+        payload: { slideIndex: state.currentSlideIndex, element },
+      });
+    },
+    [state.currentSlideIndex, saveToHistory]
+  );
+
   // ============ Template Actions ============
 
   const applyTemplate = useCallback((template: CanvasTemplate) => {
@@ -524,6 +581,7 @@ export function useCanvasEditor() {
     selectElement,
     updateElement,
     addElement,
+    addImageElement,
     deleteElement,
 
     // Template actions

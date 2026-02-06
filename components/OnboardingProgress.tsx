@@ -11,27 +11,25 @@ import { cn } from "@/lib/utils"
 import { Check } from "lucide-react"
 
 /**
- * Step label configuration
+ * Step label configuration for the 5-step onboarding flow
  */
 const STEP_LABELS = [
-  "Get Started",
-  "Profile Setup",
+  "Profile",
+  "Connect",
   "Company",
-  "Connect Tools",
-  "Preferences",
-  "Review & Launch",
+  "Brand Kit",
+  "Review",
 ] as const
 
 /**
  * Short description subtitles for each onboarding step
  */
 const STEP_DESCRIPTIONS = [
-  "Welcome aboard",
-  "Tell us about you",
-  "AI analyzes your company",
-  "LinkedIn & more",
-  "Content preferences",
-  "You\u2019re all set",
+  "Your details",
+  "LinkedIn & tools",
+  "AI analysis",
+  "Brand identity",
+  "Complete setup",
 ] as const
 
 /**
@@ -51,14 +49,14 @@ interface OnboardingProgressProps {
  * and upcoming steps are muted.
  * @param props - Component props
  * @param props.step - Current step number (1-based)
- * @param props.totalSteps - Total number of steps (default: 6)
+ * @param props.totalSteps - Total number of steps (default: 5)
  * @returns Progress indicator JSX
  * @example
- * <OnboardingProgress step={3} totalSteps={6} />
+ * <OnboardingProgress step={3} totalSteps={5} />
  */
 export function OnboardingProgress({
   step,
-  totalSteps = 6,
+  totalSteps = 5,
 }: OnboardingProgressProps) {
   return (
     <div className="w-full px-2 py-4 bg-background">

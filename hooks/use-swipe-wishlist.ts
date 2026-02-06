@@ -33,6 +33,14 @@ interface WishlistResponse {
 }
 
 /**
+ * Options for useSwipeWishlist hook
+ */
+export interface UseSwipeWishlistOptions {
+  /** Filter by collection ID (null = all, 'uncategorized' = no collection) */
+  collectionId?: string | null
+}
+
+/**
  * Return type for the useSwipeWishlist hook
  */
 export interface UseSwipeWishlistReturn {
@@ -48,8 +56,8 @@ export interface UseSwipeWishlistReturn {
   /** Loading state for add operation */
   isAdding: boolean
 
-  /** Add a suggestion to the wishlist */
-  addToWishlist: (suggestion: GeneratedSuggestion) => Promise<boolean>
+  /** Add a suggestion to the wishlist, optionally to a specific collection */
+  addToWishlist: (suggestion: GeneratedSuggestion, collectionId?: string | null) => Promise<boolean>
   /** Remove an item from the wishlist */
   removeFromWishlist: (id: string) => Promise<boolean>
   /** Update notes on a wishlist item */
@@ -99,7 +107,9 @@ export interface UseSwipeWishlistReturn {
  * await removeFromWishlist(itemId)
  * ```
  */
-export function useSwipeWishlist(): UseSwipeWishlistReturn {
+export function useSwipeWishlist(options: UseSwipeWishlistOptions = {}): UseSwipeWishlistReturn {
+  const { collectionId } = options
+
   // Wishlist state
   const [items, setItems] = useState<WishlistItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -116,10 +126,19 @@ export function useSwipeWishlist(): UseSwipeWishlistReturn {
       setIsLoading(true)
       setError(null)
 
+      // Build query params with collection filter
+      const buildUrl = (status: string) => {
+        const params = new URLSearchParams({ status })
+        if (collectionId !== undefined && collectionId !== null) {
+          params.set('collection_id', collectionId)
+        }
+        return `/api/swipe/wishlist?${params.toString()}`
+      }
+
       // Fetch both saved and scheduled items
       const [savedResponse, scheduledResponse] = await Promise.all([
-        fetch('/api/swipe/wishlist?status=saved'),
-        fetch('/api/swipe/wishlist?status=scheduled')
+        fetch(buildUrl('saved')),
+        fetch(buildUrl('scheduled'))
       ])
 
       if (!savedResponse.ok || !scheduledResponse.ok) {
@@ -141,27 +160,34 @@ export function useSwipeWishlist(): UseSwipeWishlistReturn {
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [collectionId])
 
   /**
    * Add a suggestion to the wishlist
+   * @param suggestion - The suggestion to save
+   * @param collectionId - Optional collection ID to save to (null = default collection)
    */
-  const addToWishlist = useCallback(async (suggestion: GeneratedSuggestion): Promise<boolean> => {
+  const addToWishlist = useCallback(async (suggestion: GeneratedSuggestion, collectionId?: string | null): Promise<boolean> => {
     try {
       setIsAdding(true)
       setError(null)
+
+      const payload: Record<string, unknown> = {
+        suggestionId: suggestion.id,
+        content: suggestion.content,
+        postType: suggestion.post_type,
+        category: suggestion.category,
+      }
+      if (collectionId !== undefined) {
+        payload.collectionId = collectionId
+      }
 
       const response = await fetch('/api/swipe/wishlist', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          suggestionId: suggestion.id,
-          content: suggestion.content,
-          postType: suggestion.post_type,
-          category: suggestion.category
-        })
+        body: JSON.stringify(payload)
       })
 
       const data = await response.json()
@@ -372,10 +398,10 @@ export function useSwipeWishlist(): UseSwipeWishlistReturn {
   const savedCount = useMemo(() => savedItems.length, [savedItems])
   const scheduledCount = useMemo(() => scheduledItems.length, [scheduledItems])
 
-  // Initial fetch
+  // Initial fetch and refetch when collection changes
   useEffect(() => {
     fetchWishlist()
-  }, []) // Only run on mount
+  }, [fetchWishlist])
 
   return {
     items,

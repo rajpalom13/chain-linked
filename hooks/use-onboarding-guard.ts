@@ -20,13 +20,14 @@ import {
 
 /**
  * Map of onboarding steps to routes
- * Step 4 is the final step (Review & Complete)
+ * Step 5 is the final step (Review & Complete)
  */
 const STEP_PATHS: Record<number, string> = {
   1: "/onboarding/step1",
   2: "/onboarding/step2",
   3: "/onboarding/step3",
   4: "/onboarding/step4",
+  5: "/onboarding/step5",
 }
 
 /**
@@ -37,13 +38,14 @@ const PATH_TO_STEP: Record<string, number> = {
   "/onboarding/step2": 2,
   "/onboarding/step3": 3,
   "/onboarding/step4": 4,
+  "/onboarding/step5": 5,
 }
 
 /** The first valid onboarding step */
 const MIN_STEP = 1
 
 /** The last valid onboarding step (Review & Complete) */
-const MAX_STEP = 4
+const MAX_STEP = 5
 
 /** localStorage key used to persist the highest completed step */
 const STORAGE_KEY = "chainlinked_onboarding_step"

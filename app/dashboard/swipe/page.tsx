@@ -31,6 +31,8 @@ import { SwipeCard, SwipeCardStack, SwipeCardEmpty, type SwipeCardData } from "@
 import { SiteHeader } from "@/components/site-header"
 import { SwipeSkeleton } from "@/components/skeletons/page-skeletons"
 import { RemixDialog } from "@/components/features/remix-dialog"
+import { SaveToCollectionDialog } from "@/components/features/save-to-collection-dialog"
+import { useWishlistCollections } from "@/hooks/use-wishlist-collections"
 import { GenerationProgress } from "@/components/features/generation-progress"
 import { useGeneratedSuggestions } from "@/hooks/use-generated-suggestions"
 import { useSwipeWishlist } from "@/hooks/use-swipe-wishlist"
@@ -329,6 +331,13 @@ function SwipeContent() {
     incrementShown,
   } = useSwipeActions()
 
+  // Wishlist collections for save picker
+  const {
+    collections,
+    isLoading: collectionsLoading,
+    createCollection,
+  } = useWishlistCollections()
+
   // API Keys for remix
   const { status: apiKeyStatus } = useApiKeys()
 
@@ -338,6 +347,10 @@ function SwipeContent() {
   // Remix dialog state
   const [showRemixDialog, setShowRemixDialog] = React.useState(false)
   const [remixContent, setRemixContent] = React.useState("")
+
+  // Collection picker state for save flow
+  const [showCollectionPicker, setShowCollectionPicker] = React.useState(false)
+  const [pendingSaveCard, setPendingSaveCard] = React.useState<GeneratedSuggestion | null>(null)
 
   // Local UI state
   const [swipeOffset, setSwipeOffset] = React.useState(0)
@@ -385,10 +398,10 @@ function SwipeContent() {
       const action = direction === "right" ? "like" : "dislike"
       await recordSwipe(currentCard.id, action, currentCard.content)
 
-      // Handle right swipe (like) - add to wishlist
+      // Handle right swipe (like) - show collection picker
       if (direction === "right") {
-        await addToWishlist(currentCard)
-        await markAsUsed(currentCard.id)
+        setPendingSaveCard(currentCard)
+        setShowCollectionPicker(true)
       } else {
         // Left swipe (skip) - dismiss suggestion
         await dismissSuggestion(currentCard.id)
@@ -400,17 +413,57 @@ function SwipeContent() {
         setIsAnimatingOut(false)
         setExitDirection(null)
 
-        // Show toast for feedback
-        if (direction === "right") {
-          toast.success("Added to wishlist!", {
-            description: "View your saved suggestions in the Wishlist",
-          })
-        } else {
+        // Show toast for skip only (save toast shown after collection pick)
+        if (direction !== "right") {
           swipeToast.skipped()
         }
       }, 300)
     },
-    [currentCard, isAnimatingOut, recordSwipe, markAsUsed, dismissSuggestion, addToWishlist]
+    [currentCard, isAnimatingOut, recordSwipe, dismissSuggestion]
+  )
+
+  /**
+   * Handles collection selection from the picker dialog
+   * @param collectionId - Selected collection ID (null for default)
+   */
+  const handleCollectionSelect = React.useCallback(
+    async (collectionId: string | null) => {
+      if (!pendingSaveCard) return
+      setShowCollectionPicker(false)
+
+      await addToWishlist(pendingSaveCard, collectionId)
+      await markAsUsed(pendingSaveCard.id)
+
+      const collectionName = collectionId
+        ? collections.find(c => c.id === collectionId)?.name
+        : null
+      toast.success("Added to wishlist!", {
+        description: collectionName
+          ? `Saved to "${collectionName}"`
+          : "View your saved suggestions in the Wishlist",
+      })
+      setPendingSaveCard(null)
+    },
+    [pendingSaveCard, addToWishlist, markAsUsed, collections]
+  )
+
+  /**
+   * Handles cancelling the collection picker (dismiss without saving)
+   */
+  const handleCollectionPickerClose = React.useCallback(
+    (open: boolean) => {
+      if (!open && pendingSaveCard) {
+        // User dismissed without picking — save to default
+        addToWishlist(pendingSaveCard, null)
+        markAsUsed(pendingSaveCard.id)
+        toast.success("Added to wishlist!", {
+          description: "Saved to default collection",
+        })
+        setPendingSaveCard(null)
+      }
+      setShowCollectionPicker(open)
+    },
+    [pendingSaveCard, addToWishlist, markAsUsed]
   )
 
   /**
@@ -778,6 +831,16 @@ function SwipeContent() {
         originalAuthor="AI Suggestion"
         onRemixed={handleRemixComplete}
         hasApiKey={apiKeyStatus?.hasKey ?? false}
+      />
+
+      {/* Save to Collection Dialog */}
+      <SaveToCollectionDialog
+        open={showCollectionPicker}
+        onOpenChange={handleCollectionPickerClose}
+        collections={collections}
+        isLoading={collectionsLoading}
+        onSelect={handleCollectionSelect}
+        onCreateCollection={async (name) => createCollection({ name })}
       />
     </motion.div>
   )

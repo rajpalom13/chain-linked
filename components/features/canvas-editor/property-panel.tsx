@@ -18,6 +18,8 @@ import {
   IconItalic,
   IconPalette,
   IconBorderRadius,
+  IconLoader2,
+  IconPlus,
 } from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,11 +39,13 @@ import {
 } from '@/components/ui/popover';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import type {
   CanvasElement,
   CanvasSlide,
   CanvasTextElement,
   CanvasShapeElement,
+  CanvasImageElement,
   ElementType,
   TextAlign,
   DEFAULT_FONTS,
@@ -174,6 +178,7 @@ interface PropertyPanelProps {
   onElementUpdate: (updates: Partial<CanvasElement>) => void;
   onSlideBackgroundChange: (color: string) => void;
   onAddElement: (type: ElementType) => void;
+  onAddImageElement?: (src: string, width?: number, height?: number) => void;
   onDeleteElement: () => void;
 }
 
@@ -188,8 +193,98 @@ export function PropertyPanel({
   onElementUpdate,
   onSlideBackgroundChange,
   onAddElement,
+  onAddImageElement,
   onDeleteElement,
 }: PropertyPanelProps) {
+  const [imageUrl, setImageUrl] = useState('');
+  const [isLoadingUrl, setIsLoadingUrl] = useState(false);
+
+  /**
+   * Handle adding an image element from a URL
+   * Loads the image to determine its natural dimensions, then calls
+   * onAddImageElement with the URL and scaled dimensions
+   */
+  const handleImageFromUrl = () => {
+    if (!imageUrl.trim() || !onAddImageElement) return;
+
+    setIsLoadingUrl(true);
+    const img = new window.Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const maxSize = 500;
+      let width = img.width;
+      let height = img.height;
+      if (width > maxSize || height > maxSize) {
+        if (width > height) {
+          height = (height / width) * maxSize;
+          width = maxSize;
+        } else {
+          width = (width / height) * maxSize;
+          height = maxSize;
+        }
+      }
+      onAddImageElement(imageUrl.trim(), Math.round(width), Math.round(height));
+      setImageUrl('');
+      setIsLoadingUrl(false);
+    };
+    img.onerror = () => {
+      toast.error('Failed to load image from URL');
+      setIsLoadingUrl(false);
+    };
+    img.src = imageUrl.trim();
+  };
+
+  /**
+   * Handle image file upload
+   */
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !onAddImageElement) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Invalid file type. Please select an image.');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('File too large. Maximum size is 5MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      if (!dataUrl) return;
+
+      // Create a temporary image to get dimensions
+      const img = new window.Image();
+      img.onload = () => {
+        // Scale image to fit canvas while maintaining aspect ratio
+        const maxSize = 500;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxSize || height > maxSize) {
+          if (width > height) {
+            height = (height / width) * maxSize;
+            width = maxSize;
+          } else {
+            width = (width / height) * maxSize;
+            height = maxSize;
+          }
+        }
+
+        onAddImageElement(dataUrl, Math.round(width), Math.round(height));
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+
+    // Reset the input
+    event.target.value = '';
+  };
   return (
     <div className="flex h-full w-72 flex-col border-l bg-muted/30">
       {/* Header */}
@@ -222,6 +317,12 @@ export function PropertyPanel({
                       Shape Element
                     </>
                   )}
+                  {selectedElement.type === 'image' && (
+                    <>
+                      <IconPhoto className="h-4 w-4" />
+                      Image Element
+                    </>
+                  )}
                 </div>
 
                 {/* Text-specific properties */}
@@ -239,6 +340,14 @@ export function PropertyPanel({
                     element={selectedElement as CanvasShapeElement}
                     onChange={onElementUpdate}
                     templateColors={templateColors}
+                  />
+                )}
+
+                {/* Image-specific properties */}
+                {selectedElement.type === 'image' && (
+                  <ImageProperties
+                    element={selectedElement as CanvasImageElement}
+                    onChange={onElementUpdate}
                   />
                 )}
 
@@ -266,7 +375,7 @@ export function PropertyPanel({
                 </p>
 
                 {/* Add element buttons */}
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -285,6 +394,56 @@ export function PropertyPanel({
                     <IconSquare className="h-5 w-5" />
                     <span className="text-xs">Shape</span>
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    asChild
+                    className="flex flex-col gap-1 h-auto py-3 cursor-pointer"
+                  >
+                    <label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleImageUpload}
+                      />
+                      <IconPhoto className="h-5 w-5" />
+                      <span className="text-xs">Image</span>
+                    </label>
+                  </Button>
+                </div>
+
+                {/* URL Image Input */}
+                <div className="space-y-2 pt-3 border-t">
+                  <Label className="text-xs text-muted-foreground">Add image from URL</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="url"
+                      placeholder="https://example.com/image.png"
+                      value={imageUrl}
+                      onChange={(e) => setImageUrl(e.target.value)}
+                      className="h-8 text-xs flex-1"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleImageFromUrl();
+                        }
+                      }}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 px-3"
+                      onClick={handleImageFromUrl}
+                      disabled={!imageUrl.trim() || isLoadingUrl}
+                    >
+                      {isLoadingUrl ? (
+                        <IconLoader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <IconPlus className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
@@ -303,7 +462,7 @@ export function PropertyPanel({
 
             <div className="pt-4 border-t">
               <h4 className="text-sm font-medium mb-2">Add Elements</h4>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -322,6 +481,56 @@ export function PropertyPanel({
                   <IconSquare className="h-5 w-5" />
                   <span className="text-xs">Shape</span>
                 </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  asChild
+                  className="flex flex-col gap-1 h-auto py-3 cursor-pointer"
+                >
+                  <label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleImageUpload}
+                    />
+                    <IconPhoto className="h-5 w-5" />
+                    <span className="text-xs">Image</span>
+                  </label>
+                </Button>
+              </div>
+
+              {/* URL Image Input */}
+              <div className="space-y-2 pt-3 border-t mt-3">
+                <Label className="text-xs text-muted-foreground">Add image from URL</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="url"
+                    placeholder="https://example.com/image.png"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    className="h-8 text-xs flex-1"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleImageFromUrl();
+                      }
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-3"
+                    onClick={handleImageFromUrl}
+                    disabled={!imageUrl.trim() || isLoadingUrl}
+                  >
+                    {isLoadingUrl ? (
+                      <IconLoader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <IconPlus className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           </TabsContent>
@@ -536,6 +745,101 @@ function ShapeProperties({
           />
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Image element properties
+ */
+function ImageProperties({
+  element,
+  onChange,
+}: {
+  element: CanvasImageElement;
+  onChange: (updates: Partial<CanvasImageElement>) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      {/* Alt Text */}
+      <div className="space-y-2">
+        <Label className="text-xs">Alt Text</Label>
+        <Input
+          type="text"
+          value={element.alt || ''}
+          onChange={(e) => onChange({ alt: e.target.value })}
+          placeholder="Describe the image"
+          className="h-8"
+        />
+      </div>
+
+      {/* Image Preview */}
+      {element.src && (
+        <div className="space-y-2">
+          <Label className="text-xs">Preview</Label>
+          <div className="relative aspect-square w-full overflow-hidden rounded border bg-muted">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={element.src}
+              alt={element.alt || 'Preview'}
+              className="h-full w-full object-contain"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Replace Image */}
+      <div className="space-y-2">
+        <Label className="text-xs">Replace Image</Label>
+        <Button
+          variant="outline"
+          size="sm"
+          asChild
+          className="w-full cursor-pointer"
+        >
+          <label>
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                  const dataUrl = ev.target?.result as string;
+                  if (dataUrl) {
+                    onChange({ src: dataUrl });
+                  }
+                };
+                reader.readAsDataURL(file);
+                e.target.value = '';
+              }}
+            />
+            <IconPhoto className="mr-2 h-4 w-4" />
+            Choose New Image
+          </label>
+        </Button>
+      </div>
+
+      {/* Load from URL */}
+      <div className="space-y-2">
+        <Label className="text-xs">Load from URL</Label>
+        <div className="flex gap-2">
+          <Input
+            type="url"
+            placeholder="Image URL"
+            className="h-8 text-xs flex-1"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                const url = (e.target as HTMLInputElement).value.trim();
+                if (url) onChange({ src: url });
+              }
+            }}
+          />
+        </div>
+      </div>
     </div>
   );
 }

@@ -45,7 +45,8 @@ import {
   staggerItemVariants,
   cardHoverProps,
 } from "@/lib/animations"
-import type { WishlistItem } from "@/types/database"
+import { MoveToCollectionMenu } from "./move-to-collection-menu"
+import type { WishlistItem, WishlistCollection } from "@/types/database"
 
 /**
  * Props for the SwipeWishlist component
@@ -61,6 +62,10 @@ export interface SwipeWishlistProps {
   onEditAndPost?: (item: WishlistItem) => void
   /** Callback when Remove button is clicked */
   onRemove?: (itemId: string) => void
+  /** Available collections for move-to-collection menu */
+  collections?: WishlistCollection[]
+  /** Callback when Move to Collection is clicked */
+  onMoveToCollection?: (itemId: string, collectionId: string | null) => void
   /** Optional CSS class name */
   className?: string
 }
@@ -77,6 +82,10 @@ interface WishlistItemCardProps {
   onEditAndPost?: () => void
   /** Callback when Remove button is clicked */
   onRemove?: () => void
+  /** Available collections for move menu */
+  collections?: WishlistCollection[]
+  /** Callback when Move to Collection is clicked */
+  onMoveToCollection?: (collectionId: string | null) => void
 }
 
 /**
@@ -129,6 +138,8 @@ function WishlistItemCard({
   onSchedule,
   onEditAndPost,
   onRemove,
+  collections,
+  onMoveToCollection,
 }: WishlistItemCardProps) {
   const isScheduled = item.status === "scheduled"
   const createdAt = new Date(item.created_at)
@@ -189,6 +200,16 @@ function WishlistItemCard({
                   <IconPencil className="size-4 mr-2" />
                   Edit & Post
                 </DropdownMenuItem>
+                {collections && onMoveToCollection && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <MoveToCollectionMenu
+                      collections={collections}
+                      currentCollectionId={item.collection_id || null}
+                      onMove={onMoveToCollection}
+                    />
+                  </>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={onRemove}
@@ -361,6 +382,8 @@ export function SwipeWishlist({
   onSchedule,
   onEditAndPost,
   onRemove,
+  collections,
+  onMoveToCollection,
   className,
 }: SwipeWishlistProps) {
   // Loading state
@@ -395,6 +418,12 @@ export function SwipeWishlist({
             onSchedule={() => onSchedule?.(item)}
             onEditAndPost={() => onEditAndPost?.(item)}
             onRemove={() => onRemove?.(item.id)}
+            collections={collections}
+            onMoveToCollection={
+              onMoveToCollection
+                ? (collectionId) => onMoveToCollection(item.id, collectionId)
+                : undefined
+            }
           />
         ))}
       </AnimatePresence>

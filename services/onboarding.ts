@@ -754,7 +754,7 @@ export async function updateOnboardingStepInDatabase(step: number): Promise<bool
 
 /**
  * Marks the full onboarding flow as complete in the database
- * Sets onboarding_completed to true and onboarding_current_step to 6
+ * Sets onboarding_completed to true and onboarding_current_step to 5 (final step)
  * @returns Boolean indicating success
  * @example
  * const success = await completeOnboardingInDatabase()
@@ -778,7 +778,7 @@ export async function completeOnboardingInDatabase(): Promise<boolean> {
       .from("profiles")
       .update({
         onboarding_completed: true,
-        onboarding_current_step: 6,
+        onboarding_current_step: 5, // Final step is 5 (Review & Complete)
       })
       .eq("id", user.id)
 
@@ -789,7 +789,7 @@ export async function completeOnboardingInDatabase(): Promise<boolean> {
 
     // Also update localStorage for consistency
     localStorage.setItem(STORAGE_KEYS.completed, "true")
-    localStorage.setItem(STORAGE_KEYS.step, "6")
+    localStorage.setItem(STORAGE_KEYS.step, "5")
 
     return true
   } catch (error) {
@@ -804,7 +804,7 @@ export async function completeOnboardingInDatabase(): Promise<boolean> {
 export interface OnboardingStatus {
   /** Whether onboarding is completed */
   completed: boolean
-  /** Current step in the onboarding flow (1-6) */
+  /** Current step in the onboarding flow (1-5) */
   step: number
 }
 

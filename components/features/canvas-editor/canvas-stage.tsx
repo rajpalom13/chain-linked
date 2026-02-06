@@ -10,6 +10,8 @@ import { Stage, Layer, Rect, Line } from 'react-konva';
 import type Konva from 'konva';
 import { CanvasTextElement } from './canvas-text-element';
 import { CanvasShapeElement } from './canvas-shape-element';
+import { CanvasImageElement } from './canvas-image-element';
+import { toast } from 'sonner';
 import type { CanvasSlide, CanvasElement, CANVAS_DIMENSIONS } from '@/types/canvas-editor';
 
 const CANVAS_WIDTH = 1080;
@@ -26,6 +28,8 @@ interface CanvasStageProps {
   onElementUpdate: (elementId: string, updates: Partial<CanvasElement>) => void;
   zoom: number;
   showGrid: boolean;
+  /** Callback when an image file is dropped onto the canvas */
+  onImageDrop?: (src: string, width: number, height: number) => void;
 }
 
 /**
@@ -41,12 +45,13 @@ export interface CanvasStageRef {
  */
 export const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
   function CanvasStage(
-    { slide, selectedElementId, onElementSelect, onElementUpdate, zoom, showGrid },
+    { slide, selectedElementId, onElementSelect, onElementUpdate, zoom, showGrid, onImageDrop },
     ref
   ) {
     const containerRef = useRef<HTMLDivElement>(null);
     const stageRef = useRef<Konva.Stage>(null);
     const [scale, setScale] = useState(1);
+    const [isDragOver, setIsDragOver] = useState(false);
 
     // Expose stage ref to parent
     useImperativeHandle(ref, () => ({
@@ -118,6 +123,83 @@ export const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
     );
 
     /**
+     * Handle dragover event on the canvas wrapper
+     * Prevents default to allow drop and shows the drop indicator
+     * @param e - The drag event from the wrapper div
+     */
+    const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragOver(true);
+    }, []);
+
+    /**
+     * Handle dragleave event on the canvas wrapper
+     * Hides the drop indicator when the dragged item leaves the area
+     * @param e - The drag event from the wrapper div
+     */
+    const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragOver(false);
+    }, []);
+
+    /**
+     * Handle drop event on the canvas wrapper
+     * Reads dropped image files, converts to data URLs, and calculates
+     * scaled dimensions before calling onImageDrop
+     * @param e - The drag event containing the dropped files
+     */
+    const handleDrop = useCallback(
+      (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragOver(false);
+
+        if (!onImageDrop) return;
+
+        const files = Array.from(e.dataTransfer.files);
+        const imageFile = files.find((file) => file.type.startsWith('image/'));
+
+        if (!imageFile) return;
+
+        // Validate file size (max 5MB)
+        if (imageFile.size > 5 * 1024 * 1024) {
+          toast.error('File too large. Maximum size is 5MB.');
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const dataUrl = ev.target?.result as string;
+          if (!dataUrl) return;
+
+          const img = new window.Image();
+          img.onload = () => {
+            const maxSize = 500;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > maxSize || height > maxSize) {
+              if (width > height) {
+                height = (height / width) * maxSize;
+                width = maxSize;
+              } else {
+                width = (width / height) * maxSize;
+                height = maxSize;
+              }
+            }
+
+            onImageDrop(dataUrl, Math.round(width), Math.round(height));
+          };
+          img.src = dataUrl;
+        };
+        reader.readAsDataURL(imageFile);
+      },
+      [onImageDrop]
+    );
+
+    /**
      * Render grid lines
      */
     const renderGrid = () => {
@@ -183,8 +265,15 @@ export const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
             />
           );
         case 'image':
-          // TODO: Implement image element
-          return null;
+          return (
+            <CanvasImageElement
+              key={element.id}
+              element={element}
+              isSelected={isSelected}
+              onSelect={handleElementSelect}
+              onChange={(updates) => handleElementChange(element.id, updates)}
+            />
+          );
         default:
           return null;
       }
@@ -193,7 +282,10 @@ export const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
     return (
       <div
         ref={containerRef}
-        className="flex h-full w-full items-center justify-center overflow-hidden bg-muted/30 p-4"
+        className="relative flex h-full w-full items-center justify-center overflow-hidden bg-muted/30 p-4"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
       >
         <div
           className="shadow-2xl"
@@ -230,6 +322,29 @@ export const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
             </Layer>
           </Stage>
         </div>
+
+        {/* Drag-and-drop overlay */}
+        {isDragOver && (
+          <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-primary/10 border-2 border-dashed border-primary rounded-lg">
+            <div className="flex flex-col items-center gap-2 rounded-lg bg-background/90 px-6 py-4 shadow-lg">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-8 w-8 text-primary"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
+              </svg>
+              <span className="text-sm font-medium text-primary">Drop image here</span>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
