@@ -2,35 +2,45 @@
 
 import { ThemeProvider } from "next-themes"
 import { Toaster } from "@/components/ui/sonner"
-import { PostHogProvider } from "@/components/posthog-provider"
+import { PostHogProvider, PostHogUserSync } from "@/components/posthog-provider"
 import { DraftProvider } from "@/lib/store/draft-context"
 import { AuthProvider } from "@/lib/auth/auth-provider"
+import { SessionReplayDebug } from "@/components/debug/session-replay-debug"
 
 /**
  * Global providers wrapper component.
- * Includes auth, theme provider, draft state management, and toast notifications.
+ * Includes auth, theme provider, draft state management, PostHog analytics,
+ * and toast notifications.
+ *
+ * Provider Order (outermost to innermost):
+ * 1. ThemeProvider - Theming foundation
+ * 2. AuthProvider - Authentication state (needed by PostHog for user identification)
+ * 3. PostHogProvider - Analytics (wraps auth-dependent components)
+ * 4. DraftProvider - Draft state management
  */
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({ children }: { children: React.ReactNode }): React.ReactNode {
   return (
-    <PostHogProvider>
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="system"
-        enableSystem
-        disableTransitionOnChange
-      >
-        <AuthProvider>
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
+    >
+      <AuthProvider>
+        <PostHogProvider>
+          <PostHogUserSync />
           <DraftProvider>
             {children}
           </DraftProvider>
-        </AuthProvider>
-        <Toaster
-          position="bottom-right"
-          richColors
-          closeButton
-          duration={4000}
-        />
-      </ThemeProvider>
-    </PostHogProvider>
+        </PostHogProvider>
+      </AuthProvider>
+      <Toaster
+        position="bottom-right"
+        richColors
+        closeButton
+        duration={4000}
+      />
+      <SessionReplayDebug />
+    </ThemeProvider>
   )
 }

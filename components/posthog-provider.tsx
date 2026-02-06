@@ -2,11 +2,12 @@
 
 /**
  * PostHog Provider
- * @description Initializes PostHog analytics and provides pageview tracking
+ * @description Initializes PostHog analytics with session replay, network recording,
+ * console log capture, and performance monitoring
  * @module components/posthog-provider
  */
 
-import { useEffect, useMemo, useState } from "react"
+import { Suspense, useEffect, useMemo, useState } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import posthog from "posthog-js"
 import { PostHogProvider as PostHogProviderBase } from "posthog-js/react"
@@ -23,68 +24,155 @@ interface PostHogProviderProps {
 
 /**
  * PostHogProvider wrapper with safe client initialization
+ * Includes full session replay with network recording, console logs, and performance monitoring
  * @param props - Provider props
  * @param props.children - Child nodes
  * @returns Provider-wrapped children
  */
-export function PostHogProvider({ children }: PostHogProviderProps) {
+export function PostHogProvider({ children }: PostHogProviderProps): React.ReactNode {
   const [isReady, setIsReady] = useState(false)
   const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY
-  const apiHost = process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://app.posthog.com"
+  const apiHost = process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com"
 
   useEffect(() => {
     if (!apiKey) {
+      console.warn("[PostHog] Missing NEXT_PUBLIC_POSTHOG_KEY - analytics disabled")
+      return
+    }
+
+    // Prevent re-initialization (important for React Strict Mode)
+    if (posthog.__loaded) {
+      setIsReady(true)
       return
     }
 
     posthog.init(apiKey, {
       api_host: apiHost,
+      ui_host: "https://us.posthog.com",
+
+      // Core capture settings
       autocapture: true,
-      capture_pageview: false,
+      capture_pageview: false, // We handle this manually for SPA navigation
       capture_pageleave: true,
+
+      // Session Recording Configuration - Full replay capabilities
+      disable_session_recording: false,
+
+      // Enable console log recording for debugging
+      enable_recording_console_log: true,
+
+      // Console logs capture configuration
+      logs: {
+        captureConsoleLogs: true,
+      },
+
       session_recording: {
-        maskTextSelector: '[type="password"], [data-sensitive], [name*="api_key"], [name*="apiKey"], [name*="secret"]',
+        // Network recording - capture API calls and responses
+        recordHeaders: true,
+        recordBody: true,
+
+        // Mask captured network requests for privacy
+        maskCapturedNetworkRequestFn: (request) => {
+          // Mask authorization headers
+          if (request.requestHeaders) {
+            const sensitiveHeaders = ["authorization", "cookie", "x-api-key", "x-auth-token"]
+            for (const header of sensitiveHeaders) {
+              if (request.requestHeaders[header]) {
+                request.requestHeaders[header] = "***REDACTED***"
+              }
+            }
+          }
+
+          // Mask sensitive body content
+          if (request.requestBody && typeof request.requestBody === "string") {
+            try {
+              const parsed = JSON.parse(request.requestBody)
+              const sensitiveFields = ["password", "api_key", "apiKey", "secret", "token", "authorization"]
+              for (const field of sensitiveFields) {
+                if (parsed[field]) parsed[field] = "***"
+              }
+              request.requestBody = JSON.stringify(parsed)
+            } catch {
+              // Not JSON, leave as-is
+            }
+          }
+
+          return request
+        },
+
+        // Text and input masking for privacy
+        maskAllInputs: false, // We use selective masking instead
+        maskTextSelector: '[type="password"], [data-sensitive], [name*="api_key"], [name*="apiKey"], [name*="secret"], [name*="token"], .sensitive-data',
         maskInputFn: (text, element) => {
-          const el = element as HTMLInputElement | null
+          const el = element as HTMLInputElement | undefined
           if (
             el?.type === "password" ||
             el?.dataset?.sensitive === "true" ||
             el?.name?.toLowerCase().includes("api_key") ||
             el?.name?.toLowerCase().includes("apikey") ||
-            el?.name?.toLowerCase().includes("secret")
+            el?.name?.toLowerCase().includes("secret") ||
+            el?.name?.toLowerCase().includes("token") ||
+            el?.classList?.contains("sensitive-data")
           ) {
             return "*".repeat(text.length)
           }
           return text
         },
+
+        // Block specific elements from recording
+        blockClass: "ph-no-capture",
+
+        // Enable canvas recording for carousel editor
+        captureCanvas: {
+          recordCanvas: true,
+          canvasFps: 4,
+          canvasQuality: "0.4",
+        },
+
+        // Cross-origin iframe recording
+        recordCrossOriginIframes: false,
       },
+
+      // Feature flags
       advanced_disable_feature_flags: false,
+
+      // Persistence
+      persistence: "localStorage+cookie",
+
+      // Bootstrap feature flags from server if available
+      bootstrap: {},
+
+      // Debug mode in development
+      debug: process.env.NODE_ENV === "development",
     })
 
     setIsReady(true)
 
-    return () => {
-      posthog.reset()
-    }
+    // Note: We intentionally don't call posthog.reset() on cleanup
+    // as it fragments sessions during React Strict Mode remounts
+    // and hot module replacement in development
   }, [apiKey, apiHost])
 
   return (
     <PostHogProviderBase client={posthog}>
-      {isReady ? <PostHogPageview /> : null}
-      <PostHogIdentify enabled={!!apiKey} />
+      {isReady ? (
+        <Suspense fallback={null}>
+          <PostHogPageview />
+        </Suspense>
+      ) : null}
       {children}
     </PostHogProviderBase>
   )
 }
 
 /**
- * Tracks page views on route changes
+ * Tracks page views on route changes.
+ * Must be wrapped in Suspense due to useSearchParams.
  * @returns null
  */
-function PostHogPageview() {
+function PostHogPageview(): null {
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const { user } = useAuthContext()
 
   const url = useMemo(() => {
     const search = searchParams?.toString()
@@ -93,8 +181,6 @@ function PostHogPageview() {
 
   /**
    * Derives the dashboard section from the current pathname.
-   * @param path - The current URL pathname
-   * @returns The dashboard section name or null
    */
   const dashboardSection = useMemo(() => {
     if (!pathname) return null
@@ -107,38 +193,41 @@ function PostHogPageview() {
       $current_url: url,
       page_title: typeof document !== "undefined" ? document.title : undefined,
       dashboard_section: dashboardSection,
-      is_authenticated: !!user,
     })
-  }, [url, dashboardSection, user])
+  }, [url, dashboardSection])
 
   return null
 }
 
 /**
- * Identifies authenticated users in PostHog
- * @param props - Component props
- * @param props.enabled - Whether identification is enabled
+ * Syncs authenticated user identity to PostHog.
+ * Must be rendered inside AuthProvider to access user context.
+ * Exported separately to avoid circular dependency issues.
  * @returns null
  */
-function PostHogIdentify({ enabled }: { enabled: boolean }) {
+export function PostHogUserSync(): null {
   const { user, profile } = useAuthContext()
+  const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY
 
   useEffect(() => {
-    if (!enabled) {
+    if (!apiKey || !posthog.__loaded) {
       return
     }
 
     if (!user) {
+      // User logged out - reset PostHog identity
+      // This ensures the next user gets a fresh anonymous ID
       posthog.reset()
       return
     }
 
+    // Identify the authenticated user
     posthog.identify(user.id, {
       email: user.email,
       name: profile?.full_name ?? profile?.name ?? user.user_metadata?.name,
       subscription_tier: (profile as unknown as Record<string, unknown> | null)?.subscription_tier ?? user.user_metadata?.subscription_tier ?? "free",
     })
-  }, [enabled, user, profile])
+  }, [apiKey, user, profile])
 
   return null
 }

@@ -1,32 +1,35 @@
 /**
  * App Sidebar Component
  * @description Main navigation sidebar for the ChainLinked application
+ * Clean minimal design with collapsible sections and tree connectors
  * @module components/app-sidebar
  */
 
 "use client"
 
 import * as React from "react"
+import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { motion, AnimatePresence } from "framer-motion"
 import {
   IconCalendar,
   IconChartBar,
+  IconChevronRight,
+  IconCirclePlusFilled,
   IconCompass,
   IconDashboard,
-  IconHelp,
   IconLink,
   IconPencil,
   IconPresentation,
-  IconSettings,
   IconSparkles,
   IconSwipe,
   IconTemplate,
   IconUsers,
+  type Icon,
 } from "@tabler/icons-react"
+import { cn } from "@/lib/utils"
 
-import { NavContent } from "@/components/nav-content"
-import { NavMain } from "@/components/nav-main"
-import { NavSecondary } from "@/components/nav-secondary"
 import { NavUser } from "@/components/nav-user"
 import {
   Sidebar,
@@ -36,137 +39,163 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
 } from "@/components/ui/sidebar"
+import {
+  Collapsible,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import { useAuthContext } from "@/lib/auth/auth-provider"
 import { LinkedInStatusBadge } from "@/components/features/linkedin-status-badge"
 
-/**
- * Static navigation data for the ChainLinked application sidebar.
- * This data structure defines the complete navigation hierarchy.
- */
-const navigationData = {
-  /**
-   * Main navigation items - primary app features.
-   * These are always visible in the sidebar.
-   */
-  navMain: [
-    {
-      title: "Dashboard",
-      url: "/dashboard",
-      icon: IconDashboard,
-    },
-    {
-      title: "Analytics",
-      url: "/dashboard/analytics",
-      icon: IconChartBar,
-    },
-    {
-      title: "Compose",
-      url: "/dashboard/compose",
-      icon: IconPencil,
-    },
-    {
-      title: "Schedule",
-      url: "/dashboard/schedule",
-      icon: IconCalendar,
-    },
-    {
-      title: "Team",
-      url: "/dashboard/team",
-      icon: IconUsers,
-    },
-  ],
+// ============================================================================
+// Animation Configuration
+// ============================================================================
 
-  /**
-   * Content section navigation - collapsible group for content management.
-   * Includes templates, inspiration, discover, swipe interface, and carousel management.
-   */
-  navContent: [
-    {
-      title: "Templates",
-      url: "/dashboard/templates",
-      icon: IconTemplate,
-    },
-    {
-      title: "Prompt Playground",
-      url: "/dashboard/prompts",
-      icon: IconSparkles,
-    },
-    {
-      title: "Inspiration",
-      url: "/dashboard/inspiration",
-      icon: IconSparkles,
-    },
-    {
-      title: "Discover",
-      url: "/dashboard/discover",
-      icon: IconCompass,
-    },
-    {
-      title: "Swipe",
-      url: "/dashboard/swipe",
-      icon: IconSwipe,
-    },
-    {
-      title: "Carousels",
-      url: "/dashboard/carousels",
-      icon: IconPresentation,
-    },
-  ],
+const smoothEase = [0.16, 1, 0.3, 1] as const
 
-  /**
-   * Secondary navigation items - utility and support links.
-   * Positioned at the bottom of the sidebar content area.
-   */
-  navSecondary: [
-    {
-      title: "Settings",
-      url: "/dashboard/settings",
-      icon: IconSettings,
-    },
-    {
-      title: "Help",
-      url: "#",
-      icon: IconHelp,
-    },
-  ],
+// ============================================================================
+// Types
+// ============================================================================
+
+interface NavItem {
+  title: string
+  url: string
+  icon: Icon
+  exact?: boolean
 }
+
+// ============================================================================
+// Navigation Configuration
+// ============================================================================
+
+const mainNavItems: NavItem[] = [
+  {
+    title: "Dashboard",
+    url: "/dashboard",
+    icon: IconDashboard,
+    exact: true,
+  },
+  {
+    title: "Analytics",
+    url: "/dashboard/analytics",
+    icon: IconChartBar,
+  },
+  {
+    title: "Compose",
+    url: "/dashboard/compose",
+    icon: IconPencil,
+  },
+  {
+    title: "Schedule",
+    url: "/dashboard/schedule",
+    icon: IconCalendar,
+  },
+  {
+    title: "Team",
+    url: "/dashboard/team",
+    icon: IconUsers,
+  },
+]
+
+const contentNavItems: NavItem[] = [
+  {
+    title: "Templates",
+    url: "/dashboard/templates",
+    icon: IconTemplate,
+  },
+  {
+    title: "Prompt Playground",
+    url: "/dashboard/prompts",
+    icon: IconSparkles,
+  },
+  {
+    title: "Inspiration",
+    url: "/dashboard/inspiration",
+    icon: IconSparkles,
+  },
+  {
+    title: "Discover",
+    url: "/dashboard/discover",
+    icon: IconCompass,
+  },
+  {
+    title: "Swipe",
+    url: "/dashboard/swipe",
+    icon: IconSwipe,
+  },
+  {
+    title: "Carousels",
+    url: "/dashboard/carousels",
+    icon: IconPresentation,
+  },
+]
+
+// ============================================================================
+// Main Component
+// ============================================================================
 
 /**
  * ChainLinked Application Sidebar Component
  *
- * The main navigation sidebar for the ChainLinked LinkedIn content management platform.
- * Provides access to all major features including:
- * - Dashboard and analytics
- * - Content composition and scheduling
- * - Team collaboration
- * - Content templates and inspiration
- * - Settings and help
- *
- * Uses real user data from auth context including LinkedIn profile information.
- *
- * @example
- * ```tsx
- * <SidebarProvider>
- *   <AppSidebar />
- *   <SidebarInset>
- *     <main>Page content</main>
- *   </SidebarInset>
- * </SidebarProvider>
- * ```
+ * Clean minimal design with:
+ * - Collapsible sections with smooth animations
+ * - Tree connector lines showing hierarchy
+ * - Compact layout for better navigation
  *
  * @param props - Standard React component props extending Sidebar component props
  * @returns The rendered sidebar component with full navigation structure
  */
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user, profile, signOut, isLoading } = useAuthContext()
+  const pathname = usePathname()
+
+  // Track which sections are open
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    content: true,
+  })
+
+  // Prevent hydration mismatch with Radix IDs
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Auto-open sections based on current path
+  useEffect(() => {
+    if (pathname?.includes('/dashboard/templates') ||
+        pathname?.includes('/dashboard/prompts') ||
+        pathname?.includes('/dashboard/inspiration') ||
+        pathname?.includes('/dashboard/discover') ||
+        pathname?.includes('/dashboard/swipe') ||
+        pathname?.includes('/dashboard/carousels')) {
+      setOpenSections(prev => ({ ...prev, content: true }))
+    }
+  }, [pathname])
+
+  /**
+   * Check if a path is currently active
+   */
+  const isActive = (path: string, exact = false) => {
+    if (exact) return pathname === path
+    return pathname?.startsWith(path)
+  }
+
+  /**
+   * Toggle a collapsible section
+   */
+  const toggleSection = (section: string) => {
+    setOpenSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }))
+  }
 
   /**
    * Derive user display data from auth context
-   * Prioritizes LinkedIn profile data, falls back to Supabase user data
-   * Always ensures user metadata is available as final fallback
    */
-  const userData = React.useMemo(() => {
+  const userData = useMemo(() => {
     if (!user) {
       return {
         name: "Guest",
@@ -176,7 +205,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       }
     }
 
-    // Get name: LinkedIn raw_data.name > profile.full_name > profile.name > user metadata > email
     const linkedInName = profile?.linkedin_profile?.raw_data?.name
     const profileFullName = profile?.full_name
     const profileName = profile?.name
@@ -185,19 +213,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
     const name = linkedInName || profileFullName || profileName || metadataName || emailName
 
-    // Get avatar: LinkedIn profilePhotoUrl > profile.linkedin_avatar_url > profile.avatar_url > profile_picture_url > user metadata
     const linkedInAvatar = profile?.linkedin_profile?.raw_data?.profilePhotoUrl ||
                           profile?.linkedin_profile?.profile_picture_url ||
-                          profile?.linkedin_avatar_url // From profiles table (saved during OAuth)
+                          profile?.linkedin_avatar_url
     const profileAvatar = profile?.avatar_url
     const metadataAvatar = user.user_metadata?.avatar_url || user.user_metadata?.picture
 
     const avatar = linkedInAvatar || profileAvatar || metadataAvatar || ""
 
-    // Get headline from LinkedIn profile or profiles table
     const headline = profile?.linkedin_profile?.headline ||
                      profile?.linkedin_profile?.raw_data?.headline ||
-                     profile?.linkedin_headline // From profiles table
+                     profile?.linkedin_headline
 
     return {
       name: name as string,
@@ -207,10 +233,105 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     }
   }, [user, profile])
 
+  // ============================================================================
+  // Nav Link Components
+  // ============================================================================
+
+  /**
+   * Main navigation link component
+   */
+  const NavLink = ({ item }: { item: NavItem }) => {
+    const Icon = item.icon
+    const active = isActive(item.url, item.exact)
+
+    return (
+      <Link
+        href={item.url}
+        className={cn(
+          "group flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150",
+          active
+            ? "text-primary bg-primary/10"
+            : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+        )}
+      >
+        <Icon
+          className={cn(
+            "size-4 shrink-0 transition-colors",
+            active
+              ? "text-primary"
+              : "text-muted-foreground group-hover:text-foreground"
+          )}
+        />
+        <span className="flex-1">{item.title}</span>
+      </Link>
+    )
+  }
+
+  /**
+   * Sub-navigation link with tree connectors
+   */
+  const SubNavLink = ({ item, isLast }: { item: NavItem; isLast: boolean }) => {
+    const active = isActive(item.url, item.exact)
+
+    return (
+      <div className="relative">
+        {/* Tree connector lines */}
+        <div className={cn(
+          "absolute left-[11px] top-0 w-px",
+          isLast ? "h-[14px]" : "h-full",
+          active ? "bg-primary/40" : "bg-border"
+        )} />
+        <div className={cn(
+          "absolute left-[11px] top-[14px] w-2 h-px",
+          active ? "bg-primary/40" : "bg-border"
+        )} />
+
+        <Link
+          href={item.url}
+          className={cn(
+            "block pl-6 pr-2.5 py-1 text-sm transition-colors duration-150 rounded-md mx-0.5",
+            active
+              ? "text-primary font-medium"
+              : "text-muted-foreground hover:text-foreground font-normal"
+          )}
+        >
+          {item.title}
+        </Link>
+      </div>
+    )
+  }
+
+  /**
+   * Section header with collapse control
+   */
+  const SectionHeader = ({
+    label,
+    isOpen,
+  }: {
+    label: string
+    isOpen: boolean
+  }) => (
+    <CollapsibleTrigger
+      className="flex w-full items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors duration-150"
+    >
+      <span className="flex-1 text-left">{label}</span>
+      <IconChevronRight
+        className={cn(
+          "size-3.5 shrink-0 text-muted-foreground transition-transform duration-200",
+          isOpen && "rotate-90"
+        )}
+      />
+    </CollapsibleTrigger>
+  )
+
+  // ============================================================================
+  // Render
+  // ============================================================================
+
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       {/* Sidebar Header - Company Branding */}
-      <SidebarHeader>
+      <SidebarHeader className="px-3 py-2.5">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
@@ -230,24 +351,81 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </div>
       </SidebarHeader>
 
+      <SidebarSeparator />
+
       {/* Sidebar Content - Navigation Groups */}
-      <SidebarContent id="sidebar-navigation">
-        {/* Main Navigation - Primary features */}
-        <NavMain items={navigationData.navMain} />
+      <SidebarContent className="px-2 py-2">
+        {/* Quick Create Button */}
+        <div className="mb-2">
+          <Link
+            href="/dashboard/compose"
+            className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-150"
+          >
+            <IconCirclePlusFilled className="size-4" />
+            <span>Quick Create</span>
+          </Link>
+        </div>
 
-        {/* Content Section - Collapsible content management */}
-        <NavContent
-          items={navigationData.navContent}
-          label="Content"
-          defaultOpen={true}
-        />
+        {/* Main Navigation */}
+        <div className="space-y-0.5">
+          {mainNavItems.map((item) => (
+            <NavLink key={item.url} item={item} />
+          ))}
+        </div>
 
-        {/* Secondary Navigation - Settings and support */}
-        <NavSecondary items={navigationData.navSecondary} className="mt-auto" />
+        {/* Spacer */}
+        <div className="h-3" />
+
+        {/* Content Section - Collapsible */}
+        {mounted ? (
+          <Collapsible
+            open={openSections.content}
+            onOpenChange={() => toggleSection('content')}
+          >
+            <SectionHeader
+              label="Content"
+              isOpen={openSections.content}
+            />
+            <AnimatePresence initial={false}>
+              {openSections.content && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.15, ease: smoothEase }}
+                  className="overflow-hidden mt-1 ml-1"
+                >
+                  {contentNavItems.map((item, idx) => (
+                    <SubNavLink
+                      key={item.url}
+                      item={item}
+                      isLast={idx === contentNavItems.length - 1}
+                    />
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </Collapsible>
+        ) : (
+          /* Static server-side render to prevent hydration mismatch */
+          <div>
+            <div className="flex items-center gap-2.5 px-2.5 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <span>Content</span>
+              <IconChevronRight className="ml-auto size-3.5" />
+            </div>
+            <div className="mt-1 ml-1">
+              {contentNavItems.map((item, idx) => (
+                <SubNavLink key={item.url} item={item} isLast={idx === contentNavItems.length - 1} />
+              ))}
+            </div>
+          </div>
+        )}
       </SidebarContent>
 
+      <SidebarSeparator />
+
       {/* Sidebar Footer - User profile and actions */}
-      <SidebarFooter>
+      <SidebarFooter className="px-3 py-2">
         <NavUser user={userData} onSignOut={signOut} />
       </SidebarFooter>
     </Sidebar>

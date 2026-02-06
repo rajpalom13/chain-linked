@@ -1200,6 +1200,58 @@ export interface Database {
         }
         Relationships: []
       }
+      /** Saved carousel templates for reuse in the carousel editor */
+      carousel_templates: {
+        Row: {
+          id: string
+          user_id: string
+          team_id: string | null
+          name: string
+          description: string | null
+          category: string
+          slides: Json
+          brand_colors: Json
+          fonts: Json
+          thumbnail: string | null
+          is_public: boolean
+          usage_count: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          team_id?: string | null
+          name: string
+          description?: string | null
+          category?: string
+          slides: Json
+          brand_colors?: Json
+          fonts?: Json
+          thumbnail?: string | null
+          is_public?: boolean
+          usage_count?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          team_id?: string | null
+          name?: string
+          description?: string | null
+          category?: string
+          slides?: Json
+          brand_colors?: Json
+          fonts?: Json
+          thumbnail?: string | null
+          is_public?: boolean
+          usage_count?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       /** LinkedIn Voyager API credentials (session cookies) */
       linkedin_credentials: {
         Row: {
@@ -1362,12 +1414,53 @@ export interface Database {
         }
         Relationships: []
       }
+      /** User-created collections/folders for organizing wishlisted posts */
+      wishlist_collections: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          description: string | null
+          emoji_icon: string
+          color: string
+          item_count: number
+          is_default: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          description?: string | null
+          emoji_icon?: string
+          color?: string
+          item_count?: number
+          is_default?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          description?: string | null
+          emoji_icon?: string
+          color?: string
+          item_count?: number
+          is_default?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       /** Stores liked post suggestions for later scheduling or posting */
       swipe_wishlist: {
         Row: {
           id: string
           user_id: string
           suggestion_id: string | null
+          collection_id: string | null
           content: string
           post_type: string | null
           category: string | null
@@ -1382,6 +1475,7 @@ export interface Database {
           id?: string
           user_id: string
           suggestion_id?: string | null
+          collection_id?: string | null
           content: string
           post_type?: string | null
           category?: string | null
@@ -1396,6 +1490,7 @@ export interface Database {
           id?: string
           user_id?: string
           suggestion_id?: string | null
+          collection_id?: string | null
           content?: string
           post_type?: string | null
           category?: string | null
@@ -1938,6 +2033,15 @@ export type GeneratedSuggestionInsert = TablesInsert<'generated_suggestions'>
 
 /** Generated suggestion update type alias */
 export type GeneratedSuggestionUpdate = TablesUpdate<'generated_suggestions'>
+
+/** Wishlist collection type alias */
+export type WishlistCollection = Tables<'wishlist_collections'>
+
+/** Wishlist collection insert type alias */
+export type WishlistCollectionInsert = TablesInsert<'wishlist_collections'>
+
+/** Wishlist collection update type alias */
+export type WishlistCollectionUpdate = TablesUpdate<'wishlist_collections'>
 
 /** Wishlist item type alias */
 export type WishlistItem = Tables<'swipe_wishlist'>
