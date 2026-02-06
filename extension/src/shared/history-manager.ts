@@ -90,6 +90,7 @@ export async function recordProfileTrends(profile: ProfileData): Promise<void> {
       type: 'followers',
       value: profile.followers_count,
       source,
+      capturedAt: Date.now(),
     });
   }
 

@@ -90,6 +90,7 @@ import {
 
 import {
   showCaptureNotification,
+  showCaptureFailureNotification,
   showBackupSuccessNotification,
   showBackupFailureNotification,
   showGrowthAlertNotification,
@@ -177,6 +178,285 @@ const DECORATION_IDS = {
   CONNECTIONS_LIST: 'com.linkedin.voyager.dash.deco.web.mynetwork.ConnectionList-16',
   MINI_PROFILE: 'com.linkedin.voyager.dash.deco.identity.profile.StandardMiniProfile-3',
 } as const;
+
+// ============================================
+// POST EXTRACTION FROM LINKEDIN API RESPONSES
+// ============================================
+
+interface ExtractedPost {
+  activity_urn: string;
+  content: string;
+  media_type: string;
+  reactions: number;
+  comments: number;
+  reposts: number;
+  impressions: number;
+  posted_at: string | null;
+  raw_data: unknown;
+}
+
+/**
+ * Extract individual posts from a LinkedIn Voyager API response
+ * LinkedIn uses URN references (*field) instead of inline objects in `included` arrays.
+ * We build a URN lookup map to resolve these references.
+ */
+function extractPostsFromResponse(responseData: unknown): ExtractedPost[] {
+  if (!responseData || typeof responseData !== 'object') {
+    console.log(`[CL:WORKER] extractPosts: invalid input type=${typeof responseData}`);
+    return [];
+  }
+
+  const data = responseData as Record<string, unknown>;
+  const posts: ExtractedPost[] = [];
+  const seenUrns = new Set<string>();
+
+  // Diagnostic: log top-level keys to understand LinkedIn response structure
+  const topKeys = Object.keys(data).slice(0, 15);
+  const includedLen = Array.isArray(data.included) ? (data.included as unknown[]).length : 0;
+  const elementsLen = Array.isArray(data.elements) ? (data.elements as unknown[]).length : 0;
+  const hasGqlData = data.data && typeof data.data === 'object';
+  console.log(`[CL:WORKER] extractPosts: topKeys=[${topKeys.join(',')}] included=${includedLen} elements=${elementsLen} hasGqlData=${!!hasGqlData}`);
+
+  // Build URN → object lookup from `included` array
+  // LinkedIn uses *field references (e.g., *commentary, *socialDetail) that point to other included items by URN
+  const urnMap = new Map<string, Record<string, unknown>>();
+  if (Array.isArray(data.included)) {
+    for (const item of data.included as Record<string, unknown>[]) {
+      if (!item || typeof item !== 'object') continue;
+      const urn = (item.entityUrn || item.urn || '') as string;
+      if (urn) urnMap.set(urn, item);
+    }
+    console.log(`[CL:WORKER] extractPosts: built URN lookup map with ${urnMap.size} entries`);
+  }
+
+  // Helper: resolve a field that might be inline or a *reference
+  function resolve(item: Record<string, unknown>, field: string): Record<string, unknown> | undefined {
+    // Check inline field first (e.g., item.commentary)
+    if (item[field] && typeof item[field] === 'object') {
+      return item[field] as Record<string, unknown>;
+    }
+    // Check *reference field (e.g., item['*commentary'] → URN → lookup in included)
+    const ref = item[`*${field}`] as string | undefined;
+    if (ref && urnMap.has(ref)) {
+      return urnMap.get(ref)!;
+    }
+    return undefined;
+  }
+
+  // Helper: extract text from LinkedIn's commentary/TextContent structure
+  function extractText(obj: unknown): string {
+    if (!obj || typeof obj !== 'object') return '';
+    const o = obj as Record<string, unknown>;
+    // Direct string
+    if (typeof o.text === 'string') return o.text;
+    // Nested: commentary.text.text or commentary.text → TextViewModel
+    if (o.text && typeof o.text === 'object') {
+      const t = o.text as Record<string, unknown>;
+      if (typeof t.text === 'string') return t.text;
+      // Could also have *text reference
+      const textRef = t['*text'] as string | undefined;
+      if (textRef && urnMap.has(textRef)) {
+        const resolved = urnMap.get(textRef)!;
+        if (typeof resolved.text === 'string') return resolved.text;
+      }
+    }
+    // Try *text reference on the object itself
+    const textRef = o['*text'] as string | undefined;
+    if (textRef && urnMap.has(textRef)) {
+      const resolved = urnMap.get(textRef)!;
+      if (typeof resolved.text === 'string') return resolved.text;
+    }
+    return '';
+  }
+
+  // Helper: extract a post from an entity, resolving *references
+  function tryExtractPost(item: Record<string, unknown>): ExtractedPost | null {
+    // Get URN — try multiple field names
+    let urn = (item.urn || item.entityUrn || item['*updateV2Urn'] || item.activityUrn || '') as string;
+    // Also check updateMetadata for the activity URN
+    if (!urn && item.updateMetadata && typeof item.updateMetadata === 'object') {
+      const meta = item.updateMetadata as Record<string, unknown>;
+      urn = (meta.urn || meta.activityUrn || '') as string;
+    }
+    if (!urn || seenUrns.has(urn)) return null;
+
+    // Resolve commentary and socialDetail (handles both inline and *reference patterns)
+    const commentary = resolve(item, 'commentary');
+    const socialDetail = resolve(item, 'socialDetail');
+    // LinkedIn stores counts in socialDetail.totalSocialActivityCounts (inline) or
+    // socialDetail['*totalSocialActivityCounts'] (URN reference) — use resolve() to handle both
+    const socialCounts = socialDetail
+      ? (resolve(socialDetail, 'totalSocialActivityCounts') || socialDetail)
+      : undefined;
+
+    const content = commentary ? extractText(commentary) : '';
+
+    // Skip items with no content and no social metrics (not a real post)
+    if (!content && !socialCounts) return null;
+
+    seenUrns.add(urn);
+
+    const reactions = Number(socialCounts?.numLikes ?? socialCounts?.reactionCount ?? socialCounts?.likes ?? 0);
+    const commentsCount = Number(socialCounts?.numComments ?? socialCounts?.commentCount ?? socialCounts?.comments ?? 0);
+    const reposts = Number(socialCounts?.numShares ?? socialCounts?.shareCount ?? socialCounts?.shares ?? 0);
+    const impressions = Number(socialCounts?.numImpressions ?? socialCounts?.impressionCount ?? socialCounts?.views ?? 0);
+
+    // Detect media type — check both inline and *reference content
+    let media_type = 'text';
+    const contentObj = resolve(item, 'content') || resolve(item, 'mediaContent');
+    if (contentObj) {
+      const mediaType = (contentObj.mediaType || contentObj.type || contentObj.$type || '') as string;
+      const mtLower = mediaType.toLowerCase();
+      if (mtLower.includes('image') || contentObj.images || contentObj['*images']) media_type = 'image';
+      else if (mtLower.includes('video') || contentObj.video || contentObj['*video']) media_type = 'video';
+      else if (mtLower.includes('article') || contentObj.article || contentObj['*article']) media_type = 'article';
+      else if (mtLower.includes('document') || contentObj.document || contentObj['*document']) media_type = 'document';
+      else if (Object.keys(contentObj).length > 1) media_type = 'rich_media';
+    }
+
+    // Extract posted timestamp — check multiple sources
+    let posted_at: string | null = null;
+
+    // Source 1: Direct fields on the item
+    const directTimestamp = (item.publishedAt || item.createdAt || item.postedAt) as number | string | undefined;
+    if (typeof directTimestamp === 'number') {
+      posted_at = new Date(directTimestamp).toISOString();
+    } else if (typeof directTimestamp === 'string') {
+      posted_at = directTimestamp;
+    }
+
+    // Source 2: Check updateMetadata (resolved) for timestamps
+    if (!posted_at) {
+      const updateMeta = resolve(item, 'updateMetadata');
+      if (updateMeta) {
+        const metaTime = (updateMeta.publishedAt || updateMeta.createdAt) as number | string | undefined;
+        if (typeof metaTime === 'number') posted_at = new Date(metaTime).toISOString();
+        else if (typeof metaTime === 'string') posted_at = metaTime;
+      }
+    }
+
+    // Source 3: Extract from activity URN using LinkedIn Snowflake ID
+    // LinkedIn activity IDs encode a timestamp: activityId >> 22 = Unix milliseconds
+    if (!posted_at && urn) {
+      const actMatch = urn.match(/activity:(\d+)/);
+      if (actMatch) {
+        try {
+          const activityId = BigInt(actMatch[1]);
+          const timestampMs = Number(activityId >> 22n);
+          // Sanity: reasonable date range (2015–2030)
+          if (timestampMs > 1420070400000 && timestampMs < 1893456000000) {
+            posted_at = new Date(timestampMs).toISOString();
+          }
+        } catch {
+          // BigInt not supported or parse error — skip
+        }
+      }
+    }
+
+    return {
+      activity_urn: urn,
+      content,
+      media_type,
+      reactions,
+      comments: commentsCount,
+      reposts,
+      impressions,
+      posted_at,
+      raw_data: item,
+    };
+  }
+
+  // Strategy 1: Check `included` array — find Update/Activity entities and resolve their references
+  if (Array.isArray(data.included)) {
+    const typeCounts: Record<string, number> = {};
+    let matchCount = 0;
+    for (const item of data.included as Record<string, unknown>[]) {
+      if (!item || typeof item !== 'object') continue;
+      const type = ((item.$type || item._type || '') as string).toLowerCase();
+      const shortType = type.split('.').pop() || type || 'unknown';
+      typeCounts[shortType] = (typeCounts[shortType] || 0) + 1;
+      // Match posts: check type AND *reference fields (LinkedIn uses *commentary, *socialDetail)
+      const isPostType = type.includes('update') || type.includes('activity') || type.includes('share') || type.includes('ugcpost');
+      const hasContent = !!(item.commentary || item['*commentary'] || item.socialDetail || item['*socialDetail']);
+      if (isPostType || hasContent) {
+        matchCount++;
+        const post = tryExtractPost(item);
+        if (post) posts.push(post);
+      }
+    }
+    console.log(`[CL:WORKER] extractPosts Strategy1: ${includedLen} included, ${matchCount} matched, ${posts.length} extracted. Types:`, JSON.stringify(typeCounts));
+  }
+
+  // Strategy 2: Check nested GraphQL data structures (data.{queryName}.elements[] or *elements[])
+  // Also searches one level deeper for nested containers
+  if (data.data && typeof data.data === 'object') {
+    const gqlData = data.data as Record<string, unknown>;
+    const gqlKeys = Object.keys(gqlData);
+    console.log(`[CL:WORKER] extractPosts Strategy2: data.data keys=[${gqlKeys.join(',')}]`);
+
+    // Helper to process an elements array (inline objects or URN strings)
+    const processElements = (elements: unknown[], path: string) => {
+      console.log(`[CL:WORKER] extractPosts Strategy2: found ${path}[${elements.length}] firstType=${typeof elements[0]} sample=${typeof elements[0] === 'string' ? (elements[0] as string).substring(0, 60) : 'object'}`);
+      for (const el of elements) {
+        if (!el) continue;
+        let target: Record<string, unknown> | undefined;
+        if (typeof el === 'string') {
+          // URN reference string — resolve from included array via urnMap
+          target = urnMap.get(el);
+          if (!target) continue;
+        } else if (typeof el === 'object') {
+          const obj = el as Record<string, unknown>;
+          // Handle wrapped elements: el.result contains the actual post
+          target = (obj.result && typeof obj.result === 'object') ? obj.result as Record<string, unknown> : obj;
+        }
+        if (target) {
+          const post = tryExtractPost(target);
+          if (post) posts.push(post);
+        }
+      }
+    };
+
+    for (const [key, value] of Object.entries(gqlData)) {
+      if (value && typeof value === 'object') {
+        const container = value as Record<string, unknown>;
+        const containerKeys = Object.keys(container).slice(0, 15);
+        console.log(`[CL:WORKER] extractPosts Strategy2: data.data.${key} keys=[${containerKeys.join(',')}]`);
+
+        // Check direct elements/*elements on this container
+        const elements = container.elements || container['*elements'];
+        if (Array.isArray(elements)) {
+          const fieldName = container.elements ? 'elements' : '*elements';
+          processElements(elements, `data.data.${key}.${fieldName}`);
+        } else {
+          // Search one level deeper — some GraphQL responses wrap results in nested objects
+          for (const [subKey, subValue] of Object.entries(container)) {
+            if (subValue && typeof subValue === 'object' && !Array.isArray(subValue)) {
+              const subContainer = subValue as Record<string, unknown>;
+              const subElements = subContainer.elements || subContainer['*elements'];
+              if (Array.isArray(subElements)) {
+                const fieldName = subContainer.elements ? 'elements' : '*elements';
+                processElements(subElements, `data.data.${key}.${subKey}.${fieldName}`);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Strategy 3: Check top-level `elements` array
+  if (Array.isArray(data.elements)) {
+    for (const el of data.elements as Record<string, unknown>[]) {
+      if (!el || typeof el !== 'object') continue;
+      const target = (el.result && typeof el.result === 'object') ? el.result as Record<string, unknown> : el;
+      const post = tryExtractPost(target);
+      if (post) posts.push(post);
+    }
+  }
+
+  console.log(`[CL:WORKER] extractPosts RESULT: ${posts.length} posts from ${seenUrns.size} URNs (included=${includedLen} elements=${elementsLen})`);
+  return posts;
+}
 
 // ============================================
 // TYPE DEFINITIONS
@@ -285,29 +565,41 @@ async function checkAuthentication(): Promise<{ isAuthenticated: boolean; token:
 // STORAGE MANAGEMENT
 // ============================================
 
+/**
+ * Restore userId and Supabase auth from stored session if currentUserId is null.
+ * Call this before any direct queueForSync usage outside of saveToStorage.
+ * @returns The current userId (may still be null if no session exists)
+ */
+async function ensureUserId(): Promise<string | null> {
+  let userId = getCurrentUserId();
+  if (userId) return userId;
+
+  try {
+    const sessionResult = await chrome.storage.local.get('supabase_session');
+    if (sessionResult.supabase_session?.user?.id) {
+      const restoredUserId = sessionResult.supabase_session.user.id;
+      console.log(`[CL:WORKER] Restored userId from session: ${restoredUserId.substring(0, 8)}...`);
+      setCurrentUserId(restoredUserId);
+
+      // Also set auth on supabase client if available
+      if (self.supabase && sessionResult.supabase_session.access_token) {
+        self.supabase.setAuth(sessionResult.supabase_session.access_token, restoredUserId);
+        console.log(`[CL:WORKER] Set auth on Supabase client`);
+      }
+
+      return restoredUserId;
+    }
+  } catch (err) {
+    console.error('[CL:WORKER] Failed to restore userId:', err);
+  }
+  return null;
+}
+
 async function saveToStorage<T>(key: string, data: T, skipSync = false): Promise<StorageResult> {
   try {
-    let userId = getCurrentUserId();
     const syncable = isSyncableKey(key);
-
-    // If syncable but no userId, try to restore from storage
-    if (syncable && !userId) {
-      console.log(`[ServiceWorker] No userId for syncable key ${key}, trying to restore from storage...`);
-      const sessionResult = await chrome.storage.local.get('supabase_session');
-      if (sessionResult.supabase_session?.user?.id) {
-        const restoredUserId = sessionResult.supabase_session.user.id;
-        console.log(`[ServiceWorker] Restored userId from storage: ${restoredUserId.substring(0, 8)}...`);
-        setCurrentUserId(restoredUserId);
-
-        // Also set auth on supabase client if available
-        if (self.supabase && sessionResult.supabase_session.access_token) {
-          self.supabase.setAuth(sessionResult.supabase_session.access_token, restoredUserId);
-          console.log(`[ServiceWorker] Set auth on Supabase client`);
-        }
-
-        userId = restoredUserId;
-      }
-    }
+    // Ensure userId is available for syncable keys
+    const userId = syncable ? await ensureUserId() : getCurrentUserId();
 
     console.log(`[ServiceWorker] saveToStorage: key=${key}, syncable=${syncable}, userId=${userId ? userId.substring(0, 8) + '...' : 'null'}`);
 
@@ -412,7 +704,7 @@ async function addToAnalyticsHistory(analyticsData: Partial<CreatorAnalytics>): 
       timestamp: new Date().toISOString(),
       impressions: analyticsData.impressions || 0,
       membersReached: analyticsData.membersReached || 0,
-      profileViews: 0,
+      profileViews: analyticsData.profileViews || 0,
       topPostsCount: analyticsData.topPosts?.length || 0,
     };
 
@@ -426,6 +718,29 @@ async function addToAnalyticsHistory(analyticsData: Partial<CreatorAnalytics>): 
     history = history.slice(-90);
     await saveToStorage(STORAGE_KEYS.ANALYTICS_HISTORY, history);
     console.log(`[ServiceWorker] Analytics history updated: ${history.length} entries`);
+
+    // ============================================
+    // SYNC TO SUPABASE - analytics_history table
+    // ============================================
+    const userId = getCurrentUserId();
+    if (userId) {
+      try {
+        // Queue the individual entry for sync to Supabase
+        const supabaseEntry = {
+          date: today,
+          impressions: entry.impressions,
+          members_reached: entry.membersReached,
+          profile_views: entry.profileViews,
+          engagements: analyticsData.engagements || 0,
+          followers: analyticsData.newFollowers || 0,
+        };
+        await queueForSync('linkedin_analytics_history', supabaseEntry);
+        console.log(`[ServiceWorker] Analytics history entry queued for Supabase sync`);
+      } catch (syncError) {
+        console.warn('[ServiceWorker] Failed to queue analytics history for sync:', syncError);
+        // Don't fail the main operation if sync queueing fails
+      }
+    }
 
     return { success: true, data: { entries: history.length } };
   } catch (error) {
@@ -458,6 +773,28 @@ async function addToAudienceHistory(audienceData: Partial<AudienceAnalytics>): P
     history = history.slice(-90);
     await saveToStorage(STORAGE_KEYS.AUDIENCE_HISTORY, history);
     console.log(`[ServiceWorker] Audience history updated: ${history.length} entries`);
+
+    // ============================================
+    // SYNC TO SUPABASE - audience history via analytics_history table
+    // (Using same table but with follower-focused data)
+    // ============================================
+    const userId = getCurrentUserId();
+    if (userId) {
+      try {
+        // Queue for sync - will be stored with follower data
+        // Note: follower_growth column does not exist in audience_history table
+        const supabaseEntry = {
+          date: today,
+          total_followers: entry.totalFollowers,
+          new_followers: entry.newFollowers,
+        };
+        await queueForSync('linkedin_audience_history', supabaseEntry);
+        console.log(`[ServiceWorker] Audience history entry queued for Supabase sync`);
+      } catch (syncError) {
+        console.warn('[ServiceWorker] Failed to queue audience history for sync:', syncError);
+        // Don't fail the main operation if sync queueing fails
+      }
+    }
 
     return { success: true, data: { entries: history.length } };
   } catch (error) {
@@ -514,6 +851,27 @@ async function updateCaptureStats(captureType: string, success: boolean): Promis
   } catch (error) {
     console.error('[ServiceWorker] Error updating capture stats:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+/**
+ * Handle capture result and show notification
+ * Shows failure notification if capture was unsuccessful
+ */
+async function handleCaptureResult(
+  captureType: string,
+  response: StorageResult,
+  successDetails?: string
+): Promise<void> {
+  await updateCaptureStats(captureType, response.success);
+
+  if (response.success) {
+    await showCaptureNotification(captureType, successDetails);
+  } else {
+    await showCaptureFailureNotification(
+      captureType,
+      response.error || 'Storage operation failed'
+    );
   }
 }
 
@@ -733,9 +1091,11 @@ async function exportAsCSV(dataKey: string): Promise<StorageResult<{ content: st
   const headers = Array.from(allKeys);
   const csvRows = [headers.join(',')];
 
-  data.forEach((item: Record<string, unknown>) => {
+  data.forEach((item) => {
+    if (typeof item !== 'object' || item === null) return;
+    const record = item as Record<string, unknown>;
     const row = headers.map((header) => {
-      const value = item[header];
+      const value = record[header];
       if (value === null || value === undefined) return '';
       if (typeof value === 'object') return JSON.stringify(value).replace(/"/g, '""');
       return String(value).replace(/"/g, '""');
@@ -816,7 +1176,24 @@ async function fetchLinkedInAPI(endpoint: string, options: RequestInit = {}): Pr
 // ============================================
 
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
-  console.log('[ServiceWorker] Received message:', message.type);
+  // Smart logging: highlight captures, quiet repeated auth/cookie checks
+  if (message.type.startsWith('AUTO_CAPTURE_')) {
+    console.log(
+      `%c[Capture] \u{1F4E5} Received: ${message.type.replace('AUTO_CAPTURE_', '')}`,
+      'color: #16a34a; font-weight: bold; font-size: 12px'
+    );
+  } else if (message.type === 'SUPABASE_AUTH_STATUS' || message.type === 'GET_COOKIES') {
+    // Suppress repeated auth polling - only log once per 30s
+    const now = Date.now();
+    const key = `_lastLog_${message.type}`;
+    const last = (globalThis as Record<string, number>)[key] || 0;
+    if (now - last > 30000) {
+      console.log(`[ServiceWorker] ${message.type} (repeated calls suppressed for 30s)`);
+      (globalThis as Record<string, number>)[key] = now;
+    }
+  } else {
+    console.log('[ServiceWorker] Received message:', message.type);
+  }
 
   (async () => {
     let response: StorageResult;
@@ -845,6 +1222,249 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
       case 'CLEAR_DATA':
         response = await clearStorage();
         break;
+
+      case 'API_CAPTURED': {
+        const apiData = message as unknown as {
+          endpoint: string;
+          method: string;
+          url: string;
+          data: unknown;
+          category?: string;
+        };
+        const category = apiData.category || 'other';
+        const storageKey = `${STORAGE_KEYS.CAPTURED_APIS}_${category}`;
+
+        console.log(`[CL:WORKER] <<< RECEIVED API_CAPTURED: category=${category} endpoint=${apiData.endpoint?.substring(0, 50)} storageKey=${storageKey}`);
+
+        try {
+          // Build individual captured API record
+          const capturedItem = {
+            endpoint: apiData.endpoint,
+            method: apiData.method,
+            url: apiData.url,
+            data: apiData.data,
+            category,
+            capturedAt: new Date().toISOString(),
+          };
+
+          // Get existing captured data for this category
+          const existing = await getFromStorage(storageKey);
+          const items: unknown[] = Array.isArray(existing?.data) ? existing.data as unknown[] : [];
+          items.push(capturedItem);
+
+          // Keep last 50 items per category to prevent storage bloat
+          const trimmed = items.slice(-50);
+          // Save array to chrome.storage locally (skip sync — array would be mangled)
+          await chrome.storage.local.set({ [storageKey]: trimmed });
+          // Queue a lightweight version for Supabase sync (strip the massive response blob)
+          const capturedUserId = await ensureUserId();
+          if (isSyncableKey(storageKey) && capturedUserId) {
+            const syncItem = {
+              endpoint: apiData.endpoint,
+              method: apiData.method,
+              category,
+              capturedAt: capturedItem.capturedAt,
+              // Store only a hash/size instead of the full response to avoid quota issues
+              response_hash: `size:${JSON.stringify(apiData.data).length}`,
+            };
+            await queueForSync(storageKey, syncItem as unknown as Record<string, unknown>);
+            // Trigger sync for captured_apis with retry for race condition
+            const triggerCapturedSync = async (attempt = 1) => {
+              try {
+                const result = await processPendingChanges();
+                if (result.errors?.includes('Sync already in progress') && attempt < 3) {
+                  setTimeout(() => triggerCapturedSync(attempt + 1), 2000 * attempt);
+                }
+              } catch (err) {
+                console.error('[CL:WORKER] Captured API sync error:', err);
+              }
+            };
+            setTimeout(() => triggerCapturedSync(), 200);
+          } else {
+            console.log(`[CL:WORKER] --- SKIPPED captured_apis sync: syncable=${isSyncableKey(storageKey)} userId=${capturedUserId ? 'yes' : 'null'}`);
+          }
+
+          // Also save to category-specific storage keys that are syncable to Supabase
+          if (category === 'posts' || category === 'myPosts') {
+            const postsKey = category === 'myPosts' ? STORAGE_KEYS.MY_POSTS : STORAGE_KEYS.POSTS_DATA;
+            const existingPosts = await getFromStorage(postsKey);
+            const postItems: ExtractedPost[] = Array.isArray(existingPosts?.data) ? existingPosts.data as ExtractedPost[] : [];
+            // Extract individual posts from the API response
+            const extracted = extractPostsFromResponse(apiData.data);
+            if (extracted.length > 0) {
+              const newPosts: ExtractedPost[] = [];
+              // Deduplicate by activity_urn — but allow updating stale cached posts
+              for (const post of extracted) {
+                const existingIdx = postItems.findIndex(p => p.activity_urn === post.activity_urn);
+                if (existingIdx === -1) {
+                  // Truly new post
+                  postItems.push(post);
+                  newPosts.push(post);
+                } else {
+                  // Post exists — check if new extraction has better data
+                  const existing = postItems[existingIdx];
+                  const needsUpdate = (
+                    (!existing.posted_at && post.posted_at) ||
+                    (existing.reactions === 0 && post.reactions > 0) ||
+                    (existing.comments === 0 && post.comments > 0) ||
+                    (!existing.content && post.content)
+                  );
+                  if (needsUpdate) {
+                    console.log(`[CL:WORKER] Updating stale post ${post.activity_urn.substring(0, 50)}: posted_at=${existing.posted_at}->${post.posted_at} reactions=${existing.reactions}->${post.reactions}`);
+                    postItems[existingIdx] = post;
+                    newPosts.push(post); // Queue updated post for sync
+                  }
+                }
+              }
+              // Save full array to chrome.storage (skip sync — we queue individual posts below)
+              await chrome.storage.local.set({ [postsKey]: postItems.slice(-100) });
+              // Queue individual posts for Supabase sync (strip raw_data to save quota)
+              const postsUserId = await ensureUserId();
+              if (postsUserId) {
+                // If we have new posts (or updated posts), queue them
+                const postsToSync = newPosts.length > 0 ? newPosts : (
+                  // Bootstrap sync: if new=0 (all duplicates, no updates), queue ALL existing posts
+                  // This handles the case where posts were captured locally but never synced
+                  postItems
+                );
+                if (newPosts.length === 0 && postItems.length > 0) {
+                  console.log(`[CL:WORKER] Bootstrap sync: queueing all ${postItems.length} existing posts (new=0, likely never synced)`);
+                }
+                for (const post of postsToSync) {
+                  const { raw_data: _raw, ...syncPost } = post;
+                  await queueForSync(postsKey, syncPost as unknown as Record<string, unknown>);
+                }
+                // Trigger sync with retry for race condition
+                const triggerSync = async (attempt = 1) => {
+                  try {
+                    const syncResult = await processPendingChanges();
+                    console.log(`[CL:WORKER] Post sync (attempt ${attempt}): ${syncResult.success} success, ${syncResult.failed} failed`);
+                    if (syncResult.errors?.includes('Sync already in progress') && attempt < 3) {
+                      setTimeout(() => triggerSync(attempt + 1), 2000 * attempt);
+                    }
+                  } catch (err) {
+                    console.error('[CL:WORKER] Post sync error:', err);
+                  }
+                };
+                setTimeout(() => triggerSync(), 500);
+                console.log(`[CL:WORKER] >>> STORED SYNCABLE: key=${postsKey} extracted=${extracted.length} new=${newPosts.length} total=${Math.min(postItems.length, 100)} table=my_posts`);
+              } else {
+                console.log(`[CL:WORKER] --- SKIPPED myPosts sync: no userId. Posts saved locally only. extracted=${extracted.length}`);
+              }
+            } else {
+              // Diagnostic: log sample of the raw data structure to understand why extraction failed
+              const rawSample = JSON.stringify(apiData.data, null, 2).substring(0, 500);
+              console.log(`[CL:WORKER] --- NO POSTS EXTRACTED from myPosts response. Raw sample: ${rawSample}`);
+            }
+          } else if (category === 'feed') {
+            const existingFeed = await getFromStorage(STORAGE_KEYS.FEED_POSTS);
+            const feedItems: ExtractedPost[] = Array.isArray(existingFeed?.data) ? existingFeed.data as ExtractedPost[] : [];
+            // Extract individual posts from the feed response
+            const extracted = extractPostsFromResponse(apiData.data);
+            if (extracted.length > 0) {
+              const newFeedPosts: ExtractedPost[] = [];
+              for (const post of extracted) {
+                const existingIdx = feedItems.findIndex(p => p.activity_urn === post.activity_urn);
+                if (existingIdx === -1) {
+                  feedItems.push(post);
+                  newFeedPosts.push(post);
+                } else {
+                  // Allow updating stale feed posts with better data
+                  const existing = feedItems[existingIdx];
+                  const needsUpdate = (
+                    (!existing.posted_at && post.posted_at) ||
+                    (existing.reactions === 0 && post.reactions > 0) ||
+                    (existing.comments === 0 && post.comments > 0)
+                  );
+                  if (needsUpdate) {
+                    feedItems[existingIdx] = post;
+                    newFeedPosts.push(post);
+                  }
+                }
+              }
+              // Save full array to chrome.storage (skip sync — we queue individual posts below)
+              await chrome.storage.local.set({ [STORAGE_KEYS.FEED_POSTS]: feedItems.slice(-100) });
+              // Queue each individual post for Supabase sync (strip raw_data to save quota)
+              const feedUserId = await ensureUserId();
+              if (feedUserId) {
+                for (const post of newFeedPosts) {
+                  const { raw_data: _raw, ...syncPost } = post;
+                  await queueForSync(STORAGE_KEYS.FEED_POSTS, syncPost as unknown as Record<string, unknown>);
+                }
+                // Always trigger sync with retry for race condition
+                const triggerFeedSync = async (attempt = 1) => {
+                  try {
+                    const syncResult = await processPendingChanges();
+                    console.log(`[CL:WORKER] Feed sync (attempt ${attempt}): ${syncResult.success} success, ${syncResult.failed} failed`);
+                    if (syncResult.errors?.includes('Sync already in progress') && attempt < 3) {
+                      setTimeout(() => triggerFeedSync(attempt + 1), 2000 * attempt);
+                    }
+                  } catch (err) {
+                    console.error('[CL:WORKER] Feed sync error:', err);
+                  }
+                };
+                setTimeout(() => triggerFeedSync(), 100);
+                console.log(`[CL:WORKER] >>> STORED SYNCABLE: key=${STORAGE_KEYS.FEED_POSTS} extracted=${extracted.length} new=${newFeedPosts.length} total=${Math.min(feedItems.length, 100)} table=feed_posts`);
+              } else {
+                console.log(`[CL:WORKER] --- SKIPPED feed sync: no userId. Posts saved locally only. extracted=${extracted.length}`);
+              }
+            } else {
+              console.log(`[CL:WORKER] --- NO POSTS EXTRACTED from feed response (raw data stored in captured_apis)`);
+            }
+          } else if (category === 'connections') {
+            await saveToStorage(STORAGE_KEYS.CONNECTIONS_DATA, apiData.data);
+            console.log(`[CL:WORKER] >>> STORED SYNCABLE: key=${STORAGE_KEYS.CONNECTIONS_DATA} table=connections`);
+          } else if (category === 'comments') {
+            const existingComments = await getFromStorage(STORAGE_KEYS.COMMENTS);
+            const commentItems: unknown[] = Array.isArray(existingComments?.data) ? existingComments.data as unknown[] : [];
+            commentItems.push(apiData.data);
+            await saveToStorage(STORAGE_KEYS.COMMENTS, commentItems.slice(-100));
+            console.log(`[CL:WORKER] >>> STORED SYNCABLE: key=${STORAGE_KEYS.COMMENTS} items=${Math.min(commentItems.length, 100)} table=comments`);
+          } else if (category === 'followers') {
+            await saveToStorage(STORAGE_KEYS.FOLLOWERS, apiData.data);
+            console.log(`[CL:WORKER] >>> STORED SYNCABLE: key=${STORAGE_KEYS.FOLLOWERS} table=followers`);
+          } else if (category === 'reactions') {
+            const existingReactions = await getFromStorage(`${STORAGE_KEYS.CAPTURED_APIS}_reactions`);
+            const reactionItems: unknown[] = Array.isArray(existingReactions?.data) ? existingReactions.data as unknown[] : [];
+            reactionItems.push(apiData.data);
+            await saveToStorage(`${STORAGE_KEYS.CAPTURED_APIS}_reactions`, reactionItems.slice(-100));
+            console.log(`[CL:WORKER] >>> STORED: key=captured_apis_reactions items=${Math.min(reactionItems.length, 100)}`);
+          } else if (category === 'profile') {
+            await saveToStorage(STORAGE_KEYS.PROFILE_DATA, {
+              ...(apiData.data as Record<string, unknown>),
+              source: 'api_intercept',
+              capturedAt: new Date().toISOString(),
+              raw_data: apiData.data,
+            });
+            console.log(`[CL:WORKER] >>> STORED SYNCABLE: key=${STORAGE_KEYS.PROFILE_DATA} table=linkedin_profiles`);
+          } else if (category === 'analytics') {
+            await saveToStorage(STORAGE_KEYS.ANALYTICS_DATA, {
+              ...(apiData.data as Record<string, unknown>),
+              source: 'api_intercept',
+              page_type: 'api_captured',
+              capturedAt: new Date().toISOString(),
+              raw_data: apiData.data,
+            });
+            console.log(`[CL:WORKER] >>> STORED SYNCABLE: key=${STORAGE_KEYS.ANALYTICS_DATA} table=linkedin_analytics`);
+          } else if (category === 'network') {
+            await saveToStorage(STORAGE_KEYS.CONNECTIONS_DATA, {
+              ...(apiData.data as Record<string, unknown>),
+              source: 'api_intercept',
+              capturedAt: new Date().toISOString(),
+            });
+            console.log(`[CL:WORKER] >>> STORED SYNCABLE: key=${STORAGE_KEYS.CONNECTIONS_DATA} table=connections (via network)`);
+          } else {
+            console.log(`[CL:WORKER] --- NO SYNCABLE ROUTE for category=${category} (only stored in generic captured_apis)`);
+          }
+
+          console.log(`[CL:WORKER] >>> STORED: category=${category} endpoint=${apiData.endpoint?.substring(0, 50)} generic_items=${trimmed.length}`);
+          response = { success: true, data: { count: trimmed.length } };
+        } catch (error) {
+          console.error('[ServiceWorker] Error saving API data:', error);
+          response = { success: false, error: String(error) };
+        }
+        break;
+      }
 
       case 'AUTO_CAPTURE_CREATOR_ANALYTICS': {
         console.log('[CAPTURE][ANALYTICS] Received data:', JSON.stringify(message.data, null, 2));
@@ -929,8 +1549,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
         });
 
         response = await savePostAnalyticsToStorage(postData);
-        await updateCaptureStats('post_analytics', response.success);
-        await showCaptureNotification('post_analytics', postData.impressions?.toLocaleString() || undefined);
+        await handleCaptureResult('post_analytics', response, postData.impressions?.toLocaleString());
         console.log('[CAPTURE][POST_ANALYTICS] Save completed, success:', response.success);
         break;
       }
@@ -967,7 +1586,6 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
 
         response = await saveAudienceDataToStorage(dataToSave);
         await addToAudienceHistory(dataToSave);
-        await updateCaptureStats('audience_analytics', response.success);
 
         // Record to IndexedDB for trend tracking (follower count)
         try {
@@ -979,9 +1597,9 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
           console.error('[ERROR][AUDIENCE] Error recording audience trends:', error);
         }
 
-        // Show capture notification
+        // Show capture notification (success or failure)
         const followers = dataToSave.totalFollowers?.toLocaleString() || '';
-        await showCaptureNotification('audience_analytics', followers ? `${followers} followers` : undefined);
+        await handleCaptureResult('audience_analytics', response, followers ? `${followers} followers` : undefined);
         console.log('[CAPTURE][AUDIENCE] Save completed, success:', response.success);
         break;
       }
@@ -989,9 +1607,10 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
       case 'AUTO_CAPTURE_AUDIENCE_DEMOGRAPHICS': {
         console.log('[CAPTURE][AUDIENCE_DEMOGRAPHICS] Received data:', JSON.stringify(message.data, null, 2));
         const existingAudience = await getFromStorage<Partial<AudienceAnalytics>>(STORAGE_KEYS.AUDIENCE_DATA);
+        const messageData = message.data as { demographics?: Record<string, unknown> } | Record<string, unknown>;
         const audienceWithDemographics = {
           ...(existingAudience.data || {}),
-          demographics: (message.data as { demographics?: unknown })?.demographics || message.data,
+          demographics: ('demographics' in messageData ? messageData.demographics : messageData) as AudienceAnalytics['demographics'],
           demographicsUpdated: new Date().toISOString(),
         };
 
@@ -1001,7 +1620,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
         });
 
         response = await saveAudienceDataToStorage(audienceWithDemographics);
-        await updateCaptureStats('audience_demographics', response.success);
+        await handleCaptureResult('audience_demographics', response);
         console.log('[CAPTURE][AUDIENCE_DEMOGRAPHICS] Save completed, success:', response.success);
         break;
       }
@@ -1085,7 +1704,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
         }, null, 2));
 
         response = await saveToStorage(STORAGE_KEYS.ANALYTICS_DATA, dataToSave);
-        await updateCaptureStats('profile_views', response.success);
+        await handleCaptureResult('profile_views', response, dataToSave.profile_views?.toLocaleString());
         console.log('[CAPTURE][PROFILE_VIEWS] Save completed, success:', response.success);
         break;
       }
@@ -1110,6 +1729,15 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
           profileData.connectionsCount ||
           0;
 
+        // Split full name into first/last if not already provided
+        let firstName = profileData.first_name || (profileData as { firstName?: string }).firstName || '';
+        let lastName = profileData.last_name || (profileData as { lastName?: string }).lastName || '';
+        if (!firstName && !lastName && profileData.name) {
+          const nameParts = profileData.name.trim().split(/\s+/);
+          firstName = nameParts[0] || '';
+          lastName = nameParts.slice(1).join(' ') || '';
+        }
+
         const dataToSave = {
           ...profileData,
           // Ensure snake_case fields are present (database schema uses snake_case)
@@ -1120,11 +1748,11 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
           connectionCount: connectionsCount,
           // Map other profile fields
           linkedin_id: profileData.linkedin_id || (profileData as { linkedinId?: string }).linkedinId,
-          first_name: profileData.first_name || (profileData as { firstName?: string }).firstName,
-          last_name: profileData.last_name || (profileData as { lastName?: string }).lastName,
+          first_name: firstName,
+          last_name: lastName,
           full_name: profileData.full_name || (profileData as { fullName?: string }).fullName || profileData.name,
           profile_url: profileData.profile_url || (profileData as { profileUrl?: string }).profileUrl,
-          profile_picture_url: profileData.profile_picture_url || (profileData as { profilePictureUrl?: string }).profilePictureUrl,
+          profile_picture_url: profileData.profile_picture_url || (profileData as { profilePictureUrl?: string }).profilePictureUrl || profileData.profilePhoto,
           // Metadata
           source: 'auto_capture',
           captured_at: new Date().toISOString(),
@@ -1293,6 +1921,25 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
         });
         response = await saveToStorage(STORAGE_KEYS.AUTO_CAPTURE_LOG, logs.slice(-100));
         console.log('[CAPTURE][LOG] Logged, total entries:', Math.min(logs.length, 100));
+        break;
+      }
+
+      case 'SHOW_CAPTURE_FAILURE_NOTIFICATION': {
+        const failureData = message.data as {
+          captureType?: string;
+          error?: string;
+          retryCount?: number;
+        };
+        if (failureData.captureType && failureData.error) {
+          await showCaptureFailureNotification(
+            failureData.captureType,
+            failureData.error,
+            failureData.retryCount
+          );
+          response = { success: true };
+        } else {
+          response = { success: false, error: 'Missing captureType or error' };
+        }
         break;
       }
 
@@ -1599,9 +2246,10 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
               isSyncing: syncStatus.isSyncing,
             },
           };
+          const responseData = response.data as { isAuthenticated?: boolean; email?: string };
           console.log('[ServiceWorker] Auth status response:', {
-            isAuthenticated: response.data.isAuthenticated,
-            hasEmail: !!response.data.email
+            isAuthenticated: responseData.isAuthenticated,
+            hasEmail: !!responseData.email
           });
         } catch (error) {
           console.error('[ServiceWorker] Auth status error:', error);

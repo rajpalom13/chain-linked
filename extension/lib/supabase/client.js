@@ -10,6 +10,38 @@ const SUPABASE_URL = 'https://baurjucvzdboavbcuxjh.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhdXJqdWN2emRib2F2YmN1eGpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3NzI1ODIsImV4cCI6MjA4NTM0ODU4Mn0.AN6edcdG2fIef5tb0d-k_Gx6FR3WZB7UiWBeoBd6z-8';
 
 // ============================================
+// Fetch with Retry (handles service worker wake-up failures)
+// ============================================
+
+/**
+ * Fetch with exponential backoff retry for transient network failures.
+ * Service workers in MV3 can wake from a terminated state and fire fetches
+ * before the network stack is fully ready, causing TypeError: Failed to fetch.
+ * @param {string|Request} input - URL or Request object
+ * @param {RequestInit} [init] - Fetch options
+ * @param {number} [maxRetries=3] - Maximum retry attempts
+ * @returns {Promise<Response>}
+ */
+async function fetchWithRetry(input, init = {}, maxRetries = 3) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fetch(input, init);
+    } catch (error) {
+      const isLastAttempt = attempt === maxRetries;
+      const isNetworkError = error instanceof TypeError && error.message === 'Failed to fetch';
+
+      if (isLastAttempt || !isNetworkError) {
+        throw error;
+      }
+
+      const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
+      console.warn(`[Supabase] Fetch failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+}
+
+// ============================================
 // Supabase Client Implementation
 // ============================================
 
@@ -65,7 +97,7 @@ class SupabaseClient {
   async request(endpoint, options = {}) {
     const url = `${this.url}/rest/v1/${endpoint}`;
 
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       method: options.method || 'GET',
       headers: this.getHeaders(options),
       body: options.body ? JSON.stringify(options.body) : undefined
@@ -309,7 +341,12 @@ class QueryBuilder {
         ? `return=representation,resolution=merge-duplicates`
         : 'return=representation';
 
-      const result = await this.client.request(this.table, {
+      let endpoint = this.table;
+      if (options.onConflict) {
+        endpoint += `?on_conflict=${encodeURIComponent(options.onConflict)}`;
+      }
+
+      const result = await this.client.request(endpoint, {
         method: 'POST',
         body: data,
         prefer
@@ -352,7 +389,7 @@ class AuthClient {
    */
   async signInWithIdToken({ provider, token, access_token }) {
     try {
-      const response = await fetch(`${this.client.url}/auth/v1/token?grant_type=id_token`, {
+      const response = await fetchWithRetry(`${this.client.url}/auth/v1/token?grant_type=id_token`, {
         method: 'POST',
         headers: {
           'apikey': this.client.anonKey,
@@ -414,7 +451,7 @@ class AuthClient {
    */
   async refreshSession(refreshToken) {
     try {
-      const response = await fetch(`${this.client.url}/auth/v1/token?grant_type=refresh_token`, {
+      const response = await fetchWithRetry(`${this.client.url}/auth/v1/token?grant_type=refresh_token`, {
         method: 'POST',
         headers: {
           'apikey': this.client.anonKey,
@@ -455,7 +492,7 @@ class AuthClient {
   async signOut() {
     try {
       if (this.client.authToken) {
-        await fetch(`${this.client.url}/auth/v1/logout`, {
+        await fetchWithRetry(`${this.client.url}/auth/v1/logout`, {
           method: 'POST',
           headers: {
             'apikey': this.client.anonKey,
@@ -659,4 +696,5 @@ if (typeof self !== 'undefined') {
   self.supabase = supabase;
   self.isSupabaseConfigured = isConfigured;
   self.SupabaseClient = SupabaseClient;
+  self.fetchWithRetry = fetchWithRetry;
 }

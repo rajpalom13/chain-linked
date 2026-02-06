@@ -16,6 +16,41 @@ interface AuthState {
   pendingCount?: number;
 }
 
+/** LinkedIn page link for data capture */
+interface CaptureLink {
+  href: string;
+  label: string;
+  desc: string;
+  captureType: string;
+}
+
+/** Capture page categories */
+const CAPTURE_PAGES: { category: string; links: CaptureLink[] }[] = [
+  {
+    category: 'Profile & Network',
+    links: [
+      { href: 'https://www.linkedin.com/in/me/', label: 'My Profile', desc: 'Name, headline, connections', captureType: 'profile' },
+      { href: 'https://www.linkedin.com/mynetwork/', label: 'My Network', desc: 'Connections & invitations', captureType: 'connections' },
+    ],
+  },
+  {
+    category: 'Analytics',
+    links: [
+      { href: 'https://www.linkedin.com/analytics/creator/content/', label: 'Content Analytics', desc: 'Impressions & engagement', captureType: 'creator_analytics' },
+      { href: 'https://www.linkedin.com/analytics/creator/audience/', label: 'Audience Analytics', desc: 'Follower demographics', captureType: 'audience_analytics' },
+      { href: 'https://www.linkedin.com/analytics/creator/top-posts/', label: 'Top Posts', desc: 'Best performing posts', captureType: 'creator_analytics' },
+      { href: 'https://www.linkedin.com/analytics/profile-views/', label: 'Profile Views', desc: 'Who viewed your profile', captureType: 'profile_views' },
+    ],
+  },
+  {
+    category: 'Content',
+    links: [
+      { href: 'https://www.linkedin.com/feed/', label: 'Feed', desc: 'Posts & updates', captureType: 'feed' },
+      { href: 'https://www.linkedin.com/dashboard/', label: 'Dashboard', desc: 'Overview metrics', captureType: 'creator_analytics' },
+    ],
+  },
+];
+
 /**
  * Main App component - Minimal auth-focused UI
  */
@@ -220,35 +255,40 @@ function App() {
               </svg>
             </a>
 
-            {/* LinkedIn Links */}
+            {/* LinkedIn Capture Pages */}
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <div className="px-3 py-2 bg-slate-50 border-b border-slate-100">
-                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">Visit LinkedIn to capture data</p>
+              <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">Visit pages to capture data</p>
+                <span className="text-[9px] text-slate-400">{CAPTURE_PAGES.reduce((n, g) => n + g.links.length, 0)} pages</span>
               </div>
-              <div className="divide-y divide-slate-100">
-                {[
-                  { href: 'https://www.linkedin.com/feed/', label: 'Feed', desc: 'Posts & updates' },
-                  { href: 'https://www.linkedin.com/in/me/', label: 'My Profile', desc: 'Your profile data' },
-                  { href: 'https://www.linkedin.com/mynetwork/', label: 'My Network', desc: 'Connections' },
-                  { href: 'https://www.linkedin.com/analytics/', label: 'Analytics', desc: 'Post performance' },
-                ].map((link) => (
-                  <a
-                    key={link.href}
-                    href={link.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between px-3 py-2.5 hover:bg-slate-50 transition-colors group"
-                  >
-                    <div>
-                      <span className="text-xs font-medium text-slate-700">{link.label}</span>
-                      <span className="text-[10px] text-slate-400 ml-2">{link.desc}</span>
-                    </div>
-                    <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-400 group-hover:translate-x-0.5 transition-all" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
-                  </a>
-                ))}
-              </div>
+              {CAPTURE_PAGES.map((group) => (
+                <div key={group.category}>
+                  <div className="px-3 py-1.5 bg-slate-50/50 border-b border-slate-100">
+                    <p className="text-[9px] font-semibold text-blue-600 uppercase tracking-wider">{group.category}</p>
+                  </div>
+                  <div className="divide-y divide-slate-100">
+                    {group.links.map((link) => (
+                      <a
+                        key={link.href}
+                        href={link.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between px-3 py-2 hover:bg-blue-50/50 transition-colors group"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <span className="text-xs font-medium text-slate-700">{link.label}</span>
+                          <span className="text-[10px] text-slate-400 ml-2">{link.desc}</span>
+                        </div>
+                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all shrink-0 ml-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
+                          <polyline points="15 3 21 3 21 9" />
+                          <line x1="10" y1="14" x2="21" y2="3" />
+                        </svg>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
 
             {/* Sign Out */}
@@ -316,12 +356,7 @@ function App() {
             <div className="pt-4 border-t border-slate-100">
               <p className="text-[10px] text-slate-400 text-center mb-3">After signing in, visit these pages to capture data:</p>
               <div className="bg-slate-50 rounded-lg overflow-hidden divide-y divide-slate-100">
-                {[
-                  { href: 'https://www.linkedin.com/feed/', label: 'Feed' },
-                  { href: 'https://www.linkedin.com/in/me/', label: 'My Profile' },
-                  { href: 'https://www.linkedin.com/mynetwork/', label: 'My Network' },
-                  { href: 'https://www.linkedin.com/analytics/', label: 'Analytics' },
-                ].map((link) => (
+                {CAPTURE_PAGES.flatMap((g) => g.links).map((link) => (
                   <a
                     key={link.href}
                     href={link.href}

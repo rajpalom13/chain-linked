@@ -123,8 +123,8 @@ export function useNotificationSettings() {
 
   const fetchSettings = useCallback(async () => {
     const response = await sendMessage({ type: 'GET_NOTIFICATION_SETTINGS' });
-    if (response) {
-      setSettings(response);
+    if (response && typeof response === 'object') {
+      setSettings(response as typeof settings);
     }
   }, [sendMessage]);
 
@@ -157,8 +157,8 @@ export function useBackupSchedule() {
 
   const fetchSchedule = useCallback(async () => {
     const response = await sendMessage({ type: 'GET_BACKUP_SCHEDULE' });
-    if (response) {
-      setSchedule(response);
+    if (response && typeof response === 'object') {
+      setSchedule(response as typeof schedule);
     }
   }, [sendMessage]);
 

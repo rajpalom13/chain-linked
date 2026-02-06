@@ -49,6 +49,7 @@ async function buildContentScripts() {
     { entry: 'dom-extractor.ts', out: 'dom-extractor.js' },
     { entry: 'content-script.ts', out: 'content-script.js' },
     { entry: 'company-extractor.ts', out: 'company-extractor.js' },
+    { entry: 'main-world-interceptor.ts', out: 'main-world-interceptor.js' },
   ];
 
   for (const script of contentScripts) {
@@ -57,12 +58,12 @@ async function buildContentScripts() {
       try {
         await build({
           entryPoints: [srcPath],
-          bundle: false,
+          bundle: true,
           outfile: resolve(__dirname, 'dist/content', script.out),
           format: 'iife',
           target: 'es2020',
           platform: 'browser',
-          sourcemap: false,
+          sourcemap: true,
           minify: false,
         });
         console.log(`  - Built: content/${script.out}`);
@@ -123,7 +124,6 @@ function copyStaticFiles() {
   // Copy content scripts that don't have TypeScript versions
   const contentDir = resolve(__dirname, 'content');
   const contentFilesToCopy = [
-    'main-world-interceptor.js',
     'injected.js',
     'styles.css',
   ];
@@ -135,15 +135,18 @@ function copyStaticFiles() {
     }
   });
 
-  // Fix popup HTML paths after Vite build
+  // Copy index.html → popup.html (manifest references popup/popup.html)
   const popupIndexPath = resolve(__dirname, 'dist/popup/index.html');
   const popupHtmlPath = resolve(__dirname, 'dist/popup/popup.html');
   if (existsSync(popupIndexPath)) {
     let popupHtml = readFileSync(popupIndexPath, 'utf-8');
+    // Ensure relative paths (Vite may output absolute or relative depending on base config)
     popupHtml = popupHtml.replace(/src="\/popup\.js"/g, 'src="./popup.js"');
     popupHtml = popupHtml.replace(/href="\/popup\.css"/g, 'href="./popup.css"');
     writeFileSync(popupHtmlPath, popupHtml);
-    console.log('  - Fixed: popup.html paths');
+    console.log('  - Fixed: popup.html paths (copied from index.html)');
+  } else {
+    console.warn('  - WARNING: dist/popup/index.html not found! Run "npm run build:popup" first.');
   }
 
   console.log('[Build] Static files copied successfully');

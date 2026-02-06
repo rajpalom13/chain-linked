@@ -8,6 +8,7 @@ import type { TrendType, AlertConfig } from '../shared/types';
 // Notification IDs
 export const NOTIFICATION_IDS = {
   CAPTURE_SUCCESS: 'linkedin-capture-success',
+  CAPTURE_FAILURE: 'linkedin-capture-failure',
   BACKUP_SUCCESS: 'linkedin-backup-success',
   BACKUP_FAILURE: 'linkedin-backup-failure',
   GROWTH_ALERT: 'linkedin-growth-alert',
@@ -112,7 +113,7 @@ async function shouldShowNotification(type: keyof NotificationSettings): Promise
  */
 async function createNotification(
   id: string,
-  options: chrome.notifications.NotificationOptions
+  options: chrome.notifications.NotificationOptions<true>
 ): Promise<string> {
   return new Promise((resolve) => {
     chrome.notifications.create(id, options, (notificationId) => {
@@ -168,6 +169,43 @@ export async function showCaptureNotification(
 
   // Auto-clear after 3 seconds
   setTimeout(() => clearNotification(NOTIFICATION_IDS.CAPTURE_SUCCESS), 3000);
+}
+
+/**
+ * Show capture failure notification
+ */
+export async function showCaptureFailureNotification(
+  captureType: string,
+  error: string,
+  retryCount?: number
+): Promise<void> {
+  if (!(await shouldShowNotification('captureNotifications'))) return;
+
+  const typeLabels: Record<string, string> = {
+    creator_analytics: 'Creator Analytics',
+    post_analytics: 'Post Analytics',
+    audience_analytics: 'Audience Analytics',
+    audience_demographics: 'Audience Demographics',
+    post_demographics: 'Post Demographics',
+    profile_views: 'Profile Views',
+    profile: 'Profile Data',
+    company_analytics: 'Company Analytics',
+    content_calendar: 'Content Calendar',
+  };
+
+  const label = typeLabels[captureType] || captureType;
+  const retryInfo = retryCount ? ` (after ${retryCount} retries)` : '';
+
+  await createNotification(NOTIFICATION_IDS.CAPTURE_FAILURE, {
+    type: 'basic',
+    iconUrl: ICONS.ERROR,
+    title: 'Capture Failed',
+    message: `Failed to capture ${label}${retryInfo}: ${error}`,
+    priority: 1,
+  });
+
+  // Auto-clear after 10 seconds
+  setTimeout(() => clearNotification(NOTIFICATION_IDS.CAPTURE_FAILURE), 10000);
 }
 
 // ==========================================

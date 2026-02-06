@@ -412,16 +412,7 @@ function parseRelativeTime(text: string): number {
 // EXPORTS
 // ============================================
 
-// Make extractors available globally for auto-capture
-declare global {
-  interface Window {
-    LinkedInCompanyExtractor?: {
-      detectCompanyPage: typeof detectCompanyPage;
-      extractCompanyAnalytics: typeof extractCompanyAnalytics;
-      extractContentCalendar: typeof extractContentCalendar;
-    };
-  }
-}
+// Window.LinkedInCompanyExtractor is declared in auto-capture.ts
 
 // Initialize global extractor
 (function() {

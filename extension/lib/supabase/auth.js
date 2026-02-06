@@ -26,7 +26,7 @@ class SupabaseAuth {
       }
 
       console.log('[SupabaseAuth] Attempting signup to:', self.supabase.url);
-      const response = await fetch(`${self.supabase.url}/auth/v1/signup`, {
+      const response = await self.fetchWithRetry(`${self.supabase.url}/auth/v1/signup`, {
         method: 'POST',
         mode: 'cors',
         headers: {
@@ -96,7 +96,7 @@ class SupabaseAuth {
       }
 
       console.log('[SupabaseAuth] Attempting signin to:', self.supabase.url);
-      const response = await fetch(`${self.supabase.url}/auth/v1/token?grant_type=password`, {
+      const response = await self.fetchWithRetry(`${self.supabase.url}/auth/v1/token?grant_type=password`, {
         method: 'POST',
         mode: 'cors',
         headers: {
@@ -220,7 +220,7 @@ class SupabaseAuth {
    */
   async refreshSession(refreshToken) {
     try {
-      const response = await fetch(`${self.supabase.url}/auth/v1/token?grant_type=refresh_token`, {
+      const response = await self.fetchWithRetry(`${self.supabase.url}/auth/v1/token?grant_type=refresh_token`, {
         method: 'POST',
         mode: 'cors',
         headers: {
@@ -268,7 +268,7 @@ class SupabaseAuth {
   async signOut() {
     try {
       if (self.supabase && this.session?.access_token) {
-        await fetch(`${self.supabase.url}/auth/v1/logout`, {
+        await self.fetchWithRetry(`${self.supabase.url}/auth/v1/logout`, {
           method: 'POST',
           headers: {
             'apikey': self.supabase.anonKey,
@@ -346,7 +346,7 @@ class SupabaseAuth {
    */
   async resetPassword(email) {
     try {
-      const response = await fetch(`${self.supabase.url}/auth/v1/recover`, {
+      const response = await self.fetchWithRetry(`${self.supabase.url}/auth/v1/recover`, {
         method: 'POST',
         headers: {
           'apikey': self.supabase.anonKey,

@@ -15,9 +15,13 @@ export const SYNCABLE_STORAGE_KEYS = [
   'linkedin_my_posts',
   'linkedin_comments',
   'linkedin_followers',
+  'linkedin_posts',
   'captured_apis',
-  'capture_stats',
+  'auto_capture_stats',
   'extension_settings',
+  // History tables for trend tracking
+  'linkedin_analytics_history',
+  'linkedin_audience_history',
 ] as const;
 
 export type SyncableStorageKey = typeof SYNCABLE_STORAGE_KEYS[number];
@@ -31,14 +35,15 @@ export const STORAGE_TABLE_MAP: Record<string, string> = {
   'linkedin_connections': 'connections',
   'linkedin_feed_posts': 'feed_posts',
   'linkedin_my_posts': 'my_posts',
+  'linkedin_posts': 'my_posts',
   'linkedin_comments': 'comments',
   'linkedin_followers': 'followers',
   'captured_apis': 'captured_apis',
-  'capture_stats': 'capture_stats',
+  'auto_capture_stats': 'capture_stats',
   'extension_settings': 'extension_settings',
-  // Additional tables
-  'linkedin_notifications': 'notifications',
-  'linkedin_invitations': 'invitations',
+  // History tables for trend tracking
+  'linkedin_analytics_history': 'analytics_history',
+  'linkedin_audience_history': 'audience_history',
 };
 
 // Field mapping for camelCase to snake_case conversion
@@ -64,105 +69,171 @@ export const FIELD_MAPPINGS: Record<string, Record<string, string>> = {
     'backgroundImageUrl': 'background_image_url',
     'aboutSection': 'summary',
     'about': 'summary',  // alias
-    'location': 'location',
-    'industry': 'industry',
+    // Note: 'location' and 'industry' are already snake_case, no mapping needed
+    // Identity mappings (key === value) cause the delete step to remove the field
   },
   'linkedin_analytics': {
+    // Actual DB columns: page_type, impressions, members_reached, engagements,
+    // new_followers, profile_views, search_appearances, top_posts, raw_data,
+    // captured_at, updated_at
     'membersReached': 'members_reached',
     'profileViews': 'profile_views',
     'searchAppearances': 'search_appearances',
     'newFollowers': 'new_followers',
-    'postCount': 'post_count',
-    'reactionCount': 'reaction_count',
-    'commentCount': 'comment_count',
-    'shareCount': 'share_count',
     'capturedAt': 'captured_at',
     'lastUpdated': 'updated_at',
     'topPosts': 'top_posts',
     'pageType': 'page_type',
-    // Additional analytics field mappings
-    'impressionGrowth': 'impression_growth',
-    'growth': 'growth_percentage',
-    'growthPercentage': 'growth_percentage',
-    'engagements': 'engagements',  // Keep same name but ensure mapping exists
-    'engagementRate': 'engagement_rate',
     'rawData': 'raw_data',
+    // Note: 'impressions', 'engagements' are already snake_case, no mapping needed
   },
   'post_analytics': {
+    // Actual DB columns: activity_urn, post_content, post_type, impressions,
+    // members_reached, unique_views, reactions, comments, reposts,
+    // engagement_rate, profile_viewers, followers_gained, demographics,
+    // raw_data, posted_at, captured_at, updated_at
     'activityUrn': 'activity_urn',
-    'postText': 'post_text',
+    'postText': 'post_content',
+    'text': 'post_content',
+    'commentary': 'post_content',
     'postType': 'post_type',
-    'impressionCount': 'impression_count',
-    'likeCount': 'like_count',
-    'commentCount': 'comment_count',
-    'repostCount': 'repost_count',
-    'shareCount': 'share_count',
-    'clickCount': 'click_count',
+    'impressionCount': 'impressions',
+    'numImpressions': 'impressions',
+    'likeCount': 'reactions',
+    'numLikes': 'reactions',
+    'reactionCount': 'reactions',
+    'commentCount': 'comments',
+    'numComments': 'comments',
+    'repostCount': 'reposts',
+    'numShares': 'reposts',
+    'shareCount': 'reposts',
+    'membersReached': 'members_reached',
+    'uniqueViews': 'unique_views',
+    'profileViewers': 'profile_viewers',
+    'followersGained': 'followers_gained',
     'engagementRate': 'engagement_rate',
     'postedAt': 'posted_at',
     'capturedAt': 'captured_at',
-    'firstCaptured': 'first_captured',
-    'lastUpdated': 'last_updated',
+    'rawData': 'raw_data',
   },
   'audience_data': {
+    // Actual DB columns: total_followers, follower_growth, demographics_preview,
+    // top_job_titles, top_companies, top_locations, top_industries,
+    // raw_data, captured_at, updated_at
     'totalFollowers': 'total_followers',
-    'newFollowers': 'new_followers',
     'followerGrowth': 'follower_growth',
-    'growthRate': 'growth_rate',
+    'demographicsPreview': 'demographics_preview',
+    'topJobTitles': 'top_job_titles',
+    'topCompanies': 'top_companies',
     'topLocations': 'top_locations',
     'topIndustries': 'top_industries',
-    'topJobFunctions': 'top_job_functions',
-    'topSeniorities': 'top_seniorities',
     'capturedAt': 'captured_at',
-    'lastUpdated': 'last_updated',
+    'rawData': 'raw_data',
   },
   'connections': {
+    // Actual DB columns: linkedin_id, first_name, last_name, headline,
+    // profile_picture, public_identifier, connected_at, connection_degree (INTEGER),
+    // raw_data, created_at, updated_at
     'linkedinId': 'linkedin_id',
     'firstName': 'first_name',
     'lastName': 'last_name',
     'profilePicture': 'profile_picture',
+    'profilePictureUrl': 'profile_picture',
     'publicIdentifier': 'public_identifier',
     'connectedAt': 'connected_at',
     'connectionDegree': 'connection_degree',
+    'capturedAt': 'created_at',
   },
   'feed_posts': {
-    'authorId': 'author_id',
+    // Actual DB columns: activity_urn, author_urn, author_name, author_headline,
+    // author_profile_url, content, hashtags, media_type, reactions, comments,
+    // reposts, engagement_score, posted_at, raw_data, created_at, updated_at
+    'authorId': 'author_urn',
+    'authorUrn': 'author_urn',
     'authorName': 'author_name',
     'authorHeadline': 'author_headline',
-    'authorProfilePicture': 'author_profile_picture',
-    'postText': 'post_text',
-    'postType': 'post_type',
+    'authorProfilePicture': 'author_profile_url',
+    'authorProfileUrl': 'author_profile_url',
+    'postText': 'content',
+    'text': 'content',
+    'commentary': 'content',
     'activityUrn': 'activity_urn',
-    'likeCount': 'like_count',
-    'commentCount': 'comment_count',
-    'repostCount': 'repost_count',
+    'likeCount': 'reactions',
+    'numLikes': 'reactions',
+    'reactionCount': 'reactions',
+    'commentCount': 'comments',
+    'numComments': 'comments',
+    'repostCount': 'reposts',
+    'numShares': 'reposts',
+    'shareCount': 'reposts',
+    'mediaType': 'media_type',
+    'engagementScore': 'engagement_score',
     'postedAt': 'posted_at',
-    'capturedAt': 'captured_at',
+    'capturedAt': 'created_at',
   },
   'my_posts': {
+    // Actual DB columns: activity_urn, content, media_type, reactions, comments,
+    // reposts, impressions, posted_at, raw_data, created_at, updated_at
     'activityUrn': 'activity_urn',
-    'postText': 'post_text',
-    'postType': 'post_type',
-    'impressionCount': 'impression_count',
-    'likeCount': 'like_count',
-    'commentCount': 'comment_count',
-    'repostCount': 'repost_count',
+    'postText': 'content',
+    'text': 'content',
+    'commentary': 'content',
+    'impressionCount': 'impressions',
+    'numImpressions': 'impressions',
+    'likeCount': 'reactions',
+    'numLikes': 'reactions',
+    'reactionCount': 'reactions',
+    'commentCount': 'comments',
+    'numComments': 'comments',
+    'repostCount': 'reposts',
+    'numShares': 'reposts',
+    'shareCount': 'reposts',
+    'mediaType': 'media_type',
     'postedAt': 'posted_at',
-    'capturedAt': 'captured_at',
+    'capturedAt': 'created_at',
+  },
+  'comments': {
+    // Actual DB columns: activity_urn, author_name, author_headline,
+    // author_profile_url, content, comment_urn, parent_urn, reactions,
+    // posted_at, raw_data, created_at, updated_at
+    'activityUrn': 'activity_urn',
+    'commentUrn': 'comment_urn',
+    'parentUrn': 'parent_urn',
+    'authorName': 'author_name',
+    'authorHeadline': 'author_headline',
+    'authorProfileUrl': 'author_profile_url',
+    'commentText': 'content',
+    'text': 'content',
+    'likeCount': 'reactions',
+    'reactionCount': 'reactions',
+    'postedAt': 'posted_at',
+    'capturedAt': 'created_at',
+  },
+  'followers': {
+    // Actual DB columns: linkedin_id, first_name, last_name, headline,
+    // profile_picture, public_identifier, followed_at, raw_data, created_at, updated_at
+    'linkedinId': 'linkedin_id',
+    'firstName': 'first_name',
+    'lastName': 'last_name',
+    'profilePicture': 'profile_picture',
+    'profilePictureUrl': 'profile_picture',
+    'publicIdentifier': 'public_identifier',
+    'followedAt': 'followed_at',
+    'capturedAt': 'created_at',
   },
   'captured_apis': {
-    'apiUrl': 'api_url',
-    'apiCategory': 'api_category',
-    'responseSize': 'response_size',
+    // Service worker stores: { endpoint, method, url, data, category, capturedAt }
+    'data': 'response_data',
     'capturedAt': 'captured_at',
   },
   'capture_stats': {
-    'totalCaptures': 'total_captures',
-    'successfulCaptures': 'successful_captures',
-    'failedCaptures': 'failed_captures',
-    'capturesByType': 'captures_by_type',
-    'lastCapture': 'last_capture',
-    'captureHistory': 'capture_history',
+    // Actual DB columns: date, api_calls_captured, feed_posts_captured,
+    // analytics_captures, dom_extractions, created_at, updated_at
+    'apiCallsCaptured': 'api_calls_captured',
+    'feedPostsCaptured': 'feed_posts_captured',
+    'analyticsCaptures': 'analytics_captures',
+    'domExtractions': 'dom_extractions',
+    'capturedAt': 'created_at',
   },
   'extension_settings': {
     'autoCapture': 'auto_capture_enabled',
@@ -177,6 +248,18 @@ export const FIELD_MAPPINGS: Record<string, Record<string, string>> = {
     'syncInterval': 'sync_interval',
     'darkMode': 'dark_mode',
     'notificationsEnabled': 'notifications_enabled',
+  },
+  // Analytics history field mappings
+  'analytics_history': {
+    'membersReached': 'members_reached',
+    'profileViews': 'profile_views',
+    // Note: topPostsCount column does not exist in database
+  },
+  // Audience history field mappings
+  'audience_history': {
+    'totalFollowers': 'total_followers',
+    'newFollowers': 'new_followers',
+    // Note: follower_growth column does not exist in database
   },
 };
 
@@ -219,6 +302,31 @@ export const TABLE_COLUMNS: Record<string, string[]> = {
     'capture_profile', 'capture_messaging', 'sync_enabled', 'sync_interval',
     'dark_mode', 'notifications_enabled', 'raw_settings', 'created_at', 'updated_at',
   ],
+  // Verified against live Supabase schema on 2026-02-06
+  'feed_posts': [
+    'id', 'user_id', 'activity_urn', 'author_urn', 'author_name', 'author_headline',
+    'author_profile_url', 'content', 'hashtags', 'media_type', 'reactions', 'comments',
+    'reposts', 'engagement_score', 'posted_at', 'raw_data', 'created_at', 'updated_at',
+  ],
+  'my_posts': [
+    'id', 'user_id', 'activity_urn', 'content', 'media_type', 'reactions', 'comments',
+    'reposts', 'impressions', 'posted_at', 'raw_data', 'created_at', 'updated_at',
+  ],
+  'comments': [
+    'id', 'user_id', 'activity_urn', 'author_name', 'author_headline',
+    'author_profile_url', 'content', 'comment_urn', 'parent_urn', 'reactions',
+    'posted_at', 'raw_data', 'created_at', 'updated_at',
+  ],
+  'connections': [
+    'id', 'user_id', 'linkedin_id', 'first_name', 'last_name', 'headline',
+    'profile_picture', 'public_identifier', 'connected_at', 'connection_degree',
+    'raw_data', 'created_at', 'updated_at',
+  ],
+  'followers': [
+    'id', 'user_id', 'linkedin_id', 'first_name', 'last_name', 'headline',
+    'profile_picture', 'public_identifier', 'followed_at', 'raw_data',
+    'created_at', 'updated_at',
+  ],
   'captured_apis': [
     'id', 'user_id', 'category', 'endpoint', 'method', 'response_hash',
     'response_data', 'captured_at',
@@ -226,6 +334,15 @@ export const TABLE_COLUMNS: Record<string, string[]> = {
   'capture_stats': [
     'id', 'user_id', 'date', 'api_calls_captured', 'feed_posts_captured',
     'analytics_captures', 'dom_extractions', 'created_at', 'updated_at',
+  ],
+  // Analytics history table for trend tracking
+  'analytics_history': [
+    'id', 'user_id', 'date', 'impressions', 'members_reached', 'engagements',
+    'followers', 'profile_views', 'created_at',
+  ],
+  // Audience history table for follower trend tracking
+  'audience_history': [
+    'id', 'user_id', 'date', 'total_followers', 'new_followers', 'created_at',
   ],
 };
 
@@ -262,14 +379,20 @@ let lastSyncTime: number | null = null;
  * Check if a storage key should be synced to Supabase
  */
 export function isSyncableKey(key: string): boolean {
-  return SYNCABLE_STORAGE_KEYS.includes(key as SyncableStorageKey);
+  if (SYNCABLE_STORAGE_KEYS.includes(key as SyncableStorageKey)) return true;
+  // Also sync captured_apis_{category} keys to the captured_apis table
+  if (key.startsWith('captured_apis_')) return true;
+  return false;
 }
 
 /**
  * Get the Supabase table name for a storage key
  */
 export function getTableForKey(key: string): string | null {
-  return STORAGE_TABLE_MAP[key] || null;
+  if (STORAGE_TABLE_MAP[key]) return STORAGE_TABLE_MAP[key];
+  // Map captured_apis_{category} keys to the captured_apis table
+  if (key.startsWith('captured_apis_')) return 'captured_apis';
+  return null;
 }
 
 /**
@@ -289,6 +412,13 @@ export function prepareForSupabase(
   userId: string | null
 ): Record<string, unknown> {
   if (!data || typeof data !== 'object') return data;
+
+  // If data is an array, unwrap the first element (e.g. analytics_history arrives as [{date:..., impressions:...}])
+  if (Array.isArray(data)) {
+    if (data.length === 0) return {};
+    console.log(`[SYNC][PREPARE] Unwrapping array of ${data.length} items for ${table}`);
+    return prepareForSupabase(data[0] as Record<string, unknown>, table, userId);
+  }
 
   // Log input data for debugging
   console.log(`[SYNC][PREPARE] Input data for ${table}:`, JSON.stringify(data, null, 2));
@@ -316,16 +446,32 @@ export function prepareForSupabase(
 
   const now = new Date().toISOString();
 
-  // Tables that have created_at column
-  const tablesWithCreatedAt = ['extension_settings', 'capture_stats', 'post_analytics'];
+  // Tables that have created_at but NOT captured_at
+  const tablesWithCreatedAtOnly = [
+    'feed_posts', 'my_posts', 'comments', 'connections', 'followers',
+    'capture_stats',
+  ];
+  // Tables that have both created_at and captured_at
+  const tablesWithBoth = ['extension_settings'];
+  // Tables that have captured_at but NOT created_at
+  const tablesWithCapturedAtOnly = [
+    'linkedin_profiles', 'linkedin_analytics', 'post_analytics',
+    'audience_data', 'captured_apis',
+  ];
 
-  // Add timestamps if missing - use captured_at for analytics tables
-  if (!prepared.captured_at) {
-    prepared.captured_at = now;
-  }
-  // Only add created_at for tables that actually have this column
-  if (tablesWithCreatedAt.includes(table) && !prepared.created_at) {
-    prepared.created_at = now;
+  // Add appropriate timestamps based on actual table schema
+  if (tablesWithCreatedAtOnly.includes(table)) {
+    if (!prepared.created_at) prepared.created_at = now;
+    // Remove captured_at as these tables don't have that column
+    delete prepared.captured_at;
+  } else if (tablesWithBoth.includes(table)) {
+    if (!prepared.created_at) prepared.created_at = now;
+    if (!prepared.captured_at) prepared.captured_at = now;
+  } else if (tablesWithCapturedAtOnly.includes(table)) {
+    if (!prepared.captured_at) prepared.captured_at = now;
+  } else {
+    // Default: add captured_at
+    if (!prepared.captured_at) prepared.captured_at = now;
   }
   prepared.updated_at = now;
 
@@ -359,10 +505,10 @@ export function prepareForSupabase(
 
   // Ensure numeric fields are numbers for linkedin_analytics
   if (table === 'linkedin_analytics') {
+    // Only include columns that actually exist in the database
     const numericFields = [
       'impressions', 'engagements', 'members_reached', 'profile_views',
-      'search_appearances', 'new_followers', 'post_count', 'reaction_count',
-      'comment_count', 'share_count', 'impression_growth', 'growth_percentage'
+      'search_appearances', 'new_followers',
     ];
     numericFields.forEach(field => {
       if (prepared[field] !== undefined && typeof prepared[field] === 'string') {
@@ -464,20 +610,48 @@ export async function queueForSync(
     return;
   }
 
+  // Strip large fields before queueing to prevent storage quota issues
+  // raw_data, included, data blobs can be 50-200KB+ each
+  const MAX_QUEUE_ITEM_SIZE = 50_000; // 50KB limit per queued item
+  let syncData = data;
+  const serialized = JSON.stringify(data);
+  if (serialized.length > MAX_QUEUE_ITEM_SIZE) {
+    syncData = { ...data };
+    // Strip known large fields in priority order
+    const largeFields = ['raw_data', 'included', 'data', 'elements', 'rawData', 'responseData', 'response_data'];
+    for (const field of largeFields) {
+      if (syncData[field] !== undefined) {
+        delete syncData[field];
+      }
+    }
+    const newSize = JSON.stringify(syncData).length;
+    console.log(`[CL:SYNC] --- TRIMMED: table=${table} ${serialized.length}→${newSize} bytes (stripped large fields)`);
+  }
+
   const pendingChanges = await getPendingChanges();
 
   const change: PendingChange = {
     table,
     operation,
-    data,
+    data: syncData,
     localKey,
     timestamp: Date.now(),
   };
 
-  // Check if there's already a pending change for this key
-  const existingIndex = pendingChanges.findIndex(
-    (c) => c.localKey === localKey && c.table === table
-  );
+  // For multi-record tables, dedup by unique record identifiers (activity_urn, comment_urn, linkedin_id)
+  // so that different records for the same table don't overwrite each other in the queue
+  const recordId = (data.activity_urn || data.comment_urn || data.linkedin_id || '') as string;
+
+  const existingIndex = pendingChanges.findIndex((c) => {
+    if (c.localKey !== localKey || c.table !== table) return false;
+    if (recordId) {
+      // For records with unique IDs, only match if same record
+      const existingRecordId = (c.data.activity_urn || c.data.comment_urn || c.data.linkedin_id || '') as string;
+      return existingRecordId === recordId;
+    }
+    // For single-record tables (profile, settings), match by key alone
+    return true;
+  });
 
   if (existingIndex >= 0) {
     // Update existing pending change
@@ -488,7 +662,7 @@ export async function queueForSync(
   }
 
   await savePendingChanges(pendingChanges);
-  console.log(`[SyncBridge] Queued ${localKey} for sync to ${table}`);
+  console.log(`[CL:SYNC] >>> QUEUED: key=${localKey} table=${table} recordId=${recordId || 'none'} pending_total=${pendingChanges.length}`);
 
   // Notify popup about pending change
   try {
@@ -654,34 +828,80 @@ export async function processPendingChanges(): Promise<{
 
     for (const [table, changes] of Object.entries(byTable)) {
       try {
-        console.log(`[SYNC][PROCESS] Processing ${changes.length} changes for ${table}`);
+        console.log(`[CL:SYNC] --- PROCESSING: table=${table} changes=${changes.length}`);
 
         // Prepare all data for this table
         const records = changes.map((c) =>
           prepareForSupabase(c.data, table, currentUserId)
         );
 
-        console.log(`[SYNC][PROCESS] Syncing ${records.length} records to ${table}`);
-        console.log(`[SYNC][PROCESS] First record:`, JSON.stringify(records[0], null, 2));
+        // Log the columns that will be sent to Supabase
+        const firstRecordKeys = records[0] ? Object.keys(records[0]).sort().join(', ') : 'empty';
+        console.log(`[CL:SYNC] --- PREPARED: table=${table} records=${records.length} columns=[${firstRecordKeys}]`);
+        console.log(`[CL:SYNC] --- FIRST_RECORD:`, JSON.stringify(records[0], null, 2));
         if (records.length > 1) {
-          console.log(`[SYNC][PROCESS] Additional records count: ${records.length - 1}`);
+          console.log(`[CL:SYNC] --- Additional records: ${records.length - 1}`);
         }
 
-        // Use user_id as conflict key for tables with unique user_id constraint
+        // Determine the correct conflict key for each table
         const userIdConflictTables = ['linkedin_profiles', 'audience_data', 'extension_settings'];
+        const compositeConflictTables: Record<string, string> = {
+          'capture_stats': 'user_id,date',
+          'analytics_history': 'user_id,date',
+          'audience_history': 'user_id,date',
+          'my_posts': 'user_id,activity_urn',
+          'feed_posts': 'user_id,activity_urn',
+        };
         const isUserIdTable = userIdConflictTables.includes(table);
+        const compositeKey = compositeConflictTables[table];
+
+        // Normalize records so all have the same keys (PostgREST batch upsert requires this)
+        if (records.length > 1) {
+          const allKeys = new Set<string>();
+          for (const r of records) {
+            for (const k of Object.keys(r)) allKeys.add(k);
+          }
+          for (const r of records) {
+            for (const k of allKeys) {
+              if (!(k in r)) {
+                r[k] = null;
+              }
+            }
+          }
+        }
 
         let error: { message: string } | undefined;
 
-        if (isUserIdTable && currentUserId) {
+        if (compositeKey) {
+          // Tables with composite unique constraints (user_id + date)
+          const tableClient = supabase.from(table) as {
+            upsert: (data: unknown, options?: { onConflict?: string }) => Promise<{ data?: unknown[]; error?: { message: string } }>;
+          };
+          console.log(`[SyncBridge] Using UPSERT for ${table} with onConflict: ${compositeKey}`);
+          for (const record of records) {
+            const recordWithUser = { ...record, user_id: currentUserId };
+            // Ensure date is set for date-composite tables
+            if (!recordWithUser.date && compositeKey.includes('date')) {
+              recordWithUser.date = new Date().toISOString().split('T')[0];
+            }
+            // Strip auto-generated id for composite key tables — let the DB handle id
+            // to avoid conflicts when the same logical record is re-synced with a new UUID
+            if (recordWithUser.id && !compositeKey.includes('id')) {
+              delete recordWithUser.id;
+            }
+            const upsertResult = await tableClient.upsert(recordWithUser, { onConflict: compositeKey });
+            console.log(`[SyncBridge] Upsert result for ${table}:`, JSON.stringify(upsertResult));
+            if (upsertResult.error) {
+              console.error(`[SyncBridge] Upsert failed for ${table}:`, upsertResult.error);
+              error = upsertResult.error;
+            }
+          }
+        } else if (isUserIdTable && currentUserId) {
           // For user_id tables: use UPSERT with user_id as conflict key
           console.log(`[SyncBridge] Using UPSERT strategy for ${table} with onConflict: user_id`);
 
           for (const record of records) {
-            // Ensure user_id is set
             const recordWithUser = { ...record, user_id: currentUserId };
-
-            // Use upsert with user_id as the conflict key
             const tableClient = supabase.from(table) as {
               upsert: (data: unknown, options?: { onConflict?: string }) => Promise<{ data?: unknown[]; error?: { message: string } }>;
             };
@@ -709,48 +929,51 @@ export async function processPendingChanges(): Promise<{
         }
 
         if (error) {
-          console.error(`[ERROR][SYNC] Sync error for ${table}:`, error);
+          console.error(`[CL:SYNC] !!! FAILED: table=${table} error="${error.message}"`);
           errors.push(`${table}: ${error.message}`);
 
-          // Check if this is a duplicate key error for user_id conflict tables
-          // If so, the data already exists - remove from pending queue
-          const isDuplicateUserIdError =
-            error.message.includes('duplicate key value violates unique constraint') &&
-            error.message.includes('user_id') &&
-            userIdConflictTables.includes(table);
+          // Treat any duplicate key violation as "data already exists" — remove from queue
+          const isDuplicateError =
+            error.message.includes('duplicate key value violates unique constraint');
 
-          if (isDuplicateUserIdError) {
-            console.log(`[SyncBridge] Duplicate user_id error for ${table} - data already exists, removing from queue`);
-            processedChanges.push(...changes); // Mark as processed to remove from queue
-            // Don't count as failed since data is already in DB
+          if (isDuplicateError) {
+            console.log(`[CL:SYNC] --- DUPLICATE: table=${table} (data already exists, removing from queue)`);
+            processedChanges.push(...changes);
           } else {
             failed += changes.length;
           }
         } else {
-          console.log(`[SYNC][SUCCESS] Successfully synced ${changes.length} records to ${table}`);
+          console.log(`[CL:SYNC] +++ SUCCESS: table=${table} records=${changes.length} synced to Supabase`);
           success += changes.length;
           processedChanges.push(...changes);
         }
       } catch (err) {
-        console.error(`[ERROR][SYNC] Batch sync error for ${table}:`, err);
+        console.error(`[CL:SYNC] !!! EXCEPTION: table=${table} error="${err instanceof Error ? err.message : 'Unknown error'}"`);
         errors.push(`${table}: ${err instanceof Error ? err.message : 'Unknown error'}`);
         failed += changes.length;
       }
     }
 
     // Remove processed changes from pending queue
+    // IMPORTANT: Re-read from storage to avoid overwriting items queued during sync.
+    // Without this, items added by queueForSync while sync was in progress get lost.
     if (processedChanges.length > 0) {
-      const remainingChanges = pendingChanges.filter(
+      const currentPending = await getPendingChanges();
+      const remainingChanges = currentPending.filter(
         (change) =>
           !processedChanges.some(
             (p) => p.timestamp === change.timestamp && p.table === change.table
           )
       );
+      console.log(`[CL:SYNC] Pending cleanup: had=${currentPending.length} processed=${processedChanges.length} remaining=${remainingChanges.length}`);
       await savePendingChanges(remainingChanges);
     }
 
     lastSyncTime = Date.now();
-    console.log(`[SyncBridge] Sync complete: ${success} success, ${failed} failed`);
+    console.log(`[CL:SYNC] ========== SYNC COMPLETE: success=${success} failed=${failed} errors=${errors.length} ==========`);
+    if (errors.length > 0) {
+      console.log(`[CL:SYNC] Error details:`, errors);
+    }
 
     // Notify sync complete
     chrome.runtime.sendMessage({

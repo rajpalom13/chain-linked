@@ -12,7 +12,18 @@ export interface ProfileData {
   connectionCount?: number;
   followerCount?: number;
   followers_count?: number; // Alias for trend tracking
+  connections_count?: number;
   capturedAt: number;
+  // Additional profile fields
+  name?: string;
+  linkedin_id?: string;
+  first_name?: string;
+  last_name?: string;
+  full_name?: string;
+  profile_url?: string;
+  profile_picture_url?: string;
+  // Index signature for dynamic access
+  [key: string]: unknown;
 }
 
 // Analytics Types
@@ -27,6 +38,13 @@ export interface CreatorAnalytics {
   impressions_last_7_days?: number;
   followers_count?: number;
   engagements_last_7_days?: number;
+  // Additional fields for data capture
+  profileViews?: number;
+  engagements?: number;
+  newFollowers?: number;
+  searchAppearances?: number;
+  // Index signature for dynamic access
+  [key: string]: unknown;
 }
 
 export interface TopPost {
@@ -35,6 +53,7 @@ export interface TopPost {
   reactions?: number;
   comments?: number;
   shares?: number;
+  reposts?: number;
   postUrl?: string;
 }
 
@@ -67,6 +86,14 @@ export interface AudienceAnalytics {
   growthRate?: number;
   demographics?: AudienceDemographics;
   capturedAt: number;
+  // camelCase aliases
+  followerGrowth?: number | string;
+  topLocations?: unknown;
+  topIndustries?: unknown;
+  topJobTitles?: unknown;
+  topCompanies?: unknown;
+  // Index signature for dynamic access
+  [key: string]: unknown;
 }
 
 export interface AudienceDemographics {
@@ -93,6 +120,8 @@ export interface CompanyAnalytics {
   companySize?: string;
   founded?: string;
   specialties?: string[];
+  // Index signature for dynamic access
+  [key: string]: unknown;
 }
 
 // Content Calendar Types (v4.0 Phase 5)
@@ -119,6 +148,8 @@ export interface ContentCalendarData {
     start: string;
     end: string;
   };
+  // Index signature for dynamic access
+  [key: string]: unknown;
 }
 
 // Capture Types
@@ -212,6 +243,7 @@ export type MessageType =
   | 'EXPORT_DATA'
   | 'CLEAR_DATA'
   | 'API_RESPONSE'
+  | 'API_CAPTURED'
   | 'EXTRACT_NOW'
   | 'AUTO_CAPTURE_CREATOR_ANALYTICS'
   | 'AUTO_CAPTURE_POST_ANALYTICS'
@@ -272,7 +304,15 @@ export type MessageType =
   | 'CHECK_AUTH'
   | 'GET_ALL_DATA'
   | 'EXPORT_JSON'
-  | 'EXPORT_CSV';
+  | 'EXPORT_CSV'
+  // Debug message types
+  | 'SUPABASE_SYNC_RETRY'
+  | 'SUPABASE_DETAILED_STATUS'
+  | 'DEBUG_AUTH_RESTORE'
+  | 'DEBUG_CLEAR_PENDING'
+  | 'DEBUG_GET_PENDING'
+  // Notification message types
+  | 'SHOW_CAPTURE_FAILURE_NOTIFICATION';
 
 // Storage Keys
 export type StorageKey =

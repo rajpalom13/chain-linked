@@ -32,6 +32,8 @@ interface AnalyticsData {
   topPosts: TopPost[];
   extractedAt: string;
   source: 'dom';
+  // Index signature for ExtractedData compatibility
+  [key: string]: unknown;
 }
 
 interface TopPost {
@@ -56,6 +58,8 @@ interface PostAnalyticsData {
   engagementRate: string | null;
   extractedAt: string;
   source: 'dom';
+  // Index signature for ExtractedData compatibility
+  [key: string]: unknown;
 }
 
 interface AudienceData {
@@ -64,6 +68,8 @@ interface AudienceData {
   newFollowers: number | null;
   extractedAt: string;
   source: 'dom';
+  // Index signature for ExtractedData compatibility
+  [key: string]: unknown;
 }
 
 interface DemographicsData {
@@ -76,6 +82,8 @@ interface DemographicsData {
   };
   extractedAt: string;
   source: 'dom';
+  // Index signature for ExtractedData compatibility
+  [key: string]: unknown;
 }
 
 interface DemographicItem {
@@ -90,6 +98,8 @@ interface ProfileViewsData {
   viewers: ViewerInfo[];
   extractedAt: string;
   source: 'dom';
+  // Index signature for ExtractedData compatibility
+  [key: string]: unknown;
 }
 
 interface ViewerInfo {
@@ -98,12 +108,7 @@ interface ViewerInfo {
   profileUrl: string | null;
 }
 
-// Declare global window extension
-declare global {
-  interface Window {
-    LinkedInDOMExtractor?: typeof LinkedInDOMExtractor;
-  }
-}
+// Window.LinkedInDOMExtractor is declared in auto-capture.ts
 
 // ============================================
 // DOM EXTRACTOR CLASS
@@ -706,7 +711,11 @@ const LinkedInDOMExtractor = {
       // ============================================
       // TOP POSTS EXTRACTION
       // ============================================
-      const postCards = analyticsSection.querySelectorAll('.analytics-card, [class*="top-post"], [class*="post-card"]');
+      const postCards = analyticsSection.querySelectorAll(
+        '[data-test-id*="post"], .feed-shared-update-v2, .occludable-update, ' +
+        '[class*="analytics-content-card"], [class*="creator-analytics"] li, ' +
+        '.analytics-card, [class*="top-post"], [class*="post-card"]'
+      );
       postCards.forEach((card) => {
         // Skip if this looks like a feed post
         if (card.closest('[class*="feed"]') || card.closest('[class*="promoted"]')) {

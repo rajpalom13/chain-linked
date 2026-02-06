@@ -122,7 +122,8 @@ export async function getCaptureLogs(options?: {
   }
 
   if (options?.since) {
-    logs = logs.filter(log => log.timestamp >= options.since);
+    const sinceTime = options.since;
+    logs = logs.filter(log => log.timestamp >= sinceTime);
   }
 
   if (options?.limit) {

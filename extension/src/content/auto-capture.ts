@@ -1,9 +1,27 @@
 /**
  * LinkedIn Data Extractor - Auto-Capture Controller
  * TypeScript Version
+ *
+ * Enhanced with retry mechanism and validation
  */
 
 import type { LinkedInPageType, CaptureType, ExtensionMessage } from '../shared/types';
+import {
+  sendMessageWithRetry,
+  queueMessage,
+  startQueueProcessor,
+  getRetryStats,
+  DEFAULT_RETRY_CONFIG,
+  type RetryConfig,
+} from '../shared/retry-utils';
+import {
+  validateCreatorAnalytics,
+  validatePostAnalytics,
+  validateProfileData,
+  validateAudienceData,
+  hasUsefulData,
+  logValidation,
+} from '../shared/validators';
 
 // ============================================
 // CONSTANTS
@@ -13,6 +31,144 @@ const CAPTURE_DELAY = 1000; // Reduced from 2500ms for faster capture
 const DEBOUNCE_TIME = 300000;
 const URL_POLL_INTERVAL = 500;
 const ELEMENT_WAIT_TIMEOUT = 5000; // Reduced from 8000ms
+
+// ============================================
+// CAPTURE TRACKER - Tracks what has/hasn't been captured
+// ============================================
+
+/** All data types the extension can capture, with the LinkedIn URL to visit */
+const TRACKABLE_CAPTURES: Record<string, { label: string; url: string }> = {
+  profile:               { label: 'My Profile',          url: '/in/me/' },
+  creator_analytics:     { label: 'Content Analytics',   url: '/analytics/creator/content/' },
+  audience_analytics:    { label: 'Audience Analytics',   url: '/analytics/creator/audience/' },
+  top_posts:             { label: 'Top Posts',            url: '/analytics/creator/top-posts/' },
+  profile_views:         { label: 'Profile Views',        url: '/analytics/profile-views/' },
+  audience_demographics: { label: 'Audience Demographics', url: '/analytics/demographic-detail/urn:li:fsd_profile' },
+  dashboard:             { label: 'Dashboard',            url: '/dashboard/' },
+};
+
+/** Tracks which data types have been successfully captured this session */
+const captureTracker: Record<string, { captured: boolean; timestamp: string | null; fields: number }> = {};
+for (const key of Object.keys(TRACKABLE_CAPTURES)) {
+  captureTracker[key] = { captured: false, timestamp: null, fields: 0 };
+}
+
+/**
+ * Styled console logger for capture events.
+ * Groups related logs and uses consistent prefixes for easy filtering.
+ * Filter in DevTools with: [Capture]
+ */
+const CaptureLog = {
+  /** Log a navigation event */
+  nav(url: string, pageType: string, isCaptureable: boolean) {
+    const icon = isCaptureable ? '\u2705' : '\u23ED\uFE0F';
+    console.log(
+      `%c[Capture] ${icon} Navigation %c${pageType}%c ${url}`,
+      'color: #6b7280; font-weight: bold',
+      `color: ${isCaptureable ? '#2563eb' : '#9ca3af'}; font-weight: bold`,
+      'color: #6b7280'
+    );
+  },
+
+  /** Log capture start */
+  start(pageType: string, subtype: string | null) {
+    console.group(
+      `%c[Capture] \u{1F4E1} Capturing: ${pageType}${subtype ? '/' + subtype : ''}`,
+      'color: #f59e0b; font-weight: bold'
+    );
+    console.time(`[Capture] ${pageType} duration`);
+  },
+
+  /** Log capture success with data summary */
+  success(pageType: string, data: Record<string, unknown>) {
+    const fields = Object.keys(data).filter(k => data[k] != null && data[k] !== '' && data[k] !== 0);
+    console.timeEnd(`[Capture] ${pageType} duration`);
+    console.log(
+      `%c[Capture] \u2705 Success: ${pageType} %c(${fields.length} fields)`,
+      'color: #16a34a; font-weight: bold',
+      'color: #6b7280'
+    );
+    console.table(
+      Object.fromEntries(fields.map(k => [k, typeof data[k] === 'object' ? JSON.stringify(data[k]).slice(0, 80) : data[k]]))
+    );
+    console.groupEnd();
+
+    // Update tracker
+    const trackKey = getTrackKey(pageType, data);
+    if (trackKey && captureTracker[trackKey]) {
+      captureTracker[trackKey] = { captured: true, timestamp: new Date().toISOString(), fields: fields.length };
+    }
+    CaptureLog.status();
+  },
+
+  /** Log capture failure */
+  fail(pageType: string, error: string) {
+    console.timeEnd(`[Capture] ${pageType} duration`);
+    console.log(
+      `%c[Capture] \u274C Failed: ${pageType} %c${error}`,
+      'color: #dc2626; font-weight: bold',
+      'color: #ef4444'
+    );
+    console.groupEnd();
+  },
+
+  /** Log skip reason */
+  skip(pageType: string, reason: string) {
+    console.log(
+      `%c[Capture] \u23ED\uFE0F Skip: ${pageType} %c${reason}`,
+      'color: #9ca3af; font-weight: bold',
+      'color: #9ca3af'
+    );
+  },
+
+  /** Print capture status summary */
+  status() {
+    const entries = Object.entries(captureTracker);
+    const done = entries.filter(([, v]) => v.captured).length;
+    const total = entries.length;
+    const pct = Math.round((done / total) * 100);
+
+    const bar = '\u2588'.repeat(done) + '\u2591'.repeat(total - done);
+
+    console.log(
+      `%c[Capture] \u{1F4CA} Status: ${done}/${total} captured (${pct}%) ${bar}`,
+      'color: #7c3aed; font-weight: bold; font-size: 12px'
+    );
+
+    const missing = entries.filter(([, v]) => !v.captured);
+    if (missing.length > 0) {
+      console.log(
+        `%c[Capture] \u{1F449} Missing data - visit these pages:`,
+        'color: #ea580c; font-weight: bold'
+      );
+      missing.forEach(([key]) => {
+        const info = TRACKABLE_CAPTURES[key];
+        console.log(
+          `   %c\u25CB ${info.label}%c \u2192 https://www.linkedin.com${info.url}`,
+          'color: #ea580c',
+          'color: #6b7280'
+        );
+      });
+    } else {
+      console.log(
+        `%c[Capture] \u{1F389} All data types captured! You're all set.`,
+        'color: #16a34a; font-weight: bold; font-size: 12px'
+      );
+    }
+  },
+};
+
+/** Map a pageType + data to the tracker key */
+function getTrackKey(pageType: string, data?: Record<string, unknown>): string | null {
+  if (pageType === 'creator_analytics') {
+    const subtype = data?.subtype as string | undefined;
+    if (subtype === 'top_posts') return 'top_posts';
+    if (subtype === 'dashboard') return 'dashboard';
+    return 'creator_analytics';
+  }
+  if (captureTracker[pageType] !== undefined) return pageType;
+  return null;
+}
 
 interface PagePattern {
   pattern: RegExp;
@@ -105,10 +261,12 @@ interface CaptureStats {
   successful: number;
   failed: number;
   byType: Record<string, number>;
+  // Index signature for Record<string, unknown> compatibility
+  [key: string]: unknown;
 }
 
 interface ExtractedData {
-  capturedAt?: string;
+  capturedAt?: string | number;
   pageInfo?: PageInfo;
   captureMethod?: string;
   [key: string]: unknown;
@@ -130,12 +288,20 @@ interface ProfileExtractionData {
 declare global {
   interface Window {
     LinkedInDOMExtractor?: {
+      // Detection methods
+      detectPageType: () => string;
+      // Extraction methods
+      extractAll: () => Record<string, unknown>;
       extractCreatorAnalytics: () => ExtractedData | null;
+      extractAnalyticsData: () => ExtractedData | null;
       extractPostAnalyticsData: () => ExtractedData | null;
       extractAudienceAnalytics: () => ExtractedData | null;
       extractAudienceDemographics: () => ExtractedData | null;
       extractProfileViewsData: () => ExtractedData | null;
       extractProfileData: () => ProfileExtractionData | null;
+      // Utility methods
+      getAuthToken: () => string | null;
+      parseNumber: (str: string | null | undefined) => number | null;
     };
     LinkedInCompanyExtractor?: {
       detectCompanyPage: () => { type: string; companyId: string | null; companyName: string | null; url: string } | null;
@@ -189,12 +355,19 @@ class AutoCaptureController {
       this.setupNavigationListeners();
       this.lastUrl = window.location.href;
 
+      // Start the message queue processor for retry handling
+      startQueueProcessor(30000); // Process queued messages every 30 seconds
+
       setTimeout(() => {
         this.handleNavigation();
       }, 1000);
 
       this.isInitialized = true;
-      console.log('[AutoCapture] Initialization complete');
+      console.log(
+        `%c[Capture] \u{1F680} Auto-capture initialized — visit LinkedIn pages to start collecting data`,
+        'color: #7c3aed; font-weight: bold; font-size: 12px'
+      );
+      CaptureLog.status();
     } catch (error) {
       console.error('[AutoCapture] Initialization failed:', error);
     }
@@ -220,24 +393,37 @@ class AutoCaptureController {
     }
   }
 
-  private sendMessage(message: ExtensionMessage): Promise<{ success: boolean; data?: unknown; error?: string }> {
-    return new Promise((resolve, reject) => {
-      try {
-        if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
-          chrome.runtime.sendMessage(message, (response) => {
-            if (chrome.runtime.lastError) {
-              reject(chrome.runtime.lastError);
-            } else {
-              resolve(response);
-            }
-          });
-        } else {
-          reject(new Error('Chrome runtime not available'));
-        }
-      } catch (error) {
-        reject(error);
+  /**
+   * Send message to background with retry logic
+   * Falls back to queue if all retries fail
+   */
+  private async sendMessage(
+    message: ExtensionMessage,
+    config: RetryConfig = DEFAULT_RETRY_CONFIG
+  ): Promise<{ success: boolean; data?: unknown; error?: string }> {
+    try {
+      const response = await sendMessageWithRetry(message, config);
+
+      if (!response) {
+        // Extension context lost
+        console.warn('[AutoCapture] Extension context lost, queueing message');
+        queueMessage(message);
+        return { success: false, error: 'Extension context lost, message queued' };
       }
-    });
+
+      return response;
+    } catch (error) {
+      console.error('[AutoCapture] Message send failed after retries:', error);
+
+      // Queue for later retry
+      const queueId = queueMessage(message);
+      console.log(`[AutoCapture] Message queued with ID: ${queueId}`);
+
+      return {
+        success: false,
+        error: `Failed after retries, queued: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
   }
 
   // ============================================
@@ -331,7 +517,7 @@ class AutoCaptureController {
 
   handleNavigation(): void {
     if (!this.isEnabled) {
-      console.log('[AutoCapture] Disabled, skipping');
+      CaptureLog.skip('*', 'auto-capture disabled');
       return;
     }
 
@@ -342,18 +528,19 @@ class AutoCaptureController {
 
     const pageInfo = this.detectPageType();
 
+    CaptureLog.nav(pageInfo.pathname, pageInfo.type, pageInfo.type !== 'non_analytics');
+
     if (pageInfo.type === 'non_analytics') {
-      console.log('[AutoCapture] Not an analytics page, skipping');
       return;
     }
 
     const cacheKey = this.getCacheKey(pageInfo);
     if (this.shouldDebounce(cacheKey)) {
-      console.log('[AutoCapture] Debounced:', cacheKey);
+      CaptureLog.skip(pageInfo.type, `debounced (captured <5min ago)`);
       return;
     }
 
-    console.log(`[AutoCapture] Scheduling capture for ${pageInfo.type} in ${CAPTURE_DELAY}ms`);
+    console.log(`%c[Capture] \u23F3 Scheduled: ${pageInfo.type} in ${CAPTURE_DELAY}ms`, 'color: #6b7280');
 
     // Store the URL when scheduling to validate later
     this.pendingCaptureUrl = window.location.href;
@@ -379,30 +566,34 @@ class AutoCaptureController {
   }
 
   async captureCurrentPage(pageInfo: PageInfo): Promise<void> {
-    console.log(`[AutoCapture] Starting capture for: ${pageInfo.type}/${pageInfo.subtype}`);
+    CaptureLog.start(pageInfo.type, pageInfo.subtype);
 
     // ============================================
     // URL VALIDATION - Prevent capture if user navigated away
     // ============================================
     const currentUrl = window.location.href;
     if (this.pendingCaptureUrl && currentUrl !== this.pendingCaptureUrl) {
-      console.log(`[AutoCapture] URL changed during delay, skipping capture`);
-      console.log(`[AutoCapture] Expected: ${this.pendingCaptureUrl}`);
-      console.log(`[AutoCapture] Current:  ${currentUrl}`);
+      CaptureLog.skip(pageInfo.type, `URL changed during delay`);
+      console.groupEnd();
       return;
     }
 
     // Also validate that the current page type still matches
     const currentPageInfo = this.detectPageType();
     if (currentPageInfo.type !== pageInfo.type) {
-      console.log(`[AutoCapture] Page type changed from ${pageInfo.type} to ${currentPageInfo.type}, skipping capture`);
+      CaptureLog.skip(pageInfo.type, `page type changed to ${currentPageInfo.type}`);
+      console.groupEnd();
       return;
     }
 
     this.captureStats.total++;
 
     try {
-      await this.waitForAnalyticsContent();
+      const contentLoaded = await this.waitForAnalyticsContent();
+      if (!contentLoaded) {
+        console.warn(`[AutoCapture] Content may not be fully loaded for ${pageInfo.type}`);
+        // Continue anyway but log warning - some data may still be extractable
+      }
 
       let data: ExtractedData | null = null;
       let messageType: string | null = null;
@@ -458,8 +649,52 @@ class AutoCaptureController {
           return;
       }
 
-      if (!data || Object.keys(data).length === 0) {
-        throw new Error('No data extracted');
+      // ============================================
+      // DATA VALIDATION - Ensure meaningful data before saving
+      // ============================================
+      if (!data || !hasUsefulData(data)) {
+        throw new Error('No useful data extracted');
+      }
+
+      // Type-specific validation
+      let validationResult;
+      switch (pageInfo.type) {
+        case 'creator_analytics':
+          validationResult = validateCreatorAnalytics(data);
+          logValidation('creator_analytics', validationResult);
+          if (!validationResult.valid) {
+            throw new Error(`Validation failed: ${validationResult.errors.join(', ')}`);
+          }
+          data = { ...data, ...validationResult.data };
+          break;
+
+        case 'post_analytics':
+          validationResult = validatePostAnalytics(data);
+          logValidation('post_analytics', validationResult);
+          if (!validationResult.valid) {
+            throw new Error(`Validation failed: ${validationResult.errors.join(', ')}`);
+          }
+          data = { ...data, ...validationResult.data };
+          break;
+
+        case 'profile':
+          validationResult = validateProfileData(data);
+          logValidation('profile', validationResult);
+          if (!validationResult.valid) {
+            throw new Error(`Validation failed: ${validationResult.errors.join(', ')}`);
+          }
+          data = { ...data, ...validationResult.data };
+          break;
+
+        case 'audience_analytics':
+        case 'audience_demographics':
+          validationResult = validateAudienceData(data);
+          logValidation('audience', validationResult);
+          if (!validationResult.valid) {
+            throw new Error(`Validation failed: ${validationResult.errors.join(', ')}`);
+          }
+          data = { ...data, ...validationResult.data };
+          break;
       }
 
       // ============================================
@@ -467,9 +702,8 @@ class AutoCaptureController {
       // ============================================
       const finalUrl = window.location.href;
       if (this.pendingCaptureUrl && finalUrl !== this.pendingCaptureUrl) {
-        console.log(`[AutoCapture] URL changed during extraction, discarding data`);
-        console.log(`[AutoCapture] Expected: ${this.pendingCaptureUrl}`);
-        console.log(`[AutoCapture] Final:    ${finalUrl}`);
+        CaptureLog.skip(pageInfo.type, `URL changed during extraction`);
+        console.groupEnd();
         return;
       }
 
@@ -487,18 +721,37 @@ class AutoCaptureController {
       this.captureStats.successful++;
       this.captureStats.byType[pageInfo.type] = (this.captureStats.byType[pageInfo.type] || 0) + 1;
 
-      console.log(`[AutoCapture] Successfully captured ${pageInfo.type}:`, data);
+      CaptureLog.success(pageInfo.type, data as Record<string, unknown>);
       this.dispatchCaptureEvent(pageInfo.type, data, true);
     } catch (error) {
-      console.error(`[AutoCapture] Capture failed for ${pageInfo.type}:`, error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      CaptureLog.fail(pageInfo.type, errorMessage);
       this.captureStats.failed++;
 
-      await this.logCapture(pageInfo, false, error instanceof Error ? error.message : 'Unknown error');
-      this.dispatchCaptureEvent(pageInfo.type, null, false, error instanceof Error ? error.message : 'Unknown error');
+      await this.logCapture(pageInfo, false, errorMessage);
+      this.dispatchCaptureEvent(pageInfo.type, null, false, errorMessage);
+
+      // Notify user of capture failure via service worker
+      try {
+        await this.sendMessage({
+          type: 'SHOW_CAPTURE_FAILURE_NOTIFICATION' as ExtensionMessage['type'],
+          data: {
+            captureType: pageInfo.type,
+            error: errorMessage,
+            retryCount: getRetryStats().failedAttempts,
+          },
+        } as unknown as ExtensionMessage);
+      } catch (notifyError) {
+        console.warn('[AutoCapture] Failed to send failure notification:', notifyError);
+      }
     }
   }
 
-  private waitForAnalyticsContent(): Promise<void> {
+  /**
+   * Wait for analytics content to load in the DOM
+   * @returns Promise<boolean> - true if content found, false if timeout
+   */
+  private waitForAnalyticsContent(): Promise<boolean> {
     return new Promise((resolve) => {
       const selectors = [
         'main[aria-label*="analytics" i]',
@@ -506,6 +759,10 @@ class AutoCaptureController {
         '[data-test-id*="analytics"]',
         '.artdeco-card',
         'section',
+        // Additional selectors for better coverage
+        '[class*="dashboard"]',
+        '[class*="metrics"]',
+        '[class*="stats"]',
       ];
 
       const checkContent = (): boolean => {
@@ -519,14 +776,19 @@ class AutoCaptureController {
       };
 
       if (checkContent()) {
-        resolve();
+        console.log('[AutoCapture] Content already present');
+        resolve(true);
         return;
       }
 
+      let resolved = false;
+
       const observer = new MutationObserver((_, obs) => {
-        if (checkContent()) {
+        if (!resolved && checkContent()) {
+          resolved = true;
           obs.disconnect();
-          resolve();
+          console.log('[AutoCapture] Content loaded via MutationObserver');
+          resolve(true);
         }
       });
 
@@ -536,8 +798,15 @@ class AutoCaptureController {
       });
 
       setTimeout(() => {
-        observer.disconnect();
-        resolve();
+        if (!resolved) {
+          resolved = true;
+          observer.disconnect();
+          const hasContent = checkContent();
+          if (!hasContent) {
+            console.warn('[AutoCapture] Timeout waiting for content, proceeding anyway');
+          }
+          resolve(hasContent);
+        }
       }, ELEMENT_WAIT_TIMEOUT);
     });
   }
@@ -1336,7 +1605,10 @@ class AutoCaptureController {
     })
   );
 
-  console.log('[AutoCapture] Script loaded (TypeScript)');
+  console.log(
+    '%c[Capture] ChainLinked Auto-Capture v4.0 loaded. Filter console by "[Capture]" to track progress.',
+    'color: #2563eb; font-weight: bold'
+  );
 })();
 
 export { AutoCaptureController };

@@ -3,9 +3,16 @@
  * TypeScript Version
  *
  * Main orchestrator for content scripts.
+ * Enhanced with retry mechanism and validation.
  */
 
 import type { ExtensionMessage } from '../shared/types';
+import {
+  sendMessageWithRetry,
+  queueMessage,
+  isExtensionContextValid,
+  DEFAULT_RETRY_CONFIG,
+} from '../shared/retry-utils';
 
 // ============================================
 // CONFIGURATION
@@ -49,26 +56,11 @@ interface State {
   } | null;
 }
 
-// Declare global window extensions
+// Use types from auto-capture.ts via the shared interface
+// The Window interface is declared in auto-capture.ts - we only need to add content-script specific properties
 declare global {
   interface Window {
     __linkedInContentScriptLoaded?: boolean;
-    LinkedInDOMExtractor?: {
-      detectPageType: () => string;
-      extractAll: () => Record<string, unknown>;
-      extractProfileData: () => Record<string, unknown> | null;
-      extractAnalyticsData: () => Record<string, unknown> | null;
-      extractPostAnalyticsData: () => Record<string, unknown> | null;
-      getAuthToken: () => string | null;
-    };
-    LinkedInAutoCapture?: {
-      isEnabled: boolean;
-      isInitialized: boolean;
-      getStats: () => Record<string, unknown>;
-      enable: () => void;
-      disable: () => void;
-      forceCapture: () => void;
-    };
   }
 }
 
@@ -90,47 +82,37 @@ const state: State = {
 };
 
 // ============================================
-// MESSAGING WITH SERVICE WORKER
+// MESSAGING WITH SERVICE WORKER (with retry)
 // ============================================
 
-function isExtensionContextValid(): boolean {
-  try {
-    return !!(chrome?.runtime?.id);
-  } catch {
-    return false;
-  }
-}
-
+/**
+ * Send message to background script with retry logic
+ * Falls back to queue if all retries fail
+ */
 async function sendToBackground(message: ExtensionMessage): Promise<unknown> {
   if (!isExtensionContextValid()) {
     console.log('[ContentScript] Extension context invalidated, skipping message');
     return null;
   }
 
-  return new Promise((resolve, reject) => {
-    try {
-      chrome.runtime.sendMessage(message, (response) => {
-        if (chrome.runtime.lastError) {
-          const errorMsg = chrome.runtime.lastError.message || '';
-          if (errorMsg.includes('Extension context invalidated') || errorMsg.includes('message port closed')) {
-            console.log('[ContentScript] Extension reloaded, message not sent');
-            resolve(null);
-          } else {
-            reject(chrome.runtime.lastError);
-          }
-        } else {
-          resolve(response);
-        }
-      });
-    } catch (error) {
-      if ((error as Error).message?.includes('Extension context invalidated')) {
-        console.log('[ContentScript] Extension context lost');
-        resolve(null);
-      } else {
-        reject(error);
-      }
+  try {
+    const response = await sendMessageWithRetry(message, DEFAULT_RETRY_CONFIG);
+
+    if (!response) {
+      console.log('[ContentScript] Extension context lost during send');
+      return null;
     }
-  });
+
+    return response;
+  } catch (error) {
+    console.error('[ContentScript] Message failed after retries:', error);
+
+    // Queue the message for later retry
+    const queueId = queueMessage(message);
+    console.log(`[ContentScript] Message queued: ${queueId}`);
+
+    return null;
+  }
 }
 
 // ============================================
@@ -139,15 +121,20 @@ async function sendToBackground(message: ExtensionMessage): Promise<unknown> {
 
 async function saveApiData(data: { endpoint: string; method: string; url: string; data: unknown; category?: string }): Promise<void> {
   try {
+    console.log(`[CL:CONTENT] --- SENDING to service worker: type=API_CAPTURED category=${data.category}`);
     const result = await sendToBackground({
-      type: 'API_CAPTURED' as ExtensionMessage['type'],
       ...data,
-    } as unknown as ExtensionMessage) as { count?: number } | null;
-    if (result) {
-      console.log('[ContentScript] API saved:', data.category, '- total:', result.count);
+      type: 'API_CAPTURED', // MUST come after spread — data.type ('json-parse' etc.) would overwrite
+    } as unknown as ExtensionMessage) as { success?: boolean; error?: string; data?: { count?: number } } | null;
+    if (result?.success) {
+      console.log(`[CL:CONTENT] +++ SERVICE WORKER CONFIRMED: category=${data.category} count=${result.data?.count}`);
+    } else if (result === null) {
+      console.warn(`[CL:CONTENT] !!! SERVICE WORKER RETURNED NULL: category=${data.category} (extension context may be invalid)`);
+    } else {
+      console.warn(`[CL:CONTENT] !!! SERVICE WORKER REJECTED: category=${data.category} error=${result?.error || 'unknown'}`);
     }
   } catch (error) {
-    console.error('[ContentScript] Error saving API data:', error);
+    console.error(`[CL:CONTENT] !!! SEND FAILED: category=${data.category} error=`, error);
   }
 }
 
@@ -155,7 +142,7 @@ async function saveAnalyticsData(data: unknown): Promise<void> {
   console.log('[ContentScript] saveAnalyticsData called');
   try {
     const response = await sendToBackground({
-      type: 'ANALYTICS_CAPTURED' as ExtensionMessage['type'],
+      type: 'AUTO_CAPTURE_CREATOR_ANALYTICS',
       data,
     } as unknown as ExtensionMessage);
     console.log('[ContentScript] Analytics save response:', response);
@@ -169,7 +156,7 @@ async function savePostAnalyticsData(data: unknown): Promise<void> {
   console.log('[ContentScript] savePostAnalyticsData called');
   try {
     const response = await sendToBackground({
-      type: 'POST_ANALYTICS_CAPTURED' as ExtensionMessage['type'],
+      type: 'AUTO_CAPTURE_POST_ANALYTICS',
       data,
     } as unknown as ExtensionMessage);
     console.log('[ContentScript] Post analytics save response:', response);
@@ -182,7 +169,7 @@ async function saveAudienceData(data: unknown): Promise<void> {
   console.log('[ContentScript] saveAudienceData called');
   try {
     const response = await sendToBackground({
-      type: 'AUDIENCE_DATA_CAPTURED' as ExtensionMessage['type'],
+      type: 'AUTO_CAPTURE_AUDIENCE',
       data,
     } as unknown as ExtensionMessage);
     console.log('[ContentScript] Audience data save response:', response);
@@ -196,12 +183,11 @@ async function saveAudienceData(data: unknown): Promise<void> {
 // API INTERCEPTION HANDLER
 // ============================================
 
-function handleCapturedApi(event: CustomEvent): void {
-  const data = event.detail;
-
+function handleCapturedApi(data: { endpoint: string; method: string; url: string; data: unknown; category?: string; type?: string }): void {
   if (!data?.endpoint) return;
 
-  console.log('[ContentScript] API captured:', data.category, data.endpoint);
+  const dataSize = data.data ? JSON.stringify(data.data).length : 0;
+  console.log(`[CL:CONTENT] <<< RECEIVED from interceptor: category=${data.category} type=${data.type} endpoint=${data.endpoint?.substring(0, 50)} size=${dataSize}b`);
 
   state.capturedData.apiResponses.push({
     ...data,
@@ -212,6 +198,7 @@ function handleCapturedApi(event: CustomEvent): void {
     state.capturedData.apiResponses = state.capturedData.apiResponses.slice(-CONFIG.maxItemsPerCategory);
   }
 
+  console.log(`[CL:CONTENT] >>> FORWARDING to service worker: category=${data.category} (buffer: ${state.capturedData.apiResponses.length} items)`);
   saveApiData(data);
 }
 
@@ -379,9 +366,12 @@ function initialize(): void {
 
   console.log('[ContentScript] Initializing...');
 
-  // Listen for captured API data
-  document.addEventListener('linkedin-api-captured', handleCapturedApi as EventListener);
-  document.addEventListener('linkedin-response-json', handleCapturedApi as EventListener);
+  // Listen for captured API data via postMessage (crosses MAIN→ISOLATED world boundary)
+  window.addEventListener('message', (event: MessageEvent) => {
+    if (event.data?.type === '__CL_API_CAPTURED__' && event.data?.payload) {
+      handleCapturedApi(event.data.payload);
+    }
+  });
 
   // Listen for auto-capture ready
   document.addEventListener('linkedin-auto-capture-ready', () => {
