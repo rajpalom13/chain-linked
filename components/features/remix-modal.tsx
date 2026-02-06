@@ -69,19 +69,6 @@ const TONE_ICONS: Record<RemixTone, React.ElementType> = {
 }
 
 /**
- * Truncates content to a specified length with ellipsis
- * @param content - The content to truncate
- * @param maxLength - Maximum character length
- * @returns Truncated content with ellipsis if needed
- */
-function truncateContent(content: string, maxLength: number): string {
-  if (content.length <= maxLength) {
-    return content
-  }
-  return `${content.slice(0, maxLength).trim()}...`
-}
-
-/**
  * RemixModal provides a dialog for AI-powered post remix with tone selection.
  *
  * Features:
@@ -267,9 +254,9 @@ export function RemixModal({
             <Label className="text-sm font-medium text-muted-foreground">
               Original Post
             </Label>
-            <div className="rounded-md border bg-muted/30 p-3 space-y-2 max-h-32 overflow-y-auto">
+            <div className="rounded-md border bg-muted/30 p-3 space-y-2 max-h-48 overflow-y-auto">
               <p className="text-sm whitespace-pre-wrap">
-                {truncateContent(originalContent, 500)}
+                {originalContent}
               </p>
               {authorName && (
                 <p className="text-xs text-muted-foreground">

@@ -285,8 +285,8 @@ export function RemixDialog({
                     </span>
                   )}
                 </Label>
-                <div className="bg-muted/50 rounded-lg p-3 text-sm max-h-32 overflow-y-auto border">
-                  <p className="whitespace-pre-wrap line-clamp-6">{originalContent}</p>
+                <div className="bg-muted/50 rounded-lg p-3 text-sm max-h-48 overflow-y-auto border">
+                  <p className="whitespace-pre-wrap">{originalContent}</p>
                 </div>
               </div>
 

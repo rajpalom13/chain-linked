@@ -14,7 +14,7 @@ import {
   IconMessageCircle,
   IconRepeat,
   IconSparkles,
-  IconFlame,
+
   IconChevronDown,
   IconChevronUp,
   IconExternalLink,
@@ -22,7 +22,7 @@ import {
 import { formatDistanceToNowStrict } from "date-fns"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
+
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
@@ -90,7 +90,7 @@ function getInitials(name: string): string {
 
 /**
  * Enhanced content card for displaying industry articles in the Discover page.
- * Includes author profile, engagement metrics, viral badge, and action buttons.
+ * Includes author profile, engagement metrics, and action buttons.
  *
  * @param props - Component props
  * @param props.article - Article data to display
@@ -124,7 +124,6 @@ export function DiscoverContentCard({
       : contentText
 
   const relativeTime = getRelativeTime(article.publishedAt)
-  const isViral = article.isViral || (article.engagementRate ?? 0) >= 2.0
 
   /**
    * Handle save button click
@@ -168,15 +167,6 @@ export function DiscoverContentCard({
                 <p className="text-sm font-semibold truncate">
                   {article.authorName || article.source}
                 </p>
-                {isViral && (
-                  <Badge
-                    variant="secondary"
-                    className="gap-1 shrink-0 text-orange-600 bg-orange-100 dark:text-orange-400 dark:bg-orange-950"
-                  >
-                    <IconFlame className="size-3" />
-                    Viral
-                  </Badge>
-                )}
               </div>
               <p className="text-xs text-muted-foreground truncate">
                 {article.authorHeadline || article.source}
