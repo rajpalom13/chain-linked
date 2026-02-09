@@ -17,6 +17,7 @@ import {
   IconTrash,
   IconSparkles,
   IconDeviceFloppy,
+  IconPhoto,
 } from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -47,6 +48,8 @@ interface CanvasToolbarProps {
   onSaveTemplate: () => void;
   onExport: () => void;
   onReset: () => void;
+  /** Callback to open the graphics library panel */
+  onOpenGraphics: () => void;
 }
 
 /**
@@ -112,6 +115,7 @@ export function CanvasToolbar({
   onSaveTemplate,
   onExport,
   onReset,
+  onOpenGraphics,
 }: CanvasToolbarProps) {
   return (
     <TooltipProvider delayDuration={300}>
@@ -145,6 +149,12 @@ export function CanvasToolbar({
             icon={<IconSparkles className="h-4 w-4" />}
             label="AI Generate"
             onClick={onOpenAiGenerator}
+          />
+
+          <ToolbarButton
+            icon={<IconPhoto className="h-4 w-4" />}
+            label="Graphics Library"
+            onClick={onOpenGraphics}
           />
         </div>
 

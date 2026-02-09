@@ -96,7 +96,7 @@ export interface ProfileData {
   company_website: string | null
   /** Whether the user has completed the full onboarding flow */
   onboarding_completed: boolean
-  /** Current step in the onboarding flow (1-6) */
+  /** Current step in the onboarding flow (1-4) */
   onboarding_current_step: number
 }
 
@@ -122,7 +122,7 @@ interface AuthContextType {
   hasCompletedCompanyOnboarding: boolean
   /** Whether the user has completed the full onboarding flow */
   hasCompletedOnboarding: boolean
-  /** Current step in the onboarding flow (1-6) */
+  /** Current step in the onboarding flow (1-4) */
   currentOnboardingStep: number
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
@@ -341,27 +341,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
 
         // For other events (INITIAL_SESSION, SIGNED_IN, USER_UPDATED, PASSWORD_RECOVERY)
-        setSession(newSession)
-
         if (newSession?.user) {
-          setUser(newSession.user)
+          if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+            // Fetch profile BEFORE setting user/session so all state updates
+            // are batched into a single render — avoids the flash where name
+            // shows but avatar/headline are missing.
+            console.log('[AuthProvider] Fetching profile for:', newSession.user.email)
+            const fetchId = ++currentFetchId
+            const userProfile = await fetchProfileWithTimeout(newSession.user.id, fetchId)
+            if (isMounted && fetchId === currentFetchId) {
+              // React 18 batches these synchronous set* calls into one render
+              setSession(newSession)
+              setUser(newSession.user)
+              setProfile(userProfile)
+            }
+          } else {
+            // For USER_UPDATED, PASSWORD_RECOVERY — no profile re-fetch needed
+            setSession(newSession)
+            setUser(newSession.user)
+          }
 
-          // Mark initialization complete BEFORE fetching profile to unblock UI
+          // Mark initialization complete AFTER the profile fetch so downstream
+          // consumers see the profile data when isLoading becomes false
           if (event === 'INITIAL_SESSION' || !hasInitialized) {
             hasInitialized = true
             if (isMounted) {
               console.log('[AuthProvider] Setting isLoading=false after:', event)
               setIsLoading(false)
-            }
-          }
-
-          // Fetch profile in background (non-blocking) on these events
-          if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
-            console.log('[AuthProvider] Fetching profile for:', newSession.user.email)
-            const fetchId = ++currentFetchId // Increment to cancel any pending fetches
-            const userProfile = await fetchProfileWithTimeout(newSession.user.id, fetchId)
-            if (isMounted && fetchId === currentFetchId) {
-              setProfile(userProfile)
             }
           }
         } else if (event === 'INITIAL_SESSION') {
@@ -425,7 +431,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 /**
  * useAuthContext hook
  * @returns Auth context value
- * @throws Error if used outside AuthProvider
+ * Returns safe defaults if used outside AuthProvider (e.g. during SSR)
  * @example
  * const { user, profile, signOut } = useAuthContext()
  * // Access LinkedIn data

@@ -691,7 +691,7 @@ export function clearCompanyOnboardingLocal(): void {
  * Updates the current onboarding step in the database
  * Only updates if the new step is greater than or equal to the current step
  * to prevent race conditions with concurrent updates
- * @param step - Step number (1-6)
+ * @param step - Step number (1-4)
  * @returns Whether the update was successful
  * @example
  * const success = await updateOnboardingStepInDatabase(3)
@@ -700,9 +700,9 @@ export function clearCompanyOnboardingLocal(): void {
  * }
  */
 export async function updateOnboardingStepInDatabase(step: number): Promise<boolean> {
-  // Validate step range
-  if (step < 1 || step > 6) {
-    console.error("Invalid onboarding step:", step, "- must be between 1 and 6")
+  // Validate step range (TOTAL_STEPS is 4)
+  if (step < 1 || step > 4) {
+    console.error("Invalid onboarding step:", step, "- must be between 1 and 4")
     return false
   }
 
@@ -730,15 +730,22 @@ export async function updateOnboardingStepInDatabase(step: number): Promise<bool
       return true
     }
 
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("profiles")
       .update({
         onboarding_current_step: step,
       })
       .eq("id", user.id)
+      .select("onboarding_current_step")
+      .single()
 
     if (error) {
       console.error("Failed to update onboarding step in database:", error)
+      return false
+    }
+
+    if (!updated) {
+      console.error("[updateOnboardingStep] No profile row returned for user:", user.id)
       return false
     }
 
@@ -754,7 +761,8 @@ export async function updateOnboardingStepInDatabase(step: number): Promise<bool
 
 /**
  * Marks the full onboarding flow as complete in the database
- * Sets onboarding_completed to true and onboarding_current_step to 5 (final step)
+ * Uses a server-side API route for reliable writes with verification.
+ * Falls back to direct client-side update if the API call fails.
  * @returns Boolean indicating success
  * @example
  * const success = await completeOnboardingInDatabase()
@@ -764,6 +772,27 @@ export async function updateOnboardingStepInDatabase(step: number): Promise<bool
  */
 export async function completeOnboardingInDatabase(): Promise<boolean> {
   try {
+    // Primary path: server-side API route (most reliable)
+    const response = await fetch("/api/onboarding/complete", {
+      method: "POST",
+      credentials: "include",
+    })
+
+    if (response.ok) {
+      const data = (await response.json()) as { success?: boolean; onboarding_completed?: boolean }
+      if (data.success && data.onboarding_completed === true) {
+        // Verified: DB write confirmed by the server
+        localStorage.setItem(STORAGE_KEYS.completed, "true")
+        localStorage.setItem(STORAGE_KEYS.step, "4")
+        return true
+      }
+      console.error("[completeOnboarding] Server returned unexpected data:", data)
+    } else {
+      console.error("[completeOnboarding] API returned status:", response.status)
+    }
+
+    // Fallback: direct client-side update with verification
+    console.warn("[completeOnboarding] API route failed, attempting direct client update")
     const supabase = createClient()
     const {
       data: { user },
@@ -774,22 +803,30 @@ export async function completeOnboardingInDatabase(): Promise<boolean> {
       return false
     }
 
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("profiles")
       .update({
         onboarding_completed: true,
-        onboarding_current_step: 5, // Final step is 5 (Review & Complete)
+        onboarding_current_step: 4,
+        company_onboarding_completed: true,
       })
       .eq("id", user.id)
+      .select("onboarding_completed")
+      .single()
 
     if (error) {
       console.error("Failed to complete onboarding in database:", error)
       return false
     }
 
+    if (!updated || updated.onboarding_completed !== true) {
+      console.error("[completeOnboarding] Client update verification failed:", updated)
+      return false
+    }
+
     // Also update localStorage for consistency
     localStorage.setItem(STORAGE_KEYS.completed, "true")
-    localStorage.setItem(STORAGE_KEYS.step, "5")
+    localStorage.setItem(STORAGE_KEYS.step, "4")
 
     return true
   } catch (error) {
@@ -804,7 +841,7 @@ export async function completeOnboardingInDatabase(): Promise<boolean> {
 export interface OnboardingStatus {
   /** Whether onboarding is completed */
   completed: boolean
-  /** Current step in the onboarding flow (1-5) */
+  /** Current step in the onboarding flow (1-4) */
   step: number
 }
 

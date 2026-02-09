@@ -78,6 +78,8 @@ export type InngestEvents = {
       postTypes?: PostType[]
       /** Optional company context for personalized generation */
       companyContextId?: string
+      /** Whether to apply user's writing style to generated posts */
+      useMyStyle?: boolean
     }
   }
 
@@ -127,6 +129,29 @@ export type InngestEvents = {
       scheduleId: string
       /** User ID for the schedule */
       userId: string
+    }
+  }
+
+  // Daily Content Ingest Events
+  'discover/ingest': {
+    data: {
+      /** Batch ID for grouping ingested items */
+      batchId: string
+      /** Topics to ingest for */
+      topics: string[]
+      /** Max results per topic */
+      maxResultsPerTopic?: number
+    }
+  }
+
+  'discover/ingest.completed': {
+    data: {
+      /** Batch ID */
+      batchId: string
+      /** Number of new posts ingested */
+      postsIngested: number
+      /** Topics that were searched */
+      topicsSearched: number
     }
   }
 

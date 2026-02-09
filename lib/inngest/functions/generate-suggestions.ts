@@ -99,51 +99,51 @@ export const generateSuggestionsWorkflow = inngest.createFunction(
 
     // Step 1: Validate and prepare
     const prepareResult = await step.run('validate-and-prepare', async () => {
-      // Fetch user's company data from profiles table
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('company_onboarding_completed, company_name, company_description, company_products, company_icp, company_value_props, company_website')
-        .eq('id', userId)
+      // Fetch user's company data from company_context table
+      const { data: companyCtx, error: ctxError } = await supabase
+        .from('company_context')
+        .select('*')
+        .eq('user_id', userId)
         .single()
 
-      if (profileError || !profile) {
+      if (ctxError || !companyCtx) {
         await updateRunStatus(supabase, runId, 'failed', {
-          error_message: 'User profile not found. Please complete onboarding first.',
+          error_message: 'Company context not found. Please complete onboarding first.',
         })
-        throw new Error('User profile not found')
+        throw new Error('Company context not found')
       }
 
-      // Check if company data exists
-      const hasCompanyData = profile.company_name && (
-        profile.company_description ||
-        profile.company_products ||
-        profile.company_icp ||
-        profile.company_value_props
+      // Check if company data is populated
+      const hasCompanyData = companyCtx.company_name && (
+        companyCtx.company_summary ||
+        companyCtx.value_proposition ||
+        companyCtx.products_and_services ||
+        companyCtx.target_audience
       )
 
-      if (!profile.company_onboarding_completed || !hasCompanyData) {
+      if (!hasCompanyData) {
         await updateRunStatus(supabase, runId, 'failed', {
           error_message: 'Company context not complete. Please add your company information in onboarding.',
         })
         throw new Error('Company context not complete')
       }
 
-      // Transform profile data to CompanyContext format
+      // Map company_context directly to CompanyContext format
       const companyContext: CompanyContext = {
-        id: userId, // Use userId as context id
+        id: companyCtx.id,
         user_id: userId,
-        company_name: profile.company_name,
-        website_url: profile.company_website || null,
-        industry: null, // Not stored in profiles
-        target_audience_input: profile.company_icp || null,
-        value_proposition: profile.company_value_props || null,
-        company_summary: profile.company_description || null,
-        products_and_services: profile.company_products
-          ? profile.company_products.split('\n').filter(Boolean).map((p: string) => ({ name: p.replace(/^[-•]\s*/, '').trim(), description: '' }))
+        company_name: companyCtx.company_name,
+        website_url: companyCtx.website_url || null,
+        industry: companyCtx.industry || null,
+        target_audience_input: companyCtx.target_audience_input || null,
+        value_proposition: companyCtx.value_proposition || null,
+        company_summary: companyCtx.company_summary || null,
+        products_and_services: Array.isArray(companyCtx.products_and_services)
+          ? companyCtx.products_and_services
           : [],
-        target_audience: profile.company_icp ? { description: profile.company_icp } : {},
-        tone_of_voice: { style: 'professional', traits: [] },
-        brand_colors: [],
+        target_audience: companyCtx.target_audience || {},
+        tone_of_voice: companyCtx.tone_of_voice || { style: 'professional', traits: [] },
+        brand_colors: companyCtx.brand_colors || [],
       }
 
       // Check active suggestion count

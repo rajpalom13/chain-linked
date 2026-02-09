@@ -90,6 +90,33 @@ export async function middleware(request: NextRequest) {
     // Check if there's a redirect param (e.g., for invitation acceptance)
     const redirectParam = request.nextUrl.searchParams.get('redirect')
     if (redirectParam && redirectParam.startsWith('/invite/')) {
+      // Before redirecting to invite, check if user has completed onboarding
+      // If not, redirect to onboarding first (the invite can be accepted after)
+      try {
+        const { data: inviteProfile } = await Promise.race([
+          supabase
+            .from('profiles')
+            .select('onboarding_completed, onboarding_current_step, company_onboarding_completed')
+            .eq('id', user.id)
+            .single(),
+          new Promise<{ data: null }>((resolve) =>
+            setTimeout(() => resolve({ data: null }), 3000)
+          ),
+        ])
+
+        if (inviteProfile && inviteProfile.onboarding_completed !== true && inviteProfile.company_onboarding_completed !== true) {
+          // User hasn't completed onboarding - redirect to their current step
+          const rawStep = inviteProfile.onboarding_current_step ?? 1
+          const step = Math.min(Math.max(rawStep, 1), 4)
+          const url = request.nextUrl.clone()
+          url.pathname = `/onboarding/step${step}`
+          url.search = ''
+          return NextResponse.redirect(url)
+        }
+      } catch {
+        // Fail-open: if the profile check fails, allow the invite redirect
+      }
+
       // Allow redirect to invitation acceptance page
       const url = request.nextUrl.clone()
       url.pathname = redirectParam
@@ -116,38 +143,53 @@ export async function middleware(request: NextRequest) {
     ONBOARDING_STEP_PATHS.some(path => pathname === path || pathname.startsWith(path + '/'))
 
   if (user && needsProfileCheck) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('onboarding_completed, onboarding_current_step, company_onboarding_completed')
-      .eq('id', user.id)
-      .single()
-    profile = data
+    try {
+      const profileQuery = supabase
+        .from('profiles')
+        .select('onboarding_completed, onboarding_current_step, company_onboarding_completed')
+        .eq('id', user.id)
+        .single()
+
+      // Race the profile query against a 3-second timeout (fail-open)
+      const result = await Promise.race([
+        profileQuery,
+        new Promise<{ data: null; error: null }>((resolve) =>
+          setTimeout(() => resolve({ data: null, error: null }), 3000)
+        ),
+      ])
+
+      profile = result.data
+    } catch {
+      // Fail-open: if the query errors, allow the request to proceed
+      profile = null
+    }
   }
 
   // Onboarding guard for dashboard routes
-  // Check the master onboarding_completed flag first, fall back to company_onboarding_completed
-  if (user && pathname.startsWith('/dashboard')) {
-    // If profile doesn't exist or onboarding not completed, redirect to appropriate step
-    if (!profile || profile.onboarding_completed !== true) {
-      // Check if at least company onboarding is done (legacy fallback)
-      if (profile?.company_onboarding_completed === true) {
-        // Company onboarding done but full onboarding not - allow dashboard access
-        // This handles users who onboarded before the step-based flow existed
-        return supabaseResponse
-      }
+  // Only redirect when we have a definitive profile response (not on timeout/error)
+  if (user && pathname.startsWith('/dashboard') && profile) {
+    const isOnboardingDone =
+      profile.onboarding_completed === true ||
+      profile.company_onboarding_completed === true
 
-      // Redirect to the user's current onboarding step
-      const step = profile?.onboarding_current_step ?? 1
+    if (!isOnboardingDone) {
+      // Redirect to the user's current onboarding step (capped to valid range 1-4)
+      const rawStep = profile.onboarding_current_step ?? 1
+      const step = Math.min(Math.max(rawStep, 1), 4)
       const url = request.nextUrl.clone()
       url.pathname = `/onboarding/step${step}`
       return NextResponse.redirect(url)
     }
   }
 
-  // If user is on any onboarding page but has already completed full onboarding,
+  // If user is on any onboarding page but has already completed onboarding,
   // redirect to dashboard
-  if (user && ONBOARDING_STEP_PATHS.some(path => pathname === path || pathname.startsWith(path + '/'))) {
-    if (profile?.onboarding_completed === true) {
+  if (user && profile && ONBOARDING_STEP_PATHS.some(path => pathname === path || pathname.startsWith(path + '/'))) {
+    const isOnboardingDone =
+      profile.onboarding_completed === true ||
+      profile.company_onboarding_completed === true
+
+    if (isOnboardingDone) {
       const url = request.nextUrl.clone()
       url.pathname = '/dashboard'
       return NextResponse.redirect(url)

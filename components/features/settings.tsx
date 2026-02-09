@@ -966,7 +966,7 @@ export function Settings({
                   </p>
                 </div>
                 <Button asChild>
-                  <a href="/onboarding/step4">
+                  <a href="/onboarding/step3">
                     <IconPalette className="size-4" />
                     Extract Brand Kit
                   </a>
@@ -1176,7 +1176,7 @@ export function Settings({
                 {/* Re-extract link */}
                 <div className="flex items-center gap-2 pt-2">
                   <Button variant="ghost" size="sm" asChild>
-                    <a href="/onboarding/step4">
+                    <a href="/onboarding/step3">
                       <IconRefresh className="size-4" />
                       Re-extract from website
                     </a>

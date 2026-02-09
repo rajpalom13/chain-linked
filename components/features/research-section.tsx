@@ -24,6 +24,7 @@ import {
   IconSearch,
   IconSparkles,
   IconTrash,
+  IconWand,
   IconX,
 } from "@tabler/icons-react"
 
@@ -40,6 +41,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 import {
   useResearch,
@@ -51,6 +53,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
 import type { DiscoverArticle } from "@/hooks/use-discover"
+import { useWritingStyle } from "@/hooks/use-writing-style"
+import { MarkdownContent } from "@/components/shared/markdown-content"
 
 /**
  * Available topic filters for research
@@ -295,14 +299,15 @@ function ResearchResultCard({
 
         {/* Title */}
         <h3 className="font-semibold text-sm leading-snug line-clamp-2">
-          {result.title}
+          {result.title.replace(/^#{1,6}\s+/, "").replace(/\*\*/g, "").replace(/\[(?:\d+|Context)\]/g, "").trim()}
         </h3>
 
         {/* Content */}
         <div className="flex-1">
-          <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-line">
-            {displayContent}
-          </p>
+          <MarkdownContent
+            content={displayContent}
+            className="text-xs text-muted-foreground leading-relaxed"
+          />
           {isLongContent && (
             <button
               onClick={() => setIsExpanded(!isExpanded)}
@@ -547,15 +552,16 @@ function GeneratedPostCard({
         {/* Hook/First line highlight */}
         {post.hook && (
           <div className="text-sm font-semibold text-foreground leading-snug">
-            {post.hook}
+            {post.hook.replace(/\*\*/g, "").replace(/\[(?:\d+|Context)\]/g, "").trim()}
           </div>
         )}
 
         {/* Content */}
         <div className="flex-1">
-          <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
-            {displayContent}
-          </p>
+          <MarkdownContent
+            content={displayContent}
+            className="text-sm text-muted-foreground leading-relaxed"
+          />
           {post.content.length > 300 && (
             <button
               onClick={() => setIsExpanded(!isExpanded)}
@@ -694,11 +700,14 @@ export function ResearchSection({
     deleteGeneratedPost,
   } = useResearch()
 
+  const { style, isLoaded: styleLoaded, needsRefresh, analyzeStyle, isAnalyzing } = useWritingStyle()
+
   const [query, setQuery] = React.useState("")
   const [selectedTopics, setSelectedTopics] = React.useState<string[]>([])
   const [isFiltersOpen, setIsFiltersOpen] = React.useState(false)
   const [researchMode, setResearchMode] = React.useState<"quick" | "deep">("deep")
   const [activeTab, setActiveTab] = React.useState<"posts" | "sources">("posts")
+  const [useMyStyle, setUseMyStyle] = React.useState(false)
 
   /**
    * Handle search form submission
@@ -717,7 +726,7 @@ export function ResearchSection({
     if (researchMode === "quick") {
       await quickSearch(query.trim(), options)
     } else {
-      await research(query.trim(), options)
+      await research(query.trim(), { ...options, useMyStyle })
     }
   }
 
@@ -836,6 +845,57 @@ export function ResearchSection({
             </span>
           </div>
 
+          {/* Write Like Me Toggle */}
+          {styleLoaded && style && (
+            <div className="flex items-center justify-between rounded-md border px-3 py-2">
+              <div className="flex items-center gap-2">
+                <IconWand className="size-4 text-primary" />
+                <div>
+                  <Label htmlFor="write-like-me" className="text-sm font-medium cursor-pointer">
+                    Write like me
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Match your writing style in generated posts
+                  </p>
+                </div>
+              </div>
+              <Switch
+                id="write-like-me"
+                checked={useMyStyle}
+                onCheckedChange={setUseMyStyle}
+              />
+            </div>
+          )}
+          {styleLoaded && !style && (
+            <div className="flex items-center justify-between rounded-md border border-dashed px-3 py-2">
+              <div className="flex items-center gap-2">
+                <IconWand className="size-4 text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium">Write like me</p>
+                  <p className="text-xs text-muted-foreground">
+                    Analyze your posts to enable style matching
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => analyzeStyle()}
+                disabled={isAnalyzing}
+                className="gap-1.5"
+              >
+                {isAnalyzing ? (
+                  <>
+                    <IconLoader2 className="size-3.5 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  "Analyze"
+                )}
+              </Button>
+            </div>
+          )}
+
           {/* Filters Collapsible */}
           <Collapsible open={isFiltersOpen} onOpenChange={setIsFiltersOpen}>
             <CollapsibleTrigger asChild>
@@ -901,7 +961,10 @@ export function ResearchSection({
                   <p className="text-xs font-semibold text-primary mb-1">
                     AI Summary
                   </p>
-                  <p className="text-sm text-muted-foreground">{summary}</p>
+                  <MarkdownContent
+                    content={summary}
+                    className="text-sm text-muted-foreground"
+                  />
                 </div>
               </div>
             </CardContent>

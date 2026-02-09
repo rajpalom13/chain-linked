@@ -58,6 +58,7 @@ import {
 
 /**
  * Animated number counter component
+ * Shows value immediately when 0, animates only for non-zero values
  */
 function AnimatedNumber({
   value,
@@ -77,7 +78,11 @@ function AnimatedNumber({
   })
 
   useEffect(() => {
-    spring.set(value)
+    if (value === 0) {
+      spring.jump(0)
+    } else {
+      spring.set(value)
+    }
   }, [spring, value])
 
   return <motion.span>{display}</motion.span>

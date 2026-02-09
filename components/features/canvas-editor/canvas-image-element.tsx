@@ -39,7 +39,7 @@ export function CanvasImageElement({
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
 
-  // Load image from src
+  // Load image from src, proxying external URLs to avoid CORS issues
   useEffect(() => {
     if (!element.src) {
       setHasError(true);
@@ -64,7 +64,11 @@ export function CanvasImageElement({
       setIsLoading(false);
     };
 
-    img.src = element.src;
+    // Proxy external URLs through our API to bypass CORS restrictions
+    const isExternal = element.src.startsWith('http') && !element.src.includes(window.location.host);
+    img.src = isExternal
+      ? `/api/proxy-image?url=${encodeURIComponent(element.src)}`
+      : element.src;
 
     return () => {
       img.onload = null;

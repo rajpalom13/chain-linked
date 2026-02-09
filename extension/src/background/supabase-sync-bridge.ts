@@ -60,6 +60,7 @@ export const FIELD_MAPPINGS: Record<string, Record<string, string>> = {
     'publicIdentifier': 'public_identifier',
     'memberUrn': 'profile_urn',
     'profileUrn': 'profile_urn',
+    'entityUrn': 'profile_urn',
     'connectionCount': 'connections_count',
     'connectionsCount': 'connections_count',
     'followerCount': 'followers_count',
@@ -539,6 +540,29 @@ export function prepareForSupabase(
         console.log(`[SYNC][PREPARE] Converted ${field} from "${strValue}" to ${prepared[field]}`);
       }
     });
+  }
+
+  // Convert timestamp fields from Unix milliseconds to ISO 8601 strings
+  // PostgreSQL timestamptz columns cannot accept raw millisecond integers
+  const timestampFields = ['posted_at', 'connected_at', 'followed_at'];
+  for (const field of timestampFields) {
+    if (prepared[field] !== undefined && typeof prepared[field] === 'number') {
+      const ms = prepared[field] as number;
+      // Validate reasonable range (2010-2040) before converting
+      if (ms > 1262304000000 && ms < 2208988800000) {
+        prepared[field] = new Date(ms).toISOString();
+      } else {
+        // Out of range — drop it rather than sending bad data
+        console.warn(`[SYNC][PREPARE] Dropping ${field}=${ms} (out of range) for ${table}`);
+        delete prepared[field];
+      }
+    }
+  }
+
+  // Table-specific defaults for required NOT NULL columns.
+  // Ensures stale or incomplete data doesn't fail the INSERT.
+  if (table === 'linkedin_analytics' && !prepared.page_type) {
+    prepared.page_type = 'profile_views';
   }
 
   // Filter to only known columns for this table

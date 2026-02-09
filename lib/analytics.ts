@@ -214,7 +214,7 @@ export function trackDiscoverAction(action: "viewed" | "remixed" | "topic_change
 
 /**
  * Tracks onboarding step progression.
- * @param step - The step number (1-6)
+ * @param step - The step number (1-4)
  * @param completed - Whether the step was completed successfully
  */
 export function trackOnboardingStep(step: number, completed: boolean): void {

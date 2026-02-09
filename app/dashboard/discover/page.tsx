@@ -1,7 +1,8 @@
 /**
  * Discover Page
- * @description Industry trends discovery page with curated content by topic,
- * search, sorting, infinite scroll support, and deep research mode
+ * @description LinkedIn News-style industry trends discovery page with topic selection
+ * overlay, two-column layout (main feed + trending sidebar), pill-based topic filters,
+ * search, sorting, infinite scroll, and deep research mode
  * @module app/dashboard/discover/page
  */
 
@@ -26,10 +27,9 @@ import {
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
-import {
-  DiscoverContentCard,
-  DiscoverContentCardSkeleton,
-} from "@/components/features/discover-content-card"
+import { DiscoverNewsItem } from "@/components/features/discover-news-item"
+import { DiscoverTrendingSidebar } from "@/components/features/discover-trending-sidebar"
+import { TopicSelectionOverlay } from "@/components/features/topic-selection-overlay"
 import { ManageTopicsModal } from "@/components/features/manage-topics-modal"
 import { RemixDialog } from "@/components/features/remix-dialog"
 import { ResearchSection } from "@/components/features/research-section"
@@ -57,7 +57,7 @@ import { useDraft } from "@/lib/store/draft-context"
 import { cn } from "@/lib/utils"
 
 /**
- * Sort option display configuration
+ * Sort option display configuration with label and icon mapping
  */
 const SORT_OPTIONS: { value: DiscoverSortOption; label: string; icon: React.ElementType }[] = [
   { value: "engagement", label: "Most Engagement", icon: IconTrendingUp },
@@ -66,15 +66,15 @@ const SORT_OPTIONS: { value: DiscoverSortOption; label: string; icon: React.Elem
 ]
 
 /**
- * Topic tab button component with optional post count badge
- * @param props - Tab button props
+ * Pill-style topic filter button with optional post count
+ * @param props - Topic pill props
  * @param props.name - Topic display name
- * @param props.isActive - Whether this tab is currently active
- * @param props.onClick - Click handler
- * @param props.postCount - Optional post count to display
- * @returns Rendered topic tab button
+ * @param props.isActive - Whether this pill is currently selected
+ * @param props.onClick - Click handler to activate this topic
+ * @param props.postCount - Optional number of posts for this topic
+ * @returns Rendered topic pill badge button
  */
-function TopicTab({
+function TopicPill({
   name,
   isActive,
   onClick,
@@ -86,37 +86,29 @@ function TopicTab({
   postCount?: number
 }) {
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "px-4 py-2 text-sm font-medium whitespace-nowrap transition-all border-b-2 flex items-center gap-1.5",
-        isActive
-          ? "text-foreground border-primary"
-          : "text-muted-foreground border-transparent hover:text-foreground hover:border-muted-foreground/30"
-      )}
-    >
-      {name}
-      {postCount != null && postCount > 0 && (
-        <Badge
-          variant="secondary"
-          className={cn(
-            "text-[10px] px-1.5 py-0 h-4 font-normal",
-            isActive ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-          )}
-        >
-          {postCount}
-        </Badge>
-      )}
+    <button onClick={onClick}>
+      <Badge
+        variant={isActive ? "default" : "outline"}
+        className={cn(
+          "cursor-pointer transition-colors text-xs px-3 py-1 whitespace-nowrap",
+          isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+        )}
+      >
+        {name}
+        {postCount != null && postCount > 0 && (
+          <span className="ml-1 opacity-70">{postCount}</span>
+        )}
+      </Badge>
     </button>
   )
 }
 
 /**
- * Empty state component with illustration
+ * Empty state component displayed when no articles match the current filters
  * @param props - Empty state props
- * @param props.topic - Current topic name for display
- * @param props.isSearch - Whether the empty state is from a search query
- * @returns Rendered empty state card
+ * @param props.topic - Current topic name for contextual messaging
+ * @param props.isSearch - Whether the empty state results from a search query
+ * @returns Rendered empty state card with icon and descriptive text
  */
 function EmptyState({ topic, isSearch }: { topic: string; isSearch?: boolean }) {
   return (
@@ -143,11 +135,11 @@ function EmptyState({ topic, isSearch }: { topic: string; isSearch?: boolean }) 
 }
 
 /**
- * Error state component with retry action
+ * Error state component with retry action for failed data fetches
  * @param props - Error state props
- * @param props.message - Error message to display
- * @param props.onRetry - Callback to retry the failed operation
- * @returns Rendered error state card
+ * @param props.message - Error message to display to the user
+ * @param props.onRetry - Callback invoked when the user clicks the retry button
+ * @returns Rendered error state card with destructive styling and retry button
  */
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
@@ -167,24 +159,61 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
 }
 
 /**
- * Loading skeleton grid for the content area
- * @param props - Skeleton props
- * @param props.count - Number of skeleton cards to show
- * @returns Rendered skeleton grid
+ * Loading skeleton for the two-column content layout (main feed + sidebar)
+ * @returns Rendered skeleton with featured cards, compact list items, and sidebar placeholders
  */
-function ContentGridSkeleton({ count = 6 }: { count?: number }) {
+function ContentSkeleton() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-      {Array.from({ length: count }).map((_, i) => (
-        <DiscoverContentCardSkeleton key={i} />
-      ))}
+    <div className="flex gap-6">
+      <div className="flex-1 min-w-0 space-y-4">
+        {/* Top stories skeleton */}
+        <div className="h-4 w-24 bg-muted animate-pulse rounded" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="rounded-lg border p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="size-6 rounded-full bg-muted animate-pulse" />
+                <div className="h-3 w-20 bg-muted animate-pulse rounded" />
+              </div>
+              <div className="h-4 w-full bg-muted animate-pulse rounded" />
+              <div className="h-4 w-3/4 bg-muted animate-pulse rounded" />
+              <div className="h-3 w-full bg-muted animate-pulse rounded" />
+            </div>
+          ))}
+        </div>
+        {/* Latest skeleton */}
+        <div className="border-t my-4" />
+        <div className="h-4 w-16 bg-muted animate-pulse rounded" />
+        <div className="rounded-lg border overflow-hidden">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0">
+              <div className="size-8 rounded-full bg-muted animate-pulse shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-3.5 w-full bg-muted animate-pulse rounded" />
+                <div className="h-3 w-1/2 bg-muted animate-pulse rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* Sidebar skeleton */}
+      <div className="w-80 shrink-0 space-y-6 hidden lg:block">
+        <div className="space-y-3">
+          <div className="h-4 w-32 bg-muted animate-pulse rounded" />
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-10 w-full bg-muted animate-pulse rounded" />
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
 
 /**
- * Main discover content component with search, sort, infinite scroll, and research mode
- * @returns Rendered discover content area
+ * Main discover content component with LinkedIn News-style two-column layout,
+ * topic pills, search, sort, infinite scroll, and deep research mode
+ * @returns Rendered discover content area with header, topic pills, main feed,
+ * trending sidebar, topic selection overlay, and remix dialog
  */
 function DiscoverContent() {
   const router = useRouter()
@@ -199,41 +228,48 @@ function DiscoverContent() {
     hasMore,
     sort,
     searchQuery,
+    showTopicSelection,
+    isLoadingTopics,
     setActiveTopic,
     setSort,
     setSearchQuery,
     addTopic,
     removeTopic,
     updateTopics,
+    completeTopicSelection,
     retry,
     refresh,
     loadMore,
   } = useDiscover()
 
-  // Modal states
+  /** Modal visibility state for manage topics dialog */
   const [isManageTopicsOpen, setIsManageTopicsOpen] = React.useState(false)
+  /** Modal visibility state for remix dialog */
   const [isRemixOpen, setIsRemixOpen] = React.useState(false)
+  /** Article currently selected for remixing */
   const [articleToRemix, setArticleToRemix] = React.useState<DiscoverArticle | null>(null)
 
-  // Research mode state
+  /** Research mode toggle state */
   const [isResearchMode, setIsResearchMode] = React.useState(false)
 
-  // Search input state (debounced)
+  /** Local search input value before debounce */
   const [searchInput, setSearchInput] = React.useState("")
+  /** Timer ref for debounced search */
   const searchTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // API key status for remix feature
+  /** API key status for determining remix feature availability */
   const { status: apiKeyStatus } = useApiKeys()
+  /** Whether the user has configured an API key for remix */
   const hasApiKey = apiKeyStatus?.hasKey ?? false
 
-  // Infinite scroll observer
+  /** Intersection observer ref and state for infinite scroll sentinel */
   const { ref: loadMoreRef, inView } = useInView({
     threshold: 0,
     rootMargin: "200px",
   })
 
   /**
-   * Trigger load more when sentinel comes into view
+   * Trigger load more when the infinite scroll sentinel comes into view
    */
   React.useEffect(() => {
     if (inView && hasMore && !isLoading && !isLoadingMore) {
@@ -242,7 +278,7 @@ function DiscoverContent() {
   }, [inView, hasMore, isLoading, isLoadingMore, loadMore])
 
   /**
-   * Debounce search input
+   * Debounce search input by 400ms before updating the hook query
    */
   React.useEffect(() => {
     if (searchTimeoutRef.current) {
@@ -261,7 +297,8 @@ function DiscoverContent() {
   }, [searchInput, setSearchQuery])
 
   /**
-   * Handle remix button click on an article
+   * Handle remix button click on an article by opening the remix dialog
+   * @param article - The article to remix
    */
   const handleRemix = React.useCallback((article: DiscoverArticle) => {
     setArticleToRemix(article)
@@ -269,7 +306,8 @@ function DiscoverContent() {
   }, [])
 
   /**
-   * Handle when remix is complete
+   * Handle successful remix completion by loading the draft and navigating to compose
+   * @param remixedContent - The remixed content string from the dialog
    */
   const handleRemixComplete = React.useCallback(
     (remixedContent: string) => {
@@ -284,14 +322,14 @@ function DiscoverContent() {
   )
 
   /**
-   * Get active topic name for display
+   * Get the display name for the currently active topic
    */
   const activeTopicName = React.useMemo(() => {
     return topics.find((t) => t.slug === activeTopic)?.name || activeTopic
   }, [topics, activeTopic])
 
   /**
-   * Build original content for remix from article
+   * Build original content string for the remix dialog from the selected article
    */
   const originalContentForRemix = React.useMemo(() => {
     if (!articleToRemix) return ""
@@ -299,7 +337,7 @@ function DiscoverContent() {
   }, [articleToRemix])
 
   /**
-   * Get the current sort label
+   * Get the label for the currently selected sort option
    */
   const currentSortLabel = SORT_OPTIONS.find((o) => o.value === sort)?.label || "Sort"
 
@@ -348,6 +386,22 @@ function DiscoverContent() {
         />
       )}
 
+      {/* Topic Pills */}
+      <ScrollArea className="w-full">
+        <div className="flex gap-2 pb-1">
+          {topics.map((topic) => (
+            <TopicPill
+              key={topic.id}
+              name={topic.name}
+              isActive={topic.slug === activeTopic}
+              onClick={() => setActiveTopic(topic.slug)}
+              postCount={topic.postCount}
+            />
+          ))}
+        </div>
+        <ScrollBar orientation="horizontal" />
+      </ScrollArea>
+
       {/* Search & Sort Bar */}
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-md">
@@ -389,68 +443,85 @@ function DiscoverContent() {
         </DropdownMenu>
       </div>
 
-      {/* Topic Tabs */}
-      <div className="border-b -mx-4 md:-mx-6 px-4 md:px-6">
-        <ScrollArea className="w-full">
-          <div className="flex">
-            {topics.map((topic) => (
-              <TopicTab
-                key={topic.id}
-                name={topic.name}
-                isActive={topic.slug === activeTopic}
-                onClick={() => setActiveTopic(topic.slug)}
-                postCount={topic.postCount}
-              />
-            ))}
-          </div>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
-      </div>
-
-      {/* Content Section */}
+      {/* Content Section - Two column layout */}
       {error ? (
         <ErrorState message={error} onRetry={retry} />
       ) : isLoading ? (
-        <ContentGridSkeleton count={6} />
+        <ContentSkeleton />
       ) : articles.length === 0 ? (
         <EmptyState topic={activeTopicName} isSearch={searchQuery.length > 0} />
       ) : (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {articles.map((article) => (
-              <DiscoverContentCard
-                key={article.id}
-                article={article}
-                onRemix={handleRemix}
-              />
-            ))}
+        <div className="flex gap-6">
+          {/* Main Feed */}
+          <div className="flex-1 min-w-0">
+            {/* Top Stories - first 3 articles as featured */}
+            {articles.length > 0 && (
+              <div className="mb-6">
+                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Top Stories</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {articles.slice(0, 3).map((article) => (
+                    <DiscoverNewsItem key={article.id} article={article} onRemix={handleRemix} variant="featured" />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Divider */}
+            {articles.length > 3 && <div className="border-t my-4" />}
+
+            {/* Latest News - remaining articles as compact */}
+            {articles.length > 3 && (
+              <div>
+                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Latest</h2>
+                <div className="rounded-lg border bg-card overflow-hidden">
+                  {articles.slice(3).map((article) => (
+                    <DiscoverNewsItem key={article.id} article={article} onRemix={handleRemix} variant="compact" />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Infinite scroll sentinel */}
+            {hasMore && (
+              <div ref={loadMoreRef} className="flex justify-center py-6">
+                {isLoadingMore ? (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <IconLoader2 className="size-5 animate-spin" />
+                    <span className="text-sm">Loading more posts...</span>
+                  </div>
+                ) : (
+                  <Button variant="ghost" onClick={loadMore} className="gap-2">
+                    <IconRefresh className="size-4" />
+                    Load more
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* End of feed */}
+            {!hasMore && articles.length > 0 && (
+              <p className="text-center text-sm text-muted-foreground py-4">
+                You have seen all posts for this topic.
+              </p>
+            )}
           </div>
 
-          {/* Infinite scroll sentinel */}
-          {hasMore && (
-            <div ref={loadMoreRef} className="flex justify-center py-6">
-              {isLoadingMore ? (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <IconLoader2 className="size-5 animate-spin" />
-                  <span className="text-sm">Loading more posts...</span>
-                </div>
-              ) : (
-                <Button variant="ghost" onClick={loadMore} className="gap-2">
-                  <IconRefresh className="size-4" />
-                  Load more
-                </Button>
-              )}
-            </div>
-          )}
-
-          {/* End of feed indicator */}
-          {!hasMore && articles.length > 0 && (
-            <p className="text-center text-sm text-muted-foreground py-4">
-              You have seen all posts for this topic.
-            </p>
-          )}
-        </>
+          {/* Sidebar */}
+          <DiscoverTrendingSidebar
+            articles={articles}
+            topics={topics}
+            activeTopic={activeTopic}
+            onTopicClick={setActiveTopic}
+            onArticleClick={handleRemix}
+          />
+        </div>
       )}
+
+      {/* Topic Selection Overlay for first-time users */}
+      <TopicSelectionOverlay
+        isOpen={showTopicSelection}
+        onComplete={completeTopicSelection}
+      />
 
       {/* Manage Topics Modal */}
       <ManageTopicsModal
@@ -479,8 +550,8 @@ function DiscoverContent() {
 }
 
 /**
- * Discover page loading skeleton
- * @returns Full page skeleton for initial load
+ * Full-page loading skeleton for the Discover page during auth initialization
+ * @returns Rendered skeleton with placeholder header, search bar, topic pills, and content area
  */
 function DiscoverSkeleton() {
   return (
@@ -497,31 +568,31 @@ function DiscoverSkeleton() {
         </div>
       </div>
 
+      {/* Topic Pills Skeleton */}
+      <div className="flex gap-2">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="h-7 w-24 bg-muted animate-pulse rounded-full" />
+        ))}
+      </div>
+
       {/* Search Bar Skeleton */}
       <div className="flex gap-3">
         <div className="h-10 flex-1 max-w-md bg-muted animate-pulse rounded" />
         <div className="h-10 w-32 bg-muted animate-pulse rounded" />
       </div>
 
-      {/* Tabs Skeleton */}
-      <div className="border-b pb-2 -mx-4 md:-mx-6 px-4 md:px-6">
-        <div className="flex gap-4">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-8 w-32 bg-muted animate-pulse rounded" />
-          ))}
-        </div>
-      </div>
-
-      {/* Content Grid Skeleton */}
-      <ContentGridSkeleton count={6} />
+      {/* Content Skeleton */}
+      <ContentSkeleton />
     </div>
   )
 }
 
 /**
- * Discover page component
- * @description Main page for discovering trending industry content by topic
- * @returns Discover page with sidebar, header, search, sort, and content grid
+ * Discover page root component
+ * @description Main page for discovering trending industry content organized by topic,
+ * featuring a LinkedIn News-style layout with featured top stories, compact latest feed,
+ * trending sidebar, and first-time topic selection overlay
+ * @returns Discover page wrapped in SidebarProvider with AppSidebar and SiteHeader
  */
 export default function DiscoverPage() {
   const { isLoading: authLoading } = useAuthContext()

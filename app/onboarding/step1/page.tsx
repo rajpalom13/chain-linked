@@ -1,24 +1,21 @@
 "use client"
 
 /**
- * Onboarding Step 1
- * @description Collects user name and email, saves progress to database
+ * Onboarding Step 1 - Connect
+ * @description Connect LinkedIn tools, saves progress to database
  * @module app/onboarding/step1/page
  */
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2 } from "lucide-react"
+import { Loader2, CheckCircle2 } from "lucide-react"
+import { toast } from "sonner"
 
 import { trackOnboardingStep } from "@/lib/analytics"
-import { SignupForm } from "@/components/signup-form"
+import ConnectTools from "@/components/ConnectTools"
 import { Button } from "@/components/ui/button"
-import {
-  getAuthUserData,
-  updateOnboardingStepInDatabase,
-  updateUserProfile,
-} from "@/services/onboarding"
 import { useOnboardingGuard } from "@/hooks/use-onboarding-guard"
+import { updateOnboardingStepInDatabase } from "@/services/onboarding"
 import { useAuthContext } from "@/lib/auth/auth-provider"
 
 /** Current step number for this page */
@@ -26,7 +23,7 @@ const CURRENT_STEP = 1
 
 /**
  * Step 1 component
- * Collects and validates user name and email
+ * Handles LinkedIn tool connections
  * Saves progress to database when moving to next step
  * @returns Step 1 JSX
  */
@@ -34,10 +31,8 @@ export default function Step1() {
   const router = useRouter()
   const { checking } = useOnboardingGuard()
   const { refreshProfile } = useAuthContext()
-
-  const [form, setForm] = useState({ fullname: "", email: "" })
-  const [error, setError] = useState<string | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [linkedinConnected, setLinkedinConnected] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   /**
    * Updates the current step in the database on mount
@@ -49,51 +44,20 @@ export default function Step1() {
   }, [checking])
 
   /**
-   * Loads existing user data from auth metadata or localStorage
-   */
-  useEffect(() => {
-    if (checking) return
-
-    const loadUserData = async () => {
-      const saved = localStorage.getItem("onboarding_signup")
-
-      if (saved) {
-        try {
-          setForm(JSON.parse(saved))
-          return
-        } catch {
-          localStorage.removeItem("onboarding_signup")
-        }
-      }
-
-      const userData = await getAuthUserData()
-      setForm({ fullname: userData.name, email: userData.email })
-    }
-
-    loadUserData()
-  }, [checking])
-
-  /**
-   * Handles navigation to next step
-   * Validates form, saves to localStorage and database
+   * Handles transition to step 2
+   * Validates LinkedIn connection and saves progress to database
    */
   const handleNext = async () => {
-    if (!form.fullname || !form.email) {
-      setError("Both fields are required.")
+    setSaving(true)
+
+    if (!linkedinConnected) {
+      toast.error("Connect LinkedIn to continue.")
+      setSaving(false)
       return
     }
 
-    setIsSubmitting(true)
-    setError(null)
-
     try {
-      // Save to localStorage for quick retrieval
-      localStorage.setItem("onboarding_signup", JSON.stringify(form))
-
-      // Update user profile in database
-      await updateUserProfile(form.fullname, form.email)
-
-      // Update step progress in database (moving to step 2)
+      // Update step progress in database
       await updateOnboardingStepInDatabase(2)
 
       // Refresh profile to sync auth context with database
@@ -106,8 +70,8 @@ export default function Step1() {
       router.push("/onboarding/step2")
     } catch (err) {
       console.error("Error saving step 1:", err)
-      setError("Failed to save your information. Please try again.")
-      setIsSubmitting(false)
+      toast.error("Failed to save progress. Please try again.")
+      setSaving(false)
     }
   }
 
@@ -120,29 +84,29 @@ export default function Step1() {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center w-full py-12 animate-in fade-in slide-in-from-bottom-2 duration-300">
-      <div className="w-full max-w-md bg-white/70 dark:bg-neutral-900/70 border border-neutral-200 dark:border-neutral-800 shadow-sm rounded-xl p-8 backdrop-blur-sm">
-        <SignupForm
-          fullname={form.fullname}
-          email={form.email}
-          error={error || undefined}
-          onChange={(data) => {
-            setForm(data)
-            setError(null)
-          }}
-        />
-        <div className="flex justify-end mt-6">
-          <Button onClick={handleNext} className="px-6" disabled={isSubmitting}>
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              "Next"
-            )}
-          </Button>
-        </div>
+    <div className="flex flex-col gap-8">
+      <ConnectTools
+        onLinkedInStatusChange={setLinkedinConnected}
+        onSavingChange={setSaving}
+      />
+
+      <div className="flex justify-end">
+        <Button
+          disabled={!linkedinConnected || saving}
+          onClick={handleNext}
+        >
+          {saving ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <CheckCircle2 className="h-4 w-4 mr-2" />
+              Next
+            </>
+          )}
+        </Button>
       </div>
     </div>
   )

@@ -84,30 +84,9 @@ const DEFAULT_METRICS: AnalyticsMetrics = {
 }
 
 /**
- * Demo metrics for when database is empty or unavailable
+ * Empty chart data - no data to display yet
  */
-const DEMO_METRICS: AnalyticsMetrics = {
-  impressions: { value: 12450, change: 12.5 },
-  engagementRate: { value: 4.8, change: 0.3 },
-  followers: { value: 2847, change: 8.2 },
-  profileViews: { value: 892, change: 15.7 },
-  searchAppearances: { value: 156, change: 5.4 },
-  connections: { value: 1250, change: 3.1 },
-  membersReached: { value: 8920, change: 10.2 },
-}
-
-/**
- * Demo chart data for visualization
- */
-const DEMO_CHART_DATA: ChartDataPoint[] = [
-  { date: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], impressions: 8500, engagements: 340, profileViews: 620 },
-  { date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], impressions: 9200, engagements: 410, profileViews: 680 },
-  { date: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], impressions: 10100, engagements: 480, profileViews: 750 },
-  { date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], impressions: 9800, engagements: 420, profileViews: 710 },
-  { date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], impressions: 11200, engagements: 520, profileViews: 820 },
-  { date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], impressions: 11800, engagements: 560, profileViews: 870 },
-  { date: new Date().toISOString().split('T')[0], impressions: 12450, engagements: 598, profileViews: 892 },
-]
+const EMPTY_CHART_DATA: ChartDataPoint[] = []
 
 /**
  * Hook to fetch and manage LinkedIn analytics data
@@ -143,9 +122,9 @@ export function useAnalytics(userId?: string): UseAnalyticsReturn {
 
     // If no user (not authenticated), show demo data
     if (!targetUserId) {
-      setMetrics(DEMO_METRICS)
-      setChartData(DEMO_CHART_DATA)
-      setMetadata({ lastUpdated: new Date().toISOString(), captureMethod: 'demo' })
+      setMetrics(DEFAULT_METRICS)
+      setChartData(EMPTY_CHART_DATA)
+      setMetadata({ lastUpdated: new Date().toISOString(), captureMethod: null })
       setIsLoading(false)
       return
     }
@@ -163,10 +142,10 @@ export function useAnalytics(userId?: string): UseAnalyticsReturn {
 
       // If table doesn't exist or other error, use demo data
       if (fetchError) {
-        console.warn('Analytics fetch warning (using demo data):', fetchError.message)
-        setMetrics(DEMO_METRICS)
-        setChartData(DEMO_CHART_DATA)
-        setMetadata({ lastUpdated: new Date().toISOString(), captureMethod: 'demo' })
+        console.warn('Analytics fetch warning (showing zeros):', fetchError.message)
+        setMetrics(DEFAULT_METRICS)
+        setChartData(EMPTY_CHART_DATA)
+        setMetadata({ lastUpdated: new Date().toISOString(), captureMethod: null })
         setIsLoading(false)
         return
       }
@@ -183,11 +162,55 @@ export function useAnalytics(userId?: string): UseAnalyticsReturn {
       }
 
       if (!analytics || analytics.length === 0) {
-        // No analytics data - use demo data for better UX
-        console.info('No analytics data found, showing demo data')
-        setMetrics(DEMO_METRICS)
-        setChartData(DEMO_CHART_DATA)
-        setMetadata({ lastUpdated: new Date().toISOString(), captureMethod: 'demo' })
+        // No linkedin_analytics data — try deriving metrics from my_posts + profile
+        console.info('No linkedin_analytics data, deriving from my_posts...')
+
+        const { data: myPosts } = await supabase
+          .from('my_posts')
+          .select('impressions, reactions, comments, reposts, posted_at, created_at')
+          .eq('user_id', targetUserId)
+
+        if (myPosts && myPosts.length > 0) {
+          const totalImpressions = myPosts.reduce((sum, p) => sum + (p.impressions || 0), 0)
+          const totalReactions = myPosts.reduce((sum, p) => sum + (p.reactions || 0), 0)
+          const totalComments = myPosts.reduce((sum, p) => sum + (p.comments || 0), 0)
+          const totalReposts = myPosts.reduce((sum, p) => sum + (p.reposts || 0), 0)
+          const totalEngagements = totalReactions + totalComments + totalReposts
+          const engagementRate = totalImpressions > 0 ? (totalEngagements / totalImpressions) * 100 : 0
+          const totalFollowers = profile?.followers_count || 0
+          const totalConnections = profile?.connections_count || 0
+
+          setMetrics({
+            impressions: { value: totalImpressions, change: 0 },
+            engagementRate: { value: engagementRate, change: 0 },
+            followers: { value: totalFollowers, change: 0 },
+            profileViews: { value: 0, change: 0 },
+            searchAppearances: { value: 0, change: 0 },
+            connections: { value: totalConnections, change: 0 },
+            membersReached: { value: 0, change: 0 },
+          })
+
+          // Build simple chart data from posts
+          const postChartMap = new Map<string, ChartDataPoint>()
+          myPosts.forEach((post) => {
+            const date = (post.posted_at || post.created_at || '').split('T')[0]
+            if (!date) return
+            const existing = postChartMap.get(date) || { date, impressions: 0, engagements: 0, profileViews: 0 }
+            existing.impressions += post.impressions || 0
+            existing.engagements += (post.reactions || 0) + (post.comments || 0) + (post.reposts || 0)
+            postChartMap.set(date, existing)
+          })
+          setChartData(Array.from(postChartMap.values()).sort((a, b) => a.date.localeCompare(b.date)))
+          setMetadata({ lastUpdated: new Date().toISOString(), captureMethod: 'extension' })
+          setRawData([])
+          setIsLoading(false)
+          return
+        }
+
+        // No posts either — show zeros
+        setMetrics(DEFAULT_METRICS)
+        setChartData(EMPTY_CHART_DATA)
+        setMetadata({ lastUpdated: new Date().toISOString(), captureMethod: null })
         setRawData([])
         setIsLoading(false)
         return
@@ -207,9 +230,27 @@ export function useAnalytics(userId?: string): UseAnalyticsReturn {
       } | null
       const impressionGrowth = rawDataObj?.impressionGrowth ?? 0
 
-      // Calculate engagement rate (engagements / impressions * 100)
-      const impressions = latestAnalytics.impressions || 0
-      const engagements = latestAnalytics.engagements || 0
+      // Start with analytics record values for impressions/engagements
+      let impressions = latestAnalytics.impressions || 0
+      let engagements = latestAnalytics.engagements || 0
+
+      // If analytics records lack impressions data (e.g. only profileViews saved),
+      // derive impressions and engagements from my_posts for accurate dashboard display.
+      if (impressions === 0) {
+        const { data: myPosts } = await supabase
+          .from('my_posts')
+          .select('impressions, reactions, comments, reposts')
+          .eq('user_id', targetUserId)
+
+        if (myPosts && myPosts.length > 0) {
+          impressions = myPosts.reduce((sum, p) => sum + (p.impressions || 0), 0)
+          const totalReactions = myPosts.reduce((sum, p) => sum + (p.reactions || 0), 0)
+          const totalComments = myPosts.reduce((sum, p) => sum + (p.comments || 0), 0)
+          const totalReposts = myPosts.reduce((sum, p) => sum + (p.reposts || 0), 0)
+          engagements = totalReactions + totalComments + totalReposts
+        }
+      }
+
       const engagementRate = impressions > 0 ? (engagements / impressions) * 100 : 0
 
       // Use profile followers_count for accurate total followers
@@ -255,19 +296,37 @@ export function useAnalytics(userId?: string): UseAnalyticsReturn {
         captureMethod: rawDataObj?.captureMethod || 'extension',
       })
 
-      // Build chart data from all analytics records (group by date)
+      // Build chart data from analytics records and my_posts.
+      // Analytics records provide profile_views; my_posts provide
+      // impressions and engagements grouped by post date.
       const chartDataMap = new Map<string, ChartDataPoint>()
       const sortedAnalytics = [...analytics].reverse()
 
       sortedAnalytics.forEach((record) => {
         const date = record.captured_at.split('T')[0]
-        chartDataMap.set(date, {
-          date,
-          impressions: record.impressions || 0,
-          engagements: record.engagements || 0,
-          profileViews: record.profile_views || 0,
-        })
+        const existing = chartDataMap.get(date) || { date, impressions: 0, engagements: 0, profileViews: 0 }
+        existing.profileViews = Math.max(existing.profileViews, record.profile_views || 0)
+        existing.impressions = Math.max(existing.impressions, record.impressions || 0)
+        existing.engagements = Math.max(existing.engagements, record.engagements || 0)
+        chartDataMap.set(date, existing)
       })
+
+      // Merge my_posts data into the chart for post-level impressions/engagements
+      const { data: chartPosts } = await supabase
+        .from('my_posts')
+        .select('impressions, reactions, comments, reposts, posted_at')
+        .eq('user_id', targetUserId)
+
+      if (chartPosts && chartPosts.length > 0) {
+        chartPosts.forEach((post) => {
+          const date = (post.posted_at || '').split('T')[0]
+          if (!date) return
+          const existing = chartDataMap.get(date) || { date, impressions: 0, engagements: 0, profileViews: 0 }
+          existing.impressions += post.impressions || 0
+          existing.engagements += (post.reactions || 0) + (post.comments || 0) + (post.reposts || 0)
+          chartDataMap.set(date, existing)
+        })
+      }
 
       const sortedChartData = Array.from(chartDataMap.values()).sort(
         (a, b) => a.date.localeCompare(b.date)
@@ -278,9 +337,9 @@ export function useAnalytics(userId?: string): UseAnalyticsReturn {
       console.error('Analytics fetch error:', err)
       setError(err instanceof Error ? err.message : 'Failed to fetch analytics')
       // Use demo data on error for better UX
-      setMetrics(DEMO_METRICS)
-      setChartData(DEMO_CHART_DATA)
-      setMetadata({ lastUpdated: new Date().toISOString(), captureMethod: 'demo' })
+      setMetrics(DEFAULT_METRICS)
+      setChartData(EMPTY_CHART_DATA)
+      setMetadata({ lastUpdated: new Date().toISOString(), captureMethod: null })
     } finally {
       setIsLoading(false)
     }

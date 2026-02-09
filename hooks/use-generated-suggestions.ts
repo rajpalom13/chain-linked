@@ -245,8 +245,11 @@ export function useGeneratedSuggestions(): UseGeneratedSuggestionsReturn {
         if (response.status === 400 && data.error === 'Maximum suggestions reached') {
           toast.warning(data.message || 'You have too many active suggestions. Review them first.')
           setCanGenerate(false)
-        } else if (response.status === 400 && data.error === 'Onboarding not completed') {
-          toast.warning(data.message || 'Please complete onboarding first')
+        } else if (response.status === 400 && (
+          data.error === 'Onboarding not completed' ||
+          data.error === 'Company context required'
+        )) {
+          toast.warning(data.message || 'Please complete company onboarding first. Go to Settings > Company to add your company details.')
         } else if (response.status === 409 && data.error === 'Generation in progress') {
           toast.info('Generation already in progress')
           // Resume polling for existing run
@@ -366,14 +369,18 @@ export function useGeneratedSuggestions(): UseGeneratedSuggestionsReturn {
       try {
         const response = await fetch('/api/swipe/generation-status')
         if (response.ok) {
-          const data: GenerationStatusResponse = await response.json()
+          const data = await response.json()
 
+          // Skip if no generation runs exist
+          if (data.hasRuns === false || data.status === 'none') return
+
+          const statusData = data as GenerationStatusResponse
           // If there's an in-progress generation, resume polling
-          if (data.status === 'pending' || data.status === 'generating') {
+          if (statusData.status === 'pending' || statusData.status === 'generating') {
             setIsGenerating(true)
-            setCurrentRunId(data.runId)
-            setGenerationProgress(data.progress)
-            startPolling(data.runId)
+            setCurrentRunId(statusData.runId)
+            setGenerationProgress(statusData.progress)
+            startPolling(statusData.runId)
           }
         }
       } catch (err) {

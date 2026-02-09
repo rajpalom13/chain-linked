@@ -17,9 +17,9 @@ import { useAuthContext } from "@/lib/auth/auth-provider"
 
 /**
  * Total number of onboarding steps in the flow
- * Steps: 1 (Profile), 2 (Connections), 3 (Company Analysis), 4 (Brand Kit), 5 (Review & Complete)
+ * Steps: 1 (Connect), 2 (Company Analysis), 3 (Brand Kit), 4 (Review & Complete)
  */
-const TOTAL_STEPS = 5
+const TOTAL_STEPS = 4
 
 /**
  * Onboarding layout component wrapping all onboarding step pages.

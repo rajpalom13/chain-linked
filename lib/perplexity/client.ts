@@ -7,8 +7,8 @@
 /** Perplexity API base URL */
 const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions'
 
-/** Default model for research queries - using sonar for lightweight search */
-const DEFAULT_MODEL = 'sonar'
+/** Default model for research queries - using sonar-pro for higher quality results */
+const DEFAULT_MODEL = 'sonar-pro'
 
 /**
  * Perplexity message format
@@ -159,11 +159,40 @@ export class PerplexityClient {
     messages.push({ role: 'user', content: query })
 
     const response = await this.chat(messages, {
-      search_recency_filter: 'month',
+      search_recency_filter: 'week',
       return_related_questions: false,
     })
 
     return response.choices[0]?.message?.content || ''
+  }
+
+  /**
+   * Performs a research query and returns content with citations
+   * @param query - Research query
+   * @param systemPrompt - Optional system prompt
+   * @returns Object with content and citations array
+   */
+  async researchWithCitations(
+    query: string,
+    systemPrompt?: string
+  ): Promise<{ content: string; citations: string[] }> {
+    const messages: PerplexityMessage[] = []
+
+    if (systemPrompt) {
+      messages.push({ role: 'system', content: systemPrompt })
+    }
+
+    messages.push({ role: 'user', content: query })
+
+    const response = await this.chat(messages, {
+      search_recency_filter: 'week',
+      return_related_questions: false,
+    })
+
+    return {
+      content: response.choices[0]?.message?.content || '',
+      citations: response.citations || [],
+    }
   }
 }
 

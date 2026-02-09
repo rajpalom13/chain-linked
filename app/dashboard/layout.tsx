@@ -1,7 +1,8 @@
 /**
  * Dashboard Layout
- * @description Wraps all dashboard pages with authentication and onboarding guards.
- * Forces dynamic rendering since pages depend on client-side auth context.
+ * @description Wraps all dashboard pages with a client-side authentication guard.
+ * Onboarding enforcement is handled by the middleware (server-side) to avoid
+ * race conditions between the middleware and client-side profile loading.
  * @module app/dashboard/layout
  */
 
@@ -16,7 +17,7 @@ import { useAuthContext } from '@/lib/auth/auth-provider'
 export const dynamic = 'force-dynamic'
 
 /**
- * Loading component displayed while checking auth and onboarding status
+ * Loading component displayed while checking auth status
  * @returns Loading UI with spinner
  */
 function DashboardLoadingState() {
@@ -32,22 +33,12 @@ function DashboardLoadingState() {
 
 /**
  * Dashboard Layout Component
- * Handles authentication checks and company onboarding redirect.
- *
- * Flow:
- * 1. Wait for auth loading to complete
- * 2. If not authenticated, redirect to login
- * 3. If authenticated but profile not loaded yet, wait
- * 4. If company onboarding not completed, redirect to /onboarding/company
- * 5. Otherwise, render dashboard content
+ * Handles client-side authentication check only.
+ * Onboarding status is enforced by the middleware to prevent race conditions.
  *
  * @param props - Layout props
  * @param props.children - Dashboard page content
- * @returns Dashboard layout JSX with guards
- * @example
- * <DashboardLayout>
- *   <DashboardPage />
- * </DashboardLayout>
+ * @returns Dashboard layout JSX with auth guard
  */
 export default function DashboardLayout({
   children,
@@ -56,73 +47,25 @@ export default function DashboardLayout({
 }) {
   const router = useRouter()
   const pathname = usePathname()
-  const {
-    user,
-    profile,
-    isLoading,
-    isAuthenticated,
-    hasCompletedCompanyOnboarding
-  } = useAuthContext()
+  const { user, isLoading, isAuthenticated } = useAuthContext()
 
-  const [isCheckingOnboarding, setIsCheckingOnboarding] = useState(true)
-  const [hasRedirected, setHasRedirected] = useState(false)
+  const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    // Wait for auth loading to complete
-    if (isLoading) {
-      return
-    }
+    if (isLoading) return
 
-    // Not authenticated - redirect to login
     if (!isAuthenticated || !user) {
       router.replace(`/login?redirect=${encodeURIComponent(pathname)}`)
       return
     }
 
-    // Profile is still loading (user exists but profile fetch in progress)
-    // Give it a moment to load before making decisions
-    if (profile === null) {
-      // Set a timeout to prevent infinite waiting
-      const timeout = setTimeout(() => {
-        // If profile still null after 3 seconds, assume new user
-        // and redirect to onboarding
-        setIsCheckingOnboarding(false)
-      }, 3000)
+    // Auth confirmed — middleware already enforced onboarding status server-side
+    setReady(true)
+  }, [isLoading, isAuthenticated, user, pathname, router])
 
-      return () => clearTimeout(timeout)
-    }
-
-    // Profile loaded - check onboarding status
-    if (!hasCompletedCompanyOnboarding && !hasRedirected) {
-      console.log('[DashboardLayout] Company onboarding not completed, redirecting to /onboarding/company')
-      setHasRedirected(true)
-      router.replace('/onboarding/company')
-      return
-    }
-
-    // All checks passed
-    setIsCheckingOnboarding(false)
-  }, [
-    isLoading,
-    isAuthenticated,
-    user,
-    profile,
-    hasCompletedCompanyOnboarding,
-    hasRedirected,
-    pathname,
-    router
-  ])
-
-  // Show loading while auth is loading or we're checking onboarding
-  if (isLoading || (isCheckingOnboarding && isAuthenticated)) {
+  if (isLoading || !ready) {
     return <DashboardLoadingState />
   }
 
-  // If we've determined onboarding redirect is needed but waiting for navigation
-  if (!hasCompletedCompanyOnboarding && hasRedirected) {
-    return <DashboardLoadingState />
-  }
-
-  // All guards passed - render dashboard
   return <>{children}</>
 }

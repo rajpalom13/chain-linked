@@ -20,6 +20,19 @@ import { IconBrandGoogle, IconLoader2, IconLink, IconMail, IconSparkles } from '
 import { toast } from 'sonner'
 
 /**
+ * Sanitize a redirect URL to prevent open redirect attacks.
+ * Only allows internal paths that start with "/" and are not protocol-relative.
+ * @param url - The redirect URL to validate
+ * @returns A safe redirect path, defaulting to "/dashboard"
+ */
+function sanitizeRedirect(url: string): string {
+  if (url && url.startsWith('/') && !url.startsWith('//')) {
+    return url
+  }
+  return '/dashboard'
+}
+
+/**
  * Login form component with email/password and Google OAuth
  * @returns Login form JSX
  */
@@ -31,7 +44,7 @@ function LoginForm() {
   const [password, setPassword] = useState('')
   const searchParams = useSearchParams()
   const router = useRouter()
-  const redirectTo = searchParams.get('redirect') || '/dashboard'
+  const redirectTo = sanitizeRedirect(searchParams.get('redirect') || '/dashboard')
   const errorParam = searchParams.get('error')
   const successParam = searchParams.get('success')
 

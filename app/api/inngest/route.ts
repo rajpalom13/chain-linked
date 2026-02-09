@@ -10,6 +10,7 @@ import {
   analyzeCompanyWorkflow,
   deepResearchWorkflow,
   generateSuggestionsWorkflow,
+  dailyContentIngest,
 } from '@/lib/inngest/functions'
 
 /**
@@ -22,5 +23,6 @@ export const { GET, POST, PUT } = serve({
     analyzeCompanyWorkflow,
     deepResearchWorkflow,
     generateSuggestionsWorkflow,
+    dailyContentIngest,
   ],
 })

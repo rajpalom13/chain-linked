@@ -81,6 +81,10 @@ interface DiscoverState {
   hasMore: boolean
   sort: DiscoverSortOption
   searchQuery: string
+  /** Whether the user needs to complete first-time topic selection */
+  showTopicSelection: boolean
+  /** Whether topic preferences are still loading from DB */
+  isLoadingTopics: boolean
 }
 
 /**
@@ -88,10 +92,10 @@ interface DiscoverState {
  */
 const DEFAULT_TOPICS: Topic[] = [
   { id: "1", name: "All", slug: "all" },
-  { id: "2", name: "Artificial Intelligence", slug: "artificial-intelligence" },
-  { id: "3", name: "Sales Enablement", slug: "sales-enablement" },
+  { id: "2", name: "AI", slug: "ai" },
+  { id: "3", name: "Sales", slug: "sales" },
   { id: "4", name: "Remote Work", slug: "remote-work" },
-  { id: "5", name: "SaaS Growth", slug: "saas-growth" },
+  { id: "5", name: "SaaS", slug: "saas" },
   { id: "6", name: "Leadership", slug: "leadership" },
 ]
 
@@ -124,18 +128,50 @@ function getSourceColor(source: string): string {
 }
 
 /**
+ * Strip markdown syntax and citation references from a title string.
+ * Removes heading prefixes (###), bold markers (**), and citation refs ([1], [Context]).
+ * @param text - Raw title text that may contain markdown
+ * @returns Plain text suitable for display in a heading element
+ */
+function stripTitleMarkdown(text: string): string {
+  return text
+    .replace(/\[(?:\d+|Context)\]/g, "")
+    .replace(/^#{1,6}\s+/, "")
+    .replace(/\*\*/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+}
+
+/**
+ * Strip citation references from description text.
+ * Removes [1], [2], [Context] etc. that are Perplexity API artifacts.
+ * @param text - Raw description text
+ * @returns Cleaned description without citation references
+ */
+function stripDescriptionCitations(text: string): string {
+  return text
+    .replace(/\[(?:\d+|Context)\]/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+}
+
+/**
  * Convert a DiscoverPost from the API to a DiscoverArticle for display
  * @param post - Database discover post
  * @returns DiscoverArticle for rendering
  */
 function postToArticle(post: DiscoverPost): DiscoverArticle {
   const firstLine = post.content.split("\n")[0]?.trim() || ""
+  const cleanedFirstLine = stripTitleMarkdown(firstLine)
   const title =
-    firstLine.length > 120 ? firstLine.slice(0, 120) + "..." : firstLine
-  const description =
+    cleanedFirstLine.length > 120
+      ? cleanedFirstLine.slice(0, 120) + "..."
+      : cleanedFirstLine
+  const rawDescription =
     post.content.length > firstLine.length
       ? post.content.slice(firstLine.length).trim()
       : post.content
+  const description = stripDescriptionCitations(rawDescription)
 
   return {
     id: post.id,
@@ -169,7 +205,7 @@ const MOCK_ARTICLES: Record<string, DiscoverArticle[]> = {
       sourceColor: getSourceColor("quantanite"),
       title: "AI in Sales: How Machine Learning is Revolutionizing Lead Scoring Models",
       description: "Recent studies show that AI-driven lead scoring can increase conversion rates by up to 30%. By analyzing thousands of data points, sales teams can now prioritize prospects with unprecedented accuracy, saving countless hours on manual qualification.",
-      topic: "artificial-intelligence",
+      topic: "ai",
       publishedAt: "2024-01-20T10:00:00Z",
       authorName: "Sarah Chen",
       authorHeadline: "VP of Sales at TechCorp",
@@ -186,7 +222,7 @@ const MOCK_ARTICLES: Record<string, DiscoverArticle[]> = {
       sourceColor: getSourceColor("forbes"),
       title: "The New Sales Playbook: Adapting to Buyer-Centric Selling",
       description: "Modern B2B buyers complete 70% of their journey before speaking to sales. Learn how top-performing teams are adapting their strategies to meet prospects where they are.",
-      topic: "sales-enablement",
+      topic: "sales",
       publishedAt: "2024-01-20T11:00:00Z",
       authorName: "Mark Johnson",
       authorHeadline: "Chief Revenue Officer at SalesForce",
@@ -215,14 +251,14 @@ const MOCK_ARTICLES: Record<string, DiscoverArticle[]> = {
       isViral: true,
     },
   ],
-  "artificial-intelligence": [
+  "ai": [
     {
       id: "ai-1",
       source: "Quantanite",
       sourceColor: getSourceColor("quantanite"),
       title: "AI in Sales: How Machine Learning is Revolutionizing Lead Scoring Models",
       description: "Recent studies show that AI-driven lead scoring can increase conversion rates by up to 30%. By analyzing thousands of data points, sales teams can now prioritize prospects with unprecedented accuracy, saving countless hours on manual qualification.",
-      topic: "artificial-intelligence",
+      topic: "ai",
       publishedAt: "2024-01-20T10:00:00Z",
       authorName: "Sarah Chen",
       authorHeadline: "VP of Sales at TechCorp",
@@ -239,7 +275,7 @@ const MOCK_ARTICLES: Record<string, DiscoverArticle[]> = {
       sourceColor: getSourceColor("techcrunch"),
       title: "The Shift to Product-Led Growth in B2B Enterprise Software",
       description: "Traditional sales-led models are being challenged by PLG strategies even in the enterprise sector. Companies are finding that end-user adoption is a more powerful driver of retention than executive procurement.",
-      topic: "artificial-intelligence",
+      topic: "ai",
       publishedAt: "2024-01-19T14:30:00Z",
       authorName: "Alex Rivera",
       authorHeadline: "Staff Writer at TechCrunch",
@@ -256,7 +292,7 @@ const MOCK_ARTICLES: Record<string, DiscoverArticle[]> = {
       sourceColor: getSourceColor("harvard business review"),
       title: "Building Trust in a Digital-First Sales Environment",
       description: "Without face-to-face meetings, building rapport requires a new set of skills. Digital empathy and active listening through video calls have become the most sought-after soft skills for modern account executives.",
-      topic: "artificial-intelligence",
+      topic: "ai",
       publishedAt: "2024-01-18T09:00:00Z",
       authorName: "Dr. Amy Wei",
       authorHeadline: "Professor of Business at Harvard",
@@ -273,7 +309,7 @@ const MOCK_ARTICLES: Record<string, DiscoverArticle[]> = {
       sourceColor: getSourceColor("saastr"),
       title: "5 Key Metrics Every CRO Should Watch in 2024",
       description: "Beyond ARR and churn, the modern Chief Revenue Officer needs to keep an eye on NRR, CAC payback period, and the emerging 'Usage Intensity' metric. We break down what these numbers really mean for the health of your business.",
-      topic: "artificial-intelligence",
+      topic: "ai",
       publishedAt: "2024-01-17T16:00:00Z",
       authorName: "Jason Lemkin",
       authorHeadline: "Founder at SaaStr",
@@ -285,14 +321,14 @@ const MOCK_ARTICLES: Record<string, DiscoverArticle[]> = {
       isViral: true,
     },
   ],
-  "sales-enablement": [
+  "sales": [
     {
       id: "sales-1",
       source: "Forbes",
       sourceColor: getSourceColor("forbes"),
       title: "The New Sales Playbook: Adapting to Buyer-Centric Selling",
       description: "Modern B2B buyers complete 70% of their journey before speaking to sales. Learn how top-performing teams are adapting their strategies to meet prospects where they are.",
-      topic: "sales-enablement",
+      topic: "sales",
       publishedAt: "2024-01-20T11:00:00Z",
       authorName: "Mark Johnson",
       authorHeadline: "Chief Revenue Officer at SalesForce",
@@ -309,7 +345,7 @@ const MOCK_ARTICLES: Record<string, DiscoverArticle[]> = {
       sourceColor: getSourceColor("harvard business review"),
       title: "Building High-Performance Sales Teams in a Hybrid World",
       description: "The shift to remote and hybrid work has fundamentally changed how sales teams operate. Discover the frameworks that leading organizations use to maintain culture and drive results.",
-      topic: "sales-enablement",
+      topic: "sales",
       publishedAt: "2024-01-19T08:00:00Z",
       authorName: "Rachel Kim",
       authorHeadline: "Sales Director at HubSpot",
@@ -326,7 +362,7 @@ const MOCK_ARTICLES: Record<string, DiscoverArticle[]> = {
       sourceColor: getSourceColor("saastr"),
       title: "Revenue Operations: The Missing Link in Your Growth Strategy",
       description: "RevOps has emerged as the critical function bridging sales, marketing, and customer success. Here's why companies with dedicated RevOps teams grow 19% faster than those without.",
-      topic: "sales-enablement",
+      topic: "sales",
       publishedAt: "2024-01-18T13:00:00Z",
       authorName: "Tom Bradley",
       authorHeadline: "VP RevOps at Gong",
@@ -374,14 +410,14 @@ const MOCK_ARTICLES: Record<string, DiscoverArticle[]> = {
       isViral: false,
     },
   ],
-  "saas-growth": [
+  "saas": [
     {
       id: "saas-1",
       source: "SaaStr",
       sourceColor: getSourceColor("saastr"),
       title: "The Rule of 40 is Dead. Long Live the Rule of X",
       description: "Investors are evolving their metrics for evaluating SaaS companies. The new 'Rule of X' framework accounts for market conditions and company stage in ways the old model never could.",
-      topic: "saas-growth",
+      topic: "saas",
       publishedAt: "2024-01-20T14:00:00Z",
       authorName: "Jason Lemkin",
       authorHeadline: "Founder at SaaStr",
@@ -398,7 +434,7 @@ const MOCK_ARTICLES: Record<string, DiscoverArticle[]> = {
       sourceColor: getSourceColor("techcrunch"),
       title: "Why Usage-Based Pricing is Winning in 2024",
       description: "From Snowflake to OpenAI, usage-based pricing models are dominating the fastest-growing software companies. Here's how to make the transition.",
-      topic: "saas-growth",
+      topic: "saas",
       publishedAt: "2024-01-18T10:00:00Z",
       authorName: "Emma Davis",
       authorHeadline: "Pricing Strategy at Stripe",
@@ -446,6 +482,28 @@ const MOCK_ARTICLES: Record<string, DiscoverArticle[]> = {
       isViral: true,
     },
   ],
+}
+
+/**
+ * Special display names for topic slugs that are acronyms or have non-standard casing
+ */
+const TOPIC_DISPLAY_NAMES: Record<string, string> = {
+  ai: "AI",
+  saas: "SaaS",
+  fintech: "FinTech",
+}
+
+/**
+ * Convert a topic slug to a display name, handling acronyms correctly
+ * @param slug - Topic slug (e.g. "ai", "remote-work")
+ * @returns Display name (e.g. "AI", "Remote Work")
+ */
+function slugToDisplayName(slug: string): string {
+  if (TOPIC_DISPLAY_NAMES[slug]) return TOPIC_DISPLAY_NAMES[slug]
+  return slug
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ")
 }
 
 /**
@@ -515,18 +573,67 @@ export function useDiscover() {
     hasMore: false,
     sort: "engagement",
     searchQuery: "",
+    showTopicSelection: false,
+    isLoadingTopics: true,
   })
 
   /**
-   * Load topics from local storage on mount
+   * Load topics from DB (via API), fallback to localStorage
    */
   React.useEffect(() => {
-    const loadTopics = () => {
+    const loadTopics = async () => {
+      try {
+        // Try loading from DB first
+        const response = await fetch("/api/discover/topics")
+        if (response.ok) {
+          const data = await response.json()
+
+          if (!data.selected) {
+            // User hasn't selected topics yet - show overlay
+            setState((prev) => ({
+              ...prev,
+              topics: DEFAULT_TOPICS,
+              activeTopic: DEFAULT_TOPICS[0].slug,
+              showTopicSelection: true,
+              isLoadingTopics: false,
+              isLoading: true,
+            }))
+            return
+          }
+
+          // Build topics from DB selection
+          const dbSlugs: string[] = data.topics || []
+          const dbTopics: Topic[] = [
+            { id: "all", name: "All", slug: "all" },
+            ...dbSlugs.map((slug: string, i: number) => ({
+              id: `db-${i}`,
+              name: slugToDisplayName(slug),
+              slug,
+            })),
+          ]
+
+          // Cache in localStorage
+          localStorage.setItem(TOPICS_STORAGE_KEY, JSON.stringify(dbTopics))
+
+          setState((prev) => ({
+            ...prev,
+            topics: dbTopics,
+            activeTopic: dbTopics[0]?.slug || "all",
+            showTopicSelection: false,
+            isLoadingTopics: false,
+            isLoading: true,
+          }))
+          return
+        }
+      } catch {
+        // API failed, fallback to localStorage
+      }
+
+      // Fallback: load from localStorage
       try {
         const stored = localStorage.getItem(TOPICS_STORAGE_KEY)
         const storedTopics: Topic[] = stored ? JSON.parse(stored) : []
 
-        // Ensure "All" tab always exists
         const hasAll = storedTopics.some((t) => t.slug === "all")
         const topics = hasAll
           ? storedTopics
@@ -540,6 +647,7 @@ export function useDiscover() {
           ...prev,
           topics,
           activeTopic,
+          isLoadingTopics: false,
           isLoading: true,
         }))
       } catch {
@@ -547,6 +655,7 @@ export function useDiscover() {
           ...prev,
           topics: DEFAULT_TOPICS,
           activeTopic: DEFAULT_TOPICS[0].slug,
+          isLoadingTopics: false,
           isLoading: true,
         }))
       }
@@ -765,6 +874,34 @@ export function useDiscover() {
   }, [])
 
   /**
+   * Complete first-time topic selection
+   * Updates local state with new topics, hides overlay, and triggers feed load
+   * @param slugs - Selected topic slugs from the overlay
+   */
+  const completeTopicSelection = React.useCallback((slugs: string[]) => {
+    const newTopics: Topic[] = [
+      { id: "all", name: "All", slug: "all" },
+      ...slugs.map((slug, i) => ({
+        id: `db-${i}`,
+        name: slugToDisplayName(slug),
+        slug,
+      })),
+    ]
+
+    // Cache in localStorage
+    localStorage.setItem(TOPICS_STORAGE_KEY, JSON.stringify(newTopics))
+
+    setState((prev) => ({
+      ...prev,
+      topics: newTopics,
+      activeTopic: newTopics[0]?.slug || "all",
+      showTopicSelection: false,
+      isLoadingTopics: false,
+      isLoading: true,
+    }))
+  }, [])
+
+  /**
    * Retry loading articles
    */
   const retry = React.useCallback(() => {
@@ -804,6 +941,7 @@ export function useDiscover() {
     addTopic,
     removeTopic,
     updateTopics,
+    completeTopicSelection,
     retry,
     refresh,
     loadMore,

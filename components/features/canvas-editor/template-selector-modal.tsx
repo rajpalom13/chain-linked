@@ -24,6 +24,7 @@ import {
   IconUser,
   IconTrash,
   IconLoader2,
+  IconPalette,
 } from '@tabler/icons-react';
 import {
   Dialog,
@@ -39,6 +40,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { canvasTemplates, getTemplatesByCategory } from '@/lib/canvas-templates';
 import { useCarouselTemplates } from '@/hooks/use-carousel-templates';
+import { useBrandKitTemplates } from '@/hooks/use-brand-kit-templates';
 import type { CanvasTemplate, TemplateCategory, CanvasSlide } from '@/types/canvas-editor';
 
 const FAVORITES_STORAGE_KEY = 'chainlinked-template-favorites';
@@ -80,6 +82,11 @@ const categoryConfig: Record<
     label: 'Bold',
     icon: <IconBolt className="h-4 w-4" />,
     description: 'Modern high-impact designs',
+  },
+  brand: {
+    label: 'Your Brand',
+    icon: <IconPalette className="h-4 w-4" />,
+    description: 'Templates using your brand kit',
   },
 };
 
@@ -679,6 +686,9 @@ export function TemplateSelectorModal({
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [deletingTemplateId, setDeletingTemplateId] = useState<string | null>(null);
 
+  // Brand kit templates hook
+  const { brandTemplates, isLoading: isLoadingBrand, hasBrandKit } = useBrandKitTemplates();
+
   // Saved templates hook
   const {
     savedTemplates,
@@ -719,7 +729,7 @@ export function TemplateSelectorModal({
   );
 
   const categoryTemplates =
-    activeCategory === 'all' || activeCategory === 'my-templates'
+    activeCategory === 'all' || activeCategory === 'my-templates' || activeCategory === 'brand'
       ? canvasTemplates
       : getTemplatesByCategory(activeCategory);
 
@@ -859,24 +869,30 @@ export function TemplateSelectorModal({
               }
               className="flex-1 flex flex-col min-h-0"
             >
-              <TabsList className="grid w-full grid-cols-6">
+              <TabsList className="grid w-full grid-cols-8">
                 <TabsTrigger value="all">All</TabsTrigger>
-                {(Object.keys(categoryConfig) as TemplateCategory[]).map((category) => (
-                  <TabsTrigger key={category} value={category} className="gap-1.5">
-                    {categoryConfig[category].icon}
-                    <span className="hidden sm:inline">
-                      {categoryConfig[category].label}
-                    </span>
-                  </TabsTrigger>
-                ))}
+                {(Object.keys(categoryConfig) as TemplateCategory[])
+                  .filter((category) => category !== 'brand')
+                  .map((category) => (
+                    <TabsTrigger key={category} value={category} className="gap-1.5">
+                      {categoryConfig[category].icon}
+                      <span className="hidden sm:inline">
+                        {categoryConfig[category].label}
+                      </span>
+                    </TabsTrigger>
+                  ))}
+                <TabsTrigger value="brand" className="gap-1.5">
+                  <IconPalette className="h-4 w-4" />
+                  <span className="hidden sm:inline">Your Brand</span>
+                </TabsTrigger>
                 <TabsTrigger value="my-templates" className="gap-1.5">
                   <IconUser className="h-4 w-4" />
                   <span className="hidden sm:inline">My Templates</span>
                 </TabsTrigger>
               </TabsList>
 
-              {/* Favorites filter toggle - hidden on My Templates tab */}
-              {activeCategory !== 'my-templates' && (
+              {/* Favorites filter toggle - hidden on My Templates and Brand tabs */}
+              {activeCategory !== 'my-templates' && activeCategory !== 'brand' && (
                 <div className="flex items-center justify-end mt-3">
                   <Button
                     variant={showFavoritesOnly ? 'default' : 'outline'}
@@ -895,6 +911,36 @@ export function TemplateSelectorModal({
                   </Button>
                 </div>
               )}
+
+              {/* Brand templates tab content */}
+              <TabsContent value="brand" className="flex-1 overflow-y-auto mt-4">
+                <div className="space-y-6 pb-4">
+                  {isLoadingBrand ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <IconLoader2 className="h-8 w-8 animate-spin text-muted-foreground mb-3" />
+                      <p className="text-muted-foreground">Loading brand templates...</p>
+                    </div>
+                  ) : hasBrandKit && brandTemplates.length > 0 ? (
+                    <div>
+                      <SectionHeader
+                        icon={<IconPalette className="h-4 w-4 text-primary" />}
+                        title="Your Brand Templates"
+                        count={brandTemplates.length}
+                      />
+                      {renderTemplateGrid(brandTemplates)}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <IconPalette className="h-12 w-12 text-muted-foreground/30 mb-4" />
+                      <p className="text-muted-foreground font-medium">No brand kit found</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Go to Settings &gt; Brand Kit to extract your brand colors, fonts, and logo.
+                        Templates will be auto-generated from your brand.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
 
               {/* My Templates tab content */}
               <TabsContent value="my-templates" className="flex-1 overflow-y-auto mt-4">
@@ -940,7 +986,7 @@ export function TemplateSelectorModal({
               </TabsContent>
 
               {/* Built-in templates tab content (all category tabs share this) */}
-              <TabsContent value={activeCategory === 'my-templates' ? '__hidden__' : activeCategory} className="flex-1 overflow-y-auto mt-4">
+              <TabsContent value={activeCategory === 'my-templates' || activeCategory === 'brand' ? '__hidden__' : activeCategory} className="flex-1 overflow-y-auto mt-4">
                 <div className="space-y-6 pb-4">
                   {/* Recently Used section - only on "All" tab */}
                   {activeCategory === 'all' && recentTemplates.length > 0 && (

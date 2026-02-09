@@ -35,8 +35,10 @@ export function PostHogProvider({ children }: PostHogProviderProps): React.React
   const apiHost = process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com"
 
   useEffect(() => {
-    if (!apiKey) {
-      console.warn("[PostHog] Missing NEXT_PUBLIC_POSTHOG_KEY - analytics disabled")
+    if (!apiKey || apiKey.includes("YOUR_PROJECT_API_KEY_HERE")) {
+      if (process.env.NODE_ENV === "development") {
+        console.warn("[PostHog] Missing or placeholder NEXT_PUBLIC_POSTHOG_KEY - analytics disabled")
+      }
       return
     }
 

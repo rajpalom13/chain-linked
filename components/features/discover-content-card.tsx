@@ -26,6 +26,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
+import { MarkdownContent } from "@/components/shared/markdown-content"
 import type { DiscoverArticle } from "@/hooks/use-discover"
 
 /**
@@ -197,14 +198,15 @@ export function DiscoverContentCard({
 
         {/* Title */}
         <h3 className="font-semibold text-base leading-snug line-clamp-2">
-          {article.title}
+          {article.title.replace(/^#{1,6}\s+/, "").replace(/\*\*/g, "").replace(/\[(?:\d+|Context)\]/g, "").trim()}
         </h3>
 
         {/* Content / Description */}
         <div className="flex-1">
-          <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
-            {displayContent}
-          </p>
+          <MarkdownContent
+            content={displayContent}
+            className="text-sm text-muted-foreground leading-relaxed"
+          />
           {isLongContent && (
             <button
               onClick={toggleExpand}

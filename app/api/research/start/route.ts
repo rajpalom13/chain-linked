@@ -25,6 +25,8 @@ interface StartResearchRequest {
   postTypes?: PostType[]
   /** Company context ID for personalization */
   companyContextId?: string
+  /** Whether to apply user's writing style to generated posts */
+  useMyStyle?: boolean
 }
 
 /**
@@ -226,6 +228,7 @@ export async function POST(request: Request) {
         generatePosts: body.generatePosts !== false,
         postTypes: body.postTypes || ['thought-leadership', 'educational', 'storytelling'],
         companyContextId: body.companyContextId,
+        useMyStyle: body.useMyStyle ?? false,
       },
     })
 

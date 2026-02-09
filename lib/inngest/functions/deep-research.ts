@@ -1,7 +1,8 @@
 /**
  * Deep Research Workflow
- * @description Inngest function that orchestrates content discovery using Tavily, Perplexity, and OpenAI
- * Uses parallel execution for maximum performance
+ * @description Inngest function that orchestrates content discovery using Tavily, Perplexity, and OpenAI.
+ * Uses concurrent per-topic search+enrich, cross-topic synthesis, optional "My Style" writing
+ * integration, and Promise.allSettled everywhere for resilience.
  * @see https://www.inngest.com/docs/guides/step-parallelism
  * @module lib/inngest/functions/deep-research
  */
@@ -11,9 +12,12 @@ import { searchContent, type TavilySearchResult } from '@/lib/research/tavily-cl
 import { createPerplexityClient } from '@/lib/perplexity/client'
 import { createOpenAIClient, chatCompletion } from '@/lib/ai/openai-client'
 import { createClient } from '@supabase/supabase-js'
+import { synthesizeResearch, type SynthesisResult } from '@/lib/ai/research-synthesizer'
+import { buildStylePromptFragment } from '@/lib/ai/style-analyzer'
 
 /**
- * Supabase admin client for background jobs
+ * Creates a Supabase admin client for background jobs using the service role key
+ * @returns Supabase client instance with admin privileges
  */
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -25,35 +29,53 @@ function getSupabaseAdmin() {
  * Research result after Tavily search
  */
 interface SearchResult {
+  /** URL of the source article */
   url: string
+  /** Title of the source article */
   title: string
+  /** Raw content snippet from search */
   content: string
+  /** Relevance score from Tavily (0-1) */
   score: number
+  /** Topic this result belongs to */
   topic: string
+  /** Date the article was published */
   publishedDate?: string
 }
 
 /**
- * Enriched result after Perplexity research
+ * Enriched result after Perplexity research adds deeper analysis
  */
 interface EnrichedResult extends SearchResult {
+  /** Content enriched with Perplexity analysis */
   enrichedContent: string
+  /** Key insights extracted from the enriched content */
   keyInsights: string[]
+  /** Trend analysis from Perplexity */
   trendAnalysis?: string
+  /** Expert opinions extracted from the enriched content */
   expertOpinions?: string[]
 }
 
 /**
- * Generated post content
+ * Generated LinkedIn post content ready for saving
  */
 interface GeneratedPost {
+  /** Source URL used as ID reference */
   sourceId: string
+  /** Full post content */
   content: string
+  /** Type of post generated */
   postType: PostType
+  /** Opening hook line */
   hook: string
+  /** Call-to-action line */
   cta?: string
+  /** Word count of the post */
   wordCount: number
+  /** URL of the source material */
   sourceUrl: string
+  /** Title of the source material */
   sourceTitle: string
 }
 
@@ -81,7 +103,7 @@ Use ONE of these proven patterns:
 ## FORMATTING RULES
 - Double line breaks between ALL sections (this is crucial for readability)
 - Short paragraphs (1-3 sentences max)
-- Use "→" for subtle bullet points
+- Use "\u2192" for subtle bullet points
 - Bold (**text**) for 2-3 key phrases only
 - End with 3-4 relevant hashtags
 
@@ -139,7 +161,7 @@ Use ONE of these patterns:
 - Number every main point (1. 2. 3.)
 - Start each point with a bold title
 - Keep explanations under each point to 1-2 sentences
-- Use "→" for sub-bullets if needed
+- Use "\u2192" for sub-bullets if needed
 - Double line breaks between numbered sections
 - End with 3-4 relevant hashtags
 
@@ -226,7 +248,7 @@ Use ONE of these patterns:
 - Bold the step title
 - Add expected outcomes where relevant
 - Double line breaks between steps
-- End with "Save this for later. 🔖" + 3-4 hashtags
+- End with "Save this for later." + 3-4 hashtags
 
 ## CHARACTER TARGET: 1600-2200 characters
 
@@ -258,11 +280,15 @@ Use ONE of these patterns:
 
 ## CHARACTER TARGET: 1400-2000 characters
 
-Every item should stand alone. Readers skim—make each point valuable.`,
+Every item should stand alone. Readers skim\u2014make each point valuable.`,
 }
 
 /**
- * Update research session status in database
+ * Updates the research session status in the database
+ * @param supabase - Supabase admin client instance
+ * @param sessionId - Research session ID to update
+ * @param status - New status to set
+ * @param additionalFields - Optional additional fields to merge into the update
  */
 async function updateSessionStatus(
   supabase: ReturnType<typeof getSupabaseAdmin>,
@@ -285,7 +311,9 @@ async function updateSessionStatus(
 }
 
 /**
- * Extract hook (first line) from post content
+ * Extracts the hook (first line) from post content, truncating if necessary
+ * @param content - Full post content string
+ * @returns First line of content, truncated to 100 characters with ellipsis if longer
  */
 function extractHook(content: string): string {
   const firstLine = content.split('\n')[0]?.trim() || ''
@@ -294,16 +322,20 @@ function extractHook(content: string): string {
 
 /**
  * Deep Research Workflow
- * Orchestrates: Tavily → Perplexity → OpenAI → Database
- * Uses parallel execution for maximum performance
+ * Orchestrates: Tavily + Perplexity (concurrent per-topic) -> Synthesis -> OpenAI -> Database
+ * Uses Promise.allSettled everywhere for resilience against partial failures
  */
 export const deepResearchWorkflow = inngest.createFunction(
   {
     id: 'deep-research',
     name: 'Deep Research Workflow',
     retries: 2,
-    // Enable parallel optimization for better throughput
-    // @see https://www.inngest.com/docs/guides/step-parallelism
+    /**
+     * Failure handler that updates the research session status to failed
+     * @param params - Inngest failure handler parameters
+     * @param params.error - The error that caused the failure
+     * @param params.event - The original triggering event
+     */
     onFailure: async ({ error, event }) => {
       const supabase = getSupabaseAdmin()
       // Type assertion for event data since onFailure has generic typing
@@ -340,6 +372,7 @@ export const deepResearchWorkflow = inngest.createFunction(
       generatePosts = true,
       postTypes = ['thought-leadership', 'educational', 'storytelling'],
       companyContextId,
+      useMyStyle,
     } = event.data
 
     const supabase = getSupabaseAdmin()
@@ -347,7 +380,7 @@ export const deepResearchWorkflow = inngest.createFunction(
 
     console.log(`[DeepResearch] Starting workflow for session ${sessionId}`)
     console.log(`[DeepResearch] Topics: ${topics.join(', ')}`)
-    console.log(`[DeepResearch] Depth: ${depth}, MaxResults: ${maxResultsPerTopic}`)
+    console.log(`[DeepResearch] Depth: ${depth}, MaxResults: ${maxResultsPerTopic}, UseMyStyle: ${useMyStyle ?? false}`)
 
     // Validate inputs
     if (!topics || topics.length === 0) {
@@ -367,30 +400,33 @@ export const deepResearchWorkflow = inngest.createFunction(
       return { initialized: true }
     })
 
-    // Step 2: Tavily Web Search - PARALLEL for all topics
-    const searchResults = await step.run('tavily-search-parallel', async () => {
-      console.log(`[DeepResearch] Step 2: Starting parallel Tavily search for ${topics.length} topics`)
+    // Step 2: Search + Enrich per topic concurrently
+    // Instead of sequential search-all then enrich-all, each topic runs
+    // its own search followed by immediate enrichment, all topics in parallel
+    const enrichedResults = await step.run('search-and-enrich-parallel', async () => {
+      console.log(`[DeepResearch] Step 2: Search + enrich for ${topics.length} topics concurrently`)
       await updateSessionStatus(supabase, sessionId, 'searching')
 
-      // Check if Tavily is configured
       if (!process.env.TAVILY_API_KEY) {
-        console.warn('[DeepResearch] TAVILY_API_KEY not configured, skipping web search')
-        return [] as SearchResult[]
+        console.warn('[DeepResearch] TAVILY_API_KEY not configured')
+        return [] as EnrichedResult[]
       }
 
-      // Search all topics in PARALLEL using Promise.all
-      const searchPromises = topics.map(async (topic: string) => {
-        console.log(`[DeepResearch] Searching topic: "${topic}"`)
-        try {
+      const perplexity = createPerplexityClient()
+
+      // For each topic: search then immediately enrich results - all topics in parallel
+      const topicResults = await Promise.allSettled(
+        topics.map(async (topic: string) => {
+          console.log(`[DeepResearch] Searching topic: "${topic}"`)
+
+          // Step A: Tavily search for this topic
           const response = await searchContent(topic, {
             maxResults: maxResultsPerTopic,
             searchDepth: depth === 'deep' ? 'advanced' : 'basic',
             includeAnswer: true,
           })
 
-          console.log(`[DeepResearch] Found ${response.results.length} results for "${topic}"`)
-
-          return response.results.map((result: TavilySearchResult) => ({
+          const searchResults: SearchResult[] = response.results.map((result: TavilySearchResult) => ({
             url: result.url,
             title: result.title,
             content: result.content,
@@ -398,60 +434,22 @@ export const deepResearchWorkflow = inngest.createFunction(
             topic,
             publishedDate: result.publishedDate,
           }))
-        } catch (error) {
-          console.error(`[DeepResearch] Tavily search failed for topic "${topic}":`, error)
-          return []
-        }
-      })
 
-      // Execute all searches in parallel
-      const results = await Promise.all(searchPromises)
-      const allResults: SearchResult[] = results.flat()
+          console.log(`[DeepResearch] Found ${searchResults.length} results for "${topic}", enriching...`)
 
-      // Sort by relevance score and deduplicate by URL
-      const seen = new Set<string>()
-      const uniqueResults = allResults
-        .sort((a, b) => b.score - a.score)
-        .filter((result) => {
-          if (seen.has(result.url)) return false
-          seen.add(result.url)
-          return true
-        })
+          // Step B: Immediately enrich these results (in parallel per result)
+          if (!perplexity) {
+            return searchResults.map((r) => ({
+              ...r,
+              enrichedContent: r.content,
+              keyInsights: [],
+            })) as EnrichedResult[]
+          }
 
-      console.log(`[DeepResearch] Total unique results: ${uniqueResults.length}`)
-      return uniqueResults
-    })
-
-    // Step 3: Perplexity Deep Research - PARALLEL for top results
-    const enrichedResults = await step.run('perplexity-enrich-parallel', async () => {
-      console.log(`[DeepResearch] Step 3: Starting parallel Perplexity enrichment`)
-      await updateSessionStatus(supabase, sessionId, 'enriching')
-
-      // Take top results for enrichment (max 10)
-      const topResults = searchResults.slice(0, Math.min(10, searchResults.length))
-
-      if (topResults.length === 0) {
-        console.log('[DeepResearch] No results to enrich')
-        return [] as EnrichedResult[]
-      }
-
-      // Check if Perplexity is configured
-      const perplexity = createPerplexityClient()
-      if (!perplexity) {
-        console.warn('[DeepResearch] Perplexity not configured, using raw search results')
-        return topResults.map((result) => ({
-          ...result,
-          enrichedContent: result.content,
-          keyInsights: [],
-        })) as EnrichedResult[]
-      }
-
-      console.log(`[DeepResearch] Enriching ${topResults.length} results in parallel`)
-
-      // Enrich all results in PARALLEL using Promise.all
-      const enrichPromises = topResults.map(async (result) => {
-        try {
-          const researchPrompt = `Provide a deeper analysis of this topic: "${result.title}"
+          const enriched = await Promise.allSettled(
+            searchResults.map(async (result) => {
+              try {
+                const researchPrompt = `Provide a deeper analysis of this topic: "${result.title}"
 
 Context: ${result.content.slice(0, 2000)}
 
@@ -463,38 +461,87 @@ Please provide:
 
 Be concise and factual.`
 
-          const research = await perplexity.research(researchPrompt)
+                const research = await perplexity.research(researchPrompt)
 
-          // Extract key insights from the response
-          const insightMatches = research.match(/(?:key insights?|takeaways?|main points?)[\s\S]*?(?=(?:current trends|expert|actionable|$))/i)
-          const keyInsights = insightMatches
-            ? insightMatches[0]
-                .split(/[\n•\-\d\.]+/)
-                .filter((s) => s.trim().length > 20)
-                .slice(0, 5)
-            : []
+                const insightMatches = research.match(/(?:key insights?|takeaways?|main points?)[\s\S]*?(?=(?:current trends|expert|actionable|$))/i)
+                const keyInsights = insightMatches
+                  ? insightMatches[0]
+                      .split(/[\n\u2022\-\d\.]+/)
+                      .filter((s) => s.trim().length > 20)
+                      .slice(0, 5)
+                  : []
 
-          return {
-            ...result,
-            enrichedContent: research,
-            keyInsights,
-            trendAnalysis: research,
-          } as EnrichedResult
-        } catch (error) {
-          console.error(`[DeepResearch] Perplexity enrichment failed for "${result.title}":`, error)
-          // Use original content as fallback
-          return {
-            ...result,
-            enrichedContent: result.content,
-            keyInsights: [],
-          } as EnrichedResult
-        }
+                return {
+                  ...result,
+                  enrichedContent: research,
+                  keyInsights,
+                  trendAnalysis: research,
+                } as EnrichedResult
+              } catch (error) {
+                console.error(`[DeepResearch] Enrichment failed for "${result.title}":`, error)
+                return {
+                  ...result,
+                  enrichedContent: result.content,
+                  keyInsights: [],
+                } as EnrichedResult
+              }
+            })
+          )
+
+          return enriched
+            .filter((r): r is PromiseFulfilledResult<EnrichedResult> => r.status === 'fulfilled')
+            .map((r) => r.value)
+        })
+      )
+
+      // Collect results from all topics
+      const allEnriched: EnrichedResult[] = topicResults
+        .filter((r): r is PromiseFulfilledResult<EnrichedResult[]> => r.status === 'fulfilled')
+        .flatMap((r) => r.value)
+
+      // Deduplicate by URL
+      const seen = new Set<string>()
+      const unique = allEnriched.filter((r) => {
+        if (seen.has(r.url)) return false
+        seen.add(r.url)
+        return true
       })
 
-      // Execute all enrichments in parallel
-      const enriched = await Promise.all(enrichPromises)
-      console.log(`[DeepResearch] Successfully enriched ${enriched.length} results`)
-      return enriched
+      // Sort by score
+      unique.sort((a, b) => b.score - a.score)
+
+      // Track partial failures
+      const failed = topicResults.filter((r) => r.status === 'rejected').length
+      if (failed > 0) {
+        console.warn(`[DeepResearch] ${failed} topic(s) failed during search/enrich`)
+      }
+
+      console.log(`[DeepResearch] Total enriched results: ${unique.length} (${failed} topics failed)`)
+      return unique
+    })
+
+    // Step 3: Synthesize insights across topics
+    const synthesis = await step.run('synthesize-insights', async () => {
+      console.log(`[DeepResearch] Step 3: Synthesizing insights across ${topics.length} topics`)
+
+      if (enrichedResults.length === 0 || topics.length <= 1) {
+        return {
+          crossTopicThemes: [],
+          uniqueAngles: [],
+          synthesizedContext: '',
+        } as SynthesisResult
+      }
+
+      try {
+        return await synthesizeResearch(enrichedResults)
+      } catch (error) {
+        console.error('[DeepResearch] Synthesis failed, continuing without:', error)
+        return {
+          crossTopicThemes: [],
+          uniqueAngles: [],
+          synthesizedContext: '',
+        } as SynthesisResult
+      }
     })
 
     // Step 4: Save discover posts to database
@@ -505,22 +552,26 @@ Be concise and factual.`
         return []
       }
 
-      const postsToInsert = enrichedResults.map((result) => ({
-        linkedin_url: result.url,
-        author_name: new URL(result.url).hostname.replace('www.', ''),
-        author_headline: `Content from ${new URL(result.url).hostname}`,
-        content: result.enrichedContent || result.content,
-        post_type: 'article',
-        likes_count: 0,
-        comments_count: 0,
-        reposts_count: 0,
-        posted_at: result.publishedDate || new Date().toISOString(),
-        scraped_at: new Date().toISOString(),
-        topics: [result.topic],
-        is_viral: false,
-        engagement_rate: result.score * 5, // Scale 0-1 to 0-5
-        source: 'research',
-      }))
+      const postsToInsert = enrichedResults.map((result) => {
+        let hostname = 'unknown'
+        try { hostname = new URL(result.url).hostname.replace('www.', '') } catch { /* malformed URL */ }
+        return {
+          linkedin_url: result.url,
+          author_name: hostname,
+          author_headline: `Content from ${hostname}`,
+          content: result.enrichedContent || result.content,
+          post_type: 'article',
+          likes_count: 0,
+          comments_count: 0,
+          reposts_count: 0,
+          posted_at: result.publishedDate || new Date().toISOString(),
+          scraped_at: new Date().toISOString(),
+          topics: [result.topic],
+          is_viral: false,
+          engagement_rate: result.score * 5, // Scale 0-1 to 0-5
+          source: 'research',
+        }
+      })
 
       // Check for existing URLs to avoid duplicates
       const urls = postsToInsert.map((p) => p.linkedin_url)
@@ -590,6 +641,26 @@ Adapt the post to match this company's voice and target audience.
           }
         }
 
+        // Fetch writing style if enabled
+        let styleFragment = ''
+        if (useMyStyle) {
+          const { data: styleProfile } = await supabase
+            .from('writing_style_profiles')
+            .select('*')
+            .eq('user_id', userId)
+            .maybeSingle()
+
+          if (styleProfile?.raw_analysis) {
+            try {
+              const styleAnalysis = styleProfile.raw_analysis as import('@/lib/ai/style-analyzer').WritingStyleAnalysis
+              styleFragment = buildStylePromptFragment(styleAnalysis)
+              console.log(`[DeepResearch] Applied user writing style (${styleProfile.posts_analyzed_count} posts analyzed)`)
+            } catch (error) {
+              console.error('[DeepResearch] Failed to build style fragment:', error)
+            }
+          }
+        }
+
         // Generate posts for top results - PARALLEL
         const typesToGenerate: PostType[] = postTypes.slice(0, 3) // Max 3 types per result
         const resultsToProcess = enrichedResults.slice(0, 5) // Max 5 results
@@ -606,10 +677,13 @@ Adapt the post to match this company's voice and target audience.
 
         console.log(`[DeepResearch] Total generation tasks: ${generationTasks.length}`)
 
-        // Execute all generations in PARALLEL using Promise.all
+        // Execute all generations in PARALLEL using Promise.allSettled for resilience
         const generationPromises = generationTasks.map(async ({ result, postType }) => {
           try {
-            const systemPrompt = POST_PROMPTS[postType as PostType] + companyContext
+            const systemPrompt = POST_PROMPTS[postType as PostType]
+              + companyContext
+              + (synthesis.synthesizedContext ? `\n\nCROSS-TOPIC CONTEXT:\n${synthesis.synthesizedContext}\n${synthesis.crossTopicThemes.length > 0 ? `\nKey cross-topic themes: ${synthesis.crossTopicThemes.join(', ')}` : ''}\n${synthesis.uniqueAngles.length > 0 ? `Unique angles to consider: ${synthesis.uniqueAngles.join(', ')}` : ''}` : '')
+              + (styleFragment ? `\n\n${styleFragment}` : '')
 
             const userMessage = `Research Topic: ${result.topic}
 Title: ${result.title}
@@ -647,9 +721,18 @@ Transform this research into a LinkedIn post following the specified format.`
           }
         })
 
-        // Execute all generations in parallel
-        const results = await Promise.all(generationPromises)
-        const posts = results.filter((p): p is GeneratedPost => p !== null)
+        // Execute all generations in parallel with resilience
+        const settledResults = await Promise.allSettled(generationPromises)
+        const posts = settledResults
+          .filter((r): r is PromiseFulfilledResult<GeneratedPost | null> => r.status === 'fulfilled')
+          .map((r) => r.value)
+          .filter((p): p is GeneratedPost => p !== null)
+
+        // Log any rejected promises
+        const rejected = settledResults.filter((r) => r.status === 'rejected').length
+        if (rejected > 0) {
+          console.warn(`[DeepResearch] ${rejected} generation task(s) rejected at Promise level`)
+        }
 
         console.log(`[DeepResearch] Successfully generated ${posts.length} posts`)
         return posts
@@ -720,7 +803,7 @@ Transform this research into a LinkedIn post following the specified format.`
     })
 
     const finalDuration = Date.now() - startTime
-    console.log(`[DeepResearch] ✅ Session ${sessionId} completed successfully in ${finalDuration}ms`)
+    console.log(`[DeepResearch] Session ${sessionId} completed successfully in ${finalDuration}ms`)
 
     return {
       success: true,

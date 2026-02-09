@@ -203,14 +203,63 @@ export function usePostAnalytics(userId?: string, limit = 10): UsePostAnalyticsR
         : 'Unknown'
       const authorAvatar = profileData?.profile_picture_url || undefined
 
+      // If post_analytics is empty, fall back to my_posts table
+      // (extension background sync writes here, not to post_analytics)
       if (!analyticsData || analyticsData.length === 0) {
-        // Keep demo data when no real data exists
-        console.info('No post analytics found, keeping demo data')
+        console.info('No post_analytics found, checking my_posts...')
+
+        const { data: myPostsData, error: myPostsError } = await supabase
+          .from('my_posts')
+          .select('*')
+          .eq('user_id', targetUserId)
+          .order('impressions', { ascending: false })
+          .limit(limit)
+
+        if (myPostsError || !myPostsData || myPostsData.length === 0) {
+          console.info('No my_posts data found either, keeping demo data')
+          setIsLoading(false)
+          return
+        }
+
+        // Transform my_posts to PostPerformanceData format
+        const myPostsTransformed: PostPerformanceData[] = myPostsData.map((post) => {
+          const totalEngagements = (post.reactions || 0) + (post.comments || 0) + (post.reposts || 0)
+          const impressions = post.impressions || 0
+          const engagementRate = impressions > 0
+            ? (totalEngagements / impressions) * 100
+            : 0
+
+          return {
+            id: post.id,
+            content: post.content || '',
+            publishedAt: post.posted_at || post.created_at,
+            author: {
+              name: authorName,
+              avatarUrl: authorAvatar,
+            },
+            totalImpressions: impressions,
+            totalEngagements,
+            engagementRate: Math.round(engagementRate * 10) / 10,
+            metrics: generateDailyMetrics(
+              impressions,
+              totalEngagements,
+              post.reactions || 0,
+              post.comments || 0,
+              post.reposts || 0,
+              post.posted_at || post.created_at
+            ),
+          }
+        })
+
+        setPosts(myPostsTransformed)
+        if (myPostsTransformed.length > 0 && !selectedPost) {
+          setSelectedPost(myPostsTransformed[0])
+        }
         setIsLoading(false)
         return
       }
 
-      // Transform to PostPerformanceData format
+      // Transform post_analytics to PostPerformanceData format
       const transformedPosts: PostPerformanceData[] = analyticsData.map((post) => {
         const totalEngagements = (post.reactions || 0) + (post.comments || 0) + (post.reposts || 0)
         const impressions = post.impressions || 0

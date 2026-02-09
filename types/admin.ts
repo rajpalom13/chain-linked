@@ -44,7 +44,7 @@ export interface AdminUser {
   avatarUrl?: string
   /** Whether onboarding is completed */
   onboardingCompleted?: boolean
-  /** Current onboarding step (1-6) */
+  /** Current onboarding step (1-4) */
   onboardingStep?: number
 }
 
@@ -298,7 +298,7 @@ export interface TopPerformingPost {
  * Onboarding funnel step data
  */
 export interface OnboardingFunnelStep {
-  /** Step number (1-6) */
+  /** Step number (1-4) */
   step: number
   /** Step label/name */
   label: string

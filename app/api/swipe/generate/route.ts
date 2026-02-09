@@ -29,30 +29,30 @@ export async function POST() {
       )
     }
 
-    // Check if user has completed company onboarding and has company data in profiles
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('company_onboarding_completed, company_name, company_description, company_products, company_icp, company_value_props, company_website')
-      .eq('id', user.id)
+    // Check if user has completed company onboarding via company_context table
+    const { data: companyCtx, error: ctxError } = await supabase
+      .from('company_context')
+      .select('id, company_name, status, company_summary, value_proposition, products_and_services, target_audience')
+      .eq('user_id', user.id)
       .single()
 
-    if (profileError && profileError.code !== 'PGRST116') {
-      console.error('[API] Error fetching profile:', profileError)
+    if (ctxError && ctxError.code !== 'PGRST116') {
+      console.error('[API] Error fetching company context:', ctxError)
       return NextResponse.json(
         { error: 'Failed to verify onboarding status' },
         { status: 500 }
       )
     }
 
-    // Check if company onboarding is completed AND company data exists
-    const hasCompanyData = profile?.company_name && (
-      profile?.company_description ||
-      profile?.company_products ||
-      profile?.company_icp ||
-      profile?.company_value_props
+    // Check if company context exists with actual data
+    const hasCompanyData = companyCtx?.company_name && (
+      companyCtx?.company_summary ||
+      companyCtx?.value_proposition ||
+      companyCtx?.products_and_services ||
+      companyCtx?.target_audience
     )
 
-    if (!profile?.company_onboarding_completed || !hasCompanyData) {
+    if (!companyCtx || !hasCompanyData) {
       return NextResponse.json(
         {
           error: 'Company context required',

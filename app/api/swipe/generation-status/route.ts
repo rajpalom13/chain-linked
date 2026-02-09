@@ -55,13 +55,13 @@ export async function GET(request: NextRequest) {
 
     if (fetchError) {
       if (fetchError.code === 'PGRST116') {
-        return NextResponse.json(
-          {
-            error: 'No generation runs found',
-            hasRuns: false
-          },
-          { status: 404 }
-        )
+        // No runs found — return 200 with hasRuns: false to avoid
+        // noisy 404 errors in the browser console during polling.
+        return NextResponse.json({
+          hasRuns: false,
+          status: 'none',
+          progress: 0,
+        })
       }
       console.error('[API] Error fetching generation run:', fetchError)
       return NextResponse.json(

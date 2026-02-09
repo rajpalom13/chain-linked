@@ -12,6 +12,19 @@ import { NextResponse } from 'next/server'
  * @param error - Error object or string
  * @returns User-friendly error message
  */
+/**
+ * Validates a redirect URL to prevent open redirect attacks.
+ * Only allows internal paths starting with `/` (not protocol-relative `//`).
+ * @param url - The redirect URL to validate
+ * @returns Sanitized URL or '/dashboard' fallback
+ */
+function sanitizeRedirect(url: string): string {
+  if (url && url.startsWith('/') && !url.startsWith('//')) {
+    return url
+  }
+  return '/dashboard'
+}
+
 function getErrorMessage(error: unknown): string {
   const errorStr = error instanceof Error ? error.message : String(error)
   const errorCode = (error as { code?: string })?.code
@@ -38,7 +51,7 @@ function getErrorMessage(error: unknown): string {
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('redirect') ?? searchParams.get('next') ?? '/dashboard'
+  const next = sanitizeRedirect(searchParams.get('redirect') ?? searchParams.get('next') ?? '/dashboard')
   const error = searchParams.get('error')
   const errorDescription = searchParams.get('error_description')
   const errorCode = searchParams.get('error_code')
@@ -87,7 +100,7 @@ export async function GET(request: Request) {
         if (!existingProfile) {
           const { error: insertError } = await supabase.from('profiles').insert({
             id: user.id,
-            email: user.email!,
+            email: user.email ?? '',
             full_name: user.user_metadata?.full_name || user.user_metadata?.name || null,
             avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
           })
@@ -99,16 +112,8 @@ export async function GET(request: Request) {
         }
       }
 
-      const forwardedHost = request.headers.get('x-forwarded-host')
-      const isLocalEnv = process.env.NODE_ENV === 'development'
-
-      if (isLocalEnv) {
-        return NextResponse.redirect(`${origin}${next}`)
-      } else if (forwardedHost) {
-        return NextResponse.redirect(`https://${forwardedHost}${next}`)
-      } else {
-        return NextResponse.redirect(`${origin}${next}`)
-      }
+      // Always use origin for the redirect to avoid trusting x-forwarded-host
+      return NextResponse.redirect(`${origin}${next}`)
     } catch (err) {
       console.error('Auth callback exception:', err)
       const userMessage = getErrorMessage(err)

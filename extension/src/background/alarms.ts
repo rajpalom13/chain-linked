@@ -11,6 +11,7 @@ export const ALARM_NAMES = {
   WEEKLY_BACKUP: 'linkedin-weekly-backup',
   MAINTENANCE: 'linkedin-maintenance',
   ALERT_CHECK: 'linkedin-alert-check',
+  BACKGROUND_SYNC: 'linkedin-background-sync',
 } as const;
 
 type AlarmName = typeof ALARM_NAMES[keyof typeof ALARM_NAMES];

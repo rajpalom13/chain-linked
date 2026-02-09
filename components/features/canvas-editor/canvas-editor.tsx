@@ -18,6 +18,7 @@ import { TemplateSelectorModal } from './template-selector-modal';
 import { ExportDialog } from './export-dialog';
 import { AiContentGenerator } from './ai-content-generator';
 import { SaveTemplateDialog } from './save-template-dialog';
+import { GraphicsLibraryPanel } from './graphics-library-panel';
 import {
   exportCarouselToPDF,
   exportSlideToDataUrl,
@@ -26,6 +27,7 @@ import {
 } from '@/lib/canvas-pdf-export';
 import { cn } from '@/lib/utils';
 import type { CanvasTemplate, CanvasSlide, ExportOptions } from '@/types/canvas-editor';
+import type { ShapeElementConfig } from '@/types/graphics-library';
 import type { CanvasStageRef } from './canvas-stage';
 
 // Dynamic import for Konva (client-side only)
@@ -71,6 +73,7 @@ export function CanvasEditor({
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [showAiGenerator, setShowAiGenerator] = useState(false);
   const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
+  const [showGraphicsPanel, setShowGraphicsPanel] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
 
   // Carousel template persistence
@@ -278,6 +281,64 @@ export function CanvasEditor({
   }, [setZoom]);
 
   /**
+   * Handle inserting an image from the graphics library into the current slide.
+   * Scales the image to fit within 500px wide while maintaining aspect ratio.
+   * @param src - Image source URL
+   * @param width - Original image width
+   * @param height - Original image height
+   */
+  const handleInsertGraphicImage = useCallback(
+    (src: string, width: number, height: number) => {
+      const scale = Math.min(1, 500 / width);
+      addImageElement(src, Math.round(width * scale), Math.round(height * scale));
+    },
+    [addImageElement]
+  );
+
+  /**
+   * Ref holding a pending shape configuration from the graphics library.
+   * When a shape is inserted, we first add a default shape element (which
+   * auto-selects it), then apply the custom configuration on the next render
+   * cycle once the new element ID is available.
+   */
+  const pendingShapeConfigRef = useRef<ShapeElementConfig | null>(null);
+
+  /**
+   * Apply pending shape configuration when a new element is selected
+   * after insertion from the graphics library.
+   */
+  useEffect(() => {
+    if (pendingShapeConfigRef.current && selectedElementId) {
+      const config = pendingShapeConfigRef.current;
+      pendingShapeConfigRef.current = null;
+      updateElement(selectedElementId, {
+        width: config.width,
+        height: config.height,
+        shapeType: config.shapeType,
+        fill: config.fill,
+        stroke: config.stroke,
+        strokeWidth: config.strokeWidth || 0,
+        cornerRadius: config.cornerRadius || 0,
+        rotation: config.rotation || 0,
+      });
+    }
+  }, [selectedElementId, updateElement]);
+
+  /**
+   * Handle inserting a shape from the graphics library into the current slide.
+   * Stores the shape config in a ref, then adds a default shape element.
+   * The config is applied in the next render via the effect above.
+   * @param config - Shape element configuration (dimensions, type, colors)
+   */
+  const handleInsertGraphicShape = useCallback(
+    (config: ShapeElementConfig) => {
+      pendingShapeConfigRef.current = config;
+      addElement('shape');
+    },
+    [addElement]
+  );
+
+  /**
    * Handle reset with confirmation
    */
   const handleReset = useCallback(() => {
@@ -338,10 +399,11 @@ export function CanvasEditor({
         onSaveTemplate={() => setShowSaveTemplateDialog(true)}
         onExport={() => setShowExportDialog(true)}
         onReset={handleReset}
+        onOpenGraphics={() => setShowGraphicsPanel(true)}
       />
 
       {/* Main content area */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="relative flex flex-1 overflow-hidden">
         {/* Left sidebar: Slide thumbnails */}
         <SlideThumbnails
           slides={slides}
@@ -379,6 +441,14 @@ export function CanvasEditor({
           onAddElement={addElement}
           onAddImageElement={addImageElement}
           onDeleteElement={deleteElement}
+        />
+
+        {/* Graphics Library Panel (overlays from the right) */}
+        <GraphicsLibraryPanel
+          open={showGraphicsPanel}
+          onClose={() => setShowGraphicsPanel(false)}
+          onInsertImage={handleInsertGraphicImage}
+          onInsertShape={handleInsertGraphicShape}
         />
       </div>
 

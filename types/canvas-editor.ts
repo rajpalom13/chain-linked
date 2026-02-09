@@ -21,7 +21,7 @@ export type ElementType = 'text' | 'shape' | 'image';
 /**
  * Template categories for filtering
  */
-export type TemplateCategory = 'professional' | 'creative' | 'minimal' | 'bold';
+export type TemplateCategory = 'professional' | 'creative' | 'minimal' | 'bold' | 'brand';
 
 /**
  * Export format options

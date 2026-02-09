@@ -133,6 +133,21 @@ import {
   queueForSync,
 } from './supabase-sync-bridge';
 
+import {
+  initBackgroundSync,
+  enableBackgroundSync,
+  disableBackgroundSync,
+  triggerSync,
+  getSyncState as getBackgroundSyncState,
+  getSyncConfig as getBackgroundSyncConfig,
+  updateSyncConfig as updateBackgroundSyncConfig,
+  resetCircuitBreaker,
+  handleBackgroundSyncAlarm,
+  runDiagnostic,
+} from './background-sync';
+
+import type { BackgroundSyncConfig } from '../shared/sync-types';
+
 // ============================================
 // CONSTANTS
 // ============================================
@@ -2715,6 +2730,69 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
         break;
       }
 
+      // ============================================
+      // BACKGROUND SYNC MESSAGE HANDLERS (v4.2)
+      // ============================================
+
+      case 'BACKGROUND_SYNC_ENABLE': {
+        const syncConfig = message.data as Partial<BackgroundSyncConfig> | undefined;
+        await enableBackgroundSync(syncConfig);
+        response = { success: true };
+        break;
+      }
+
+      case 'BACKGROUND_SYNC_DISABLE': {
+        await disableBackgroundSync();
+        response = { success: true };
+        break;
+      }
+
+      case 'BACKGROUND_SYNC_TRIGGER': {
+        // Fire-and-forget: respond immediately so the popup doesn't hang
+        triggerSync(true).catch((err) => {
+          console.error('[BackgroundSync] Manual trigger failed:', err);
+        });
+        response = { success: true, data: { message: 'Sync started' } };
+        break;
+      }
+
+      case 'BACKGROUND_SYNC_STATUS': {
+        const bgSyncState = await getBackgroundSyncState();
+        response = { success: true, data: bgSyncState };
+        break;
+      }
+
+      case 'BACKGROUND_SYNC_CONFIG': {
+        const bgSyncConfig = await getBackgroundSyncConfig();
+        response = { success: true, data: bgSyncConfig };
+        break;
+      }
+
+      case 'BACKGROUND_SYNC_UPDATE_CONFIG': {
+        const configUpdates = message.data as Partial<BackgroundSyncConfig>;
+        await updateBackgroundSyncConfig(configUpdates);
+        response = { success: true };
+        break;
+      }
+
+      case 'BACKGROUND_SYNC_RESET_CIRCUIT_BREAKER': {
+        await resetCircuitBreaker();
+        response = { success: true };
+        break;
+      }
+
+      case 'BACKGROUND_SYNC_HISTORY': {
+        const bgState = await getBackgroundSyncState();
+        response = { success: true, data: bgState.syncHistory };
+        break;
+      }
+
+      case 'BACKGROUND_SYNC_DIAGNOSTIC': {
+        const diagnosticResults = await runDiagnostic();
+        response = { success: true, data: diagnosticResults };
+        break;
+      }
+
       default:
         response = { success: false, error: 'Unknown message type' };
     }
@@ -2744,6 +2822,10 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
     case ALARM_NAMES.ALERT_CHECK:
       await handleAlertCheck();
+      break;
+
+    case ALARM_NAMES.BACKGROUND_SYNC:
+      await handleBackgroundSyncAlarm();
       break;
 
     default:
@@ -2847,6 +2929,14 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     console.error('[ServiceWorker] Failed to initialize alarms:', error);
   }
 
+  // Initialize background sync
+  try {
+    await initBackgroundSync();
+    console.log('[ServiceWorker] Background sync initialized');
+  } catch (error) {
+    console.error('[ServiceWorker] Failed to initialize background sync:', error);
+  }
+
   // Setup notification listeners
   setupNotificationListeners();
 
@@ -2881,6 +2971,14 @@ chrome.runtime.onStartup.addListener(async () => {
     console.error('[ServiceWorker] Alarms initialization error:', error);
   }
 
+  // Initialize background sync on browser startup
+  try {
+    await initBackgroundSync();
+    console.log('[ServiceWorker] Background sync initialized on startup');
+  } catch (error) {
+    console.error('[ServiceWorker] Background sync initialization error:', error);
+  }
+
   // Setup notification listeners
   setupNotificationListeners();
 });
@@ -2904,9 +3002,32 @@ chrome.runtime.onStartup.addListener(async () => {
     // Start periodic sync (every 5 minutes)
     startPeriodicSync(5);
     console.log('[ServiceWorker] Periodic sync started');
+
+    // Initialize background sync
+    await initBackgroundSync();
+    console.log('[ServiceWorker] Background sync ready');
   } catch (error) {
     console.error('[ServiceWorker] Initialization error:', error);
   }
 })();
 
-console.log('[ServiceWorker] LinkedIn Data Extractor service worker loaded (TypeScript v4.0)');
+console.log('[ServiceWorker] LinkedIn Data Extractor service worker loaded (TypeScript v4.2)');
+
+// Expose diagnostic utilities on the global scope for service worker console debugging.
+// Usage: In the service worker DevTools console, type:
+//   self.__bgSync.diagnostic()    — run full diagnostic
+//   self.__bgSync.status()        — get current sync state
+//   self.__bgSync.trigger()       — manually trigger a sync
+//   self.__bgSync.enable()        — enable background sync
+//   self.__bgSync.disable()       — disable background sync
+Object.assign(self, {
+  __bgSync: {
+    diagnostic: runDiagnostic,
+    status: getBackgroundSyncState,
+    config: getBackgroundSyncConfig,
+    trigger: () => triggerSync(true),
+    enable: enableBackgroundSync,
+    disable: disableBackgroundSync,
+    reset: resetCircuitBreaker,
+  },
+});

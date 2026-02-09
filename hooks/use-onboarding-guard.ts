@@ -13,21 +13,19 @@ import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useAuthContext } from "@/lib/auth/auth-provider"
 import {
-  getOnboardingStep,
   updateOnboardingStepInDatabase,
   markCompanyOnboardingStarted,
 } from "@/services/onboarding"
 
 /**
  * Map of onboarding steps to routes
- * Step 5 is the final step (Review & Complete)
+ * Step 4 is the final step (Review & Complete)
  */
 const STEP_PATHS: Record<number, string> = {
   1: "/onboarding/step1",
   2: "/onboarding/step2",
   3: "/onboarding/step3",
   4: "/onboarding/step4",
-  5: "/onboarding/step5",
 }
 
 /**
@@ -38,14 +36,13 @@ const PATH_TO_STEP: Record<string, number> = {
   "/onboarding/step2": 2,
   "/onboarding/step3": 3,
   "/onboarding/step4": 4,
-  "/onboarding/step5": 5,
 }
 
 /** The first valid onboarding step */
 const MIN_STEP = 1
 
 /** The last valid onboarding step (Review & Complete) */
-const MAX_STEP = 5
+const MAX_STEP = 4
 
 /** localStorage key used to persist the highest completed step */
 const STORAGE_KEY = "chainlinked_onboarding_step"
@@ -124,88 +121,84 @@ interface UseOnboardingGuardReturn {
 export function useOnboardingGuard(): UseOnboardingGuardReturn {
   const router = useRouter()
   const pathname = usePathname()
-  const { user, isLoading, hasCompletedOnboarding, hasCompletedCompanyOnboarding } = useAuthContext()
+  const {
+    user,
+    isLoading,
+    hasCompletedOnboarding,
+    hasCompletedCompanyOnboarding,
+    currentOnboardingStep,
+  } = useAuthContext()
   const [checking, setChecking] = useState(true)
 
   useEffect(() => {
     if (isLoading) return
 
     const verify = async () => {
-      if (!user) {
-        router.replace("/login")
-        return
-      }
-
-      // Mark that company onboarding has started to prevent redirect loops
-      markCompanyOnboardingStarted()
-
-      // If full onboarding is completed, redirect to dashboard
-      if (hasCompletedOnboarding) {
-        clearLocalStep()
-        router.replace("/dashboard")
-        return
-      }
-
-      // Check if this is a company onboarding page
-      const isCompanyOnboardingPath = pathname.startsWith("/onboarding/company")
-
-      // If company onboarding is completed and user is on company onboarding page,
-      // redirect to dashboard
-      if (isCompanyOnboardingPath && hasCompletedCompanyOnboarding) {
-        router.replace("/dashboard")
-        return
-      }
-
-      // --- Layer 1: immediate localStorage check ---
-      const localStep = getLocalStep()
-      const currentPathStep = PATH_TO_STEP[pathname]
-
-      if (currentPathStep && localStep !== null) {
-        // Users may only access their highest completed step + 1
-        const maxAllowed = localStep + 1
-        if (currentPathStep > maxAllowed) {
-          router.replace(STEP_PATHS[Math.min(maxAllowed, MAX_STEP)])
-          return
-        }
-      }
-
-      // --- Layer 2: authoritative remote check ---
-      const remoteStep = await getOnboardingStep()
-
-      if (!remoteStep) {
-        // Onboarding finished or not started; clear local cache
-        clearLocalStep()
-        router.replace("/dashboard")
-        return
-      }
-
-      // Reconcile: take the higher of local vs remote to avoid regressing
-      const highestStep = Math.max(remoteStep, localStep ?? MIN_STEP)
-
-      // Persist the reconciled value locally
-      setLocalStep(highestStep)
-
-      // Re-validate with the authoritative value
-      if (currentPathStep) {
-        const maxAllowed = highestStep + 1
-        if (currentPathStep > maxAllowed) {
-          router.replace(STEP_PATHS[Math.min(maxAllowed, MAX_STEP)])
+      try {
+        if (!user) {
+          router.replace("/login")
           return
         }
 
-        // If the user is on a valid step at or beyond the recorded
-        // progress, update both remote and local to reflect advancement.
-        if (currentPathStep >= highestStep) {
-          await updateOnboardingStepInDatabase(currentPathStep)
-          setLocalStep(currentPathStep)
-        }
-      }
+        // Mark that company onboarding has started to prevent redirect loops
+        markCompanyOnboardingStarted()
 
-      setChecking(false)
+        // If full onboarding is completed, redirect to dashboard
+        if (hasCompletedOnboarding) {
+          clearLocalStep()
+          router.replace("/dashboard")
+          return
+        }
+
+        // Check if this is a company onboarding page
+        const isCompanyOnboardingPath = pathname.startsWith("/onboarding/company")
+
+        // If company onboarding is completed and user is on company onboarding page,
+        // redirect to dashboard
+        if (isCompanyOnboardingPath && hasCompletedCompanyOnboarding) {
+          router.replace("/dashboard")
+          return
+        }
+
+        const currentPathStep = PATH_TO_STEP[pathname]
+
+        // Use database-backed step from auth context as the authoritative source
+        // instead of localStorage (which can become stale and cause redirect loops)
+        const dbStep = currentOnboardingStep
+        const localStep = getLocalStep()
+
+        // Reconcile: take the higher of DB vs local to avoid regressing
+        const highestStep = Math.max(dbStep, localStep ?? MIN_STEP)
+
+        // Persist the reconciled value locally
+        setLocalStep(highestStep)
+
+        // Validate step access
+        if (currentPathStep) {
+          const maxAllowed = highestStep + 1
+          if (currentPathStep > maxAllowed) {
+            router.replace(STEP_PATHS[Math.min(maxAllowed, MAX_STEP)])
+            return
+          }
+
+          // If the user is on a valid step at or beyond the recorded
+          // progress, update both remote and local to reflect advancement.
+          if (currentPathStep >= highestStep) {
+            await updateOnboardingStepInDatabase(currentPathStep)
+            setLocalStep(currentPathStep)
+          }
+        }
+
+        setChecking(false)
+      } catch (err) {
+        // On error, allow access rather than blocking the user with an infinite loader
+        console.error("[useOnboardingGuard] Error in verify:", err)
+        setChecking(false)
+      }
     }
 
     verify()
-  }, [isLoading, user, pathname, router, hasCompletedOnboarding, hasCompletedCompanyOnboarding])
+  }, [isLoading, user, pathname, router, hasCompletedOnboarding, hasCompletedCompanyOnboarding, currentOnboardingStep])
 
   return { checking }
 }

@@ -131,28 +131,16 @@ function SignupForm() {
       }
 
       if (data.user) {
-        // Update user profile in database (trigger auto-creates on signup)
-        const { error: profileError } = await supabase.from('profiles').upsert({
-          id: data.user.id,
-          email: data.user.email || email,
-          full_name: name || email.split('@')[0],
-        }, {
-          onConflict: 'id',
-        })
+        // Profile creation is handled by the handle_new_user database trigger.
+        // No client-side upsert needed.
 
-        if (profileError) {
-          console.error('Profile creation error:', profileError)
-        }
-
-        // Check if email confirmation is required
-        if (data.user.identities?.length === 0) {
-          toast.success('Account created! Please check your email to verify your account.')
-          router.push('/login')
-        } else if (data.session) {
+        if (data.session) {
+          // User is auto-confirmed, redirect to dashboard
           toast.success('Account created successfully!')
           router.push('/dashboard')
           router.refresh()
         } else {
+          // Email verification required
           toast.success('Account created! Please check your email to verify your account.')
           router.push('/login')
         }

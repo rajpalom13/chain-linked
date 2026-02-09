@@ -61,19 +61,20 @@ export interface AnalyticsCardsProps {
   membersReached?: MetricData
 }
 
-/** Default demo values */
+/** Default zero values when no data is available */
 const DEFAULT_METRICS: Required<AnalyticsCardsProps> = {
-  impressions: { value: 125420, change: 12.5 },
-  engagementRate: { value: 4.8, change: 0.6 },
-  followers: { value: 847, change: 8.2 },
-  profileViews: { value: 3254, change: -3.4 },
-  searchAppearances: { value: 1250, change: 5.3 },
-  connections: { value: 500, change: 2.1 },
-  membersReached: { value: 15420, change: 8.7 },
+  impressions: { value: 0, change: 0 },
+  engagementRate: { value: 0, change: 0 },
+  followers: { value: 0, change: 0 },
+  profileViews: { value: 0, change: 0 },
+  searchAppearances: { value: 0, change: 0 },
+  connections: { value: 0, change: 0 },
+  membersReached: { value: 0, change: 0 },
 }
 
 /**
  * Animated number counter component
+ * Shows value immediately when 0, animates only for non-zero values
  */
 function AnimatedNumber({
   value,
@@ -95,7 +96,11 @@ function AnimatedNumber({
   })
 
   useEffect(() => {
-    spring.set(value)
+    if (value === 0) {
+      spring.jump(0)
+    } else {
+      spring.set(value)
+    }
   }, [spring, value])
 
   return <motion.span>{display}</motion.span>

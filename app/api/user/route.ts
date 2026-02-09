@@ -54,13 +54,23 @@ export async function PATCH(request: Request) {
 
   try {
     const body = await request.json()
-    const { name, linkedin_profile_url } = body
+    const { name, linkedin_profile_url, avatar_url, company_name, company_website } = body
+
+    /** Build update payload with only the fields provided in the request body */
+    const updatePayload: Record<string, unknown> = {}
+    if (name !== undefined) updatePayload.full_name = name
+    if (linkedin_profile_url !== undefined) updatePayload.linkedin_profile_url = linkedin_profile_url
+    if (avatar_url !== undefined) updatePayload.avatar_url = avatar_url
+    if (company_name !== undefined) updatePayload.company_name = company_name
+    if (company_website !== undefined) updatePayload.company_website = company_website
+
+    if (Object.keys(updatePayload).length === 0) {
+      return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
+    }
 
     const { data: updatedUser, error: updateError } = await supabase
       .from('profiles')
-      .update({
-        full_name: name,
-      })
+      .update(updatePayload)
       .eq('id', user.id)
       .select()
       .single()

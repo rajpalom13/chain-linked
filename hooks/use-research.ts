@@ -133,6 +133,8 @@ export interface ResearchOptions {
   generatePosts?: boolean
   /** Post types to generate */
   postTypes?: string[]
+  /** Whether to use the user's writing style for generated posts */
+  useMyStyle?: boolean
 }
 
 /**
@@ -181,11 +183,24 @@ function transformToResult(
   const source = post.source || post.author_name || "Research"
   const content = post.content || ""
   const firstLine = content.split("\n")[0] || ""
-  const title = firstLine.length > 100 ? firstLine.slice(0, 100) + "..." : firstLine
-  const description =
+
+  // Strip markdown heading syntax, bold markers, and citation refs from title
+  const cleanTitle = firstLine
+    .replace(/^#{1,6}\s+/, "")
+    .replace(/\*\*/g, "")
+    .replace(/\[(?:\d+|Context)\]/g, "")
+    .trim()
+  const title = cleanTitle.length > 100 ? cleanTitle.slice(0, 100) + "..." : cleanTitle
+
+  // Strip citation refs from description (MarkdownContent also strips these,
+  // but clean here for any plain-text usage of the description field)
+  const rawDescription =
     content.length > firstLine.length
       ? content.slice(firstLine.length).trim()
       : content
+  const description = rawDescription
+    .replace(/\[(?:\d+|Context)\]/g, "")
+    .replace(/\s{2,}/g, " ")
 
   return {
     id: post.id?.toString() || `research-${Date.now()}-${index}`,
@@ -427,6 +442,7 @@ export function useResearch() {
               "educational",
               "storytelling",
             ],
+            useMyStyle: options?.useMyStyle || false,
           }),
           signal: abortControllerRef.current.signal,
         })

@@ -66,6 +66,9 @@ export function getTemplateCategories(): TemplateCategory[] {
   return Array.from(categories);
 }
 
+// Re-export brand kit template generator
+export { generateBrandKitTemplates } from './brand-kit-template-generator';
+
 // Re-export individual templates
 export { professionalTemplate } from './professional-template';
 export { creativeTemplate } from './creative-template';

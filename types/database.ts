@@ -89,8 +89,12 @@ export interface Database {
           company_website: string | null
           /** Whether the user has completed the full onboarding flow */
           onboarding_completed: boolean
-          /** Current step in the onboarding flow (1-6) */
+          /** Current step in the onboarding flow (1-4) */
           onboarding_current_step: number
+          /** Whether the user has completed first-time topic selection */
+          discover_topics_selected: boolean
+          /** Array of selected discover topic slugs */
+          discover_topics: string[]
         }
         Insert: {
           id: string
@@ -114,8 +118,10 @@ export interface Database {
           company_website?: string | null
           /** Whether the user has completed the full onboarding flow */
           onboarding_completed?: boolean
-          /** Current step in the onboarding flow (1-6) */
+          /** Current step in the onboarding flow (1-4) */
           onboarding_current_step?: number
+          discover_topics_selected?: boolean
+          discover_topics?: string[]
         }
         Update: {
           id?: string
@@ -139,8 +145,10 @@ export interface Database {
           company_website?: string | null
           /** Whether the user has completed the full onboarding flow */
           onboarding_completed?: boolean
-          /** Current step in the onboarding flow (1-6) */
+          /** Current step in the onboarding flow (1-4) */
           onboarding_current_step?: number
+          discover_topics_selected?: boolean
+          discover_topics?: string[]
         }
         Relationships: []
       }
@@ -1322,6 +1330,10 @@ export interface Database {
           is_viral: boolean
           engagement_rate: number | null
           source: string
+          /** UUID grouping items from same cron ingest run */
+          ingest_batch_id: string | null
+          /** Content freshness: 'new' | 'recent' | 'aging' | 'stale' */
+          freshness: string
         }
         Insert: {
           id?: string
@@ -1342,6 +1354,8 @@ export interface Database {
           is_viral?: boolean
           engagement_rate?: number | null
           source?: string
+          ingest_batch_id?: string | null
+          freshness?: string
         }
         Update: {
           id?: string
@@ -1362,6 +1376,69 @@ export interface Database {
           is_viral?: boolean
           engagement_rate?: number | null
           source?: string
+          ingest_batch_id?: string | null
+          freshness?: string
+        }
+        Relationships: []
+      }
+      /** Writing style profiles derived from user's posts and saved content */
+      writing_style_profiles: {
+        Row: {
+          id: string
+          user_id: string
+          avg_sentence_length: number | null
+          vocabulary_level: string | null
+          tone: string | null
+          formatting_style: Json
+          hook_patterns: string[]
+          emoji_usage: string | null
+          cta_patterns: string[]
+          signature_phrases: string[]
+          content_themes: string[]
+          raw_analysis: Json
+          posts_analyzed_count: number
+          wishlisted_analyzed_count: number
+          created_at: string
+          updated_at: string
+          last_refreshed_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          avg_sentence_length?: number | null
+          vocabulary_level?: string | null
+          tone?: string | null
+          formatting_style?: Json
+          hook_patterns?: string[]
+          emoji_usage?: string | null
+          cta_patterns?: string[]
+          signature_phrases?: string[]
+          content_themes?: string[]
+          raw_analysis?: Json
+          posts_analyzed_count?: number
+          wishlisted_analyzed_count?: number
+          created_at?: string
+          updated_at?: string
+          last_refreshed_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          avg_sentence_length?: number | null
+          vocabulary_level?: string | null
+          tone?: string | null
+          formatting_style?: Json
+          hook_patterns?: string[]
+          emoji_usage?: string | null
+          cta_patterns?: string[]
+          signature_phrases?: string[]
+          content_themes?: string[]
+          raw_analysis?: Json
+          posts_analyzed_count?: number
+          wishlisted_analyzed_count?: number
+          created_at?: string
+          updated_at?: string
+          last_refreshed_at?: string
         }
         Relationships: []
       }
@@ -1771,8 +1848,12 @@ export interface DiscoverPost {
   is_viral: boolean
   /** Calculated engagement rate */
   engagement_rate: number | null
-  /** Data source: 'apify' | 'manual' | 'import' */
+  /** Data source: 'apify' | 'manual' | 'import' | 'daily-ingest' */
   source: string
+  /** UUID grouping items from same cron ingest run */
+  ingest_batch_id: string | null
+  /** Content freshness: 'new' | 'recent' | 'aging' | 'stale' */
+  freshness: string
 }
 
 /** Helper type to extract table row types */
@@ -2069,3 +2150,15 @@ export type WishlistStatus = 'saved' | 'scheduled' | 'posted' | 'removed'
 
 /** Generation run status enum */
 export type GenerationRunStatus = 'pending' | 'generating' | 'completed' | 'failed'
+
+/** Writing style profile type alias */
+export type WritingStyleProfile = Tables<'writing_style_profiles'>
+
+/** Writing style profile insert type alias */
+export type WritingStyleProfileInsert = TablesInsert<'writing_style_profiles'>
+
+/** Writing style profile update type alias */
+export type WritingStyleProfileUpdate = TablesUpdate<'writing_style_profiles'>
+
+/** Content freshness enum type */
+export type ContentFreshness = 'new' | 'recent' | 'aging' | 'stale'
