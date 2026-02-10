@@ -1309,6 +1309,52 @@ export interface Database {
         }
         Relationships: []
       }
+      /** Perplexity-sourced news articles for the Discover feed */
+      discover_news_articles: {
+        Row: {
+          id: string
+          headline: string
+          summary: string
+          source_url: string
+          source_name: string
+          published_date: string | null
+          relevance_tags: string[]
+          topic: string
+          ingest_batch_id: string | null
+          freshness: string
+          perplexity_citations: string[]
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          headline: string
+          summary: string
+          source_url: string
+          source_name: string
+          published_date?: string | null
+          relevance_tags?: string[]
+          topic: string
+          ingest_batch_id?: string | null
+          freshness?: string
+          perplexity_citations?: string[]
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          headline?: string
+          summary?: string
+          source_url?: string
+          source_name?: string
+          published_date?: string | null
+          relevance_tags?: string[]
+          topic?: string
+          ingest_batch_id?: string | null
+          freshness?: string
+          perplexity_citations?: string[]
+          created_at?: string
+        }
+        Relationships: []
+      }
       /** Discover posts - curated/scraped industry content */
       discover_posts: {
         Row: {
@@ -1854,6 +1900,36 @@ export interface DiscoverPost {
   ingest_batch_id: string | null
   /** Content freshness: 'new' | 'recent' | 'aging' | 'stale' */
   freshness: string
+}
+
+/**
+ * Perplexity-sourced news article for the Discover feed
+ */
+export interface DiscoverNewsArticle {
+  /** Unique identifier */
+  id: string
+  /** Catchy headline for the article */
+  headline: string
+  /** 2-3 sentence summary of the article */
+  summary: string
+  /** URL to the original source article */
+  source_url: string
+  /** Name of the publication/source */
+  source_name: string
+  /** When the article was published */
+  published_date: string | null
+  /** Tags indicating relevance to the topic */
+  relevance_tags: string[]
+  /** Topic slug this article belongs to */
+  topic: string
+  /** UUID grouping items from same cron ingest run */
+  ingest_batch_id: string | null
+  /** Content freshness: 'new' | 'recent' | 'aging' | 'stale' */
+  freshness: string
+  /** Citation URLs from Perplexity API */
+  perplexity_citations: string[]
+  /** When the article was ingested */
+  created_at: string
 }
 
 /** Helper type to extract table row types */

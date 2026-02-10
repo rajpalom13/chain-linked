@@ -175,11 +175,11 @@ export const samplePostPerformance: PostPerformanceData = {
 const chartConfig = {
   impressions: {
     label: "Impressions",
-    color: "hsl(var(--primary))",
+    color: "oklch(0.55 0.15 230)",
   },
   engagements: {
     label: "Engagements",
-    color: "hsl(var(--chart-2))",
+    color: "oklch(0.65 0.18 250)",
   },
 } satisfies ChartConfig
 

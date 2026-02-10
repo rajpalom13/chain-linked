@@ -1,14 +1,15 @@
 /**
  * Daily Content Ingest Cron Job
  * @description Inngest cron function that runs daily at 6 AM UTC to ingest
- * fresh industry articles via Tavily for all users with selected discover topics.
+ * fresh news articles via Perplexity AI for all users with selected discover topics.
  * Handles deduplication, freshness management, and resilient topic searching.
  * @module lib/inngest/functions/daily-content-ingest
  */
 
 import { inngest } from '../client'
-import { searchIndustryNews, type TavilySearchResult } from '@/lib/research/tavily-client'
+import { createPerplexityClient } from '@/lib/perplexity/client'
 import { createClient } from '@supabase/supabase-js'
+import { z } from 'zod'
 
 /**
  * Supabase admin client for background jobs
@@ -20,32 +21,56 @@ function getSupabaseAdmin() {
 }
 
 /**
- * Topic display name mapping for search queries
+ * Display names for topic slugs used in Perplexity prompts
  */
-const TOPIC_SEARCH_QUERIES: Record<string, string> = {
-  'ai': 'AI artificial intelligence trends LinkedIn professionals',
-  'sales': 'B2B sales strategy enablement',
-  'remote-work': 'remote work hybrid workplace trends',
-  'saas': 'SaaS B2B software growth',
-  'leadership': 'leadership management corporate',
-  'marketing': 'digital marketing content strategy',
-  'product-management': 'product management strategy tech',
-  'startups': 'startup entrepreneurship venture capital',
-  'customer-success': 'customer success retention SaaS',
-  'data-analytics': 'data analytics business intelligence',
-  'personal-branding': 'personal branding LinkedIn thought leadership',
-  'content-creation': 'content creation strategy social media',
-  'digital-transformation': 'digital transformation enterprise technology',
-  'hiring-talent': 'hiring talent recruitment management',
-  'fintech': 'fintech financial technology banking',
-  'sustainability': 'sustainability ESG corporate responsibility',
-  'cybersecurity': 'cybersecurity data privacy enterprise security',
-  'productivity': 'productivity tools workflow automation',
+const TOPIC_DISPLAY_NAMES: Record<string, string> = {
+  'ai': 'Artificial Intelligence',
+  'sales': 'B2B Sales & Revenue',
+  'remote-work': 'Remote Work & Hybrid Workplace',
+  'saas': 'SaaS & Cloud Software',
+  'leadership': 'Leadership & Management',
+  'marketing': 'Digital Marketing & Content Strategy',
+  'product-management': 'Product Management',
+  'startups': 'Startups & Entrepreneurship',
+  'customer-success': 'Customer Success & Retention',
+  'data-analytics': 'Data Analytics & Business Intelligence',
+  'personal-branding': 'Personal Branding & Thought Leadership',
+  'content-creation': 'Content Creation & Social Media',
+  'digital-transformation': 'Digital Transformation',
+  'hiring-talent': 'Hiring, Talent & Recruitment',
+  'fintech': 'FinTech & Financial Technology',
+  'sustainability': 'Sustainability & ESG',
+  'cybersecurity': 'Cybersecurity & Data Privacy',
+  'productivity': 'Productivity & Workflow Automation',
+}
+
+/**
+ * Zod schema for validating Perplexity news article responses
+ */
+const newsArticleSchema = z.object({
+  headline: z.string().min(1),
+  summary: z.string().min(1),
+  source_url: z.string().url(),
+  source_name: z.string().min(1),
+  published_date: z.string().nullable().optional(),
+  relevance_tags: z.array(z.string()).default([]),
+})
+
+/**
+ * Strip markdown code fences from Perplexity response content
+ * @param text - Raw response text
+ * @returns Cleaned JSON string
+ */
+function stripMarkdownFences(text: string): string {
+  return text
+    .replace(/^```(?:json)?\s*\n?/i, '')
+    .replace(/\n?```\s*$/i, '')
+    .trim()
 }
 
 /**
  * Daily Content Ingest Cron Function
- * Runs at 6 AM UTC daily to ingest fresh content for all active user topics
+ * Runs at 6 AM UTC daily to ingest fresh news via Perplexity for all active user topics
  */
 export const dailyContentIngest = inngest.createFunction(
   {
@@ -72,7 +97,6 @@ export const dailyContentIngest = inngest.createFunction(
         return []
       }
 
-      // Aggregate unique topic slugs
       const allTopics = new Set<string>()
       for (const profile of profiles || []) {
         const topics = profile.discover_topics as string[] | null
@@ -90,141 +114,176 @@ export const dailyContentIngest = inngest.createFunction(
 
     if (activeTopics.length === 0) {
       console.log('[DailyIngest] No active topics found, skipping ingest')
-      return { success: true, message: 'No active topics', postsIngested: 0 }
+      return { success: true, message: 'No active topics', articlesIngested: 0 }
     }
 
-    // Step 2: Search all topics using Tavily (resilient with Promise.allSettled)
-    const searchResults = await step.run('search-topics', async () => {
-      if (!process.env.TAVILY_API_KEY) {
-        console.warn('[DailyIngest] TAVILY_API_KEY not configured, skipping search')
+    // Step 2: Search all topics using Perplexity (resilient with Promise.allSettled)
+    const searchResults = await step.run('search-topics-perplexity', async () => {
+      const perplexity = createPerplexityClient()
+      if (!perplexity) {
+        console.warn('[DailyIngest] PERPLEXITY_API_KEY not configured, skipping search')
         return []
       }
 
-      console.log(`[DailyIngest] Searching ${activeTopics.length} topics via Tavily`)
+      console.log(`[DailyIngest] Searching ${activeTopics.length} topics via Perplexity`)
+
+      const systemPrompt = `You are a news research assistant for a LinkedIn content platform. Your job is to find the most relevant, timely, and interesting news stories that professionals would want to discuss on LinkedIn. Focus on stories that are: Breaking or very recent (within the last 24 hours), Relevant to business professionals, Likely to generate discussion and engagement, From credible sources. Always return your findings in the exact JSON format requested.`
 
       const searchPromises = activeTopics.map(async (topicSlug) => {
-        const query = TOPIC_SEARCH_QUERIES[topicSlug] || topicSlug.replace(/-/g, ' ')
+        const topicDisplayName = TOPIC_DISPLAY_NAMES[topicSlug] ||
+          topicSlug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+
+        const userPrompt = `Find the top 5 breaking or trending news stories about ${topicDisplayName} from the last 24 hours. For each story, provide: A catchy, attention-grabbing headline (not the original headline - rewrite it to be more engaging), A 2-3 sentence summary that captures the key points, The source URL, The source/publication name, The published date, 2-3 relevance tags. Return ONLY a JSON array with exactly 5 objects, each with these fields: headline, summary, source_url, source_name, published_date, relevance_tags`
 
         try {
-          const response = await searchIndustryNews(query, {
-            maxResults: 5,
-            searchDepth: 'basic',
-          })
+          const response = await perplexity.chat(
+            [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt },
+            ],
+            {
+              search_recency_filter: 'day',
+              temperature: 0.2,
+            }
+          )
 
-          return response.results.map((result: TavilySearchResult) => ({
-            url: result.url,
-            title: result.title,
-            content: result.content,
-            score: result.score,
-            topic: topicSlug,
-            publishedDate: result.publishedDate,
-          }))
+          const rawContent = response.choices[0]?.message?.content || '[]'
+          const cleanedContent = stripMarkdownFences(rawContent)
+          const citations = response.citations || []
+
+          let parsed: unknown
+          try {
+            parsed = JSON.parse(cleanedContent)
+          } catch {
+            console.error(`[DailyIngest] Failed to parse JSON for topic "${topicSlug}":`, cleanedContent.slice(0, 200))
+            return []
+          }
+
+          if (!Array.isArray(parsed)) {
+            console.error(`[DailyIngest] Expected array for topic "${topicSlug}", got:`, typeof parsed)
+            return []
+          }
+
+          const validArticles = parsed
+            .map(item => newsArticleSchema.safeParse(item))
+            .filter(result => result.success)
+            .map(result => ({
+              ...result.data!,
+              topic: topicSlug,
+              perplexity_citations: citations,
+            }))
+
+          console.log(`[DailyIngest] Topic "${topicSlug}": ${validArticles.length} valid articles`)
+          return validArticles
         } catch (error) {
           console.error(`[DailyIngest] Search failed for topic "${topicSlug}":`, error)
           return []
         }
       })
 
-      // Use Promise.allSettled for resilience
       const settled = await Promise.allSettled(searchPromises)
       const allResults = settled
-        .filter((r): r is PromiseFulfilledResult<typeof searchPromises extends Promise<infer T>[] ? T : never> => r.status === 'fulfilled')
+        .filter((r): r is PromiseFulfilledResult<Awaited<typeof searchPromises[number]>> => r.status === 'fulfilled')
         .flatMap((r) => r.value)
 
       console.log(`[DailyIngest] Total search results: ${allResults.length}`)
       return allResults
     })
 
-    // Step 3: Deduplicate and save new posts
+    // Step 3: Deduplicate and save new articles
     const savedCount = await step.run('deduplicate-and-save', async () => {
       if (searchResults.length === 0) return 0
 
-      // Check existing URLs
-      const urls = searchResults.map((r: { url: string }) => r.url)
+      // Check existing URLs per topic
+      const urlTopicPairs = searchResults.map((r: { source_url: string; topic: string }) => r.source_url)
       const { data: existing } = await supabase
-        .from('discover_posts')
-        .select('linkedin_url')
-        .in('linkedin_url', urls)
+        .from('discover_news_articles')
+        .select('source_url, topic')
+        .in('source_url', urlTopicPairs)
 
-      const existingUrls = new Set(
-        (existing || []).map((e: { linkedin_url: string }) => e.linkedin_url)
+      const existingKeys = new Set(
+        (existing || []).map((e: { source_url: string; topic: string }) => `${e.source_url}::${e.topic}`)
       )
 
-      // Filter to new posts only
-      const newPosts = searchResults
-        .filter((r: { url: string }) => !existingUrls.has(r.url))
-        .map((result: { url: string; title: string; content: string; score: number; topic: string; publishedDate?: string }) => ({
-          linkedin_url: result.url,
-          author_name: (() => {
-            try { return new URL(result.url).hostname.replace('www.', '') }
-            catch { return 'Unknown' }
-          })(),
-          author_headline: `Article from ${(() => {
-            try { return new URL(result.url).hostname }
-            catch { return 'web' }
-          })()}`,
-          content: result.content || result.title,
-          post_type: 'article',
-          likes_count: 0,
-          comments_count: 0,
-          reposts_count: 0,
-          posted_at: result.publishedDate || new Date().toISOString(),
-          scraped_at: new Date().toISOString(),
-          topics: [result.topic],
-          is_viral: false,
-          engagement_rate: result.score * 5,
-          source: 'daily-ingest',
+      const newArticles = searchResults
+        .filter((r: { source_url: string; topic: string }) => !existingKeys.has(`${r.source_url}::${r.topic}`))
+        .map((result: {
+          headline: string
+          summary: string
+          source_url: string
+          source_name: string
+          published_date?: string | null
+          relevance_tags: string[]
+          topic: string
+          perplexity_citations: string[]
+        }) => ({
+          headline: result.headline,
+          summary: result.summary,
+          source_url: result.source_url,
+          source_name: result.source_name,
+          published_date: result.published_date || null,
+          relevance_tags: result.relevance_tags,
+          topic: result.topic,
           ingest_batch_id: batchId,
           freshness: 'new',
+          perplexity_citations: result.perplexity_citations,
         }))
 
-      if (newPosts.length === 0) {
-        console.log('[DailyIngest] No new posts to insert (all duplicates)')
+      if (newArticles.length === 0) {
+        console.log('[DailyIngest] No new articles to insert (all duplicates)')
         return 0
       }
 
       const { error } = await supabase
-        .from('discover_posts')
-        .insert(newPosts)
+        .from('discover_news_articles')
+        .insert(newArticles)
 
       if (error) {
-        console.error('[DailyIngest] Failed to insert posts:', error)
+        console.error('[DailyIngest] Failed to insert articles:', error)
         return 0
       }
 
-      console.log(`[DailyIngest] Inserted ${newPosts.length} new posts`)
-      return newPosts.length
+      console.log(`[DailyIngest] Inserted ${newArticles.length} new articles`)
+      return newArticles.length
     })
 
-    // Step 4: Update freshness for aging posts
+    // Step 4: Update freshness for aging articles
     await step.run('update-freshness', async () => {
       const now = new Date()
 
       // new (>24h) -> recent
       const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
       await supabase
-        .from('discover_posts')
+        .from('discover_news_articles')
         .update({ freshness: 'recent' })
         .eq('freshness', 'new')
-        .lt('scraped_at', oneDayAgo)
+        .lt('created_at', oneDayAgo)
 
       // recent (>3d) -> aging
       const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString()
       await supabase
-        .from('discover_posts')
+        .from('discover_news_articles')
         .update({ freshness: 'aging' })
         .eq('freshness', 'recent')
-        .lt('scraped_at', threeDaysAgo)
+        .lt('created_at', threeDaysAgo)
 
       // aging (>7d) -> stale
       const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
       await supabase
-        .from('discover_posts')
+        .from('discover_news_articles')
         .update({ freshness: 'stale' })
         .eq('freshness', 'aging')
-        .lt('scraped_at', sevenDaysAgo)
+        .lt('created_at', sevenDaysAgo)
 
-      console.log('[DailyIngest] Updated freshness levels')
+      // Delete stale articles older than 30 days
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
+      await supabase
+        .from('discover_news_articles')
+        .delete()
+        .eq('freshness', 'stale')
+        .lt('created_at', thirtyDaysAgo)
+
+      console.log('[DailyIngest] Updated freshness levels and cleaned stale articles')
     })
 
     // Step 5: Log summary
@@ -233,7 +292,7 @@ export const dailyContentIngest = inngest.createFunction(
       console.log(`[DailyIngest] Batch ID: ${batchId}`)
       console.log(`[DailyIngest] Topics searched: ${activeTopics.length}`)
       console.log(`[DailyIngest] Total results found: ${searchResults.length}`)
-      console.log(`[DailyIngest] New posts saved: ${savedCount}`)
+      console.log(`[DailyIngest] New articles saved: ${savedCount}`)
       console.log(`[DailyIngest] Duplicates skipped: ${searchResults.length - savedCount}`)
     })
 
@@ -253,7 +312,7 @@ export const dailyContentIngest = inngest.createFunction(
       batchId,
       topicsSearched: activeTopics.length,
       totalResults: searchResults.length,
-      postsIngested: savedCount,
+      articlesIngested: savedCount,
     }
   }
 )

@@ -57,11 +57,11 @@ type TimeRange = "7d" | "30d" | "90d"
 const chartConfig = {
   impressions: {
     label: "Impressions",
-    color: "hsl(var(--primary))",
+    color: "oklch(0.55 0.15 230)",
   },
   engagements: {
     label: "Engagements",
-    color: "hsl(var(--chart-2))",
+    color: "oklch(0.65 0.18 250)",
   },
 } satisfies ChartConfig
 
@@ -408,7 +408,7 @@ export function AnalyticsChart({ data, isLoading = false }: AnalyticsChartProps)
                   <CartesianGrid
                     strokeDasharray="3 3"
                     vertical={false}
-                    stroke="hsl(var(--border))"
+                    stroke="var(--border)"
                     strokeOpacity={0.5}
                   />
                   <XAxis
@@ -419,7 +419,7 @@ export function AnalyticsChart({ data, isLoading = false }: AnalyticsChartProps)
                     minTickGap={32}
                     interval={tickInterval}
                     tickFormatter={(value) => formatAxisDate(value, timeRange)}
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                    tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
                   />
                   <YAxis
                     tickLine={false}
@@ -429,11 +429,11 @@ export function AnalyticsChart({ data, isLoading = false }: AnalyticsChartProps)
                       value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value
                     }
                     width={48}
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                    tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
                   />
                   <ChartTooltip
                     cursor={{
-                      stroke: 'hsl(var(--primary))',
+                      stroke: 'var(--primary)',
                       strokeWidth: 1,
                       strokeDasharray: '4 4',
                     }}

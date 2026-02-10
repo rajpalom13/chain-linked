@@ -11,6 +11,7 @@ import {
   deepResearchWorkflow,
   generateSuggestionsWorkflow,
   dailyContentIngest,
+  onDemandContentIngest,
 } from '@/lib/inngest/functions'
 
 /**
@@ -24,5 +25,6 @@ export const { GET, POST, PUT } = serve({
     deepResearchWorkflow,
     generateSuggestionsWorkflow,
     dailyContentIngest,
+    onDemandContentIngest,
   ],
 })

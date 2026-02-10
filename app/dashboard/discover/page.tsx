@@ -1,6 +1,6 @@
 /**
  * Discover Page
- * @description LinkedIn News-style industry trends discovery page with topic selection
+ * @description Perplexity-powered news discovery page with topic selection
  * overlay, two-column layout (main feed + trending sidebar), pill-based topic filters,
  * search, sorting, infinite scroll, and deep research mode
  * @module app/dashboard/discover/page
@@ -14,20 +14,17 @@ import { useInView } from "react-intersection-observer"
 import {
   IconAdjustmentsHorizontal,
   IconAlertCircle,
-  IconArrowsSort,
-  IconClock,
-  IconFlame,
   IconInbox,
   IconLoader2,
   IconRefresh,
   IconSearch,
   IconTelescope,
-  IconTrendingUp,
 } from "@tabler/icons-react"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
-import { DiscoverNewsItem } from "@/components/features/discover-news-item"
+import { ArticleDetailDialog } from "@/components/features/article-detail-dialog"
+import { DiscoverNewsCard } from "@/components/features/discover-news-card"
 import { DiscoverTrendingSidebar } from "@/components/features/discover-trending-sidebar"
 import { TopicSelectionOverlay } from "@/components/features/topic-selection-overlay"
 import { ManageTopicsModal } from "@/components/features/manage-topics-modal"
@@ -37,41 +34,24 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import {
-  useDiscover,
-  type DiscoverArticle,
-  type DiscoverSortOption,
-} from "@/hooks/use-discover"
+  useDiscoverNews,
+  type NewsArticle,
+} from "@/hooks/use-discover-news"
 import { useApiKeys } from "@/hooks/use-api-keys"
 import { useAuthContext } from "@/lib/auth/auth-provider"
 import { useDraft } from "@/lib/store/draft-context"
 import { cn } from "@/lib/utils"
 
 /**
- * Sort option display configuration with label and icon mapping
- */
-const SORT_OPTIONS: { value: DiscoverSortOption; label: string; icon: React.ElementType }[] = [
-  { value: "engagement", label: "Most Engagement", icon: IconTrendingUp },
-  { value: "recent", label: "Most Recent", icon: IconClock },
-  { value: "viral", label: "Trending / Viral", icon: IconFlame },
-]
-
-/**
- * Pill-style topic filter button with optional post count
+ * Pill-style topic filter button with optional article count
  * @param props - Topic pill props
  * @param props.name - Topic display name
  * @param props.isActive - Whether this pill is currently selected
  * @param props.onClick - Click handler to activate this topic
- * @param props.postCount - Optional number of posts for this topic
+ * @param props.postCount - Optional number of articles for this topic
  * @returns Rendered topic pill badge button
  */
 function TopicPill({
@@ -122,12 +102,12 @@ function EmptyState({ topic, isSearch }: { topic: string; isSearch?: boolean }) 
           )}
         </div>
         <h3 className="font-semibold text-lg mb-1">
-          {isSearch ? "No matching posts found" : "No content yet for this topic"}
+          {isSearch ? "No matching articles found" : "No news articles yet for this topic"}
         </h3>
         <p className="text-muted-foreground text-sm max-w-md">
           {isSearch
             ? "Try adjusting your search terms or browse a different topic."
-            : `We're still gathering articles about "${topic}". Check back soon or try another topic.`}
+            : `We're still gathering news about "${topic}". Check back soon or try another topic.`}
         </p>
       </CardContent>
     </Card>
@@ -159,6 +139,24 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
 }
 
 /**
+ * Non-blocking inline banner shown while the Inngest ingest workflow is
+ * populating the discover feed with fresh articles from Perplexity
+ * @returns Rendered slim banner with animated spinner and progress text
+ */
+function SeedingBanner() {
+  return (
+    <Card className="border-primary/20 bg-primary/5">
+      <CardContent className="flex items-center gap-3 py-3">
+        <IconLoader2 className="size-4 text-primary animate-spin shrink-0" />
+        <p className="text-sm text-muted-foreground">
+          Gathering fresh news for your topics via Perplexity AI. This may take up to a minute.
+        </p>
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
  * Loading skeleton for the two-column content layout (main feed + sidebar)
  * @returns Rendered skeleton with featured cards, compact list items, and sidebar placeholders
  */
@@ -171,13 +169,18 @@ function ContentSkeleton() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="rounded-lg border p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="size-6 rounded-full bg-muted animate-pulse" />
+              <div className="flex items-center justify-between">
                 <div className="h-3 w-20 bg-muted animate-pulse rounded" />
+                <div className="h-3 w-12 bg-muted animate-pulse rounded" />
               </div>
               <div className="h-4 w-full bg-muted animate-pulse rounded" />
               <div className="h-4 w-3/4 bg-muted animate-pulse rounded" />
               <div className="h-3 w-full bg-muted animate-pulse rounded" />
+              <div className="h-3 w-2/3 bg-muted animate-pulse rounded" />
+              <div className="flex gap-1.5">
+                <div className="h-4 w-12 bg-muted animate-pulse rounded-full" />
+                <div className="h-4 w-16 bg-muted animate-pulse rounded-full" />
+              </div>
             </div>
           ))}
         </div>
@@ -187,7 +190,6 @@ function ContentSkeleton() {
         <div className="rounded-lg border overflow-hidden">
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0">
-              <div className="size-8 rounded-full bg-muted animate-pulse shrink-0" />
               <div className="flex-1 space-y-1.5">
                 <div className="h-3.5 w-full bg-muted animate-pulse rounded" />
                 <div className="h-3 w-1/2 bg-muted animate-pulse rounded" />
@@ -210,7 +212,7 @@ function ContentSkeleton() {
 }
 
 /**
- * Main discover content component with LinkedIn News-style two-column layout,
+ * Main discover content component with Perplexity news-style two-column layout,
  * topic pills, search, sort, infinite scroll, and deep research mode
  * @returns Rendered discover content area with header, topic pills, main feed,
  * trending sidebar, topic selection overlay, and remix dialog
@@ -226,12 +228,11 @@ function DiscoverContent() {
     isLoadingMore,
     error,
     hasMore,
-    sort,
     searchQuery,
     showTopicSelection,
     isLoadingTopics,
+    isSeeding,
     setActiveTopic,
-    setSort,
     setSearchQuery,
     addTopic,
     removeTopic,
@@ -240,14 +241,18 @@ function DiscoverContent() {
     retry,
     refresh,
     loadMore,
-  } = useDiscover()
+  } = useDiscoverNews()
 
   /** Modal visibility state for manage topics dialog */
   const [isManageTopicsOpen, setIsManageTopicsOpen] = React.useState(false)
   /** Modal visibility state for remix dialog */
   const [isRemixOpen, setIsRemixOpen] = React.useState(false)
   /** Article currently selected for remixing */
-  const [articleToRemix, setArticleToRemix] = React.useState<DiscoverArticle | null>(null)
+  const [articleToRemix, setArticleToRemix] = React.useState<NewsArticle | null>(null)
+  /** Article detail dialog state */
+  const [isDetailOpen, setIsDetailOpen] = React.useState(false)
+  /** Article currently being viewed in detail dialog */
+  const [articleToView, setArticleToView] = React.useState<NewsArticle | null>(null)
 
   /** Research mode toggle state */
   const [isResearchMode, setIsResearchMode] = React.useState(false)
@@ -297,10 +302,19 @@ function DiscoverContent() {
   }, [searchInput, setSearchQuery])
 
   /**
+   * Handle article card click to open the detail dialog
+   * @param article - The article to view in detail
+   */
+  const handleArticleClick = React.useCallback((article: NewsArticle) => {
+    setArticleToView(article)
+    setIsDetailOpen(true)
+  }, [])
+
+  /**
    * Handle remix button click on an article by opening the remix dialog
    * @param article - The article to remix
    */
-  const handleRemix = React.useCallback((article: DiscoverArticle) => {
+  const handleRemix = React.useCallback((article: NewsArticle) => {
     setArticleToRemix(article)
     setIsRemixOpen(true)
   }, [])
@@ -312,7 +326,7 @@ function DiscoverContent() {
   const handleRemixComplete = React.useCallback(
     (remixedContent: string) => {
       if (articleToRemix) {
-        loadForRemix(articleToRemix.id, remixedContent, articleToRemix.source)
+        loadForRemix(articleToRemix.id, remixedContent, articleToRemix.sourceName)
         router.push("/dashboard/compose")
       }
       setIsRemixOpen(false)
@@ -333,13 +347,8 @@ function DiscoverContent() {
    */
   const originalContentForRemix = React.useMemo(() => {
     if (!articleToRemix) return ""
-    return `${articleToRemix.title}\n\n${articleToRemix.description}`
+    return `${articleToRemix.headline}\n\n${articleToRemix.summary}`
   }, [articleToRemix])
-
-  /**
-   * Get the label for the currently selected sort option
-   */
-  const currentSortLabel = SORT_OPTIONS.find((o) => o.value === sort)?.label || "Sort"
 
   return (
     <div className="flex flex-col gap-6 p-4 md:p-6 animate-in fade-in duration-500">
@@ -348,7 +357,7 @@ function DiscoverContent() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Discover</h1>
           <p className="text-muted-foreground mt-1">
-            Explore trending industry content and find inspiration for your next post.
+            Stay informed with the latest industry news and find inspiration for your next post.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -380,7 +389,7 @@ function DiscoverContent() {
       {/* Research Mode Section */}
       {isResearchMode && (
         <ResearchSection
-          onRemix={handleRemix}
+          onRemix={handleRemix as (article: unknown) => void}
           showClose
           onClose={() => setIsResearchMode(false)}
         />
@@ -402,45 +411,17 @@ function DiscoverContent() {
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
 
-      {/* Search & Sort Bar */}
+      {/* Search Bar */}
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-md">
           <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
-            placeholder="Search posts..."
+            placeholder="Search articles..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             className="pl-9"
           />
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="gap-2 shrink-0">
-              <IconArrowsSort className="size-4" />
-              <span className="hidden sm:inline">{currentSortLabel}</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuRadioGroup
-              value={sort}
-              onValueChange={(value) => setSort(value as DiscoverSortOption)}
-            >
-              {SORT_OPTIONS.map((option) => {
-                const Icon = option.icon
-                return (
-                  <DropdownMenuRadioItem
-                    key={option.value}
-                    value={option.value}
-                    className="gap-2"
-                  >
-                    <Icon className="size-4" />
-                    {option.label}
-                  </DropdownMenuRadioItem>
-                )
-              })}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
 
       {/* Content Section - Two column layout */}
@@ -448,73 +429,78 @@ function DiscoverContent() {
         <ErrorState message={error} onRetry={retry} />
       ) : isLoading ? (
         <ContentSkeleton />
-      ) : articles.length === 0 ? (
-        <EmptyState topic={activeTopicName} isSearch={searchQuery.length > 0} />
       ) : (
-        <div className="flex gap-6">
-          {/* Main Feed */}
-          <div className="flex-1 min-w-0">
-            {/* Top Stories - first 3 articles as featured */}
-            {articles.length > 0 && (
-              <div className="mb-6">
-                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Top Stories</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {articles.slice(0, 3).map((article) => (
-                    <DiscoverNewsItem key={article.id} article={article} onRemix={handleRemix} variant="featured" />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Divider */}
-            {articles.length > 3 && <div className="border-t my-4" />}
-
-            {/* Latest News - remaining articles as compact */}
-            {articles.length > 3 && (
-              <div>
-                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Latest</h2>
-                <div className="rounded-lg border bg-card overflow-hidden">
-                  {articles.slice(3).map((article) => (
-                    <DiscoverNewsItem key={article.id} article={article} onRemix={handleRemix} variant="compact" />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Infinite scroll sentinel */}
-            {hasMore && (
-              <div ref={loadMoreRef} className="flex justify-center py-6">
-                {isLoadingMore ? (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <IconLoader2 className="size-5 animate-spin" />
-                    <span className="text-sm">Loading more posts...</span>
+        <>
+          {isSeeding && <SeedingBanner />}
+          {articles.length === 0 ? (
+            <EmptyState topic={activeTopicName} isSearch={searchQuery.length > 0} />
+          ) : (
+            <div className="flex gap-6">
+              {/* Main Feed */}
+              <div className="flex-1 min-w-0">
+                {/* Top Stories - first 3 articles as featured */}
+                {articles.length > 0 && (
+                  <div className="mb-6">
+                    <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Top Stories</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {articles.slice(0, 3).map((article) => (
+                        <DiscoverNewsCard key={article.id} article={article} onRemix={handleRemix} onClick={handleArticleClick} variant="featured" />
+                      ))}
+                    </div>
                   </div>
-                ) : (
-                  <Button variant="ghost" onClick={loadMore} className="gap-2">
-                    <IconRefresh className="size-4" />
-                    Load more
-                  </Button>
+                )}
+
+                {/* Divider */}
+                {articles.length > 3 && <div className="border-t my-4" />}
+
+                {/* Latest News - remaining articles as compact */}
+                {articles.length > 3 && (
+                  <div>
+                    <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Latest</h2>
+                    <div className="rounded-lg border bg-card overflow-hidden">
+                      {articles.slice(3).map((article) => (
+                        <DiscoverNewsCard key={article.id} article={article} onRemix={handleRemix} onClick={handleArticleClick} variant="compact" />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Infinite scroll sentinel */}
+                {hasMore && (
+                  <div ref={loadMoreRef} className="flex justify-center py-6">
+                    {isLoadingMore ? (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <IconLoader2 className="size-5 animate-spin" />
+                        <span className="text-sm">Loading more articles...</span>
+                      </div>
+                    ) : (
+                      <Button variant="ghost" onClick={loadMore} className="gap-2">
+                        <IconRefresh className="size-4" />
+                        Load more
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {/* End of feed */}
+                {!hasMore && articles.length > 0 && (
+                  <p className="text-center text-sm text-muted-foreground py-4">
+                    You have seen all articles for this topic.
+                  </p>
                 )}
               </div>
-            )}
 
-            {/* End of feed */}
-            {!hasMore && articles.length > 0 && (
-              <p className="text-center text-sm text-muted-foreground py-4">
-                You have seen all posts for this topic.
-              </p>
-            )}
-          </div>
-
-          {/* Sidebar */}
-          <DiscoverTrendingSidebar
-            articles={articles}
-            topics={topics}
-            activeTopic={activeTopic}
-            onTopicClick={setActiveTopic}
-            onArticleClick={handleRemix}
-          />
-        </div>
+              {/* Sidebar */}
+              <DiscoverTrendingSidebar
+                articles={articles}
+                topics={topics}
+                activeTopic={activeTopic}
+                onTopicClick={setActiveTopic}
+                onArticleClick={handleArticleClick}
+              />
+            </div>
+          )}
+        </>
       )}
 
       {/* Topic Selection Overlay for first-time users */}
@@ -533,6 +519,21 @@ function DiscoverContent() {
         onUpdateTopics={updateTopics}
       />
 
+      {/* Article Detail Dialog */}
+      <ArticleDetailDialog
+        article={articleToView}
+        isOpen={isDetailOpen}
+        onClose={() => {
+          setIsDetailOpen(false)
+          setArticleToView(null)
+        }}
+        onRemix={(article) => {
+          setIsDetailOpen(false)
+          setArticleToView(null)
+          handleRemix(article)
+        }}
+      />
+
       {/* Remix Dialog */}
       <RemixDialog
         isOpen={isRemixOpen}
@@ -541,7 +542,7 @@ function DiscoverContent() {
           setArticleToRemix(null)
         }}
         originalContent={originalContentForRemix}
-        originalAuthor={articleToRemix?.source}
+        originalAuthor={articleToRemix?.sourceName}
         onRemixed={handleRemixComplete}
         hasApiKey={hasApiKey}
       />
@@ -589,8 +590,8 @@ function DiscoverSkeleton() {
 
 /**
  * Discover page root component
- * @description Main page for discovering trending industry content organized by topic,
- * featuring a LinkedIn News-style layout with featured top stories, compact latest feed,
+ * @description Main page for discovering trending industry news organized by topic,
+ * featuring a Perplexity-powered layout with featured top stories, compact latest feed,
  * trending sidebar, and first-time topic selection overlay
  * @returns Discover page wrapped in SidebarProvider with AppSidebar and SiteHeader
  */
@@ -609,8 +610,8 @@ export default function DiscoverPage() {
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader title="Discover" />
-        <main id="main-content" className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col gap-2">
+        <main id="main-content" className="flex flex-1 flex-col overflow-hidden">
+          <div className="@container/main flex flex-1 flex-col gap-2 overflow-y-auto">
             {authLoading ? <DiscoverSkeleton /> : <DiscoverContent />}
           </div>
         </main>

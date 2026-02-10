@@ -24,7 +24,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import type { Topic } from "@/hooks/use-discover"
+import type { Topic } from "@/hooks/use-discover-news"
 
 /**
  * Props for ManageTopicsModal

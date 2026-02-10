@@ -239,7 +239,7 @@ export function GraphicsLibraryPanel({
         <Tabs
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as GraphicsTab)}
-          className="flex flex-1 flex-col overflow-hidden"
+          className="flex flex-1 flex-col min-h-0 overflow-hidden"
         >
           <TabsList className="mx-3 mt-2 grid w-auto grid-cols-3">
             <TabsTrigger value="photos" className="gap-1.5 text-xs">
@@ -259,7 +259,7 @@ export function GraphicsLibraryPanel({
           {/* Photos Tab */}
           <TabsContent
             value="photos"
-            className="mt-0 flex flex-1 flex-col overflow-hidden"
+            className="mt-0 flex flex-1 flex-col min-h-0 overflow-hidden"
           >
             <PhotosTabContent
               photos={photos}
@@ -279,7 +279,7 @@ export function GraphicsLibraryPanel({
           {/* Icons Tab */}
           <TabsContent
             value="icons"
-            className="mt-0 flex flex-1 flex-col overflow-hidden"
+            className="mt-0 flex flex-1 flex-col min-h-0 overflow-hidden"
           >
             <IconsTabContent
               icons={icons}
@@ -294,7 +294,7 @@ export function GraphicsLibraryPanel({
           {/* Shapes Tab */}
           <TabsContent
             value="shapes"
-            className="mt-0 flex flex-1 flex-col overflow-hidden"
+            className="mt-0 flex flex-1 flex-col min-h-0 overflow-hidden"
           >
             <ShapesTabContent
               shapes={shapes}
@@ -364,7 +364,7 @@ function PhotosTabContent({
   );
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden p-3 pt-2">
+    <div className="flex flex-1 flex-col min-h-0 p-3 pt-2">
       {/* Search input */}
       <form onSubmit={handleSubmit} className="mb-2">
         <div className="relative">
@@ -401,63 +401,65 @@ function PhotosTabContent({
       )}
 
       {/* Photo grid */}
-      <ScrollArea className="flex-1">
-        <div className="grid grid-cols-2 gap-1.5">
-          {photos.map((photo) => (
-            <PhotoThumbnail
-              key={photo.id}
-              photo={photo}
-              onClick={() => onInsert(photo)}
-            />
-          ))}
-        </div>
-
-        {/* Loading indicator */}
-        {isLoading && (
-          <div className="flex items-center justify-center py-6">
-            <IconLoader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      <div className="relative flex-1 min-h-0">
+        <ScrollArea className="absolute inset-0">
+          <div className="grid grid-cols-2 gap-1.5">
+            {photos.map((photo) => (
+              <PhotoThumbnail
+                key={photo.id}
+                photo={photo}
+                onClick={() => onInsert(photo)}
+              />
+            ))}
           </div>
-        )}
 
-        {/* Load more button */}
-        {!isLoading && photos.length > 0 && currentPage < totalPages && (
-          <div className="py-3 text-center">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onLoadMore}
-              className="text-xs"
-            >
-              Load more
-            </Button>
-          </div>
-        )}
+          {/* Loading indicator */}
+          {isLoading && (
+            <div className="flex items-center justify-center py-6">
+              <IconLoader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          )}
 
-        {/* Empty state */}
-        {!isLoading && photos.length === 0 && !error && (
-          <div className="flex flex-col items-center justify-center py-10 text-center">
-            <IconPhoto className="mb-2 h-8 w-8 text-muted-foreground/50" />
-            <p className="text-xs text-muted-foreground">
-              No photos found. Try a different search.
+          {/* Load more button */}
+          {!isLoading && photos.length > 0 && currentPage < totalPages && (
+            <div className="py-3 text-center">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onLoadMore}
+                className="text-xs"
+              >
+                Load more
+              </Button>
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!isLoading && photos.length === 0 && !error && (
+            <div className="flex flex-col items-center justify-center py-10 text-center">
+              <IconPhoto className="mb-2 h-8 w-8 text-muted-foreground/50" />
+              <p className="text-xs text-muted-foreground">
+                No photos found. Try a different search.
+              </p>
+            </div>
+          )}
+
+          {/* Unsplash attribution */}
+          {photos.length > 0 && (
+            <p className="py-2 text-center text-[10px] text-muted-foreground">
+              Photos provided by{' '}
+              <a
+                href="https://unsplash.com/?utm_source=chainlinked&utm_medium=referral"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-foreground"
+              >
+                Unsplash
+              </a>
             </p>
-          </div>
-        )}
-
-        {/* Unsplash attribution */}
-        {photos.length > 0 && (
-          <p className="py-2 text-center text-[10px] text-muted-foreground">
-            Photos provided by{' '}
-            <a
-              href="https://unsplash.com/?utm_source=chainlinked&utm_medium=referral"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-foreground"
-            >
-              Unsplash
-            </a>
-          </p>
-        )}
-      </ScrollArea>
+          )}
+        </ScrollArea>
+      </div>
     </div>
   );
 }
@@ -533,7 +535,7 @@ function IconsTabContent({
   onInsert,
 }: IconsTabContentProps) {
   return (
-    <div className="flex flex-1 flex-col overflow-hidden p-3 pt-2">
+    <div className="flex flex-1 flex-col min-h-0 p-3 pt-2">
       {/* Search input */}
       <div className="relative mb-2">
         <IconSearch className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
@@ -564,27 +566,29 @@ function IconsTabContent({
       </div>
 
       {/* Icon grid */}
-      <ScrollArea className="flex-1">
-        <div className="grid grid-cols-5 gap-1">
-          {icons.map((iconAsset) => (
-            <IconThumbnail
-              key={iconAsset.id}
-              icon={iconAsset}
-              onClick={() => onInsert(iconAsset)}
-            />
-          ))}
-        </div>
-
-        {/* Empty state */}
-        {icons.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-10 text-center">
-            <IconIcons className="mb-2 h-8 w-8 text-muted-foreground/50" />
-            <p className="text-xs text-muted-foreground">
-              No icons match your search.
-            </p>
+      <div className="relative flex-1 min-h-0">
+        <ScrollArea className="absolute inset-0">
+          <div className="grid grid-cols-5 gap-1">
+            {icons.map((iconAsset) => (
+              <IconThumbnail
+                key={iconAsset.id}
+                icon={iconAsset}
+                onClick={() => onInsert(iconAsset)}
+              />
+            ))}
           </div>
-        )}
-      </ScrollArea>
+
+          {/* Empty state */}
+          {icons.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-10 text-center">
+              <IconIcons className="mb-2 h-8 w-8 text-muted-foreground/50" />
+              <p className="text-xs text-muted-foreground">
+                No icons match your search.
+              </p>
+            </div>
+          )}
+        </ScrollArea>
+      </div>
     </div>
   );
 }
@@ -656,7 +660,7 @@ function ShapesTabContent({
   onInsert,
 }: ShapesTabContentProps) {
   return (
-    <div className="flex flex-1 flex-col overflow-hidden p-3 pt-2">
+    <div className="flex flex-1 flex-col min-h-0 p-3 pt-2">
       {/* Search input */}
       <div className="relative mb-2">
         <IconSearch className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
@@ -687,27 +691,29 @@ function ShapesTabContent({
       </div>
 
       {/* Shape grid */}
-      <ScrollArea className="flex-1">
-        <div className="grid grid-cols-3 gap-1.5">
-          {shapes.map((shape) => (
-            <ShapeThumbnail
-              key={shape.id}
-              shape={shape}
-              onClick={() => onInsert(shape)}
-            />
-          ))}
-        </div>
-
-        {/* Empty state */}
-        {shapes.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-10 text-center">
-            <IconShape className="mb-2 h-8 w-8 text-muted-foreground/50" />
-            <p className="text-xs text-muted-foreground">
-              No shapes match your search.
-            </p>
+      <div className="relative flex-1 min-h-0">
+        <ScrollArea className="absolute inset-0">
+          <div className="grid grid-cols-3 gap-1.5">
+            {shapes.map((shape) => (
+              <ShapeThumbnail
+                key={shape.id}
+                shape={shape}
+                onClick={() => onInsert(shape)}
+              />
+            ))}
           </div>
-        )}
-      </ScrollArea>
+
+          {/* Empty state */}
+          {shapes.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-10 text-center">
+              <IconShape className="mb-2 h-8 w-8 text-muted-foreground/50" />
+              <p className="text-xs text-muted-foreground">
+                No shapes match your search.
+              </p>
+            </div>
+          )}
+        </ScrollArea>
+      </div>
     </div>
   );
 }

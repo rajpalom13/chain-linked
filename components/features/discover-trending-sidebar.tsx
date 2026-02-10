@@ -1,6 +1,6 @@
 /**
  * Discover Trending Sidebar Component
- * @description Right sidebar for the discover page showing top picks and trending topics
+ * @description Right sidebar for the discover page showing top headlines and trending topics
  * @module components/features/discover-trending-sidebar
  */
 
@@ -10,73 +10,54 @@ import * as React from "react"
 import {
   IconExternalLink,
   IconFlame,
-  IconHeart,
-  IconTrophy,
+  IconNews,
 } from "@tabler/icons-react"
 
 import { Badge } from "@/components/ui/badge"
-import { MarkdownContent } from "@/components/shared/markdown-content"
 import { cn } from "@/lib/utils"
-import type { DiscoverArticle, Topic } from "@/hooks/use-discover"
+import type { NewsArticle, Topic } from "@/hooks/use-discover-news"
 
 /**
  * Props for DiscoverTrendingSidebar
- * @param articles - All articles to derive top picks from
+ * @param articles - All articles to derive top headlines from
  * @param topics - Available topic list
  * @param activeTopic - Currently selected topic slug
  * @param onTopicClick - Callback when a topic chip is clicked
- * @param onArticleClick - Callback when a top pick article is clicked
+ * @param onArticleClick - Callback when a top headline is clicked
  */
 interface DiscoverTrendingSidebarProps {
-  articles: DiscoverArticle[]
+  articles: NewsArticle[]
   topics: Topic[]
   activeTopic: string
   onTopicClick: (topicSlug: string) => void
-  onArticleClick?: (article: DiscoverArticle) => void
+  onArticleClick?: (article: NewsArticle) => void
 }
 
 /**
- * Format large numbers with K/M suffix
- * @param num - Number to format
- * @returns Formatted string
+ * Format a relative time string from an ISO date
+ * @param dateStr - ISO date string
+ * @returns Human-readable relative time
  */
-function formatCount(num: number): string {
-  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
-  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`
-  return num.toString()
-}
+function formatRelativeTime(dateStr: string): string {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMin = Math.floor(diffMs / 60000)
+  const diffHr = Math.floor(diffMin / 60)
+  const diffDay = Math.floor(diffHr / 24)
 
-/**
- * Strip markdown syntax and citation references from a title string
- * for display as clean plain text. Removes heading markers (###),
- * bold/italic markers (** / *), citation references [N], and extra whitespace.
- * @param text - Raw title string potentially containing markdown
- * @returns Cleaned plain-text title
- */
-function stripMarkdownFromTitle(text: string): string {
-  return text
-    // Remove citation references like [1], [2][3], [Context]
-    .replace(/\[(?:\d+|Context)\]/g, "")
-    // Remove heading markers (### Header -> Header)
-    .replace(/^#{1,6}\s+/gm, "")
-    // Remove bold markers (**text** -> text)
-    .replace(/\*\*(.*?)\*\*/g, "$1")
-    // Remove italic markers (*text* -> text)
-    .replace(/\*(.*?)\*/g, "$1")
-    // Remove inline code markers (`text` -> text)
-    .replace(/`(.*?)`/g, "$1")
-    // Remove link syntax [text](url) -> text
-    .replace(/\[(.*?)\]\(.*?\)/g, "$1")
-    // Collapse multiple spaces into one
-    .replace(/\s{2,}/g, " ")
-    .trim()
+  if (diffMin < 1) return "just now"
+  if (diffMin < 60) return `${diffMin}m ago`
+  if (diffHr < 24) return `${diffHr}h ago`
+  if (diffDay < 7) return `${diffDay}d ago`
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
 }
 
 /**
  * Discover Trending Sidebar component
- * Shows "Today's Top Picks" (top 5 by engagement) and "Trending Topics" (topic chips with post counts)
+ * Shows "Top Headlines" (top 5 by recency) and "Trending Topics" (topic chips with post counts)
  * @param props - Component props
- * @returns Rendered sidebar with top picks and trending topics
+ * @returns Rendered sidebar with top headlines and trending topics
  * @example
  * <DiscoverTrendingSidebar
  *   articles={articles}
@@ -93,20 +74,20 @@ export function DiscoverTrendingSidebar({
   onArticleClick,
 }: DiscoverTrendingSidebarProps) {
   /**
-   * Top 5 articles by total engagement (likes + comments + reposts)
+   * Top 5 articles by recency
    */
-  const topPicks = React.useMemo(() => {
+  const topHeadlines = React.useMemo(() => {
     return [...articles]
       .sort((a, b) => {
-        const engA = (a.likesCount || 0) + (a.commentsCount || 0) + (a.repostsCount || 0)
-        const engB = (b.likesCount || 0) + (b.commentsCount || 0) + (b.repostsCount || 0)
-        return engB - engA
+        const dateA = new Date(a.publishedDate || a.createdAt).getTime()
+        const dateB = new Date(b.publishedDate || b.createdAt).getTime()
+        return dateB - dateA
       })
       .slice(0, 5)
   }, [articles])
 
   /**
-   * Topics with post counts, excluding "All"
+   * Topics with article counts, excluding "All"
    */
   const topicsWithCounts = React.useMemo(() => {
     const counts: Record<string, number> = {}
@@ -128,15 +109,15 @@ export function DiscoverTrendingSidebar({
 
   return (
     <aside className="w-80 shrink-0 space-y-6 hidden lg:block">
-      {/* Today's Top Picks */}
+      {/* Top Headlines */}
       <div>
         <h3 className="flex items-center gap-2 text-sm font-semibold mb-3">
-          <IconTrophy className="size-4 text-amber-500" />
-          Today&apos;s Top Picks
+          <IconNews className="size-4 text-blue-500" />
+          Top Headlines
         </h3>
         <div className="space-y-1">
-          {topPicks.length > 0 ? (
-            topPicks.map((article, index) => (
+          {topHeadlines.length > 0 ? (
+            topHeadlines.map((article, index) => (
               <button
                 key={article.id}
                 className={cn(
@@ -148,9 +129,9 @@ export function DiscoverTrendingSidebar({
                 {/* Rank Number */}
                 <span className={cn(
                   "text-lg font-bold shrink-0 w-5 text-center leading-tight",
-                  index === 0 && "text-amber-500",
-                  index === 1 && "text-zinc-400",
-                  index === 2 && "text-amber-700",
+                  index === 0 && "text-blue-500",
+                  index === 1 && "text-blue-400",
+                  index === 2 && "text-blue-300",
                   index > 2 && "text-muted-foreground"
                 )}>
                   {index + 1}
@@ -159,47 +140,31 @@ export function DiscoverTrendingSidebar({
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium leading-snug line-clamp-2">
-                    {stripMarkdownFromTitle(article.title)}
+                    {article.headline}
                   </p>
-                  {article.description && (
-                    <MarkdownContent
-                      content={article.description.slice(0, 200)}
-                      className="text-xs text-muted-foreground mt-0.5 line-clamp-2"
-                      compact
-                      maxLines={2}
-                    />
-                  )}
                   <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                    <span
-                      className="font-medium"
-                      style={{ color: article.sourceColor }}
-                    >
-                      {article.authorName || article.source}
+                    <span className="font-medium text-foreground/80">
+                      {article.sourceName}
                     </span>
-                    {article.likesCount != null && article.likesCount > 0 && (
-                      <span className="flex items-center gap-0.5">
-                        <IconHeart className="size-3" />
-                        {formatCount(article.likesCount)}
-                      </span>
-                    )}
-                    {article.url && (
-                      <a
-                        href={article.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:text-foreground transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <IconExternalLink className="size-3" />
-                      </a>
-                    )}
+                    <span>
+                      {formatRelativeTime(article.publishedDate || article.createdAt)}
+                    </span>
+                    <a
+                      href={article.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-foreground transition-colors"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <IconExternalLink className="size-3" />
+                    </a>
                   </div>
                 </div>
               </button>
             ))
           ) : (
             <p className="text-xs text-muted-foreground px-2 py-4">
-              No top picks available yet.
+              No headlines available yet.
             </p>
           )}
         </div>
@@ -230,7 +195,7 @@ export function DiscoverTrendingSidebar({
                 )}
               >
                 {topic.name}
-                {topic.postCount > 0 && (
+                {topic.postCount != null && topic.postCount > 0 && (
                   <span className="ml-1 opacity-70">
                     {topic.postCount}
                   </span>

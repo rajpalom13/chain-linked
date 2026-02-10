@@ -13,6 +13,8 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import {
+  IconArticle,
+  IconBulb,
   IconCalendar,
   IconChartBar,
   IconChevronRight,
@@ -22,9 +24,9 @@ import {
   IconLink,
   IconPencil,
   IconPresentation,
-  IconSparkles,
   IconSwipe,
   IconTemplate,
+  IconTerminal2,
   IconUsers,
   type Icon,
 } from "@tabler/icons-react"
@@ -69,7 +71,7 @@ interface NavItem {
 // Navigation Configuration
 // ============================================================================
 
-const mainNavItems: NavItem[] = [
+const overviewNavItems: NavItem[] = [
   {
     title: "Dashboard",
     url: "/dashboard",
@@ -80,6 +82,11 @@ const mainNavItems: NavItem[] = [
     title: "Analytics",
     url: "/dashboard/analytics",
     icon: IconChartBar,
+  },
+  {
+    title: "Posts",
+    url: "/dashboard/posts",
+    icon: IconArticle,
   },
   {
     title: "Compose",
@@ -107,12 +114,12 @@ const contentNavItems: NavItem[] = [
   {
     title: "Prompt Playground",
     url: "/dashboard/prompts",
-    icon: IconSparkles,
+    icon: IconTerminal2,
   },
   {
     title: "Inspiration",
     url: "/dashboard/inspiration",
-    icon: IconSparkles,
+    icon: IconBulb,
   },
   {
     title: "Discover",
@@ -152,6 +159,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   // Track which sections are open
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    overview: true,
     content: true,
   })
 
@@ -164,6 +172,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   // Auto-open sections based on current path
   useEffect(() => {
+    if (pathname === '/dashboard' ||
+        pathname?.includes('/dashboard/analytics') ||
+        pathname?.includes('/dashboard/posts') ||
+        pathname?.includes('/dashboard/compose') ||
+        pathname?.includes('/dashboard/schedule') ||
+        pathname?.includes('/dashboard/team')) {
+      setOpenSections(prev => ({ ...prev, overview: true }))
+    }
     if (pathname?.includes('/dashboard/templates') ||
         pathname?.includes('/dashboard/prompts') ||
         pathname?.includes('/dashboard/inspiration') ||
@@ -236,36 +252,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // ============================================================================
   // Nav Link Components
   // ============================================================================
-
-  /**
-   * Main navigation link component
-   */
-  const NavLink = ({ item }: { item: NavItem }) => {
-    const Icon = item.icon
-    const active = isActive(item.url, item.exact)
-
-    return (
-      <Link
-        href={item.url}
-        className={cn(
-          "group flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150",
-          active
-            ? "text-primary bg-primary/10"
-            : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-        )}
-      >
-        <Icon
-          className={cn(
-            "size-4 shrink-0 transition-colors",
-            active
-              ? "text-primary"
-              : "text-muted-foreground group-hover:text-foreground"
-          )}
-        />
-        <span className="flex-1">{item.title}</span>
-      </Link>
-    )
-  }
 
   /**
    * Sub-navigation link with tree connectors
@@ -356,7 +342,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       {/* Sidebar Content - Navigation Groups */}
       <SidebarContent className="px-2 py-2">
         {/* Quick Create Button */}
-        <div className="mb-2">
+        <div className="mb-1">
           <Link
             href="/dashboard/compose"
             className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-150"
@@ -366,15 +352,50 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </Link>
         </div>
 
-        {/* Main Navigation */}
-        <div className="space-y-0.5">
-          {mainNavItems.map((item) => (
-            <NavLink key={item.url} item={item} />
-          ))}
-        </div>
-
-        {/* Spacer */}
-        <div className="h-3" />
+        {/* Overview Section - Collapsible */}
+        {mounted ? (
+          <Collapsible
+            open={openSections.overview}
+            onOpenChange={() => toggleSection('overview')}
+          >
+            <SectionHeader
+              label="Overview"
+              isOpen={openSections.overview}
+            />
+            <AnimatePresence initial={false}>
+              {openSections.overview && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.15, ease: smoothEase }}
+                  className="overflow-hidden mt-1 ml-1"
+                >
+                  {overviewNavItems.map((item, idx) => (
+                    <SubNavLink
+                      key={item.url}
+                      item={item}
+                      isLast={idx === overviewNavItems.length - 1}
+                    />
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </Collapsible>
+        ) : (
+          /* Static server-side render to prevent hydration mismatch */
+          <div>
+            <div className="flex items-center gap-2.5 px-2.5 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <span>Overview</span>
+              <IconChevronRight className="ml-auto size-3.5" />
+            </div>
+            <div className="mt-1 ml-1">
+              {overviewNavItems.map((item, idx) => (
+                <SubNavLink key={item.url} item={item} isLast={idx === overviewNavItems.length - 1} />
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Content Section - Collapsible */}
         {mounted ? (
