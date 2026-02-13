@@ -136,6 +136,21 @@ export const POST_TYPE_CATEGORIES: Record<PostTypeDefinition['category'], string
 }
 
 /**
+ * Goal category type extracted from PostTypeDefinition
+ */
+export type GoalCategory = PostTypeDefinition['category']
+
+/**
+ * Goal labels with descriptions and icon names for the PostGoalSelector cards
+ */
+export const GOAL_LABELS: Record<GoalCategory, { label: string; description: string; icon: string }> = {
+  narrative: { label: 'Tell a Story', description: 'Share an experience or lesson', icon: 'IconBook' },
+  educational: { label: 'Teach Something', description: 'Share knowledge or a framework', icon: 'IconSchool' },
+  engagement: { label: 'Start a Conversation', description: 'Spark debate or ask a question', icon: 'IconMessages' },
+  visual: { label: 'Visual Content', description: 'Create a carousel or slide deck', icon: 'IconPresentation' },
+}
+
+/**
  * Retrieves a post type definition by its ID
  * @param id - The post type ID to look up (e.g., 'story', 'listicle')
  * @returns The post type definition, or undefined if not found

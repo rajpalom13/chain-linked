@@ -19,6 +19,11 @@ export type ShapeType = 'rect' | 'circle' | 'line';
 export type ElementType = 'text' | 'shape' | 'image';
 
 /**
+ * Left panel tab options for the editor icon rail
+ */
+export type LeftPanelTab = 'templates' | 'ai' | 'graphics' | 'uploads' | 'slides';
+
+/**
  * Template categories for filtering
  */
 export type TemplateCategory = 'professional' | 'creative' | 'minimal' | 'bold' | 'brand';
@@ -77,6 +82,10 @@ export interface ShapeElementProps {
 export interface ImageElementProps {
   src: string;
   alt?: string;
+  /** When true, the element auto-adjusts its width/height to match the image's natural aspect ratio on load */
+  preserveAspectRatio?: boolean;
+  /** Hex color for icon/image tinting (applied as a color overlay) */
+  tintColor?: string;
 }
 
 /**
@@ -129,6 +138,8 @@ export interface CanvasTemplate {
   fonts: string[];
   /** Whether this template is marked as a default favorite. Defaults to false. */
   isFavorite?: boolean;
+  /** Default tone for AI content generation. One of: professional, casual, educational, inspirational, storytelling, match-my-style */
+  defaultTone?: string;
 }
 
 /**

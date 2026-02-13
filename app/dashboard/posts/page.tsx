@@ -10,19 +10,17 @@
 import * as React from "react"
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { motion } from "framer-motion"
-import { AppSidebar } from "@/components/app-sidebar"
-import { SiteHeader } from "@/components/site-header"
+import { PageContent } from "@/components/shared/page-content"
 import { useAuthContext } from "@/lib/auth/auth-provider"
 import { cn } from "@/lib/utils"
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar"
+import { usePageMeta } from "@/lib/dashboard-context"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Select,
   SelectContent,
@@ -30,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import Link from "next/link"
 import {
   IconAlertCircle,
   IconArticle,
@@ -39,16 +38,46 @@ import {
   IconHeart,
   IconMessageCircle,
   IconMoodEmpty,
+  IconPencil,
+  IconPhoto,
   IconRefresh,
   IconRepeat,
   IconSearch,
   IconTrendingUp,
+  IconUsers,
+  IconUser,
 } from "@tabler/icons-react"
 import {
-  pageVariants,
   staggerContainerVariants,
   staggerItemVariants,
 } from "@/lib/animations"
+import { CrossNav, type CrossNavItem } from "@/components/shared/cross-nav"
+import { IconChartBar, IconTemplate } from "@tabler/icons-react"
+
+/** Cross-navigation items for the posts page */
+const POSTS_CROSS_NAV: CrossNavItem[] = [
+  {
+    href: "/dashboard/compose",
+    icon: IconPencil,
+    label: "Compose a Post",
+    description: "Draft and publish new LinkedIn content.",
+    color: "primary",
+  },
+  {
+    href: "/dashboard/analytics",
+    icon: IconChartBar,
+    label: "View Analytics",
+    description: "Track your performance and engagement metrics.",
+    color: "emerald-500",
+  },
+  {
+    href: "/dashboard/templates",
+    icon: IconTemplate,
+    label: "Browse Templates",
+    description: "Start from proven post templates.",
+    color: "amber-500",
+  },
+]
 
 // ============================================================================
 // Types
@@ -82,9 +111,23 @@ interface MyPost {
   raw_data: unknown
   /** Record creation timestamp */
   created_at: string
+  /** Media URLs (images, videos, etc.) attached to the post */
+  media_urls: string[] | null
   /** Record update timestamp */
   updated_at: string
+  /** Author profile (included in team_posts responses) */
+  author?: {
+    id: string
+    full_name: string | null
+    email: string | null
+    avatar_url: string | null
+  } | null
 }
+
+/**
+ * View mode for the posts page
+ */
+type PostViewMode = "my_posts" | "team_posts"
 
 /**
  * API response shape from /api/posts
@@ -212,45 +255,49 @@ function StatsSummary({
       label: "Total Posts",
       value: formatNumber(totalPosts),
       icon: IconArticle,
-      color: "text-blue-500",
+      iconColor: "text-blue-500",
+      bgColor: "bg-blue-500/10",
     },
     {
       label: "Total Impressions",
       value: formatNumber(totalImpressions),
       icon: IconEye,
-      color: "text-emerald-500",
+      iconColor: "text-emerald-500",
+      bgColor: "bg-emerald-500/10",
     },
     {
       label: "Avg. Engagement",
       value: `${avgEngagement.toFixed(1)}%`,
       icon: IconTrendingUp,
-      color: "text-amber-500",
+      iconColor: "text-amber-500",
+      bgColor: "bg-amber-500/10",
     },
     {
       label: "Total Reactions",
       value: formatNumber(totalReactions),
       icon: IconHeart,
-      color: "text-rose-500",
+      iconColor: "text-rose-500",
+      bgColor: "bg-rose-500/10",
     },
   ]
 
   return (
     <motion.div
-      className="grid grid-cols-2 gap-3 sm:grid-cols-4 px-4 lg:px-6"
+      className="grid grid-cols-2 gap-3 sm:grid-cols-4"
       variants={staggerContainerVariants}
       initial="initial"
       animate="animate"
     >
       {stats.map((stat) => (
         <motion.div key={stat.label} variants={staggerItemVariants}>
-          <Card>
+          <Card className="border-border/50 hover:border-border transition-colors">
             <CardContent className="flex items-center gap-3 py-4 px-4">
-              <div className={cn("rounded-lg bg-muted p-2", stat.color)}>
-                <stat.icon className="size-5" />
+              <div className={cn("rounded-xl p-2.5 shrink-0", stat.bgColor)}>
+                <stat.icon className={cn("size-4", stat.iconColor)} />
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-muted-foreground truncate">{stat.label}</p>
-                <p className="text-lg font-semibold leading-tight">{stat.value}</p>
+                <p className="text-lg font-bold leading-tight tabular-nums">{stat.value}</p>
               </div>
             </CardContent>
           </Card>
@@ -270,9 +317,9 @@ function StatsSummary({
 function MetricBar({ value, max }: { value: number; max: number }) {
   const width = max > 0 ? Math.max((value / max) * 100, 2) : 2
   return (
-    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+    <div className="h-1 w-full rounded-full bg-muted/60 overflow-hidden">
       <motion.div
-        className="h-full rounded-full bg-primary/60"
+        className="h-full rounded-full bg-gradient-to-r from-primary/70 to-primary/40"
         initial={{ width: 0 }}
         animate={{ width: `${width}%` }}
         transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
@@ -282,41 +329,228 @@ function MetricBar({ value, max }: { value: number; max: number }) {
 }
 
 /**
- * Individual post card with content preview and engagement metrics
+ * Generates initials from a full name for avatar fallback
+ * @param name - Full name to extract initials from
+ * @returns Two-letter initials string
+ */
+function getInitials(name: string): string {
+  const parts = name.split(" ").filter(Boolean)
+  if (parts.length === 0) return "?"
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase()
+  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
+}
+
+/**
+ * LinkedIn-style media gallery.
+ * - Hero image on top: full width, good height
+ * - Below: row of square thumbnails for the rest
+ * - "+N" overlay on last square if more images exist
+ * Click any image for full-screen lightbox.
+ *
+ * @param props.urls - Array of media URLs
+ */
+function PostMediaGallery({ urls }: { urls: string[] }) {
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+  const count = urls.length
+
+  if (count === 0) return null
+
+  /** Max squares to show in the bottom row (last becomes +N if overflow) */
+  const maxSquares = 4
+  const squareUrls = urls.slice(1, 1 + maxSquares)
+  const overflow = count - 1 - maxSquares // remaining after hero + visible squares
+
+  return (
+    <>
+      <div className="mb-3 flex flex-col gap-1 overflow-hidden rounded-lg">
+        {/* Hero image — full width */}
+        <button
+          type="button"
+          className="relative h-44 w-full overflow-hidden bg-muted cursor-pointer focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          onClick={() => setLightboxIndex(0)}
+          aria-label={`View image 1 of ${count}`}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={urls[0]} alt="" className="size-full object-cover" loading="lazy" />
+        </button>
+
+        {/* Square thumbnails row */}
+        {squareUrls.length > 0 && (
+          <div className="flex gap-1">
+            {squareUrls.map((url, i) => {
+              const realIndex = i + 1
+              const isLast = i === squareUrls.length - 1 && overflow > 0
+              return (
+                <button
+                  key={realIndex}
+                  type="button"
+                  className="relative flex-1 aspect-square overflow-hidden bg-muted cursor-pointer focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  onClick={() => setLightboxIndex(realIndex)}
+                  aria-label={isLast ? `View all ${count} images` : `View image ${realIndex + 1} of ${count}`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt="" className="size-full object-cover" loading="lazy" />
+                  {isLast && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                      <span className="text-lg font-bold text-white">+{overflow}</span>
+                    </div>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Full-screen lightbox */}
+      {lightboxIndex !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm"
+          onClick={() => setLightboxIndex(null)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setLightboxIndex(null)
+            if (e.key === "ArrowRight" && lightboxIndex < count - 1) setLightboxIndex(lightboxIndex + 1)
+            if (e.key === "ArrowLeft" && lightboxIndex > 0) setLightboxIndex(lightboxIndex - 1)
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Image lightbox"
+          tabIndex={0}
+        >
+          {/* Close */}
+          <button
+            className="absolute top-4 right-4 z-10 rounded-full bg-white/10 p-2 text-white hover:bg-white/20 transition-colors"
+            onClick={(e) => { e.stopPropagation(); setLightboxIndex(null) }}
+            aria-label="Close"
+          >
+            <IconChevronUp className="size-5 rotate-45" />
+          </button>
+
+          {/* Prev */}
+          {lightboxIndex > 0 && (
+            <button
+              className="absolute left-4 z-10 rounded-full bg-white/10 p-2.5 text-white hover:bg-white/20 transition-colors"
+              onClick={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex - 1) }}
+              aria-label="Previous"
+            >
+              <IconChevronDown className="size-5 rotate-90" />
+            </button>
+          )}
+
+          {/* Next */}
+          {lightboxIndex < count - 1 && (
+            <button
+              className="absolute right-4 z-10 rounded-full bg-white/10 p-2.5 text-white hover:bg-white/20 transition-colors"
+              onClick={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex + 1) }}
+              aria-label="Next"
+            >
+              <IconChevronDown className="size-5 -rotate-90" />
+            </button>
+          )}
+
+          {/* Counter */}
+          <div className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white">
+            {lightboxIndex + 1} / {count}
+          </div>
+
+          {/* Thumbnail strip at bottom */}
+          {count > 1 && (
+            <div className="absolute bottom-12 left-1/2 z-10 -translate-x-1/2 flex gap-1.5">
+              {urls.map((url, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className={cn(
+                    "size-10 shrink-0 overflow-hidden rounded transition-all",
+                    i === lightboxIndex
+                      ? "ring-2 ring-white brightness-100"
+                      : "opacity-50 hover:opacity-80"
+                  )}
+                  onClick={(e) => { e.stopPropagation(); setLightboxIndex(i) }}
+                  aria-label={`Go to image ${i + 1}`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt="" className="size-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Main image */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={urls[lightboxIndex]}
+            alt={`Image ${lightboxIndex + 1} of ${count}`}
+            className="max-h-[75vh] max-w-[90vw] rounded-lg object-contain shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+    </>
+  )
+}
+
+/**
+ * Individual post card with content preview, media gallery, and engagement metrics
  * @param props - Component props
  * @param props.post - The post data to display
  * @param props.maxImpressions - Highest impression count across all posts (for bar normalization)
+ * @param props.showAuthor - Whether to show author info (for team view)
  * @returns Post card element
  */
-function PostCard({ post, maxImpressions }: { post: MyPost; maxImpressions: number }) {
+function PostCard({ post, maxImpressions, showAuthor = false }: { post: MyPost; maxImpressions: number; showAuthor?: boolean }) {
   const [expanded, setExpanded] = useState(false)
   const content = post.content || "No content available"
   const isLong = content.length > 200
+  const mediaUrls = post.media_urls ?? []
 
   return (
-    <motion.div variants={staggerItemVariants}>
-      <Card className="overflow-hidden transition-shadow hover:shadow-md">
+    <motion.div variants={staggerItemVariants} whileHover={{ y: -2 }} transition={{ duration: 0.15 }}>
+      <Card className="overflow-hidden border-border/50 transition-all duration-200 hover:border-border hover:shadow-sm">
         <CardContent className="p-4 sm:p-5">
-          {/* Header row: date + media badge */}
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-muted-foreground">
+          {/* Author row (team view only) */}
+          {showAuthor && post.author && (
+            <div className="flex items-center gap-2.5 mb-3 pb-3 border-b border-border/50">
+              <Avatar className="size-8">
+                {post.author.avatar_url && (
+                  <AvatarImage src={post.author.avatar_url} alt={post.author.full_name || ''} />
+                )}
+                <AvatarFallback className="text-xs font-medium">
+                  {getInitials(post.author.full_name || post.author.email || '?')}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium truncate">
+                  {post.author.full_name || post.author.email?.split('@')[0] || 'Unknown'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Header row: date + media badge + ER */}
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs text-muted-foreground font-medium">
               {relativeTime(post.posted_at)}
             </span>
             <div className="flex items-center gap-2">
               {post.media_type && (
-                <Badge variant="secondary" className="text-xs capitalize">
+                <Badge variant="secondary" className="text-[11px] capitalize font-medium gap-1">
+                  {mediaUrls.length > 0 && <IconPhoto className="size-3" />}
                   {post.media_type}
+                  {mediaUrls.length > 1 && (
+                    <span className="text-muted-foreground">({mediaUrls.length})</span>
+                  )}
                 </Badge>
               )}
               <Badge
                 variant="outline"
                 className={cn(
-                  "text-xs font-medium",
+                  "text-[11px] font-semibold",
                   getEngagementRateNum(post) >= 0.05
-                    ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+                    ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400"
                     : getEngagementRateNum(post) >= 0.02
-                      ? "border-amber-500/40 text-amber-600 dark:text-amber-400"
-                      : "border-muted-foreground/30"
+                      ? "border-amber-500/30 bg-amber-500/5 text-amber-600 dark:text-amber-400"
+                      : "border-muted-foreground/20 text-muted-foreground"
                 )}
               >
                 {getEngagementRate(post)} ER
@@ -325,7 +559,7 @@ function PostCard({ post, maxImpressions }: { post: MyPost; maxImpressions: numb
           </div>
 
           {/* Post content */}
-          <div className="mb-3">
+          <div className="mb-4">
             <p
               className={cn(
                 "text-sm leading-relaxed whitespace-pre-wrap break-words",
@@ -337,7 +571,7 @@ function PostCard({ post, maxImpressions }: { post: MyPost; maxImpressions: numb
             {isLong && (
               <button
                 onClick={() => setExpanded(!expanded)}
-                className="mt-1 text-xs font-medium text-primary hover:underline inline-flex items-center gap-0.5"
+                className="mt-1.5 text-xs font-medium text-primary hover:underline inline-flex items-center gap-0.5"
               >
                 {expanded ? (
                   <>
@@ -352,40 +586,45 @@ function PostCard({ post, maxImpressions }: { post: MyPost; maxImpressions: numb
             )}
           </div>
 
+          {/* Media Gallery */}
+          {mediaUrls.length > 0 && (
+            <PostMediaGallery urls={mediaUrls} />
+          )}
+
           {/* Performance bar */}
-          <div className="mb-3">
+          <div className="mb-4">
             <MetricBar value={post.impressions ?? 0} max={maxImpressions} />
           </div>
 
           {/* Engagement metrics row */}
-          <div className="grid grid-cols-4 gap-2 text-center">
+          <div className="grid grid-cols-4 gap-3 rounded-lg bg-muted/30 px-3 py-2.5">
             <div className="flex flex-col items-center gap-0.5">
               <div className="flex items-center gap-1 text-muted-foreground">
-                <IconEye className="size-3.5" />
-                <span className="text-xs">Views</span>
+                <IconEye className="size-3" />
+                <span className="text-[11px]">Views</span>
               </div>
-              <span className="text-sm font-semibold">{formatNumber(post.impressions)}</span>
+              <span className="text-sm font-bold tabular-nums">{formatNumber(post.impressions)}</span>
             </div>
             <div className="flex flex-col items-center gap-0.5">
               <div className="flex items-center gap-1 text-muted-foreground">
-                <IconHeart className="size-3.5" />
-                <span className="text-xs">Likes</span>
+                <IconHeart className="size-3" />
+                <span className="text-[11px]">Likes</span>
               </div>
-              <span className="text-sm font-semibold">{formatNumber(post.reactions)}</span>
+              <span className="text-sm font-bold tabular-nums">{formatNumber(post.reactions)}</span>
             </div>
             <div className="flex flex-col items-center gap-0.5">
               <div className="flex items-center gap-1 text-muted-foreground">
-                <IconMessageCircle className="size-3.5" />
-                <span className="text-xs">Comments</span>
+                <IconMessageCircle className="size-3" />
+                <span className="text-[11px]">Comments</span>
               </div>
-              <span className="text-sm font-semibold">{formatNumber(post.comments)}</span>
+              <span className="text-sm font-bold tabular-nums">{formatNumber(post.comments)}</span>
             </div>
             <div className="flex flex-col items-center gap-0.5">
               <div className="flex items-center gap-1 text-muted-foreground">
-                <IconRepeat className="size-3.5" />
-                <span className="text-xs">Reposts</span>
+                <IconRepeat className="size-3" />
+                <span className="text-[11px]">Reposts</span>
               </div>
-              <span className="text-sm font-semibold">{formatNumber(post.reposts)}</span>
+              <span className="text-sm font-bold tabular-nums">{formatNumber(post.reposts)}</span>
             </div>
           </div>
         </CardContent>
@@ -400,13 +639,19 @@ function PostCard({ post, maxImpressions }: { post: MyPost; maxImpressions: numb
  */
 function PostsSkeleton() {
   return (
-    <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 animate-in fade-in duration-300">
+    <PageContent>
+      {/* Header skeleton */}
+      <div className="space-y-1.5">
+        <Skeleton className="h-7 w-32" />
+        <Skeleton className="h-4 w-64" />
+      </div>
+
       {/* Stats skeleton */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 px-4 lg:px-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i}>
+          <Card key={i} className="border-border/50">
             <CardContent className="flex items-center gap-3 py-4 px-4">
-              <Skeleton className="size-9 rounded-lg" />
+              <Skeleton className="size-9 rounded-xl" />
               <div className="flex-1 space-y-1.5">
                 <Skeleton className="h-3 w-20" />
                 <Skeleton className="h-5 w-14" />
@@ -417,15 +662,15 @@ function PostsSkeleton() {
       </div>
 
       {/* Search/filter skeleton */}
-      <div className="flex items-center gap-3 px-4 lg:px-6">
+      <div className="flex items-center gap-3">
         <Skeleton className="h-9 flex-1 max-w-sm" />
         <Skeleton className="h-9 w-[160px]" />
       </div>
 
       {/* Post cards skeleton */}
-      <div className="flex flex-col gap-3 px-4 lg:px-6">
+      <div className="flex flex-col gap-3">
         {Array.from({ length: 5 }).map((_, i) => (
-          <Card key={i}>
+          <Card key={i} className="border-border/50">
             <CardContent className="p-4 sm:p-5 space-y-3">
               <div className="flex items-center justify-between">
                 <Skeleton className="h-3 w-16" />
@@ -436,8 +681,12 @@ function PostsSkeleton() {
                 <Skeleton className="h-4 w-4/5" />
                 <Skeleton className="h-4 w-3/5" />
               </div>
-              <Skeleton className="h-1.5 w-full rounded-full" />
-              <div className="grid grid-cols-4 gap-2">
+              {/* Media gallery skeleton (alternating) */}
+              {i % 2 === 0 && (
+                <Skeleton className="h-40 w-full rounded-lg" />
+              )}
+              <Skeleton className="h-1 w-full rounded-full" />
+              <div className="grid grid-cols-4 gap-3 rounded-lg bg-muted/30 px-3 py-2.5">
                 {Array.from({ length: 4 }).map((_, j) => (
                   <div key={j} className="flex flex-col items-center gap-1">
                     <Skeleton className="h-3 w-12" />
@@ -449,7 +698,7 @@ function PostsSkeleton() {
           </Card>
         ))}
       </div>
-    </div>
+    </PageContent>
   )
 }
 
@@ -493,6 +742,7 @@ function EmptyState({ hasSearch }: { hasSearch: boolean }) {
 function PostsContent() {
   const { user } = useAuthContext()
 
+  const [viewMode, setViewMode] = useState<PostViewMode>("my_posts")
   const [posts, setPosts] = useState<MyPost[]>([])
   const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
@@ -505,15 +755,17 @@ function PostsContent() {
   /**
    * Fetches posts from the API
    */
-  const fetchPosts = useCallback(async (currentOffset: number, append = false) => {
+  const fetchPosts = useCallback(async (currentOffset: number, append = false, mode?: PostViewMode) => {
     if (!user?.id) return
+
+    const fetchMode = mode ?? viewMode
 
     try {
       if (!append) setIsLoading(true)
       setError(null)
 
       const res = await fetch(
-        `/api/posts?type=my_posts&limit=${PAGE_SIZE}&offset=${currentOffset}`
+        `/api/posts?type=${fetchMode}&limit=${PAGE_SIZE}&offset=${currentOffset}`
       )
 
       if (!res.ok) {
@@ -536,11 +788,23 @@ function PostsContent() {
     } finally {
       setIsLoading(false)
     }
-  }, [user?.id])
+  }, [user?.id, viewMode])
 
   /** Initial data load */
   useEffect(() => {
     fetchPosts(0)
+  }, [fetchPosts])
+
+  /**
+   * Handle view mode change (My Posts / Team Posts)
+   */
+  const handleViewModeChange = useCallback((mode: string) => {
+    const newMode = mode as PostViewMode
+    setViewMode(newMode)
+    setOffset(0)
+    setSearchQuery("")
+    setSortBy("recent")
+    fetchPosts(0, false, newMode)
   }, [fetchPosts])
 
   /**
@@ -644,17 +908,55 @@ function PostsContent() {
   }
 
   // -- Empty state (no posts at all) --
-  if (posts.length === 0) {
-    return <EmptyState hasSearch={false} />
+  if (posts.length === 0 && !isLoading) {
+    return (
+      <PageContent>
+        {/* View Mode Toggle (still shown in empty state) */}
+        <Tabs value={viewMode} onValueChange={handleViewModeChange}>
+          <TabsList className="bg-muted/50">
+            <TabsTrigger value="my_posts" className="gap-1.5">
+              <IconUser className="size-3.5" />
+              My Posts
+            </TabsTrigger>
+            <TabsTrigger value="team_posts" className="gap-1.5">
+              <IconUsers className="size-3.5" />
+              Team Posts
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <EmptyState hasSearch={false} />
+      </PageContent>
+    )
   }
 
   return (
-    <motion.div
-      className="flex flex-col gap-4 py-4 md:gap-6 md:py-6"
-      variants={pageVariants}
-      initial="initial"
-      animate="animate"
-    >
+    <PageContent>
+      {/* Page Header with View Toggle */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">
+            {viewMode === "team_posts" ? "Team Posts" : "Your Posts"}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {viewMode === "team_posts"
+              ? "See LinkedIn posts from all your team members."
+              : "Track engagement and performance across your LinkedIn content."}
+          </p>
+        </div>
+        <Tabs value={viewMode} onValueChange={handleViewModeChange}>
+          <TabsList className="bg-muted/50">
+            <TabsTrigger value="my_posts" className="gap-1.5">
+              <IconUser className="size-3.5" />
+              My Posts
+            </TabsTrigger>
+            <TabsTrigger value="team_posts" className="gap-1.5">
+              <IconUsers className="size-3.5" />
+              Team Posts
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
       {/* Summary Stats */}
       <StatsSummary
         totalPosts={summaryStats.totalPosts}
@@ -665,7 +967,7 @@ function PostsContent() {
 
       {/* Search & Sort Controls */}
       <motion.div
-        className="flex flex-col gap-3 sm:flex-row sm:items-center px-4 lg:px-6"
+        className="flex flex-col gap-3 sm:flex-row sm:items-center"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.2 }}
@@ -673,7 +975,7 @@ function PostsContent() {
         <div className="relative flex-1 max-w-sm">
           <IconSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
           <Input
-            placeholder="Search posts..."
+            placeholder={viewMode === "team_posts" ? "Search team posts..." : "Search posts..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-8"
@@ -701,7 +1003,7 @@ function PostsContent() {
         <EmptyState hasSearch={!!searchQuery.trim()} />
       ) : (
         <motion.div
-          className="flex flex-col gap-3 px-4 lg:px-6"
+          className="flex flex-col gap-3"
           variants={staggerContainerVariants}
           initial="initial"
           animate="animate"
@@ -711,15 +1013,19 @@ function PostsContent() {
               key={post.id}
               post={post}
               maxImpressions={maxImpressions}
+              showAuthor={viewMode === "team_posts"}
             />
           ))}
         </motion.div>
       )}
 
+      {/* Related Pages */}
+      <CrossNav items={POSTS_CROSS_NAV} />
+
       {/* Load More */}
       {hasMore && !searchQuery.trim() && (
         <motion.div
-          className="flex justify-center px-4 lg:px-6 pb-4"
+          className="flex justify-center pb-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
@@ -733,7 +1039,7 @@ function PostsContent() {
           </Button>
         </motion.div>
       )}
-    </motion.div>
+    </PageContent>
   )
 }
 
@@ -743,29 +1049,22 @@ function PostsContent() {
 
 /**
  * Posts page - Displays the user's own LinkedIn posts with engagement metrics
- * @returns Full page layout with sidebar, header, and posts content
+ * @returns Posts content with stats, search, and post list
  * @example
  * // Accessed via /dashboard/posts
  */
 export default function PostsPage() {
-  return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar variant="inset" />
-      <SidebarInset>
-        <SiteHeader title="Posts" />
-        <main id="main-content" className="flex flex-1 flex-col overflow-y-auto">
-          <div className="@container/main flex flex-1 flex-col gap-2">
-            <PostsContent />
-          </div>
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
-  )
+  usePageMeta({
+    title: "Posts",
+    headerActions: (
+      <Button asChild size="sm">
+        <Link href="/dashboard/compose">
+          <IconPencil className="size-4 mr-1" />
+          New Post
+        </Link>
+      </Button>
+    ),
+  })
+
+  return <PostsContent />
 }

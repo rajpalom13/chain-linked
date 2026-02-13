@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { motion } from "framer-motion"
 import {
   IconCalendar,
   IconClock,
@@ -13,8 +14,10 @@ import {
   IconLoader2,
   IconAlertCircle,
   IconPlus,
+  IconPresentation,
 } from "@tabler/icons-react"
-import { format, isToday, isTomorrow, isThisWeek, addDays } from "date-fns"
+import Link from "next/link"
+import { format, isToday, isTomorrow, isThisWeek } from "date-fns"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -34,6 +37,12 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
+import {
+  staggerContainerVariants,
+  staggerItemVariants,
+  iconButtonHoverProps,
+  pulseVariants,
+} from "@/lib/animations"
 
 /**
  * Represents a scheduled LinkedIn post with its metadata and status.
@@ -69,57 +78,13 @@ export interface ScheduledPostsProps {
   isLoading?: boolean
   /** Additional CSS classes to apply to the container */
   className?: string
+  /** Whether live LinkedIn posting is enabled */
+  isPostingEnabled?: boolean
 }
 
 /** Maximum character count before content is truncated */
 const CONTENT_TRUNCATE_LENGTH = 120
 
-/**
- * Sample data for development and testing purposes.
- * Contains 5 scheduled posts with varied statuses and dates.
- */
-export const sampleScheduledPosts: ScheduledPost[] = [
-  {
-    id: "scheduled-1",
-    content:
-      "Excited to share our Q1 results! We've exceeded all expectations and I want to thank our incredible team for their dedication. Here's what we learned along the way and how we plan to build on this momentum.",
-    scheduledFor: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), // Today, 2 hours from now
-    status: "pending",
-    mediaUrls: ["https://example.com/chart.png"],
-  },
-  {
-    id: "scheduled-2",
-    content:
-      "5 lessons from leading remote teams for 3 years: 1. Over-communicate intentionally 2. Trust by default 3. Async-first, sync when needed 4. Document everything 5. Celebrate wins publicly. What would you add?",
-    scheduledFor: new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString(), // Today, 5 hours from now
-    status: "posting",
-  },
-  {
-    id: "scheduled-3",
-    content:
-      "The biggest mistake I see in product development? Building features nobody asked for. Talk to your users. Validate early. Ship fast. Learn faster. Your roadmap should be a conversation, not a monologue.",
-    scheduledFor: addDays(new Date(), 1).toISOString(), // Tomorrow
-    status: "pending",
-  },
-  {
-    id: "scheduled-4",
-    content:
-      "We're hiring! Looking for a Senior Frontend Engineer to join our growing team. Must love TypeScript, have experience with React, and be passionate about building great user experiences. DM me for details!",
-    scheduledFor: addDays(new Date(), 3).toISOString(), // This week
-    status: "failed",
-    mediaUrls: [
-      "https://example.com/hiring.png",
-      "https://example.com/team.jpg",
-    ],
-  },
-  {
-    id: "scheduled-5",
-    content:
-      "Unpopular opinion: The best code is no code. Before writing a single line, ask yourself - can we solve this with a simpler approach? Sometimes the most elegant solution is the one you never had to build.",
-    scheduledFor: addDays(new Date(), 10).toISOString(), // Later
-    status: "pending",
-  },
-]
 
 /**
  * Date group labels for organizing scheduled posts.
@@ -293,11 +258,13 @@ function ScheduledPostCard({
   onEdit,
   onDelete,
   onPostNow,
+  isPostingEnabled = true,
 }: {
   post: ScheduledPost
   onEdit?: (postId: string) => void
   onDelete?: (postId: string) => void
   onPostNow?: (postId: string) => void
+  isPostingEnabled?: boolean
 }) {
   const statusBadge = getStatusBadge(post.status)
   const StatusIcon = statusBadge.icon
@@ -305,12 +272,13 @@ function ScheduledPostCard({
   const isPosting = post.status === "posting"
 
   return (
-    <div
+    <motion.div
       className={cn(
         "flex items-start gap-4 p-4 border rounded-lg transition-colors",
         "hover:bg-muted/50",
         isPosting && "opacity-75"
       )}
+      variants={staggerItemVariants}
     >
       {/* Calendar/Media Icon */}
       <div
@@ -336,16 +304,29 @@ function ScheduledPostCard({
             <IconCalendar className="size-3" />
             <span>{formatScheduledTime(post.scheduledFor)}</span>
           </div>
-          <Badge
-            variant={statusBadge.variant}
-            className={cn(
-              "text-[10px] gap-1",
-              isPosting && "[&>svg]:animate-spin"
-            )}
-          >
-            <StatusIcon className="size-3" />
-            {statusBadge.label}
-          </Badge>
+          {isPosting ? (
+            <motion.div
+              variants={pulseVariants}
+              initial="initial"
+              animate="animate"
+            >
+              <Badge
+                variant={statusBadge.variant}
+                className="text-[10px] gap-1 [&>svg]:animate-spin"
+              >
+                <StatusIcon className="size-3" />
+                {statusBadge.label}
+              </Badge>
+            </motion.div>
+          ) : (
+            <Badge
+              variant={statusBadge.variant}
+              className="text-[10px] gap-1"
+            >
+              <StatusIcon className="size-3" />
+              {statusBadge.label}
+            </Badge>
+          )}
           {hasMedia && (
             <span className="text-xs text-muted-foreground">
               {post.mediaUrls!.length} attachment
@@ -358,25 +339,38 @@ function ScheduledPostCard({
       {/* Actions Menu */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="shrink-0"
-            disabled={isPosting}
-          >
-            <IconDots className="size-4" />
-            <span className="sr-only">Open menu</span>
-          </Button>
+          <motion.div {...(isPosting ? {} : iconButtonHoverProps)}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0"
+              disabled={isPosting}
+            >
+              <IconDots className="size-4" />
+              <span className="sr-only">Open menu</span>
+            </Button>
+          </motion.div>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => onEdit?.(post.id)}>
             <IconEdit className="size-4" />
             Edit
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onPostNow?.(post.id)}>
+          <DropdownMenuItem
+            onClick={() => isPostingEnabled && onPostNow?.(post.id)}
+            disabled={!isPostingEnabled}
+          >
             <IconSend className="size-4" />
-            Post Now
+            {isPostingEnabled ? "Post Now" : "Post Now (Disabled)"}
           </DropdownMenuItem>
+          {!hasMedia && (
+            <DropdownMenuItem asChild>
+              <Link href={`/dashboard/carousels?content=${encodeURIComponent(post.content.slice(0, 500))}`}>
+                <IconPresentation className="size-4" />
+                Create Carousel
+              </Link>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             variant="destructive"
@@ -387,7 +381,7 @@ function ScheduledPostCard({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-    </div>
+    </motion.div>
   )
 }
 
@@ -462,14 +456,6 @@ function EmptyState({ onScheduleNew }: { onScheduleNew?: () => void }) {
  * // With loading state
  * <ScheduledPosts isLoading />
  * ```
- *
- * @example
- * ```tsx
- * // With sample data for development
- * import { ScheduledPosts, sampleScheduledPosts } from "@/components/features/scheduled-posts"
- *
- * <ScheduledPosts posts={sampleScheduledPosts} />
- * ```
  */
 export function ScheduledPosts({
   posts,
@@ -479,6 +465,7 @@ export function ScheduledPosts({
   onScheduleNew,
   isLoading = false,
   className,
+  isPostingEnabled = true,
 }: ScheduledPostsProps) {
   if (isLoading) {
     return (
@@ -515,7 +502,12 @@ export function ScheduledPosts({
               return (
                 <div key={group}>
                   <DateGroupHeader label={group} />
-                  <div className="space-y-3">
+                  <motion.div
+                    className="space-y-3"
+                    variants={staggerContainerVariants}
+                    initial="initial"
+                    animate="animate"
+                  >
                     {groupPosts.map((post) => (
                       <ScheduledPostCard
                         key={post.id}
@@ -523,9 +515,10 @@ export function ScheduledPosts({
                         onEdit={onEdit}
                         onDelete={onDelete}
                         onPostNow={onPostNow}
+                        isPostingEnabled={isPostingEnabled}
                       />
                     ))}
-                  </div>
+                  </motion.div>
                 </div>
               )
             })}

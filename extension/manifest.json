@@ -19,18 +19,30 @@
   "host_permissions": [
     "https://*.linkedin.com/*",
     "https://www.linkedin.com/*",
-    "https://*.supabase.co/*"
+    "https://*.supabase.co/*",
+    "https://media.licdn.com/*",
+    "https://*.licdn.com/*"
   ],
 
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://*.linkedin.com https://www.linkedin.com https://*.supabase.co wss://*.supabase.co https://www.googleapis.com;"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://*.linkedin.com https://www.linkedin.com https://*.supabase.co wss://*.supabase.co https://www.googleapis.com https://media.licdn.com https://*.licdn.com;"
   },
 
   "background": {
     "service_worker": "background/service-worker.js"
   },
 
+  "externally_connectable": {
+    "matches": ["http://localhost:3000/*"]
+  },
+
   "content_scripts": [
+    {
+      "matches": ["http://localhost:3000/*"],
+      "js": ["content/webapp-bridge.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
     {
       "matches": ["https://*.linkedin.com/*"],
       "js": ["content/main-world-interceptor.js"],
@@ -73,6 +85,10 @@
     {
       "resources": ["content/injected.js"],
       "matches": ["https://*.linkedin.com/*"]
+    },
+    {
+      "resources": ["content/webapp-bridge.js"],
+      "matches": ["http://localhost:3000/*"]
     }
   ],
 

@@ -53,15 +53,6 @@ function getStartDate(range: LeaderboardTimeRange): string {
   }
 }
 
-/**
- * Demo leaderboard data for when database is empty or unavailable
- */
-const DEMO_LEADERBOARD: TeamMemberStats[] = [
-  { id: 'demo-1', name: 'Sarah Chen', role: 'VP of Engineering', postsThisWeek: 5, postsThisMonth: 18, totalEngagement: 4520, engagementRate: 5.8, rank: 1, rankChange: 2 },
-  { id: 'demo-2', name: 'Marcus Johnson', role: 'Product Manager', postsThisWeek: 4, postsThisMonth: 15, totalEngagement: 3890, engagementRate: 5.2, rank: 2, rankChange: -1 },
-  { id: 'demo-3', name: 'Emily Rodriguez', role: 'Design Lead', postsThisWeek: 3, postsThisMonth: 12, totalEngagement: 2340, engagementRate: 4.9, rank: 3, rankChange: 1 },
-  { id: 'demo-4', name: 'Alex Kim', role: 'Software Engineer', postsThisWeek: 2, postsThisMonth: 8, totalEngagement: 1560, engagementRate: 4.2, rank: 4, rankChange: 0 },
-]
 
 /**
  * Hook to fetch team leaderboard data
@@ -90,9 +81,9 @@ export function useTeamLeaderboard(): UseTeamLeaderboardReturn {
       return
     }
 
-    // If no user (not authenticated), show demo data
+    // If no user (not authenticated), return empty state
     if (!user) {
-      setMembers(DEMO_LEADERBOARD)
+      setMembers([])
       setIsLoading(false)
       return
     }
@@ -140,8 +131,8 @@ export function useTeamLeaderboard(): UseTeamLeaderboardReturn {
         .in('id', teamMemberIds)
 
       if (!usersData || usersData.length === 0) {
-        // Keep demo data when no real data exists
-        console.info('No team members found, keeping demo data')
+        // No team members found - return empty state
+        setMembers([])
         setIsLoading(false)
         return
       }
@@ -261,8 +252,7 @@ export function useTeamLeaderboard(): UseTeamLeaderboardReturn {
       setMembers(sortedEntries)
     } catch (err) {
       console.error('Team leaderboard fetch error:', err)
-      // Keep demo data on error for better UX
-      setMembers(DEMO_LEADERBOARD)
+      setError(err instanceof Error ? err.message : 'Failed to fetch leaderboard')
     } finally {
       setIsLoading(false)
     }

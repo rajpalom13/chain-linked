@@ -140,37 +140,15 @@ export interface SettingsProps {
  * Default user profile when none is provided
  */
 const DEFAULT_USER: UserProfile = {
-  name: "John Doe",
-  email: "john.doe@example.com",
+  name: "",
+  email: "",
   avatarUrl: undefined,
 }
 
 /**
  * Default team members when none are provided
  */
-const DEFAULT_TEAM_MEMBERS: TeamMember[] = [
-  {
-    id: "1",
-    name: "John Doe",
-    email: "john.doe@example.com",
-    role: "owner",
-    avatarUrl: undefined,
-  },
-  {
-    id: "2",
-    name: "Jane Smith",
-    email: "jane.smith@example.com",
-    role: "admin",
-    avatarUrl: undefined,
-  },
-  {
-    id: "3",
-    name: "Bob Wilson",
-    email: "bob.wilson@example.com",
-    role: "member",
-    avatarUrl: undefined,
-  },
-]
+const DEFAULT_TEAM_MEMBERS: TeamMember[] = []
 
 /**
  * Notification preferences state structure
@@ -526,21 +504,30 @@ export function Settings({
               {/* Avatar Section */}
               <div className="flex items-center gap-4">
                 <Avatar className="size-20">
-                  {user.avatarUrl ? (
-                    <AvatarImage src={user.avatarUrl} alt={profileName} />
+                  {(user.avatarUrl || linkedinProfile?.avatarUrl) ? (
+                    <AvatarImage src={user.avatarUrl || linkedinProfile?.avatarUrl} alt={profileName} />
                   ) : null}
                   <AvatarFallback className="text-xl bg-primary/10 text-primary">
                     {getInitials(profileName)}
                   </AvatarFallback>
                 </Avatar>
-                <div className="space-y-2">
-                  <Button variant="outline" size="sm">
-                    <IconCamera className="size-4" />
-                    Upload Photo
-                  </Button>
-                  <p className="text-xs text-muted-foreground">
-                    JPG, PNG or GIF. Max size 2MB.
-                  </p>
+                <div className="space-y-1.5">
+                  {(user.avatarUrl || linkedinProfile?.avatarUrl) ? (
+                    <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                      <IconBrandLinkedin className="size-4 text-[#0A66C2]" />
+                      <span>Synced from LinkedIn</span>
+                    </div>
+                  ) : (
+                    <>
+                      <Button variant="outline" size="sm">
+                        <IconCamera className="size-4" />
+                        Upload Photo
+                      </Button>
+                      <p className="text-xs text-muted-foreground">
+                        JPG, PNG or GIF. Max size 2MB.
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
 

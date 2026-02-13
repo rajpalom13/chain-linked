@@ -123,53 +123,6 @@ export interface PostPerformanceProps {
 }
 
 /**
- * Sample data for development and testing purposes.
- */
-export const samplePostPerformance: PostPerformanceData = {
-  id: "post-perf-1",
-  content:
-    "Just shipped a feature that took 3 months to build. The key insight? We spent 80% of the time talking to customers and only 20% actually coding. The result: 95% adoption rate in the first week. Sometimes the best engineering is knowing when NOT to engineer. Here's what I learned about building products that people actually want...",
-  publishedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-  author: {
-    name: "Sarah Chen",
-    avatarUrl: undefined,
-  },
-  totalImpressions: 45230,
-  totalEngagements: 2856,
-  engagementRate: 6.3,
-  metrics: [
-    { date: "2024-01-06", impressions: 12450, engagements: 890, likes: 650, comments: 145, shares: 95, clicks: 234 },
-    { date: "2024-01-07", impressions: 9820, engagements: 720, likes: 520, comments: 112, shares: 88, clicks: 198 },
-    { date: "2024-01-08", impressions: 7560, engagements: 485, likes: 345, comments: 78, shares: 62, clicks: 156 },
-    { date: "2024-01-09", impressions: 5890, engagements: 312, likes: 225, comments: 52, shares: 35, clicks: 112 },
-    { date: "2024-01-10", impressions: 4230, engagements: 218, likes: 158, comments: 34, shares: 26, clicks: 78 },
-    { date: "2024-01-11", impressions: 3120, engagements: 145, likes: 105, comments: 22, shares: 18, clicks: 54 },
-    { date: "2024-01-12", impressions: 2160, engagements: 86, likes: 62, comments: 14, shares: 10, clicks: 32 },
-  ],
-  topComments: [
-    {
-      id: "comment-1",
-      authorName: "John Doe",
-      content: "This is exactly what we experienced at our startup. Customer discovery is underrated!",
-      likes: 45,
-    },
-    {
-      id: "comment-2",
-      authorName: "Jane Smith",
-      content: "Would love to hear more about your interview process with customers.",
-      likes: 32,
-    },
-  ],
-  audienceBreakdown: [
-    { label: "Software Engineers", percentage: 35 },
-    { label: "Product Managers", percentage: 25 },
-    { label: "Founders/CEOs", percentage: 18 },
-    { label: "Designers", percentage: 12 },
-    { label: "Other", percentage: 10 },
-  ],
-}
-
-/**
  * Chart configuration for Recharts styling
  */
 const chartConfig = {
@@ -396,10 +349,8 @@ function EmptyState() {
  *
  * @example
  * ```tsx
- * // With sample data
- * import { PostPerformance, samplePostPerformance } from "@/components/features/post-performance"
- *
- * <PostPerformance post={samplePostPerformance} />
+ * // With data
+ * <PostPerformance post={postData} />
  * ```
  */
 export function PostPerformance({

@@ -9,17 +9,40 @@
 import * as React from "react"
 import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
-import { AppSidebar } from "@/components/app-sidebar"
+import { PageContent } from "@/components/shared/page-content"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { PostComposer } from "@/components/features/post-composer"
-import { SiteHeader } from "@/components/site-header"
 import { ComposeSkeleton } from "@/components/skeletons/page-skeletons"
 import { useAuthContext } from "@/lib/auth/auth-provider"
 import { createClient } from "@/lib/supabase/client"
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar"
+import { usePageMeta } from "@/lib/dashboard-context"
+import { CrossNav, type CrossNavItem } from "@/components/shared/cross-nav"
+import { IconCalendar, IconTemplate, IconBulb } from "@tabler/icons-react"
+
+/** Cross-navigation items for the compose page */
+const COMPOSE_CROSS_NAV: CrossNavItem[] = [
+  {
+    href: "/dashboard/schedule",
+    icon: IconCalendar,
+    label: "View Schedule",
+    description: "See your upcoming scheduled posts.",
+    color: "blue-500",
+  },
+  {
+    href: "/dashboard/templates",
+    icon: IconTemplate,
+    label: "Browse Templates",
+    description: "Start from proven post templates.",
+    color: "amber-500",
+  },
+  {
+    href: "/dashboard/inspiration",
+    icon: IconBulb,
+    label: "Get Inspiration",
+    description: "Browse viral posts for content ideas.",
+    color: "emerald-500",
+  },
+]
 
 /**
  * Data structure for editing a scheduled post
@@ -105,6 +128,7 @@ function ComposeContent() {
   /**
    * Handle posting to LinkedIn
    * Calls the /api/linkedin/post endpoint
+   * Returns the API response data (may include draft: true when posting is disabled)
    */
   const handlePost = React.useCallback(async (content: string) => {
     const response = await fetch('/api/linkedin/post', {
@@ -124,6 +148,7 @@ function ComposeContent() {
       throw new Error(data.error || data.message || 'Failed to post to LinkedIn')
     }
 
+    // Return data so PostComposer can detect draft responses
     return data
   }, [])
 
@@ -179,7 +204,7 @@ function ComposeContent() {
   }, [user, supabase, editingPost])
 
   return (
-    <div className="flex flex-col gap-4 p-4 md:gap-6 md:p-6 animate-in fade-in duration-500">
+    <PageContent>
       {/* Show edit mode indicator */}
       {editingPost && (
         <div className="rounded-lg border border-primary/50 bg-primary/5 p-3 flex items-center justify-between">
@@ -206,7 +231,10 @@ function ComposeContent() {
           onScheduleConfirm={handleSchedule}
         />
       </ErrorBoundary>
-    </div>
+
+      {/* Related Pages */}
+      <CrossNav items={COMPOSE_CROSS_NAV} />
+    </PageContent>
   )
 }
 
@@ -215,26 +243,8 @@ function ComposeContent() {
  * @returns Compose page with post composer for creating LinkedIn content
  */
 export default function ComposePage() {
+  usePageMeta({ title: "Compose" })
   const { isLoading: authLoading } = useAuthContext()
 
-  return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar variant="inset" />
-      <SidebarInset>
-        <SiteHeader title="Compose" />
-        <main id="main-content" className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col gap-2">
-            {authLoading ? <ComposeSkeleton /> : <ComposeContent />}
-          </div>
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
-  )
+  return authLoading ? <ComposeSkeleton /> : <ComposeContent />
 }

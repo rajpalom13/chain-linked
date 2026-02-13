@@ -1,8 +1,7 @@
 /**
  * Dashboard Layout
- * @description Wraps all dashboard pages with a client-side authentication guard.
- * Onboarding enforcement is handled by the middleware (server-side) to avoid
- * race conditions between the middleware and client-side profile loading.
+ * @description Wraps all dashboard pages with authentication guard and shared
+ * sidebar/header shell. Individual pages no longer need to repeat this boilerplate.
  * @module app/dashboard/layout
  */
 
@@ -13,6 +12,13 @@ import { useRouter, usePathname } from 'next/navigation'
 import { IconLoader2 } from '@tabler/icons-react'
 
 import { useAuthContext } from '@/lib/auth/auth-provider'
+import { DashboardProvider } from '@/lib/dashboard-context'
+import { AppSidebar } from '@/components/app-sidebar'
+import { SiteHeader } from '@/components/site-header'
+import {
+  SidebarInset,
+  SidebarProvider,
+} from '@/components/ui/sidebar'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,12 +39,11 @@ function DashboardLoadingState() {
 
 /**
  * Dashboard Layout Component
- * Handles client-side authentication check only.
- * Onboarding status is enforced by the middleware to prevent race conditions.
+ * Provides auth guard + shared sidebar/header shell for all dashboard pages.
  *
  * @param props - Layout props
  * @param props.children - Dashboard page content
- * @returns Dashboard layout JSX with auth guard
+ * @returns Dashboard layout with auth guard and shared shell
  */
 export default function DashboardLayout({
   children,
@@ -67,5 +72,26 @@ export default function DashboardLayout({
     return <DashboardLoadingState />
   }
 
-  return <>{children}</>
+  return (
+    <DashboardProvider>
+      <SidebarProvider
+        style={
+          {
+            '--sidebar-width': 'calc(var(--spacing) * 72)',
+            '--header-height': 'calc(var(--spacing) * 12)',
+          } as React.CSSProperties
+        }
+      >
+        <AppSidebar variant="inset" />
+        <SidebarInset>
+          <SiteHeader />
+          <main id="main-content" className="flex flex-1 flex-col">
+            <div className="@container/main flex flex-1 flex-col gap-2">
+              {children}
+            </div>
+          </main>
+        </SidebarInset>
+      </SidebarProvider>
+    </DashboardProvider>
+  )
 }

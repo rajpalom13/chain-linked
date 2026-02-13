@@ -6,18 +6,14 @@
  * @module app/dashboard/settings/page
  */
 
-import { AppSidebar } from "@/components/app-sidebar"
+import { PageContent } from "@/components/shared/page-content"
 import { Settings } from "@/components/features/settings"
-import { SiteHeader } from "@/components/site-header"
 import { SettingsSkeleton } from "@/components/skeletons/page-skeletons"
 import { useSettings } from "@/hooks/use-settings"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { IconAlertCircle, IconRefresh } from "@tabler/icons-react"
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar"
+import { usePageMeta } from "@/lib/dashboard-context"
 
 /**
  * Settings page content component with real data
@@ -95,7 +91,7 @@ function SettingsContent() {
   } : undefined
 
   return (
-    <div className="flex flex-col gap-4 p-4 md:gap-6 md:p-6 animate-in fade-in duration-500">
+    <PageContent>
       <Settings
         user={user ? {
           name: user.name,
@@ -118,7 +114,7 @@ function SettingsContent() {
           }
         }}
       />
-    </div>
+    </PageContent>
   )
 }
 
@@ -127,24 +123,7 @@ function SettingsContent() {
  * @returns Settings page with user preferences and account configuration options
  */
 export default function SettingsPage() {
-  return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar variant="inset" />
-      <SidebarInset>
-        <SiteHeader title="Settings" />
-        <main id="main-content" className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col gap-2">
-            <SettingsContent />
-          </div>
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
-  )
+  usePageMeta({ title: "Settings" })
+
+  return <SettingsContent />
 }

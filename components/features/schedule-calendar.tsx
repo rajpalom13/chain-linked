@@ -89,93 +89,6 @@ const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 const DAY_NAMES_MOBILE = ["S", "M", "T", "W", "T", "F", "S"]
 
 /**
- * Sample data for development and testing purposes.
- * Contains 10 scheduled posts spread across the current month.
- */
-export const sampleScheduledPostItems: ScheduledPostItem[] = [
-  {
-    id: "cal-post-1",
-    content:
-      "Excited to announce our new product launch! After months of development, we're ready to share what we've been working on.",
-    scheduledFor: new Date(new Date().getFullYear(), new Date().getMonth(), 5, 9, 0),
-    status: "posted",
-    platform: "linkedin",
-  },
-  {
-    id: "cal-post-2",
-    content:
-      "5 key insights from leading a remote team for 3 years. Thread incoming...",
-    scheduledFor: new Date(new Date().getFullYear(), new Date().getMonth(), 8, 14, 30),
-    status: "posted",
-    platform: "linkedin",
-  },
-  {
-    id: "cal-post-3",
-    content:
-      "The biggest mistake I see in product development? Building features nobody asked for.",
-    scheduledFor: new Date(new Date().getFullYear(), new Date().getMonth(), 12, 10, 0),
-    status: "failed",
-    platform: "linkedin",
-  },
-  {
-    id: "cal-post-4",
-    content:
-      "We're hiring! Looking for a Senior Frontend Engineer to join our growing team.",
-    scheduledFor: new Date(new Date().getFullYear(), new Date().getMonth(), 15, 8, 0),
-    status: "pending",
-    platform: "linkedin",
-  },
-  {
-    id: "cal-post-5",
-    content:
-      "Just published a new blog post on scaling engineering teams effectively.",
-    scheduledFor: new Date(new Date().getFullYear(), new Date().getMonth(), 15, 16, 0),
-    status: "pending",
-    platform: "linkedin",
-  },
-  {
-    id: "cal-post-6",
-    content:
-      "What I learned from interviewing 100 candidates for tech roles.",
-    scheduledFor: new Date(new Date().getFullYear(), new Date().getMonth(), 18, 11, 0),
-    status: "pending",
-    platform: "linkedin",
-  },
-  {
-    id: "cal-post-7",
-    content:
-      "Unpopular opinion: The best code is no code. Sometimes the most elegant solution is the one you never had to build.",
-    scheduledFor: new Date(new Date().getFullYear(), new Date().getMonth(), 22, 9, 30),
-    status: "pending",
-    platform: "linkedin",
-  },
-  {
-    id: "cal-post-8",
-    content:
-      "Our Q3 results are in. Here's what we learned and how we plan to build on this momentum.",
-    scheduledFor: new Date(new Date().getFullYear(), new Date().getMonth(), 25, 10, 0),
-    status: "pending",
-    platform: "linkedin",
-  },
-  {
-    id: "cal-post-9",
-    content:
-      "The future of work is hybrid. Here's how we're making it work for our team.",
-    scheduledFor: new Date(new Date().getFullYear(), new Date().getMonth(), 28, 14, 0),
-    status: "pending",
-    platform: "linkedin",
-  },
-  {
-    id: "cal-post-10",
-    content:
-      "Monthly reflection: What went well and what we're improving next month.",
-    scheduledFor: new Date(new Date().getFullYear(), new Date().getMonth(), 28, 17, 0),
-    status: "pending",
-    platform: "linkedin",
-  },
-]
-
-/**
  * Returns the CSS class for a post status indicator dot.
  * @param status - The post status
  * @returns Tailwind CSS classes for the dot color
@@ -392,11 +305,9 @@ function DayCell({
  *
  * @example
  * ```tsx
- * // Basic usage with sample data
- * import { ScheduleCalendar, sampleScheduledPostItems } from "@/components/features/schedule-calendar"
- *
+ * // Basic usage
  * <ScheduleCalendar
- *   posts={sampleScheduledPostItems}
+ *   posts={scheduledPosts}
  *   onDateClick={(date) => console.log("Date clicked:", date)}
  *   onPostClick={(post) => console.log("Post clicked:", post)}
  * />

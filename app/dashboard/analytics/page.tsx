@@ -7,31 +7,94 @@
  */
 
 import { motion } from 'framer-motion'
-import { AppSidebar } from "@/components/app-sidebar"
 import { AnalyticsCards } from "@/components/features/analytics-cards"
 import { AnalyticsChart } from "@/components/features/analytics-chart"
 import { GoalsTracker } from "@/components/features/goals-tracker"
 import { PostPerformance } from "@/components/features/post-performance"
 import { TeamLeaderboard } from "@/components/features/team-leaderboard"
-import { SiteHeader } from "@/components/site-header"
 import { AnalyticsSkeleton } from "@/components/skeletons/page-skeletons"
+import { PageContent } from "@/components/shared/page-content"
 import { useAnalytics } from "@/hooks/use-analytics"
 import { usePostingGoals } from "@/hooks/use-posting-goals"
 import { usePostAnalytics } from "@/hooks/use-post-analytics"
 import { useAuthContext } from "@/lib/auth/auth-provider"
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar"
+import { useTeamLeaderboard } from "@/hooks/use-team-leaderboard"
+import { usePageMeta } from "@/lib/dashboard-context"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { IconAlertCircle, IconRefresh, IconClock, IconDownload } from "@tabler/icons-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  IconAlertCircle,
+  IconRefresh,
+  IconClock,
+  IconDownload,
+  IconPencil,
+  IconCalendar,
+  IconSearch,
+  IconUsers,
+  IconUsersGroup,
+  IconArticle,
+} from "@tabler/icons-react"
+import Link from "next/link"
 import { toast } from "sonner"
 import {
-  pageVariants,
   staggerContainerVariants,
   staggerItemVariants,
 } from '@/lib/animations'
+import { CrossNav, type CrossNavItem } from "@/components/shared/cross-nav"
+
+/**
+ * Actionable insight navigation items for the analytics page bottom
+ */
+const analyticsInsightNav: CrossNavItem[] = [
+  {
+    href: "/dashboard/compose",
+    icon: IconPencil,
+    label: "Create more content",
+    description: "Consistent posting helps build your audience.",
+    color: "primary",
+  },
+  {
+    href: "/dashboard/schedule",
+    icon: IconCalendar,
+    label: "Stay consistent",
+    description: "Schedule posts ahead to maintain your posting rhythm.",
+    color: "blue-500",
+  },
+  {
+    href: "/dashboard/posts",
+    icon: IconArticle,
+    label: "Review your posts",
+    description: "See all your published content and track individual performance.",
+    color: "emerald-500",
+  },
+]
+
+/**
+ * Compact secondary metric display
+ * @param props - icon, label, value, change
+ */
+function SecondaryMetric({ icon: Icon, label, value, change }: {
+  icon: React.ElementType
+  label: string
+  value: number
+  change: number
+}) {
+  const isPositive = change >= 0
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-card px-4 py-3 transition-colors hover:border-border">
+      <div className="rounded-lg bg-muted p-2 shrink-0">
+        <Icon className="size-4 text-muted-foreground" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="text-sm font-semibold tabular-nums">{value.toLocaleString()}</p>
+      </div>
+      <span className={`text-xs font-medium tabular-nums ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
+        {isPositive ? '+' : ''}{change.toFixed(1)}%
+      </span>
+    </div>
+  )
+}
 
 /**
  * Analytics page content component with real data and animations
@@ -51,19 +114,21 @@ function AnalyticsContent() {
     isLoading: postAnalyticsLoading,
     selectPost
   } = usePostAnalytics(user?.id)
+  const {
+    members: leaderboardMembers,
+    timeRange,
+    setTimeRange,
+    isLoading: leaderboardLoading,
+    currentUserId,
+  } = useTeamLeaderboard()
 
   /**
    * Exports analytics data to CSV format
    */
   const handleExportCSV = () => {
     try {
-      // Prepare CSV data
       const csvRows = []
-
-      // CSV Header
       csvRows.push('Metric,Value')
-
-      // Add key metrics
       if (metrics) {
         csvRows.push(`Impressions,${metrics.impressions || 0}`)
         csvRows.push(`Engagement Rate,${metrics.engagementRate || 0}%`)
@@ -73,22 +138,14 @@ function AnalyticsContent() {
         csvRows.push(`Connections,${metrics.connections || 0}`)
         csvRows.push(`Members Reached,${metrics.membersReached || 0}`)
       }
-
-      // Add blank line
       csvRows.push('')
-
-      // Add chart data
       if (chartData && chartData.length > 0) {
         csvRows.push('Date,Impressions,Engagement,Profile Views')
         chartData.forEach(data => {
           csvRows.push(`${data.date},${data.impressions || 0},${data.engagements || 0},${data.profileViews || 0}`)
         })
       }
-
-      // Add blank line
       csvRows.push('')
-
-      // Add goals data
       if (goals && goals.length > 0) {
         csvRows.push('Goal Type,Target,Current,Progress')
         goals.forEach(goal => {
@@ -98,36 +155,26 @@ function AnalyticsContent() {
         csvRows.push(`Current Streak,${currentStreak} days`)
         csvRows.push(`Best Streak,${bestStreak} days`)
       }
-
-      // Create CSV blob and download
       const csvContent = csvRows.join('\n')
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
       const link = document.createElement('a')
       const url = URL.createObjectURL(blob)
-
       link.setAttribute('href', url)
       link.setAttribute('download', `analytics_${new Date().toISOString().split('T')[0]}.csv`)
       link.style.visibility = 'hidden'
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
-
       toast.success('Analytics data exported successfully')
-    } catch (error) {
-      console.error('Export error:', error)
+    } catch (err) {
+      console.error('Export error:', err)
       toast.error('Failed to export analytics data')
     }
   }
 
-  // Show error state with animation
   if (error) {
     return (
-      <motion.div
-        className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-      >
+      <PageContent>
         <Card className="border-destructive/50 bg-destructive/5">
           <CardContent className="flex items-center justify-between py-4">
             <div className="flex items-center gap-2 text-destructive">
@@ -140,76 +187,101 @@ function AnalyticsContent() {
             </Button>
           </CardContent>
         </Card>
-      </motion.div>
+      </PageContent>
     )
   }
 
-  // Show loading state
   if (isLoading) {
     return <AnalyticsSkeleton />
   }
 
   return (
-    <motion.div
-      className="flex flex-col gap-4 py-4 md:gap-6 md:py-6"
-      variants={pageVariants}
-      initial="initial"
-      animate="animate"
-    >
-      {/* Last Updated Timestamp and Export Button */}
-      <motion.div
-        className="flex items-center justify-between px-4 lg:px-6"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
-      >
-        {metadata?.lastUpdated && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <IconClock className="size-4" />
-            <span>Last updated: {new Date(metadata.lastUpdated).toLocaleString()}</span>
-            {metadata.captureMethod && (
-              <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
-                {metadata.captureMethod}
-              </span>
-            )}
-          </div>
-        )}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleExportCSV}
-          disabled={isLoading || !metrics}
-          className="gap-2"
-        >
-          <IconDownload className="size-4" />
-          Export CSV
-        </Button>
-      </motion.div>
+    <PageContent>
+      {/* Page Header */}
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Performance Overview</h2>
+          <p className="text-sm text-muted-foreground">
+            Track your LinkedIn growth and engagement metrics.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {metadata?.lastUpdated && (
+            <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground">
+              <IconClock className="size-3.5" />
+              <span>Updated {new Date(metadata.lastUpdated).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+              {metadata.captureMethod && (
+                <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px]">
+                  {metadata.captureMethod}
+                </span>
+              )}
+            </div>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCSV}
+            disabled={isLoading || !metrics}
+            className="gap-1.5"
+          >
+            <IconDownload className="size-3.5" />
+            Export
+          </Button>
+        </div>
+      </div>
 
-      {/* Analytics Cards - Key Metrics */}
+      {/* Primary Metrics - 4 Key Cards */}
       <AnalyticsCards
         impressions={metrics?.impressions}
         engagementRate={metrics?.engagementRate}
         followers={metrics?.followers}
         profileViews={metrics?.profileViews}
-        searchAppearances={metrics?.searchAppearances}
-        connections={metrics?.connections}
-        membersReached={metrics?.membersReached}
+        variant="primary"
       />
 
-      {/* Charts and Goals Row */}
+      {/* Secondary Metrics - Compact Row */}
       <motion.div
-        className="grid grid-cols-1 gap-4 px-4 lg:grid-cols-3 lg:px-6"
+        className="grid grid-cols-1 gap-3 sm:grid-cols-3"
         variants={staggerContainerVariants}
         initial="initial"
         animate="animate"
       >
-        {/* Performance Chart - Takes 2 columns */}
+        <motion.div variants={staggerItemVariants}>
+          <SecondaryMetric
+            icon={IconSearch}
+            label="Search Appearances"
+            value={metrics?.searchAppearances?.value ?? 0}
+            change={metrics?.searchAppearances?.change ?? 0}
+          />
+        </motion.div>
+        <motion.div variants={staggerItemVariants}>
+          <SecondaryMetric
+            icon={IconUsers}
+            label="Connections"
+            value={metrics?.connections?.value ?? 0}
+            change={metrics?.connections?.change ?? 0}
+          />
+        </motion.div>
+        <motion.div variants={staggerItemVariants}>
+          <SecondaryMetric
+            icon={IconUsersGroup}
+            label="Members Reached"
+            value={metrics?.membersReached?.value ?? 0}
+            change={metrics?.membersReached?.change ?? 0}
+          />
+        </motion.div>
+      </motion.div>
+
+      {/* Charts and Goals Row */}
+      <motion.div
+        className="grid grid-cols-1 gap-4 lg:grid-cols-3"
+        variants={staggerContainerVariants}
+        initial="initial"
+        animate="animate"
+      >
         <motion.div className="lg:col-span-2" variants={staggerItemVariants}>
           <AnalyticsChart data={chartData} />
         </motion.div>
-
-        {/* Goals Tracker - Takes 1 column */}
         <motion.div className="lg:col-span-1" variants={staggerItemVariants}>
           <GoalsTracker
             goals={goals}
@@ -223,17 +295,20 @@ function AnalyticsContent() {
 
       {/* Team Leaderboard and Post Performance Row */}
       <motion.div
-        className="grid grid-cols-1 gap-4 px-4 lg:grid-cols-2 lg:px-6"
+        className="grid grid-cols-1 gap-4 lg:grid-cols-2"
         variants={staggerContainerVariants}
         initial="initial"
         animate="animate"
       >
-        {/* Team Leaderboard */}
         <motion.div variants={staggerItemVariants}>
-          <TeamLeaderboard currentUserId={user?.id} />
+          <TeamLeaderboard
+            members={leaderboardMembers}
+            timeRange={timeRange}
+            onTimeRangeChange={setTimeRange}
+            currentUserId={currentUserId || undefined}
+            isLoading={leaderboardLoading}
+          />
         </motion.div>
-
-        {/* Post Performance Drill-down */}
         <motion.div variants={staggerItemVariants}>
           <PostPerformance
             post={selectedPost ?? undefined}
@@ -242,7 +317,10 @@ function AnalyticsContent() {
           />
         </motion.div>
       </motion.div>
-    </motion.div>
+
+      {/* Actionable Insight Cards */}
+      <CrossNav items={analyticsInsightNav} />
+    </PageContent>
   )
 }
 
@@ -251,24 +329,7 @@ function AnalyticsContent() {
  * @returns Analytics page with performance cards, charts, goals tracker, leaderboard, and post performance
  */
 export default function AnalyticsPage() {
-  return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar variant="inset" />
-      <SidebarInset>
-        <SiteHeader title="Analytics" />
-        <main id="main-content" className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col gap-2">
-            <AnalyticsContent />
-          </div>
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
-  )
+  usePageMeta({ title: "Analytics" })
+
+  return <AnalyticsContent />
 }

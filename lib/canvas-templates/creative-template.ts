@@ -1,12 +1,13 @@
 /**
  * Creative Template
  * Bold colorful style with vibrant gradients and dynamic typography
+ * Enhanced with layered decorative shapes for visual impact
  */
 
 import type { CanvasTemplate, CanvasSlide } from '@/types/canvas-editor';
 
 /**
- * Creative template slides with bold, colorful styling
+ * Creative template slides with bold, colorful styling and decorative elements
  */
 const defaultSlides: CanvasSlide[] = [
   // Slide 1: Title Slide
@@ -14,6 +15,7 @@ const defaultSlides: CanvasSlide[] = [
     id: 'creative-slide-1',
     backgroundColor: '#7c3aed',
     elements: [
+      // Large rotated background rectangle
       {
         id: 'creative-1-shape',
         type: 'shape',
@@ -25,6 +27,65 @@ const defaultSlides: CanvasSlide[] = [
         shapeType: 'rect',
         fill: '#8b5cf6',
         cornerRadius: 40,
+      },
+      // Layered circle (top-left)
+      {
+        id: 'creative-1-deco-circle1',
+        type: 'shape',
+        x: -120,
+        y: -120,
+        width: 350,
+        height: 350,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#6d28d920',
+      },
+      // Small accent circle cluster (bottom-right)
+      {
+        id: 'creative-1-deco-dot1',
+        type: 'shape',
+        x: 940,
+        y: 800,
+        width: 16,
+        height: 16,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#ffffff',
+      },
+      {
+        id: 'creative-1-deco-dot2',
+        type: 'shape',
+        x: 965,
+        y: 800,
+        width: 12,
+        height: 12,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#ffffff80',
+      },
+      {
+        id: 'creative-1-deco-dot3',
+        type: 'shape',
+        x: 985,
+        y: 800,
+        width: 8,
+        height: 8,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#ffffff40',
+      },
+      // Accent bar
+      {
+        id: 'creative-1-deco-bar',
+        type: 'shape',
+        x: 80,
+        y: 370,
+        width: 80,
+        height: 6,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#fbbf24',
+        cornerRadius: 3,
       },
       {
         id: 'creative-1-emoji',
@@ -93,6 +154,67 @@ const defaultSlides: CanvasSlide[] = [
     id: 'creative-slide-2',
     backgroundColor: '#ec4899',
     elements: [
+      // Large decorative circle (bottom-right, partially off-canvas)
+      {
+        id: 'creative-2-shape',
+        type: 'shape',
+        x: 800,
+        y: 700,
+        width: 400,
+        height: 400,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#f472b6',
+      },
+      // Rotated rect accent (top-right)
+      {
+        id: 'creative-2-deco-rect',
+        type: 'shape',
+        x: 750,
+        y: -150,
+        width: 400,
+        height: 400,
+        rotation: 30,
+        shapeType: 'rect',
+        fill: '#f9a8d420',
+        cornerRadius: 30,
+      },
+      // Small accent bar under number
+      {
+        id: 'creative-2-deco-bar',
+        type: 'shape',
+        x: 80,
+        y: 290,
+        width: 60,
+        height: 5,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#ffffff60',
+        cornerRadius: 3,
+      },
+      // Decorative dots (left side)
+      {
+        id: 'creative-2-deco-dot1',
+        type: 'shape',
+        x: 960,
+        y: 450,
+        width: 10,
+        height: 10,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#ffffff',
+      },
+      {
+        id: 'creative-2-deco-dot2',
+        type: 'shape',
+        x: 960,
+        y: 475,
+        width: 10,
+        height: 10,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#ffffff60',
+      },
       {
         id: 'creative-2-number',
         type: 'text',
@@ -140,17 +262,6 @@ const defaultSlides: CanvasSlide[] = [
         align: 'left',
         lineHeight: 1.5,
       },
-      {
-        id: 'creative-2-shape',
-        type: 'shape',
-        x: 800,
-        y: 700,
-        width: 400,
-        height: 400,
-        rotation: 0,
-        shapeType: 'circle',
-        fill: '#f472b6',
-      },
     ],
   },
   // Slide 3: Mistake 2
@@ -158,6 +269,60 @@ const defaultSlides: CanvasSlide[] = [
     id: 'creative-slide-3',
     backgroundColor: '#f59e0b',
     elements: [
+      // Large circle (bottom-left, partially off-canvas)
+      {
+        id: 'creative-3-shape',
+        type: 'shape',
+        x: -100,
+        y: 700,
+        width: 400,
+        height: 400,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#fbbf24',
+      },
+      // Rotated square (top-left)
+      {
+        id: 'creative-3-deco-sq',
+        type: 'shape',
+        x: -80,
+        y: -80,
+        width: 250,
+        height: 250,
+        rotation: 45,
+        shapeType: 'rect',
+        fill: '#fcd34d20',
+        cornerRadius: 20,
+      },
+      // Mirror emoji for "comparing yourself"
+      {
+        id: 'creative-3-deco-emoji',
+        type: 'text',
+        x: 880,
+        y: 90,
+        width: 100,
+        height: 100,
+        rotation: 0,
+        text: '\u{1FA9E}',
+        fontSize: 60,
+        fontFamily: 'Inter',
+        fontWeight: 'normal',
+        fill: '#ffffff',
+        align: 'center',
+      },
+      // Vertical line accent
+      {
+        id: 'creative-3-deco-line',
+        type: 'shape',
+        x: 40,
+        y: 300,
+        width: 4,
+        height: 200,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#ffffff40',
+        cornerRadius: 2,
+      },
       {
         id: 'creative-3-number',
         type: 'text',
@@ -205,17 +370,6 @@ const defaultSlides: CanvasSlide[] = [
         align: 'left',
         lineHeight: 1.5,
       },
-      {
-        id: 'creative-3-shape',
-        type: 'shape',
-        x: -100,
-        y: 700,
-        width: 400,
-        height: 400,
-        rotation: 0,
-        shapeType: 'circle',
-        fill: '#fbbf24',
-      },
     ],
   },
   // Slide 4: Mistake 3
@@ -223,6 +377,60 @@ const defaultSlides: CanvasSlide[] = [
     id: 'creative-slide-4',
     backgroundColor: '#10b981',
     elements: [
+      // Large circle (bottom-right)
+      {
+        id: 'creative-4-shape',
+        type: 'shape',
+        x: 800,
+        y: 700,
+        width: 400,
+        height: 400,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#34d399',
+      },
+      // Layered transparent rectangle
+      {
+        id: 'creative-4-deco-rect',
+        type: 'shape',
+        x: 600,
+        y: -200,
+        width: 600,
+        height: 600,
+        rotation: 25,
+        shapeType: 'rect',
+        fill: '#6ee7b715',
+        cornerRadius: 40,
+      },
+      // Handshake emoji visual element
+      {
+        id: 'creative-4-deco-emoji',
+        type: 'text',
+        x: 880,
+        y: 90,
+        width: 100,
+        height: 100,
+        rotation: 0,
+        text: '\u{1F91D}',
+        fontSize: 60,
+        fontFamily: 'Inter',
+        fontWeight: 'normal',
+        fill: '#ffffff',
+        align: 'center',
+      },
+      // Small accent bar
+      {
+        id: 'creative-4-deco-bar',
+        type: 'shape',
+        x: 80,
+        y: 290,
+        width: 60,
+        height: 5,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#ffffff60',
+        cornerRadius: 3,
+      },
       {
         id: 'creative-4-number',
         type: 'text',
@@ -270,17 +478,6 @@ const defaultSlides: CanvasSlide[] = [
         align: 'left',
         lineHeight: 1.5,
       },
-      {
-        id: 'creative-4-shape',
-        type: 'shape',
-        x: 800,
-        y: 700,
-        width: 400,
-        height: 400,
-        rotation: 0,
-        shapeType: 'circle',
-        fill: '#34d399',
-      },
     ],
   },
   // Slide 5: CTA
@@ -288,6 +485,7 @@ const defaultSlides: CanvasSlide[] = [
     id: 'creative-slide-5',
     backgroundColor: '#7c3aed',
     elements: [
+      // Large circle (top-left)
       {
         id: 'creative-5-shape1',
         type: 'shape',
@@ -299,6 +497,7 @@ const defaultSlides: CanvasSlide[] = [
         shapeType: 'circle',
         fill: '#8b5cf6',
       },
+      // Large circle (bottom-right)
       {
         id: 'creative-5-shape2',
         type: 'shape',
@@ -309,6 +508,53 @@ const defaultSlides: CanvasSlide[] = [
         rotation: 0,
         shapeType: 'circle',
         fill: '#a78bfa',
+      },
+      // Rotated rect background accent
+      {
+        id: 'creative-5-deco-rect',
+        type: 'shape',
+        x: 300,
+        y: 300,
+        width: 500,
+        height: 500,
+        rotation: 45,
+        shapeType: 'rect',
+        fill: '#6d28d910',
+        cornerRadius: 40,
+      },
+      // Dot cluster (center-top)
+      {
+        id: 'creative-5-deco-dot1',
+        type: 'shape',
+        x: 510,
+        y: 130,
+        width: 12,
+        height: 12,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#ffffff60',
+      },
+      {
+        id: 'creative-5-deco-dot2',
+        type: 'shape',
+        x: 535,
+        y: 130,
+        width: 8,
+        height: 8,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#ffffff40',
+      },
+      {
+        id: 'creative-5-deco-dot3',
+        type: 'shape',
+        x: 555,
+        y: 130,
+        width: 6,
+        height: 6,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#ffffff20',
       },
       {
         id: 'creative-5-emoji',
@@ -369,5 +615,6 @@ export const creativeTemplate: CanvasTemplate = {
   category: 'creative',
   brandColors: ['#7c3aed', '#ec4899', '#f59e0b', '#10b981', '#ffffff'],
   fonts: ['Inter'],
+  defaultTone: 'casual',
   defaultSlides,
 };

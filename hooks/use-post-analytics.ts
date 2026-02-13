@@ -97,39 +97,6 @@ function generateDailyMetrics(
   return metrics
 }
 
-/**
- * Demo post analytics for when database is empty or unavailable
- */
-const DEMO_POST_ANALYTICS: PostPerformanceData[] = [
-  {
-    id: 'demo-post-1',
-    content: 'Excited to share our latest product update! After months of development, we\'ve launched a feature that will change how teams collaborate. Here\'s what\'s new...',
-    publishedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    author: { name: 'Demo User', avatarUrl: undefined },
-    totalImpressions: 15420,
-    totalEngagements: 892,
-    engagementRate: 5.8,
-    metrics: [
-      { date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], impressions: 8500, engagements: 520, likes: 380, comments: 85, shares: 55, clicks: 104 },
-      { date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], impressions: 4200, engagements: 245, likes: 178, comments: 42, shares: 25, clicks: 49 },
-      { date: new Date().toISOString().split('T')[0], impressions: 2720, engagements: 127, likes: 92, comments: 23, shares: 12, clicks: 25 },
-    ],
-  },
-  {
-    id: 'demo-post-2',
-    content: 'The best career advice I ever received was simple: focus on solving problems, not climbing ladders. Here are 5 lessons that shaped my journey...',
-    publishedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-    author: { name: 'Demo User', avatarUrl: undefined },
-    totalImpressions: 8920,
-    totalEngagements: 534,
-    engagementRate: 6.0,
-    metrics: [
-      { date: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], impressions: 5200, engagements: 320, likes: 245, comments: 48, shares: 27, clicks: 64 },
-      { date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], impressions: 2100, engagements: 134, likes: 98, comments: 24, shares: 12, clicks: 27 },
-      { date: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], impressions: 1620, engagements: 80, likes: 58, comments: 15, shares: 7, clicks: 16 },
-    ],
-  },
-]
 
 /**
  * Hook to fetch post analytics from Supabase
@@ -163,10 +130,10 @@ export function usePostAnalytics(userId?: string, limit = 10): UsePostAnalyticsR
     // Determine target user ID
     const targetUserId = userId || user?.id
 
-    // If no user (not authenticated), show demo data
+    // If no user (not authenticated), return empty state
     if (!targetUserId) {
-      setPosts(DEMO_POST_ANALYTICS)
-      setSelectedPost(DEMO_POST_ANALYTICS[0])
+      setPosts([])
+      setSelectedPost(null)
       setRawPosts([])
       setIsLoading(false)
       return
@@ -185,8 +152,10 @@ export function usePostAnalytics(userId?: string, limit = 10): UsePostAnalyticsR
         .limit(limit)
 
       if (analyticsError) {
-        console.warn('Post analytics fetch warning (using demo data):', analyticsError.message)
-        // Keep demo data on error
+        console.warn('Post analytics fetch warning:', analyticsError.message)
+        setPosts([])
+        setSelectedPost(null)
+        setRawPosts([])
         setIsLoading(false)
         return
       }
@@ -216,7 +185,10 @@ export function usePostAnalytics(userId?: string, limit = 10): UsePostAnalyticsR
           .limit(limit)
 
         if (myPostsError || !myPostsData || myPostsData.length === 0) {
-          console.info('No my_posts data found either, keeping demo data')
+          // No post data at all - return empty state
+          setPosts([])
+          setSelectedPost(null)
+          setRawPosts([])
           setIsLoading(false)
           return
         }
@@ -304,9 +276,7 @@ export function usePostAnalytics(userId?: string, limit = 10): UsePostAnalyticsR
       }
     } catch (err) {
       console.error('Post analytics fetch error:', err)
-      // Keep demo data on error for better UX
-      setPosts(DEMO_POST_ANALYTICS)
-      setSelectedPost(DEMO_POST_ANALYTICS[0])
+      setError(err instanceof Error ? err.message : 'Failed to fetch post analytics')
     } finally {
       setIsLoading(false)
     }

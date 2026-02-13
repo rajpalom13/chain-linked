@@ -80,103 +80,6 @@ export interface TeamActivityFeedProps {
 const CONTENT_TRUNCATE_LENGTH = 200
 
 /**
- * Sample data for development and testing purposes.
- * Contains 5 realistic team member posts with varied content and metrics.
- */
-export const sampleTeamPosts: TeamActivityItem[] = [
-  {
-    id: "post-1",
-    author: {
-      name: "Sarah Chen",
-      headline: "VP of Engineering at TechCorp",
-      avatar: null,
-    },
-    content:
-      "Excited to share that our team just shipped a major feature that's been 6 months in the making! The key lesson? Breaking down complex problems into smaller, manageable pieces makes all the difference. Huge thanks to everyone who contributed to this milestone.",
-    metrics: {
-      impressions: 12450,
-      reactions: 342,
-      comments: 56,
-      reposts: 23,
-    },
-    postedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    postType: "text",
-  },
-  {
-    id: "post-2",
-    author: {
-      name: "Marcus Johnson",
-      headline: "Product Manager | Building the future of work",
-      avatar: null,
-    },
-    content:
-      "Just published my thoughts on why async communication is the secret to high-performing remote teams. After 3 years of remote work, here are the frameworks that actually work. Thread below with actionable tips you can implement today.",
-    metrics: {
-      impressions: 8920,
-      reactions: 215,
-      comments: 89,
-      reposts: 45,
-    },
-    postedAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-    postType: "article",
-  },
-  {
-    id: "post-3",
-    author: {
-      name: "Emily Rodriguez",
-      headline: "Design Lead | UX Strategist",
-      avatar: null,
-    },
-    content:
-      "Design systems are not about consistency for consistency's sake. They're about freeing your team to focus on solving real user problems instead of reinventing the wheel. Here's how we built ours from scratch in 8 weeks.",
-    metrics: {
-      impressions: 5670,
-      reactions: 178,
-      comments: 34,
-      reposts: 12,
-    },
-    postedAt: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
-    postType: "text",
-  },
-  {
-    id: "post-4",
-    author: {
-      name: "David Kim",
-      headline: "Head of Growth | Data-Driven Marketing",
-      avatar: null,
-    },
-    content:
-      "We A/B tested 47 different CTAs over 6 months. The results surprised us: personalization beat generic messaging by 312%. But here's the catch - context matters more than you think. The best performing CTA in one segment was the worst in another.",
-    metrics: {
-      impressions: 15230,
-      reactions: 456,
-      comments: 123,
-      reposts: 67,
-    },
-    postedAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-    postType: "poll",
-  },
-  {
-    id: "post-5",
-    author: {
-      name: "Lisa Thompson",
-      headline: "Engineering Manager | Team Builder",
-      avatar: null,
-    },
-    content:
-      "Hot take: The best engineers I've worked with aren't the ones who write the most clever code. They're the ones who write code that others can understand, maintain, and build upon. Technical excellence is meaningless if it doesn't scale with your team.",
-    metrics: {
-      impressions: 9840,
-      reactions: 389,
-      comments: 156,
-      reposts: 78,
-    },
-    postedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    postType: "text",
-  },
-]
-
-/**
  * Formats a number into a compact, human-readable string.
  * @param num - The number to format
  * @returns Formatted string (e.g., "1.2K", "3.4M")
@@ -431,10 +334,8 @@ function EmptyState() {
  *
  * @example
  * ```tsx
- * // With sample data
- * import { TeamActivityFeed, sampleTeamPosts } from "@/components/features/team-activity-feed"
- *
- * <TeamActivityFeed posts={sampleTeamPosts} />
+ * // With data
+ * <TeamActivityFeed posts={teamPosts} />
  * ```
  */
 export function TeamActivityFeed({

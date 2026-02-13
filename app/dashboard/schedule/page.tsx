@@ -8,24 +8,45 @@
 
 import { useCallback } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { toast } from "sonner"
-import { AppSidebar } from "@/components/app-sidebar"
+import { IconPencil } from "@tabler/icons-react"
+import { Button } from "@/components/ui/button"
+import { PageContent } from "@/components/shared/page-content"
+import { usePostingConfig } from "@/hooks/use-posting-config"
 import { ScheduleCalendar } from "@/components/features/schedule-calendar"
 import { ScheduledPosts, type ScheduledPost } from "@/components/features/scheduled-posts"
-import { SiteHeader } from "@/components/site-header"
 import { ScheduleSkeleton } from "@/components/skeletons/page-skeletons"
 import { useScheduledPosts } from "@/hooks/use-scheduled-posts"
 import { useAuthContext } from "@/lib/auth/auth-provider"
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar"
+import { usePageMeta } from "@/lib/dashboard-context"
+import { CrossNav, type CrossNavItem } from "@/components/shared/cross-nav"
+import { IconArticle, IconChartBar } from "@tabler/icons-react"
+
+/** Cross-navigation items for the schedule page */
+const SCHEDULE_CROSS_NAV: CrossNavItem[] = [
+  {
+    href: "/dashboard/posts",
+    icon: IconArticle,
+    label: "View All Posts",
+    description: "See your published content and engagement data.",
+    color: "emerald-500",
+  },
+  {
+    href: "/dashboard/analytics",
+    icon: IconChartBar,
+    label: "View Analytics",
+    description: "Track your growth and performance metrics.",
+    color: "blue-500",
+  },
+]
 
 /**
  * Schedule page content component with real data
  */
 function ScheduleContent() {
   const router = useRouter()
+  const { isPostingEnabled, disabledMessage } = usePostingConfig()
   const { posts: scheduledPosts, rawPosts, isLoading, deletePost, updatePost } = useScheduledPosts(60)
 
   // Transform scheduled posts for the list view - use real data only
@@ -73,6 +94,14 @@ function ScheduleContent() {
 
   // Handle post now - update status to trigger immediate posting
   const handlePostNow = useCallback(async (postId: string) => {
+    // Block when posting is disabled
+    if (!isPostingEnabled) {
+      toast.warning("Posting disabled", {
+        description: disabledMessage,
+      })
+      return
+    }
+
     // Update the scheduled time to now and status to pending
     const success = await updatePost(postId, {
       scheduled_for: new Date().toISOString(),
@@ -87,10 +116,18 @@ function ScheduleContent() {
         description: "Please try again.",
       })
     }
-  }, [updatePost])
+  }, [updatePost, isPostingEnabled, disabledMessage])
 
   return (
-    <div className="flex flex-col gap-4 p-4 md:gap-6 md:p-6 animate-in fade-in duration-500">
+    <PageContent>
+      {/* Page Header */}
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight">Content Calendar</h2>
+        <p className="text-sm text-muted-foreground">
+          Plan and schedule your LinkedIn posts for maximum reach.
+        </p>
+      </div>
+
       {/* Calendar View and List View */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Calendar View */}
@@ -107,9 +144,13 @@ function ScheduleContent() {
           onEdit={handleEdit}
           onDelete={handleDelete}
           onPostNow={handlePostNow}
+          isPostingEnabled={isPostingEnabled}
         />
       </div>
-    </div>
+
+      {/* Related Pages */}
+      <CrossNav items={SCHEDULE_CROSS_NAV} />
+    </PageContent>
   )
 }
 
@@ -134,26 +175,18 @@ function mapListStatus(status: string): ScheduledPost["status"] {
  * @returns Schedule page with calendar view and list of upcoming scheduled posts
  */
 export default function SchedulePage() {
+  usePageMeta({
+    title: "Schedule",
+    headerActions: (
+      <Button asChild size="sm">
+        <Link href="/dashboard/compose">
+          <IconPencil className="size-4 mr-1" />
+          New Post
+        </Link>
+      </Button>
+    ),
+  })
   const { isLoading: authLoading } = useAuthContext()
 
-  return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar variant="inset" />
-      <SidebarInset>
-        <SiteHeader title="Schedule" />
-        <main id="main-content" className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col gap-2">
-            {authLoading ? <ScheduleSkeleton /> : <ScheduleContent />}
-          </div>
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
-  )
+  return authLoading ? <ScheduleSkeleton /> : <ScheduleContent />
 }

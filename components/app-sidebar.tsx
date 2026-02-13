@@ -48,7 +48,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { useAuthContext } from "@/lib/auth/auth-provider"
-import { LinkedInStatusBadge } from "@/components/features/linkedin-status-badge"
+// LinkedInStatusBadge removed from sidebar — status is shown in settings page
 
 // ============================================================================
 // Animation Configuration
@@ -209,7 +209,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }
 
   /**
-   * Derive user display data from auth context
+   * Derive user display data from auth context.
+   * Handles multiple data sources: LinkedIn profile (extension sync),
+   * profiles table, and Supabase auth metadata.
    */
   const userData = useMemo(() => {
     if (!user) {
@@ -221,22 +223,29 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       }
     }
 
-    const linkedInName = profile?.linkedin_profile?.raw_data?.name
+    // Name: prioritize LinkedIn profile → profiles table → auth metadata
+    const linkedInFirstLast = profile?.linkedin_profile?.first_name && profile?.linkedin_profile?.last_name
+      ? `${profile.linkedin_profile.first_name} ${profile.linkedin_profile.last_name}`
+      : null
+    const linkedInRawName = profile?.linkedin_profile?.raw_data?.full_name ||
+                            profile?.linkedin_profile?.raw_data?.name
     const profileFullName = profile?.full_name
     const profileName = profile?.name
     const metadataName = user.user_metadata?.name || user.user_metadata?.full_name
     const emailName = user.email?.split('@')[0] || 'User'
 
-    const name = linkedInName || profileFullName || profileName || metadataName || emailName
+    const name = linkedInFirstLast || linkedInRawName || profileFullName || profileName || metadataName || emailName
 
-    const linkedInAvatar = profile?.linkedin_profile?.raw_data?.profilePhotoUrl ||
-                          profile?.linkedin_profile?.profile_picture_url ||
+    // Avatar: prioritize LinkedIn profile_picture_url → profiles table → auth metadata
+    const linkedInAvatar = profile?.linkedin_profile?.profile_picture_url ||
+                          profile?.linkedin_profile?.raw_data?.profilePhotoUrl ||
                           profile?.linkedin_avatar_url
     const profileAvatar = profile?.avatar_url
     const metadataAvatar = user.user_metadata?.avatar_url || user.user_metadata?.picture
 
     const avatar = linkedInAvatar || profileAvatar || metadataAvatar || ""
 
+    // Headline: prioritize linkedin_profiles column → raw_data → profiles table
     const headline = profile?.linkedin_profile?.headline ||
                      profile?.linkedin_profile?.raw_data?.headline ||
                      profile?.linkedin_headline
@@ -331,10 +340,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-        {/* LinkedIn Connection Status Indicator */}
-        <div className="px-2 pb-1">
-          <LinkedInStatusBadge variant="dot" showReconnect />
-        </div>
       </SidebarHeader>
 
       <SidebarSeparator />

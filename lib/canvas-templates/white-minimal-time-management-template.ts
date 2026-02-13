@@ -2,6 +2,7 @@
  * White Minimal Time Management Tips Template
  * Clean beige/cream design with black typography and subtle accents
  * Features: Numbered tips, decorative arc, navigation elements
+ * Enhanced with clock/time-themed decorative shapes and elegant accents
  */
 
 import type { CanvasTemplate, CanvasSlide } from '@/types/canvas-editor';
@@ -50,6 +51,74 @@ const defaultSlides: CanvasSlide[] = [
         align: 'right',
         letterSpacing: 2,
         textDecoration: 'underline',
+      },
+      // Clock-like concentric circles (decorative)
+      {
+        id: 'wmt-1-clock-outer',
+        type: 'shape',
+        x: 680,
+        y: 100,
+        width: 400,
+        height: 400,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: 'transparent',
+        stroke: '#d6d3d1',
+        strokeWidth: 1,
+      },
+      {
+        id: 'wmt-1-clock-inner',
+        type: 'shape',
+        x: 730,
+        y: 150,
+        width: 300,
+        height: 300,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: 'transparent',
+        stroke: '#e7e5e4',
+        strokeWidth: 1,
+      },
+      // Clock hand (simulated with thin rect)
+      {
+        id: 'wmt-1-clock-hand',
+        type: 'shape',
+        x: 878,
+        y: 200,
+        width: 2,
+        height: 100,
+        rotation: 30,
+        shapeType: 'rect',
+        fill: '#1c1917',
+        cornerRadius: 1,
+      },
+      // Clock center dot
+      {
+        id: 'wmt-1-clock-center',
+        type: 'shape',
+        x: 873,
+        y: 293,
+        width: 8,
+        height: 8,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#1c1917',
+      },
+      // Hourglass emoji
+      {
+        id: 'wmt-1-deco-emoji',
+        type: 'text',
+        x: 60,
+        y: 200,
+        width: 100,
+        height: 100,
+        rotation: 0,
+        text: '\u231B',
+        fontSize: 60,
+        fontFamily: 'Inter',
+        fontWeight: 'normal',
+        fill: '#1c1917',
+        align: 'center',
       },
       // Decorative arc (approximated with line)
       {
@@ -218,6 +287,31 @@ const defaultSlides: CanvasSlide[] = [
         letterSpacing: 2,
         textDecoration: 'underline',
       },
+      // Subtle circle accent (right side)
+      {
+        id: 'wmt-2-deco-circle',
+        type: 'shape',
+        x: 800,
+        y: 150,
+        width: 350,
+        height: 350,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#ece8e0',
+      },
+      // Thin vertical accent line
+      {
+        id: 'wmt-2-deco-line',
+        type: 'shape',
+        x: 40,
+        y: 360,
+        width: 2,
+        height: 300,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#d6d3d1',
+        cornerRadius: 1,
+      },
       // Number badge background
       {
         id: 'wmt-2-number-bg',
@@ -369,6 +463,19 @@ const defaultSlides: CanvasSlide[] = [
         letterSpacing: 2,
         textDecoration: 'underline',
       },
+      // Subtle rotated rect accent
+      {
+        id: 'wmt-3-deco-rect',
+        type: 'shape',
+        x: 800,
+        y: 600,
+        width: 300,
+        height: 300,
+        rotation: 45,
+        shapeType: 'rect',
+        fill: '#ece8e0',
+        cornerRadius: 20,
+      },
       // Number badge background
       {
         id: 'wmt-3-number-bg',
@@ -518,6 +625,41 @@ const defaultSlides: CanvasSlide[] = [
         letterSpacing: 2,
         textDecoration: 'underline',
       },
+      // Subtle circle (left side, different position)
+      {
+        id: 'wmt-4-deco-circle',
+        type: 'shape',
+        x: -100,
+        y: 600,
+        width: 300,
+        height: 300,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#ece8e0',
+      },
+      // Decorative dots (right side)
+      {
+        id: 'wmt-4-deco-dot1',
+        type: 'shape',
+        x: 900,
+        y: 400,
+        width: 6,
+        height: 6,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#a8a29e',
+      },
+      {
+        id: 'wmt-4-deco-dot2',
+        type: 'shape',
+        x: 920,
+        y: 400,
+        width: 6,
+        height: 6,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#a8a29e60',
+      },
       // Number badge background
       {
         id: 'wmt-4-number-bg',
@@ -666,6 +808,18 @@ const defaultSlides: CanvasSlide[] = [
         align: 'right',
         letterSpacing: 2,
         textDecoration: 'underline',
+      },
+      // Decorative circle (top-right)
+      {
+        id: 'wmt-5-deco-circle',
+        type: 'shape',
+        x: 850,
+        y: -50,
+        width: 300,
+        height: 300,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#ece8e0',
       },
       // Number badge background
       {
@@ -817,6 +971,35 @@ const defaultSlides: CanvasSlide[] = [
         letterSpacing: 2,
         textDecoration: 'underline',
       },
+      // Decorative rotated rectangle
+      {
+        id: 'wmt-6-deco-rect',
+        type: 'shape',
+        x: -100,
+        y: -100,
+        width: 300,
+        height: 300,
+        rotation: 45,
+        shapeType: 'rect',
+        fill: '#ece8e0',
+        cornerRadius: 20,
+      },
+      // Health emoji
+      {
+        id: 'wmt-6-deco-emoji',
+        type: 'text',
+        x: 900,
+        y: 380,
+        width: 80,
+        height: 80,
+        rotation: 0,
+        text: '\u{1F33F}',
+        fontSize: 40,
+        fontFamily: 'Inter',
+        fontWeight: 'normal',
+        fill: '#1c1917',
+        align: 'center',
+      },
       // Number badge background
       {
         id: 'wmt-6-number-bg',
@@ -966,6 +1149,30 @@ const defaultSlides: CanvasSlide[] = [
         letterSpacing: 2,
         textDecoration: 'underline',
       },
+      // Large decorative circle (background)
+      {
+        id: 'wmt-7-deco-circle',
+        type: 'shape',
+        x: 600,
+        y: -100,
+        width: 600,
+        height: 600,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#ece8e0',
+      },
+      // Thin line accent
+      {
+        id: 'wmt-7-deco-line',
+        type: 'shape',
+        x: 60,
+        y: 300,
+        width: 1,
+        height: 200,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#d6d3d1',
+      },
       // Heart icon
       {
         id: 'wmt-7-heart',
@@ -1060,5 +1267,6 @@ export const whiteMinimalTimeManagementTemplate: CanvasTemplate = {
   category: 'minimal',
   brandColors: ['#f5f0e8', '#1c1917', '#57534e', '#a8a29e', '#78716c'],
   fonts: ['Inter'],
+  defaultTone: 'educational',
   defaultSlides,
 };

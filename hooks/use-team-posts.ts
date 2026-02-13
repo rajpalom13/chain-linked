@@ -1,6 +1,6 @@
 /**
  * Team Posts Hook
- * @description Fetches team activity posts from Supabase
+ * @description Fetches posts from all team members via Supabase
  * @module hooks/use-team-posts
  */
 
@@ -12,47 +12,6 @@ import { useAuthContext } from '@/lib/auth/auth-provider'
 import type { Tables } from '@/types/database'
 import type { TeamActivityItem } from '@/components/features/team-activity-feed'
 
-/**
- * Demo team posts for when database is empty or unavailable
- */
-const DEMO_TEAM_POSTS: TeamActivityItem[] = [
-  {
-    id: 'demo-post-1',
-    author: {
-      name: 'Sarah Chen',
-      headline: 'VP of Engineering at TechCorp',
-      avatar: null,
-    },
-    content: 'Excited to share that our team just shipped a major feature that\'s been 6 months in the making! The key lesson? Breaking down complex problems into smaller, manageable pieces makes all the difference.',
-    metrics: { impressions: 12450, reactions: 342, comments: 56, reposts: 23 },
-    postedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    postType: 'text',
-  },
-  {
-    id: 'demo-post-2',
-    author: {
-      name: 'Marcus Johnson',
-      headline: 'Product Manager | Building the future of work',
-      avatar: null,
-    },
-    content: 'Just published my thoughts on why async communication is the secret to high-performing remote teams. After 3 years of remote work, here are the frameworks that actually work.',
-    metrics: { impressions: 8920, reactions: 215, comments: 89, reposts: 45 },
-    postedAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-    postType: 'article',
-  },
-  {
-    id: 'demo-post-3',
-    author: {
-      name: 'Emily Rodriguez',
-      headline: 'Design Lead | UX Strategist',
-      avatar: null,
-    },
-    content: 'Design systems are not about consistency for consistency\'s sake. They\'re about freeing your team to focus on solving real user problems instead of reinventing the wheel.',
-    metrics: { impressions: 5670, reactions: 178, comments: 34, reposts: 12 },
-    postedAt: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
-    postType: 'text',
-  },
-]
 
 /**
  * Hook return type for team posts
@@ -84,18 +43,17 @@ function mapMediaToPostType(mediaType: string | null): TeamActivityItem['postTyp
 }
 
 /**
- * Hook to fetch team activity posts
- * Fetches posts from team members (currently user's own posts until team structure is implemented)
+ * Hook to fetch team activity posts from all team members
+ * Queries team_members to find the user's team, then fetches posts
+ * from all members with their profile information.
  * @param limit - Maximum number of posts to fetch
  * @returns Team posts data and loading state
  * @example
  * const { posts, isLoading, error } = useTeamPosts(20)
  */
 export function useTeamPosts(limit: number = 20): UseTeamPostsReturn {
-  // Get auth state from context
   const { user, isLoading: authLoading } = useAuthContext()
 
-  // State initialization
   const [posts, setPosts] = useState<TeamActivityItem[]>([])
   const [rawPosts, setRawPosts] = useState<Tables<'my_posts'>[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -103,17 +61,13 @@ export function useTeamPosts(limit: number = 20): UseTeamPostsReturn {
   const supabase = createClient()
 
   /**
-   * Fetch posts from database
+   * Fetch posts from all team members
    */
   const fetchPosts = useCallback(async () => {
-    // Don't fetch if auth is still loading
-    if (authLoading) {
-      return
-    }
+    if (authLoading) return
 
-    // If no user (not authenticated), show demo data
     if (!user) {
-      setPosts(DEMO_TEAM_POSTS)
+      setPosts([])
       setRawPosts([])
       setIsLoading(false)
       return
@@ -123,75 +77,117 @@ export function useTeamPosts(limit: number = 20): UseTeamPostsReturn {
       setIsLoading(true)
       setError(null)
 
-      // Fetch user's profile for author info
-      const { data: userData } = await supabase
+      // Step 1: Get the user's team membership
+      let teamMemberIds: string[] = [user.id]
+
+      try {
+        const { data: teamMembership, error: teamError } = await supabase
+          .from('team_members')
+          .select('team_id')
+          .eq('user_id', user.id)
+          .single()
+
+        if (teamError) {
+          // PGRST116 = no rows, 406 = RLS issues - continue with solo user
+          if (teamError.code !== 'PGRST116' && teamError.code !== '406' && !teamError.message?.includes('406')) {
+            console.warn('Team membership query error:', teamError.message)
+          }
+        } else if (teamMembership?.team_id) {
+          // Step 2: Get all members of that team
+          const { data: teamMembersData, error: membersError } = await supabase
+            .from('team_members')
+            .select('user_id')
+            .eq('team_id', teamMembership.team_id)
+
+          if (!membersError && teamMembersData && teamMembersData.length > 0) {
+            teamMemberIds = teamMembersData.map(m => m.user_id)
+          }
+        }
+      } catch {
+        console.info('Team members table unavailable, using solo mode')
+      }
+
+      // Step 3: Fetch profile info for all team members
+      const { data: profilesData } = await supabase
         .from('profiles')
         .select('id, full_name, email, avatar_url')
-        .eq('id', user.id)
-        .single()
+        .in('id', teamMemberIds)
 
-      // Fetch posts (currently user's own posts, will be expanded to team posts)
+      const profileMap = new Map(
+        (profilesData || []).map(p => [p.id, p])
+      )
+
+      // Step 4: Fetch LinkedIn profiles for headline info
+      const { data: linkedinProfiles } = await supabase
+        .from('linkedin_profiles')
+        .select('user_id, headline')
+        .in('user_id', teamMemberIds)
+
+      const headlineMap = new Map(
+        (linkedinProfiles || []).map(p => [p.user_id, p.headline])
+      )
+
+      // Step 5: Fetch posts from all team members
       const { data: postsData, error: fetchError } = await supabase
         .from('my_posts')
         .select('*')
+        .in('user_id', teamMemberIds)
         .order('posted_at', { ascending: false })
         .limit(limit)
 
-      // If table doesn't exist or error, use demo data
       if (fetchError) {
-        console.warn('Team posts fetch warning (using demo data):', fetchError.message)
-        setPosts(DEMO_TEAM_POSTS)
+        console.warn('Team posts fetch warning:', fetchError.message)
+        setPosts([])
         setRawPosts([])
         setIsLoading(false)
         return
       }
 
       if (!postsData || postsData.length === 0) {
-        // No posts - show demo data for better UX
-        console.info('No team posts found, showing demo data')
-        setPosts(DEMO_TEAM_POSTS)
+        setPosts([])
         setRawPosts([])
         setIsLoading(false)
         return
       }
 
-      // Transform to TeamActivityItem format
-      const transformedPosts: TeamActivityItem[] = postsData.map((post) => ({
-        id: post.id,
-        author: {
-          name: userData?.full_name || user.email?.split('@')[0] || 'Unknown User',
-          headline: userData?.email || '',
-          avatar: userData?.avatar_url || null,
-        },
-        content: post.content || '',
-        metrics: {
-          impressions: post.impressions || 0,
-          reactions: post.reactions || 0,
-          comments: post.comments || 0,
-          reposts: post.reposts || 0,
-        },
-        postedAt: post.posted_at || post.created_at,
-        postType: mapMediaToPostType(post.media_type),
-      }))
+      // Step 6: Transform to TeamActivityItem format with correct author per post
+      const transformedPosts: TeamActivityItem[] = postsData.map((post) => {
+        const profile = profileMap.get(post.user_id)
+        const headline = headlineMap.get(post.user_id)
+
+        return {
+          id: post.id,
+          author: {
+            name: profile?.full_name || profile?.email?.split('@')[0] || 'Unknown User',
+            headline: headline || profile?.email || '',
+            avatar: profile?.avatar_url || null,
+          },
+          content: post.content || '',
+          metrics: {
+            impressions: post.impressions || 0,
+            reactions: post.reactions || 0,
+            comments: post.comments || 0,
+            reposts: post.reposts || 0,
+          },
+          postedAt: post.posted_at || post.created_at,
+          postType: mapMediaToPostType(post.media_type),
+        }
+      })
 
       setPosts(transformedPosts)
       setRawPosts(postsData)
     } catch (err) {
       console.error('Team posts fetch error:', err)
       setError(err instanceof Error ? err.message : 'Failed to fetch posts')
-      // Use demo data on error for better UX
-      setPosts(DEMO_TEAM_POSTS)
     } finally {
       setIsLoading(false)
     }
   }, [supabase, limit, user, authLoading])
 
-  // Fetch when auth state changes or on mount
   useEffect(() => {
     fetchPosts()
   }, [fetchPosts])
 
-  // Combined loading state
   const combinedLoading = authLoading || isLoading
 
   return {

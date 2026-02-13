@@ -40,61 +40,6 @@ interface LinkedInResearchPost {
   created_at: string | null
 }
 
-/**
- * Demo inspiration posts for when database is empty or unavailable
- */
-const DEMO_INSPIRATION_POSTS: InspirationPost[] = [
-  {
-    id: 'demo-insp-1',
-    author: { name: 'Alex Rivera', headline: 'CEO at StartupXYZ | Forbes 30 Under 30', avatar: undefined },
-    content: 'The biggest lesson I learned this year: Building a company isn\'t about having all the answers. It\'s about hiring people smarter than you and getting out of their way. My best hire? Someone who disagreed with me in the interview.',
-    category: 'leadership',
-    metrics: { reactions: 4520, comments: 234, reposts: 156 },
-    postedAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'demo-insp-2',
-    author: { name: 'Dr. Sarah Kim', headline: 'AI Researcher | Previously Google DeepMind', avatar: undefined },
-    content: 'Hot take: The companies that will win with AI aren\'t the ones building the best models. They\'re the ones with the best data flywheels. Data quality > Model sophistication. Every time.',
-    category: 'technology',
-    metrics: { reactions: 8920, comments: 567, reposts: 423 },
-    postedAt: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'demo-insp-3',
-    author: { name: 'Marcus Williams', headline: 'Sales Leader | Built 3 $10M+ teams from scratch', avatar: undefined },
-    content: 'Stop sending cold emails that start with "I hope this finds you well." Start with value. Here\'s my formula that gets 45% response rates: Problem + Proof + Path = Reply',
-    category: 'sales',
-    metrics: { reactions: 3240, comments: 189, reposts: 267 },
-    postedAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'demo-insp-4',
-    author: { name: 'Jennifer Chen', headline: 'Marketing VP | Growth Expert | Speaker', avatar: undefined },
-    content: 'We tested 47 different landing pages last quarter. The winner? The one with the worst design but the most specific headline. Clarity beats creativity. Specificity beats clever.',
-    category: 'marketing',
-    metrics: { reactions: 5670, comments: 312, reposts: 198 },
-    postedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'demo-insp-5',
-    author: { name: 'David Park', headline: 'Engineering Manager | Building Great Teams', avatar: undefined },
-    content: 'The best code review I ever received was just three words: "What if null?" It taught me more about defensive programming than any book.',
-    category: 'technology',
-    metrics: { reactions: 12450, comments: 678, reposts: 534 },
-    postedAt: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
-  },
-]
-
-/**
- * Demo suggestions for swipe interface
- */
-const DEMO_SUGGESTIONS: PostSuggestion[] = DEMO_INSPIRATION_POSTS.map(post => ({
-  id: post.id,
-  content: post.content,
-  category: post.category,
-  estimatedEngagement: post.metrics.reactions,
-}))
 
 /** All available niches for content personalization */
 export const AVAILABLE_NICHES = [
@@ -410,12 +355,12 @@ export function useInspiration(initialLimit = PAGE_SIZE): UseInspirationReturn {
 
       const { data: postsData, error: fetchError, count } = await query
 
-      // If table doesn't exist or error, use demo data
+      // If table doesn't exist or error, return empty state
       if (fetchError) {
-        console.warn('Inspiration fetch warning (using demo data):', fetchError.message)
+        console.warn('Inspiration fetch warning:', fetchError.message)
         if (!append) {
-          setPosts(DEMO_INSPIRATION_POSTS)
-          setSuggestions(DEMO_SUGGESTIONS)
+          setPosts([])
+          setSuggestions([])
           setRawPosts([])
         }
         setPagination(prev => ({
@@ -428,11 +373,10 @@ export function useInspiration(initialLimit = PAGE_SIZE): UseInspirationReturn {
       }
 
       if (!postsData || postsData.length === 0) {
-        // No data - show demo posts for better UX
-        console.info('No inspiration posts found, showing demo data')
+        // No data - return empty state
         if (!append) {
-          setPosts(DEMO_INSPIRATION_POSTS)
-          setSuggestions(DEMO_SUGGESTIONS)
+          setPosts([])
+          setSuggestions([])
           setRawPosts([])
         }
         setPagination(prev => ({
@@ -498,12 +442,6 @@ export function useInspiration(initialLimit = PAGE_SIZE): UseInspirationReturn {
     } catch (err) {
       console.error('Inspiration fetch error:', err)
       setError(err instanceof Error ? err.message : 'Failed to fetch posts')
-      // Use demo data on error for better UX
-      if (!append) {
-        setPosts(DEMO_INSPIRATION_POSTS)
-        setSuggestions(DEMO_SUGGESTIONS)
-        setRawPosts([])
-      }
     } finally {
       setIsLoading(false)
       setPagination(prev => ({ ...prev, isLoadingMore: false }))

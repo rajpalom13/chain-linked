@@ -8,19 +8,15 @@
  */
 
 import * as React from "react"
-import { AppSidebar } from "@/components/app-sidebar"
+import { PageContent } from "@/components/shared/page-content"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { InspirationFeed } from "@/components/features/inspiration-feed"
 import { RemixDialog } from "@/components/features/remix-dialog"
-import { SiteHeader } from "@/components/site-header"
 import { InspirationSkeleton } from "@/components/skeletons/page-skeletons"
 import { useApiKeys } from "@/hooks/use-api-keys"
 import { useInspiration } from "@/hooks/use-inspiration"
 import { useAuthContext } from "@/lib/auth/auth-provider"
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar"
+import { usePageMeta } from "@/lib/dashboard-context"
 import {
   Dialog,
   DialogContent,
@@ -47,6 +43,26 @@ import { useDraft } from "@/lib/store/draft-context"
 import { inspirationToast } from "@/lib/toast-utils"
 import { useRouter } from "next/navigation"
 import type { InspirationPost } from "@/components/features/inspiration-feed"
+import { CrossNav, type CrossNavItem } from "@/components/shared/cross-nav"
+import { IconPencil, IconTemplate } from "@tabler/icons-react"
+
+/** Cross-navigation items for the inspiration page */
+const INSPIRATION_CROSS_NAV: CrossNavItem[] = [
+  {
+    href: "/dashboard/compose",
+    icon: IconPencil,
+    label: "Compose a Post",
+    description: "Draft and publish new LinkedIn content.",
+    color: "primary",
+  },
+  {
+    href: "/dashboard/templates",
+    icon: IconTemplate,
+    label: "Browse Templates",
+    description: "Start from proven post templates.",
+    color: "amber-500",
+  },
+]
 
 /**
  * Category badge variants mapping - matches inferred categories
@@ -371,7 +387,7 @@ function InspirationContent() {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4 md:gap-6 md:p-6 animate-in fade-in duration-500">
+    <PageContent>
       {/* Quick Create Card - Top */}
       <QuickCreateCard />
 
@@ -416,7 +432,10 @@ function InspirationContent() {
         onRemixed={handleRemixComplete}
         hasApiKey={hasApiKey}
       />
-    </div>
+
+      {/* Related Pages */}
+      <CrossNav items={INSPIRATION_CROSS_NAV} />
+    </PageContent>
   )
 }
 
@@ -426,26 +445,8 @@ function InspirationContent() {
  * swipeable content feed, and post detail view
  */
 export default function InspirationPage() {
+  usePageMeta({ title: "Inspiration" })
   const { isLoading: authLoading } = useAuthContext()
 
-  return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar variant="inset" />
-      <SidebarInset>
-        <SiteHeader title="Inspiration" />
-        <main id="main-content" className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col gap-2">
-            {authLoading ? <InspirationSkeleton /> : <InspirationContent />}
-          </div>
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
-  )
+  return authLoading ? <InspirationSkeleton /> : <InspirationContent />
 }

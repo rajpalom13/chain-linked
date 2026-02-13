@@ -50,6 +50,7 @@ async function buildContentScripts() {
     { entry: 'content-script.ts', out: 'content-script.js' },
     { entry: 'company-extractor.ts', out: 'company-extractor.js' },
     { entry: 'main-world-interceptor.ts', out: 'main-world-interceptor.js' },
+    { entry: 'webapp-bridge.ts', out: 'webapp-bridge.js' },
   ];
 
   for (const script of contentScripts) {

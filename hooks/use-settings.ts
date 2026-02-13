@@ -187,6 +187,14 @@ export function useSettings(): UseSettingsReturn {
       setLinkedinProfile(linkedinData || null)
       setLinkedinConnected(!!linkedinData)
 
+      // Update user avatar with LinkedIn profile picture if profiles table avatar is missing
+      if (linkedinData?.profile_picture_url) {
+        setUser(prev => prev ? {
+          ...prev,
+          avatarUrl: prev.avatarUrl || linkedinData.profile_picture_url || undefined,
+        } : prev)
+      }
+
       // Fetch team members - first get user's team(s)
       // Handle gracefully if table doesn't exist or RLS blocks access
       let teamMemberData: { team_id: string }[] | null = null

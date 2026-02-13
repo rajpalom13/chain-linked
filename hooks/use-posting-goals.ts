@@ -12,27 +12,6 @@ import { useAuthContext } from '@/lib/auth/auth-provider'
 import type { Tables } from '@/types/database'
 import type { Goal } from '@/components/features/goals-tracker'
 
-/**
- * Demo goals for when database is empty or unavailable
- */
-const DEMO_GOALS: Goal[] = [
-  {
-    id: 'demo-weekly-goal',
-    period: 'weekly',
-    target: 5,
-    current: 3,
-    startDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    endDate: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'demo-monthly-goal',
-    period: 'monthly',
-    target: 20,
-    current: 12,
-    startDate: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-    endDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-]
 
 /**
  * Hook return type for posting goals data
@@ -171,11 +150,9 @@ export function usePostingGoals(userId?: string): UsePostingGoalsReturn {
     // Determine target user ID
     const targetUserId = userId || user?.id
 
-    // If no user (not authenticated), show demo data
+    // If no user (not authenticated), return empty state
     if (!targetUserId) {
-      setGoals(DEMO_GOALS)
-      setCurrentStreak(7)
-      setBestStreak(14)
+      setGoals([])
       setRawGoals([])
       setIsLoading(false)
       return
@@ -192,12 +169,10 @@ export function usePostingGoals(userId?: string): UsePostingGoalsReturn {
         .eq('user_id', targetUserId)
         .order('period', { ascending: true })
 
-      // If table doesn't exist or error, use demo data
+      // If table doesn't exist or error, return empty state
       if (goalsError) {
-        console.warn('Posting goals fetch warning (using demo data):', goalsError.message)
-        setGoals(DEMO_GOALS)
-        setCurrentStreak(7)
-        setBestStreak(14)
+        console.warn('Posting goals fetch warning:', goalsError.message)
+        setGoals([])
         setRawGoals([])
         setIsLoading(false)
         return
@@ -222,11 +197,8 @@ export function usePostingGoals(userId?: string): UsePostingGoalsReturn {
       setBestStreak(streaks.best)
 
       if (!goalsData || goalsData.length === 0) {
-        // No goals - show demo data for better UX
-        console.info('No posting goals found, showing demo data')
-        setGoals(DEMO_GOALS)
-        setCurrentStreak(7)
-        setBestStreak(14)
+        // No goals - return empty state
+        setGoals([])
         setRawGoals([])
         setIsLoading(false)
         return
@@ -246,10 +218,7 @@ export function usePostingGoals(userId?: string): UsePostingGoalsReturn {
       setRawGoals(goalsData)
     } catch (err) {
       console.error('Posting goals fetch error:', err)
-      // Use demo data on error for better UX
-      setGoals(DEMO_GOALS)
-      setCurrentStreak(7)
-      setBestStreak(14)
+      setError(err instanceof Error ? err.message : 'Failed to fetch posting goals')
     } finally {
       setIsLoading(false)
     }

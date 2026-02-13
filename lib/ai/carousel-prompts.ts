@@ -15,11 +15,13 @@ export type CarouselTone =
   | 'educational'
   | 'inspirational'
   | 'storytelling'
+  | 'match-my-style'
 
 /**
  * CTA type options
  */
 export type CtaType =
+  | 'none'
   | 'follow'
   | 'comment'
   | 'share'
@@ -27,6 +29,32 @@ export type CtaType =
   | 'dm'
   | 'save'
   | 'custom'
+
+/**
+ * User context data fetched from Supabase for personalised generation
+ */
+export interface UserContext {
+  /** User's full name (first + last from linkedin_profiles) */
+  name?: string
+  /** LinkedIn headline */
+  headline?: string
+  /** Industry from profile or company_context */
+  industry?: string
+  /** Company name from company_context */
+  companyName?: string
+  /** Company value proposition */
+  valueProposition?: string
+  /** Company products/services */
+  productsAndServices?: string
+  /** Target audience description */
+  targetAudience?: string
+  /** Tone of voice from company_context */
+  toneOfVoice?: string
+  /** Recent published posts (content snippets) */
+  recentPosts?: string[]
+  /** Saved wishlist items (content snippets) */
+  savedIdeas?: string[]
+}
 
 /**
  * Request data for carousel generation
@@ -40,6 +68,10 @@ export interface CarouselGenerationInput {
   ctaType?: CtaType
   customCta?: string
   templateAnalysis: TemplateAnalysis
+  /** Personalisation context from user's profile, posts, and company */
+  userContext?: UserContext
+  /** Additional context provided by the user for generation */
+  additionalContext?: string
 }
 
 /**
@@ -79,13 +111,22 @@ const TONE_GUIDANCE: Record<CarouselTone, string> = {
 - Use specific details and examples
 - Include conflict/challenge and resolution
 - Make it personal and relatable
-- Build suspense between slides`
+- Build suspense between slides`,
+
+  'match-my-style': `
+- Deeply analyze the author's recent posts and replicate their exact writing voice
+- Mirror their sentence structures, paragraph lengths, and formatting habits
+- Use similar vocabulary, expressions, and rhetorical devices
+- Match their level of formality, humor, and storytelling approach
+- If their posts use specific patterns (e.g., numbered lists, bold hooks, emoji usage), replicate those
+- The goal is for this content to be indistinguishable from their other posts`
 }
 
 /**
  * CTA-specific text suggestions
  */
 const CTA_TEMPLATES: Record<CtaType, string> = {
+  none: '',
   follow: 'Follow for more insights on [topic]',
   comment: 'What\'s your experience with this? Comment below!',
   share: 'Share this with someone who needs to see it',
@@ -101,7 +142,7 @@ const CTA_TEMPLATES: Record<CtaType, string> = {
  * @returns Complete system prompt
  */
 export function buildCarouselSystemPrompt(input: CarouselGenerationInput): string {
-  const { templateAnalysis, tone, audience, industry } = input
+  const { templateAnalysis, tone, audience, industry, userContext } = input
 
   // Build template structure description
   const structureDesc = buildStructureDescription(templateAnalysis)
@@ -109,20 +150,23 @@ export function buildCarouselSystemPrompt(input: CarouselGenerationInput): strin
   // Build slot requirements
   const slotRequirements = buildSlotRequirements(templateAnalysis.slots)
 
-  const systemPrompt = `You are an expert LinkedIn carousel content creator with years of experience crafting viral, engaging carousel posts. Your task is to generate compelling content that perfectly fills a carousel template.
+  // Build personalisation section from user context
+  const personalisationSection = buildPersonalisationSection(userContext, tone)
+
+  const systemPrompt = `You are an expert LinkedIn carousel content creator with years of experience crafting viral, engaging carousel posts. Your task is to generate compelling, personalised content that perfectly fills a carousel template.
 
 ## Your Mission
 Create content for a ${templateAnalysis.totalSlides}-slide LinkedIn carousel that will:
 1. Hook readers immediately on slide 1 (stop the scroll!)
 2. Deliver genuine value in the middle slides
 3. End with a powerful call-to-action
-
+${personalisationSection}
 ## Writing Style
 ${TONE_GUIDANCE[tone]}
 
 ## Audience Context
-- Target audience: ${audience || 'LinkedIn professionals'}
-- Industry/niche: ${industry || 'general business and professional development'}
+- Target audience: ${audience || userContext?.targetAudience || 'LinkedIn professionals'}
+- Industry/niche: ${industry || userContext?.industry || 'general business and professional development'}
 
 ## Template Structure
 ${structureDesc}
@@ -137,6 +181,7 @@ ${slotRequirements}
 4. **No Hashtags**: Don't include hashtags in the carousel content
 5. **LinkedIn Style**: Write for LinkedIn's professional audience
 6. **Swipe-Worthy**: Create micro-cliffhangers between slides
+7. **Use the REAL author name**: If any slot asks for a name, handle, or author, use the person's REAL name from the Author Profile section. NEVER invent a name or alias.
 
 ## Output Format
 Return ONLY a valid JSON object with slot IDs as keys and generated content as values.
@@ -150,6 +195,65 @@ Example format:
 Do not include any explanation or markdown formatting - just the JSON object.`
 
   return systemPrompt
+}
+
+/**
+ * Builds a personalisation section from user context data.
+ * Gives the AI real author info, writing-style cues from past posts,
+ * and saved content ideas so it never invents placeholder names.
+ * @param ctx - User context (may be undefined if no data is available)
+ * @returns Markdown section for the system prompt, or empty string
+ */
+function buildPersonalisationSection(ctx?: UserContext, tone?: CarouselTone): string {
+  if (!ctx) return ''
+
+  const lines: string[] = []
+
+  // Author profile
+  if (ctx.name || ctx.headline || ctx.companyName) {
+    lines.push('## Author Profile')
+    if (ctx.name) lines.push(`- Name: ${ctx.name}`)
+    if (ctx.headline) lines.push(`- Headline: ${ctx.headline}`)
+    if (ctx.companyName) lines.push(`- Company: ${ctx.companyName}`)
+    if (ctx.valueProposition) lines.push(`- Value proposition: ${ctx.valueProposition}`)
+    if (ctx.productsAndServices) lines.push(`- Products/services: ${ctx.productsAndServices}`)
+    lines.push('')
+  }
+
+  // Tone of voice
+  if (ctx.toneOfVoice) {
+    lines.push(`## Brand Voice`)
+    lines.push(ctx.toneOfVoice)
+    lines.push('')
+  }
+
+  // Recent posts for style reference
+  if (ctx.recentPosts && ctx.recentPosts.length > 0) {
+    lines.push('## Recent Posts (for style reference)')
+    if (tone === 'match-my-style') {
+      lines.push('CRITICAL: You MUST deeply analyze these posts and replicate the author\'s exact writing style, voice, vocabulary, and formatting patterns. The generated content should be indistinguishable from these posts.')
+    } else {
+      lines.push('Match the writing style and voice of these recent posts by the same author:')
+    }
+    ctx.recentPosts.forEach((post, i) => {
+      lines.push(`${i + 1}. "${post}"`)
+    })
+    lines.push('')
+  }
+
+  // Saved ideas for inspiration
+  if (ctx.savedIdeas && ctx.savedIdeas.length > 0) {
+    lines.push('## Saved Ideas (content the author found interesting)')
+    if (tone === 'match-my-style') {
+      lines.push('The author saves content they resonate with. Use these as cues for their content preferences and interests:')
+    }
+    ctx.savedIdeas.forEach((idea, i) => {
+      lines.push(`${i + 1}. "${idea}"`)
+    })
+    lines.push('')
+  }
+
+  return lines.length > 0 ? '\n' + lines.join('\n') : ''
 }
 
 /**
@@ -198,7 +302,7 @@ function buildSlotRequirements(slots: TemplateSlot[]): string {
  * @returns Complete user prompt
  */
 export function buildCarouselUserPrompt(input: CarouselGenerationInput): string {
-  const { topic, keyPoints, ctaType, customCta, templateAnalysis } = input
+  const { topic, keyPoints, ctaType, customCta, templateAnalysis, additionalContext } = input
 
   // Format key points
   const keyPointsText = keyPoints && keyPoints.length > 0
@@ -207,7 +311,9 @@ export function buildCarouselUserPrompt(input: CarouselGenerationInput): string 
 
   // Format CTA instruction
   let ctaInstruction = ''
-  if (ctaType) {
+  if (ctaType === 'none') {
+    ctaInstruction = 'Do NOT include any call-to-action on the last slide. End with a strong closing statement instead.'
+  } else if (ctaType) {
     if (ctaType === 'custom' && customCta) {
       ctaInstruction = `Use this CTA approach: "${customCta}"`
     } else {
@@ -237,7 +343,7 @@ ${ctaInstruction}
 
 **Slots to Fill** (${templateAnalysis.totalSlots} total):
 ${JSON.stringify(slotList, null, 2)}
-
+${additionalContext ? `\n**Additional Context**:\n${additionalContext}\n` : ''}
 Remember:
 - Slide 1 must STOP THE SCROLL - make it impossible to ignore
 - Each middle slide should deliver on the hook's promise

@@ -17,10 +17,10 @@ import {
   IconCheck,
   IconFilter,
   IconLoader2,
+  IconPencil,
+  IconSwipe,
 } from "@tabler/icons-react"
 
-import { AppSidebar } from "@/components/app-sidebar"
-import { SiteHeader } from "@/components/site-header"
 import { SwipeWishlist } from "@/components/features/swipe-wishlist"
 import { ScheduleModal } from "@/components/features/schedule-modal"
 import { WishlistCollectionSidebar } from "@/components/features/wishlist-collection-sidebar"
@@ -29,10 +29,7 @@ import { useWishlistCollections } from "@/hooks/use-wishlist-collections"
 import { useDraft } from "@/lib/store/draft-context"
 import { useAuthContext } from "@/lib/auth/auth-provider"
 import { swipeToast } from "@/lib/toast-utils"
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar"
+import { usePageMeta } from "@/lib/dashboard-context"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -41,6 +38,34 @@ import {
   pageVariants,
   fadeSlideUpVariants,
 } from "@/lib/animations"
+import { CrossNav, type CrossNavItem } from "@/components/shared/cross-nav"
+
+/**
+ * Related page navigation for the bottom of the Wishlist page
+ */
+const wishlistCrossNav: CrossNavItem[] = [
+  {
+    href: "/dashboard/swipe",
+    icon: IconSwipe,
+    label: "Back to swiping",
+    description: "Find more AI-generated post suggestions to save.",
+    color: "primary",
+  },
+  {
+    href: "/dashboard/compose",
+    icon: IconPencil,
+    label: "Compose a post",
+    description: "Write a new LinkedIn post from scratch.",
+    color: "blue-500",
+  },
+  {
+    href: "/dashboard/schedule",
+    icon: IconCalendar,
+    label: "View schedule",
+    description: "See your upcoming scheduled posts.",
+    color: "emerald-500",
+  },
+]
 import type { WishlistItem } from "@/types/database"
 
 /**
@@ -298,6 +323,9 @@ function WishlistContent() {
           />
         </motion.div>
 
+        {/* Related Pages */}
+        <CrossNav items={wishlistCrossNav} />
+
         {/* Schedule Modal */}
         <ScheduleModal
           isOpen={scheduleModalOpen}
@@ -321,26 +349,8 @@ function WishlistContent() {
  * @returns Wishlist page with sidebar layout
  */
 export default function WishlistPage() {
+  usePageMeta({ title: "Wishlist" })
   const { isLoading: authLoading } = useAuthContext()
 
-  return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar variant="inset" />
-      <SidebarInset>
-        <SiteHeader title="Wishlist" />
-        <main id="main-content" className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col">
-            {authLoading ? <WishlistSkeleton /> : <WishlistContent />}
-          </div>
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
-  )
+  return authLoading ? <WishlistSkeleton /> : <WishlistContent />
 }

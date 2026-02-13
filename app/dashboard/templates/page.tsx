@@ -6,19 +6,34 @@
  * @module app/dashboard/templates/page
  */
 
-import { AppSidebar } from "@/components/app-sidebar"
+import { PageContent } from "@/components/shared/page-content"
 import { TemplateLibrary } from "@/components/features/template-library"
-import { SiteHeader } from "@/components/site-header"
 import { TemplatesSkeleton } from "@/components/skeletons/page-skeletons"
 import { useTemplates } from "@/hooks/use-templates"
 import { useAuthContext } from "@/lib/auth/auth-provider"
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar"
+import { usePageMeta } from "@/lib/dashboard-context"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { IconAlertCircle, IconRefresh } from "@tabler/icons-react"
+import { IconAlertCircle, IconRefresh, IconPencil, IconBulb } from "@tabler/icons-react"
+import { CrossNav, type CrossNavItem } from "@/components/shared/cross-nav"
+
+/** Cross-navigation items for the templates page */
+const TEMPLATES_CROSS_NAV: CrossNavItem[] = [
+  {
+    href: "/dashboard/compose",
+    icon: IconPencil,
+    label: "Compose a Post",
+    description: "Draft and publish new LinkedIn content.",
+    color: "primary",
+  },
+  {
+    href: "/dashboard/inspiration",
+    icon: IconBulb,
+    label: "Get Inspiration",
+    description: "Browse viral posts for content ideas.",
+    color: "emerald-500",
+  },
+]
 
 /**
  * Templates page content component with real data
@@ -61,7 +76,7 @@ function TemplatesContent() {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4 md:gap-6 md:p-6 animate-in fade-in duration-500">
+    <PageContent>
       <TemplateLibrary
         templates={templates}
         onCreateTemplate={createTemplate}
@@ -69,7 +84,10 @@ function TemplatesContent() {
         onDeleteTemplate={deleteTemplate}
         onUseTemplate={incrementUsage}
       />
-    </div>
+
+      {/* Related Pages */}
+      <CrossNav items={TEMPLATES_CROSS_NAV} />
+    </PageContent>
   )
 }
 
@@ -78,26 +96,8 @@ function TemplatesContent() {
  * @returns Templates page with browsable and searchable template library
  */
 export default function TemplatesPage() {
+  usePageMeta({ title: "Templates" })
   const { isLoading: authLoading } = useAuthContext()
 
-  return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar variant="inset" />
-      <SidebarInset>
-        <SiteHeader title="Templates" />
-        <main id="main-content" className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col gap-2">
-            {authLoading ? <TemplatesSkeleton /> : <TemplatesContent />}
-          </div>
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
-  )
+  return authLoading ? <TemplatesSkeleton /> : <TemplatesContent />
 }

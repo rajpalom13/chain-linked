@@ -1,12 +1,13 @@
 /**
  * Minimal Template
  * Clean, elegant design with lots of whitespace and refined typography
+ * Enhanced with subtle geometric accents that maintain the minimalist aesthetic
  */
 
 import type { CanvasTemplate, CanvasSlide } from '@/types/canvas-editor';
 
 /**
- * Minimal template slides with elegant, simple styling
+ * Minimal template slides with elegant, simple styling and geometric accents
  */
 const defaultSlides: CanvasSlide[] = [
   // Slide 1: Title Slide
@@ -14,6 +15,64 @@ const defaultSlides: CanvasSlide[] = [
     id: 'minimal-slide-1',
     backgroundColor: '#fafaf9',
     elements: [
+      // Subtle corner accent (top-right) - thin L-shape formed by two rects
+      {
+        id: 'minimal-1-corner-h',
+        type: 'shape',
+        x: 920,
+        y: 60,
+        width: 100,
+        height: 1,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#d6d3d1',
+      },
+      {
+        id: 'minimal-1-corner-v',
+        type: 'shape',
+        x: 1020,
+        y: 60,
+        width: 1,
+        height: 100,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#d6d3d1',
+      },
+      // Bottom-left corner accent
+      {
+        id: 'minimal-1-corner2-h',
+        type: 'shape',
+        x: 60,
+        y: 1020,
+        width: 100,
+        height: 1,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#d6d3d1',
+      },
+      {
+        id: 'minimal-1-corner2-v',
+        type: 'shape',
+        x: 60,
+        y: 920,
+        width: 1,
+        height: 100,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#d6d3d1',
+      },
+      // Small circle as period/accent
+      {
+        id: 'minimal-1-dot',
+        type: 'shape',
+        x: 534,
+        y: 320,
+        width: 12,
+        height: 12,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#a8a29e',
+      },
       {
         id: 'minimal-1-line',
         type: 'shape',
@@ -76,6 +135,30 @@ const defaultSlides: CanvasSlide[] = [
     id: 'minimal-slide-2',
     backgroundColor: '#1c1917',
     elements: [
+      // Subtle large circle in background (very low opacity)
+      {
+        id: 'minimal-2-deco-circle',
+        type: 'shape',
+        x: 600,
+        y: -100,
+        width: 700,
+        height: 700,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#29231f',
+      },
+      // Thin vertical accent line (left)
+      {
+        id: 'minimal-2-deco-line',
+        type: 'shape',
+        x: 80,
+        y: 280,
+        width: 1,
+        height: 400,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#44403c',
+      },
       {
         id: 'minimal-2-quote',
         type: 'text',
@@ -115,12 +198,24 @@ const defaultSlides: CanvasSlide[] = [
         width: 840,
         height: 40,
         rotation: 0,
-        text: '— Antoine de Saint-Exupéry',
+        text: '\u2014 Antoine de Saint-Exup\u00e9ry',
         fontSize: 20,
         fontFamily: 'Inter',
         fontWeight: 'normal',
         fill: '#78716c',
         align: 'left',
+      },
+      // Small accent dot
+      {
+        id: 'minimal-2-deco-dot',
+        type: 'shape',
+        x: 120,
+        y: 720,
+        width: 6,
+        height: 6,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#57534e',
       },
     ],
   },
@@ -129,10 +224,34 @@ const defaultSlides: CanvasSlide[] = [
     id: 'minimal-slide-3',
     backgroundColor: '#fafaf9',
     elements: [
+      // Subtle large circle (right side, barely visible)
+      {
+        id: 'minimal-3-deco-circle',
+        type: 'shape',
+        x: 700,
+        y: 200,
+        width: 500,
+        height: 500,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#f5f5f4',
+      },
+      // Small bullet circle
+      {
+        id: 'minimal-3-bullet',
+        type: 'shape',
+        x: 80,
+        y: 105,
+        width: 8,
+        height: 8,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#1c1917',
+      },
       {
         id: 'minimal-3-number',
         type: 'text',
-        x: 80,
+        x: 100,
         y: 80,
         width: 100,
         height: 80,
@@ -188,6 +307,29 @@ const defaultSlides: CanvasSlide[] = [
         align: 'left',
         lineHeight: 1.6,
       },
+      // Bottom accent - thin cross pattern
+      {
+        id: 'minimal-3-deco-h',
+        type: 'shape',
+        x: 950,
+        y: 950,
+        width: 30,
+        height: 1,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#d6d3d1',
+      },
+      {
+        id: 'minimal-3-deco-v',
+        type: 'shape',
+        x: 965,
+        y: 935,
+        width: 1,
+        height: 30,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#d6d3d1',
+      },
     ],
   },
   // Slide 4: Point 2
@@ -195,10 +337,34 @@ const defaultSlides: CanvasSlide[] = [
     id: 'minimal-slide-4',
     backgroundColor: '#fafaf9',
     elements: [
+      // Thin horizontal rule (decorative)
+      {
+        id: 'minimal-4-deco-rule',
+        type: 'shape',
+        x: 80,
+        y: 800,
+        width: 920,
+        height: 1,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#e7e5e4',
+      },
+      // Small bullet circle
+      {
+        id: 'minimal-4-bullet',
+        type: 'shape',
+        x: 80,
+        y: 105,
+        width: 8,
+        height: 8,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#1c1917',
+      },
       {
         id: 'minimal-4-number',
         type: 'text',
-        x: 80,
+        x: 100,
         y: 80,
         width: 100,
         height: 80,
@@ -254,6 +420,31 @@ const defaultSlides: CanvasSlide[] = [
         align: 'left',
         lineHeight: 1.6,
       },
+      // Decorative small squares
+      {
+        id: 'minimal-4-deco-sq1',
+        type: 'shape',
+        x: 940,
+        y: 80,
+        width: 12,
+        height: 12,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#d6d3d1',
+        cornerRadius: 2,
+      },
+      {
+        id: 'minimal-4-deco-sq2',
+        type: 'shape',
+        x: 960,
+        y: 80,
+        width: 12,
+        height: 12,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#e7e5e4',
+        cornerRadius: 2,
+      },
     ],
   },
   // Slide 5: Closing
@@ -261,6 +452,41 @@ const defaultSlides: CanvasSlide[] = [
     id: 'minimal-slide-5',
     backgroundColor: '#1c1917',
     elements: [
+      // Subtle large circle (center, barely visible)
+      {
+        id: 'minimal-5-deco-circle',
+        type: 'shape',
+        x: 290,
+        y: 290,
+        width: 500,
+        height: 500,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#29231f',
+      },
+      // Corner accents (matching slide 1 but inverted)
+      {
+        id: 'minimal-5-corner-h',
+        type: 'shape',
+        x: 60,
+        y: 60,
+        width: 100,
+        height: 1,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#44403c',
+      },
+      {
+        id: 'minimal-5-corner-v',
+        type: 'shape',
+        x: 60,
+        y: 60,
+        width: 1,
+        height: 100,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#44403c',
+      },
       {
         id: 'minimal-5-line',
         type: 'shape',
@@ -315,6 +541,29 @@ const defaultSlides: CanvasSlide[] = [
         fill: '#57534e',
         cornerRadius: 1,
       },
+      // Bottom-right corner accent
+      {
+        id: 'minimal-5-corner2-h',
+        type: 'shape',
+        x: 920,
+        y: 1020,
+        width: 100,
+        height: 1,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#44403c',
+      },
+      {
+        id: 'minimal-5-corner2-v',
+        type: 'shape',
+        x: 1020,
+        y: 920,
+        width: 1,
+        height: 100,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#44403c',
+      },
     ],
   },
 ];
@@ -329,5 +578,6 @@ export const minimalTemplate: CanvasTemplate = {
   category: 'minimal',
   brandColors: ['#1c1917', '#fafaf9', '#78716c', '#a8a29e', '#57534e'],
   fonts: ['Inter'],
+  defaultTone: 'professional',
   defaultSlides,
 };

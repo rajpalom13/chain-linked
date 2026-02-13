@@ -10,19 +10,22 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import { motion } from "framer-motion"
 import { useInView } from "react-intersection-observer"
 import {
   IconAdjustmentsHorizontal,
   IconAlertCircle,
+  IconBulb,
   IconInbox,
   IconLoader2,
+  IconPencil,
   IconRefresh,
   IconSearch,
+  IconSwipe,
   IconTelescope,
 } from "@tabler/icons-react"
 
-import { AppSidebar } from "@/components/app-sidebar"
-import { SiteHeader } from "@/components/site-header"
+import { PageContent } from "@/components/shared/page-content"
 import { ArticleDetailDialog } from "@/components/features/article-detail-dialog"
 import { DiscoverNewsCard } from "@/components/features/discover-news-card"
 import { DiscoverTrendingSidebar } from "@/components/features/discover-trending-sidebar"
@@ -35,7 +38,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { usePageMeta } from "@/lib/dashboard-context"
 import {
   useDiscoverNews,
   type NewsArticle,
@@ -44,6 +47,34 @@ import { useApiKeys } from "@/hooks/use-api-keys"
 import { useAuthContext } from "@/lib/auth/auth-provider"
 import { useDraft } from "@/lib/store/draft-context"
 import { cn } from "@/lib/utils"
+import { CrossNav, type CrossNavItem } from "@/components/shared/cross-nav"
+
+/**
+ * Related page navigation for the bottom of the Discover page
+ */
+const discoverCrossNav: CrossNavItem[] = [
+  {
+    href: "/dashboard/compose",
+    icon: IconPencil,
+    label: "Compose a post",
+    description: "Turn the news into engaging LinkedIn content.",
+    color: "primary",
+  },
+  {
+    href: "/dashboard/inspiration",
+    icon: IconBulb,
+    label: "Get inspiration",
+    description: "Browse curated viral posts for content ideas.",
+    color: "emerald-500",
+  },
+  {
+    href: "/dashboard/swipe",
+    icon: IconSwipe,
+    label: "Swipe suggestions",
+    description: "Review AI-generated post ideas in a swipe interface.",
+    color: "blue-500",
+  },
+]
 
 /**
  * Pill-style topic filter button with optional article count
@@ -92,25 +123,46 @@ function TopicPill({
  */
 function EmptyState({ topic, isSearch }: { topic: string; isSearch?: boolean }) {
   return (
-    <Card className="border-dashed">
-      <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-        <div className="rounded-full bg-muted p-4 mb-4">
-          {isSearch ? (
-            <IconSearch className="size-8 text-muted-foreground/50" />
-          ) : (
-            <IconInbox className="size-8 text-muted-foreground/50" />
-          )}
-        </div>
-        <h3 className="font-semibold text-lg mb-1">
-          {isSearch ? "No matching articles found" : "No news articles yet for this topic"}
-        </h3>
-        <p className="text-muted-foreground text-sm max-w-md">
-          {isSearch
-            ? "Try adjusting your search terms or browse a different topic."
-            : `We're still gathering news about "${topic}". Check back soon or try another topic.`}
-        </p>
-      </CardContent>
-    </Card>
+    <motion.div
+      initial={{ opacity: 0, scale: 0.97 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+    >
+      <Card className="border-dashed">
+        <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+          <motion.div
+            className="rounded-full bg-gradient-to-br from-primary/15 to-secondary/15 p-5 mb-4"
+            initial={{ scale: 0, rotate: -15 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ delay: 0.1, type: "spring", stiffness: 300, damping: 18 }}
+          >
+            {isSearch ? (
+              <IconSearch className="size-9 text-primary/70" />
+            ) : (
+              <IconInbox className="size-9 text-primary/70" />
+            )}
+          </motion.div>
+          <motion.h3
+            className="font-semibold text-lg mb-1"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.22, duration: 0.4 }}
+          >
+            {isSearch ? "No matching articles found" : "No news articles yet for this topic"}
+          </motion.h3>
+          <motion.p
+            className="text-muted-foreground text-sm max-w-md"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.32, duration: 0.4 }}
+          >
+            {isSearch
+              ? "Try adjusting your search terms or browse a different topic."
+              : `We're still gathering news about "${topic}". Check back soon or try another topic.`}
+          </motion.p>
+        </CardContent>
+      </Card>
+    </motion.div>
   )
 }
 
@@ -351,7 +403,7 @@ function DiscoverContent() {
   }, [articleToRemix])
 
   return (
-    <div className="flex flex-col gap-6 p-4 md:p-6 animate-in fade-in duration-500">
+    <PageContent>
       {/* Header Section */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -503,6 +555,9 @@ function DiscoverContent() {
         </>
       )}
 
+      {/* Related Pages */}
+      <CrossNav items={discoverCrossNav} />
+
       {/* Topic Selection Overlay for first-time users */}
       <TopicSelectionOverlay
         isOpen={showTopicSelection}
@@ -546,7 +601,7 @@ function DiscoverContent() {
         onRemixed={handleRemixComplete}
         hasApiKey={hasApiKey}
       />
-    </div>
+    </PageContent>
   )
 }
 
@@ -593,29 +648,11 @@ function DiscoverSkeleton() {
  * @description Main page for discovering trending industry news organized by topic,
  * featuring a Perplexity-powered layout with featured top stories, compact latest feed,
  * trending sidebar, and first-time topic selection overlay
- * @returns Discover page wrapped in SidebarProvider with AppSidebar and SiteHeader
+ * @returns Discover page content with news feed and topic management
  */
 export default function DiscoverPage() {
+  usePageMeta({ title: "Discover" })
   const { isLoading: authLoading } = useAuthContext()
 
-  return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar variant="inset" />
-      <SidebarInset>
-        <SiteHeader title="Discover" />
-        <main id="main-content" className="flex flex-1 flex-col overflow-hidden">
-          <div className="@container/main flex flex-1 flex-col gap-2 overflow-y-auto">
-            {authLoading ? <DiscoverSkeleton /> : <DiscoverContent />}
-          </div>
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
-  )
+  return authLoading ? <DiscoverSkeleton /> : <DiscoverContent />
 }

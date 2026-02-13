@@ -102,126 +102,6 @@ export interface PostDetailModalProps {
 }
 
 /**
- * Sample data for development and testing purposes.
- * Contains a realistic inspiration post with full details.
- */
-export const sampleInspirationPost: InspirationPost = {
-  id: "post-detail-1",
-  author: {
-    name: "Alex Hormozi",
-    headline: "CEO at Acquisition.com | Helping business owners scale",
-    avatarUrl: undefined,
-    followerCount: 2340000,
-  },
-  content: `The best sales people don't sell. They diagnose.
-
-They ask questions until the prospect sells themselves.
-
-Stop pitching. Start asking.
-
-Here's the framework I've used to close $100M+ in deals:
-
-1. Identify the pain
-Ask: "What's the biggest challenge you're facing right now?"
-
-2. Quantify the impact
-Ask: "How much is this costing you monthly?"
-
-3. Explore failed solutions
-Ask: "What have you tried before?"
-
-4. Paint the future
-Ask: "What would life look like if this was solved?"
-
-5. Create urgency
-Ask: "What happens if nothing changes?"
-
-The prospect should be doing 80% of the talking.
-
-Your job isn't to convince. It's to understand.
-
-When you truly understand their problem better than they do, the sale happens naturally.
-
-Agree or disagree?`,
-  publishedAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-  category: "Sales & Business Development",
-  tags: ["sales", "business", "growth", "entrepreneurship", "closing"],
-  metrics: {
-    likes: 15420,
-    comments: 892,
-    shares: 2341,
-    impressions: 458000,
-  },
-}
-
-/**
- * Additional sample posts for testing different states.
- */
-export const sampleInspirationPosts: InspirationPost[] = [
-  sampleInspirationPost,
-  {
-    id: "post-detail-2",
-    author: {
-      name: "Sahil Bloom",
-      headline: "Writer & Entrepreneur | 1M+ Newsletter Subscribers",
-      avatarUrl: undefined,
-      followerCount: 1850000,
-    },
-    content: `I failed 17 job interviews before landing my first role.
-
-Each rejection felt like the end.
-
-But here's what I learned: Rejection is redirection.
-
-That 18th interview led me to the career I never knew I needed.
-
-Every "no" was preparing me for the right "yes."
-
-If you're going through rejection right now, keep going.
-
-The breakthrough is closer than you think.`,
-    publishedAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-    category: "Personal Stories",
-    tags: ["career", "motivation", "growth"],
-    metrics: {
-      likes: 28930,
-      comments: 1456,
-      shares: 3892,
-      impressions: 720000,
-    },
-  },
-  {
-    id: "post-detail-3",
-    author: {
-      name: "Lenny Rachitsky",
-      headline: "Author of Lenny's Newsletter | Ex-Airbnb PM",
-      avatarUrl: undefined,
-      followerCount: 890000,
-    },
-    content: `Hot take: Most product roadmaps are fiction.
-
-The best PMs I know:
-
-1. Plan in 2-week cycles
-2. Stay close to customers
-3. Ship fast, learn faster
-4. Cut scope ruthlessly
-
-Predictability is a myth. Adaptability is reality.
-
-Your roadmap should be a compass, not a contract.`,
-    publishedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    category: "Thought Leadership",
-    tags: ["product", "management", "strategy"],
-    metrics: {
-      likes: 8745,
-      comments: 567,
-      shares: 1234,
-    },
-  },
-]
-
-/**
  * Formats a number into a compact, human-readable string.
  * @param num - The number to format
  * @returns Formatted string (e.g., "1.2K", "3.4M")
@@ -355,25 +235,12 @@ function MetricItem({
  * ```tsx
  * // With loading states
  * <PostDetailModal
- *   post={sampleInspirationPost}
+ *   post={inspirationPost}
  *   isOpen={true}
  *   onClose={handleClose}
  *   onRemix={handleRemix}
  *   isRemixing={isRemixLoading}
  *   isSaving={isSaveLoading}
- * />
- * ```
- *
- * @example
- * ```tsx
- * // Using sample data for testing
- * import { PostDetailModal, sampleInspirationPost } from "@/components/features/post-detail-modal"
- *
- * <PostDetailModal
- *   post={sampleInspirationPost}
- *   isOpen={true}
- *   onClose={() => {}}
- *   onRemix={(id) => console.log(id)}
  * />
  * ```
  */

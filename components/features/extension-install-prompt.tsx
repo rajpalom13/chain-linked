@@ -253,6 +253,76 @@ export function ExtensionInstallPrompt({
  * checkAndShowPrompt()
  * ```
  */
+/**
+ * Non-intrusive banner prompting users to install the Chrome extension.
+ * Dismissible horizontal bar shown at the top of dashboard pages.
+ *
+ * @example
+ * ```tsx
+ * <ExtensionInstallBanner
+ *   visible={extensionInstalled === false && !isDismissed}
+ *   onDismiss={() => dismissPrompt(false)}
+ * />
+ * ```
+ */
+export function ExtensionInstallBanner({
+  visible,
+  onDismiss,
+}: {
+  visible: boolean
+  onDismiss?: () => void
+}) {
+  if (!visible) return null
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0, height: 0 }}
+        animate={{ opacity: 1, height: 'auto' }}
+        exit={{ opacity: 0, height: 0 }}
+        className="mx-4 mt-4 lg:mx-6"
+      >
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-primary/10 p-1.5">
+              <IconBrandChrome className="size-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">Get the Chrome Extension</p>
+              <p className="text-xs text-muted-foreground">
+                Auto-capture analytics and manage posts directly from LinkedIn.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              onClick={() =>
+                window.open(CHROME_STORE_URL, '_blank', 'noopener,noreferrer')
+              }
+              className="gap-1.5"
+            >
+              <IconDownload className="size-3.5" />
+              Install
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => {
+                dismissPrompt(false)
+                onDismiss?.()
+              }}
+              aria-label="Dismiss"
+            >
+              <IconX className="size-4" />
+            </Button>
+          </div>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  )
+}
+
 export function useExtensionPrompt(options?: {
   /** Delay before showing prompt (ms) */
   delay?: number

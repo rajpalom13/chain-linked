@@ -32,7 +32,7 @@ import {
   CREATOR_ONLY_ENDPOINTS,
 } from './linkedin-api';
 import { ALARM_NAMES } from './alarms';
-import { saveWithSync, queueForSync, processPendingChanges } from './supabase-sync-bridge';
+import { saveWithSync, queueForSync, processPendingChanges, reconcilePosts } from './supabase-sync-bridge';
 
 // ---------------------------------------------------------------------------
 // Storage Keys & Constants
@@ -1272,11 +1272,21 @@ async function processMyPostsData(data: unknown): Promise<void> {
     for (const post of updatedPosts) {
       await queueForSync(STORAGE_KEYS.MY_POSTS, post as Record<string, unknown>);
     }
-    // Trigger sync for all queued posts
+    // Trigger sync for all queued posts, then reconcile stale rows
     setTimeout(async () => {
       try {
         const result = await processPendingChanges();
         console.log(`${LOG_PREFIX} Supabase sync: ${result.success} success, ${result.failed} failed`);
+
+        // Reconcile: remove posts from Supabase that are no longer on LinkedIn.
+        // The mergedPosts array contains every post we know about — anything
+        // in Supabase but NOT in this set was deleted or removed on LinkedIn.
+        const currentUrns = new Set<string>();
+        for (const post of mergedPosts) {
+          const urn = post.activity_urn as string;
+          if (urn) currentUrns.add(urn);
+        }
+        await reconcilePosts('my_posts', currentUrns);
       } catch (err) {
         console.error(`${LOG_PREFIX} Supabase sync error:`, err);
       }
@@ -1575,6 +1585,244 @@ async function processNetworkInfoData(data: unknown): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /**
+ * Extract media URLs from a LinkedIn post content object.
+ *
+ * Walks the content structure to find image, video, article, and document
+ * URLs from various LinkedIn API response formats (REST and GraphQL).
+ *
+ * @param contentObj - The resolved content object from the post.
+ * @param mediaType - The detected media type (image, video, article, document).
+ * @param urnMap - The URN lookup map from the included array.
+ * @returns Array of extracted media URLs, or empty array if none found.
+ */
+export function extractMediaUrls(
+  contentObj: Record<string, unknown> | undefined,
+  mediaType: string,
+  urnMap: Map<string, Record<string, unknown>>
+): string[] {
+  const urls: string[] = [];
+  if (!contentObj || mediaType === 'text') return urls;
+
+  try {
+    /**
+     * Construct a full image URL from a vectorImage object.
+     * LinkedIn stores images as rootUrl + artifact path segment.
+     * Picks the largest artifact for best quality.
+     */
+    const extractVectorImageUrl = (vectorImage: Record<string, unknown>): string | null => {
+      const rootUrl = vectorImage.rootUrl as string | undefined;
+      const artifacts = vectorImage.artifacts as Array<Record<string, unknown>> | undefined;
+      if (!rootUrl) return null;
+
+      if (artifacts && artifacts.length > 0) {
+        // Sort by width descending, pick largest
+        const sorted = [...artifacts].sort((a, b) =>
+          (Number(b.width || 0)) - (Number(a.width || 0))
+        );
+        const pathSegment = sorted[0].fileIdentifyingUrlPathSegment as string | undefined;
+        if (pathSegment) {
+          return `${rootUrl}${pathSegment}`;
+        }
+      }
+      // If no artifacts, rootUrl alone might still work
+      return rootUrl;
+    };
+
+    /**
+     * Recursively search an object for vectorImage structures.
+     * LinkedIn nests images in various places depending on API version.
+     */
+    const findVectorImages = (obj: unknown, depth = 0): void => {
+      if (depth > 6 || !obj || typeof obj !== 'object') return;
+      const record = obj as Record<string, unknown>;
+
+      // Direct vectorImage
+      if (record.vectorImage && typeof record.vectorImage === 'object') {
+        const url = extractVectorImageUrl(record.vectorImage as Record<string, unknown>);
+        if (url && !urls.includes(url)) {
+          console.log('[MediaExtract] Found vectorImage URL:', url.substring(0, 80) + '...');
+          urls.push(url);
+        }
+      }
+
+      // Resolve vectorImage URN reference
+      if (typeof record['*vectorImage'] === 'string') {
+        const resolved = urnMap.get(record['*vectorImage'] as string);
+        if (resolved) {
+          const url = extractVectorImageUrl(resolved);
+          if (url && !urls.includes(url)) {
+            console.log('[MediaExtract] Found *vectorImage ref URL:', url.substring(0, 80) + '...');
+            urls.push(url);
+          }
+        }
+      }
+
+      // Recurse into arrays and objects
+      if (Array.isArray(obj)) {
+        for (const item of obj) {
+          findVectorImages(item, depth + 1);
+        }
+      } else {
+        for (const value of Object.values(record)) {
+          if (value && typeof value === 'object') {
+            findVectorImages(value, depth + 1);
+          }
+        }
+      }
+    };
+
+    // ── Image extraction ──
+    if (mediaType === 'image') {
+      // GraphQL: imageComponent.images[].attributes[].vectorImage
+      // REST: images[] on the content object itself
+      findVectorImages(contentObj);
+
+      // Also check for direct image URL strings
+      const imageUrl = contentObj.url as string | undefined;
+      if (imageUrl && imageUrl.startsWith('http') && !urls.includes(imageUrl)) {
+        urls.push(imageUrl);
+      }
+    }
+
+    // ── Video extraction ──
+    if (mediaType === 'video') {
+      // GraphQL: videoComponent.videoPlayMetadata.progressiveStreams[]
+      // REST: videoPlayMetadata on content or media object
+      const walkForVideo = (obj: unknown, depth = 0): void => {
+        if (depth > 6 || !obj || typeof obj !== 'object') return;
+        const record = obj as Record<string, unknown>;
+
+        // Progressive streams (main video source)
+        if (Array.isArray(record.progressiveStreams)) {
+          const streams = record.progressiveStreams as Array<Record<string, unknown>>;
+          // Sort by bitrate or resolution to get best quality
+          const sorted = [...streams].sort((a, b) => {
+            const aRate = Number((a.bitRate as Record<string, unknown>)?.value || a.bitRate || 0);
+            const bRate = Number((b.bitRate as Record<string, unknown>)?.value || b.bitRate || 0);
+            return bRate - aRate;
+          });
+          for (const stream of sorted.slice(0, 1)) {
+            // Streaming locations
+            if (Array.isArray(stream.streamingLocations)) {
+              for (const loc of stream.streamingLocations as Array<Record<string, unknown>>) {
+                const url = loc.url as string | undefined;
+                if (url && !urls.includes(url)) {
+                  console.log('[MediaExtract] Found video stream URL:', url.substring(0, 80) + '...');
+                  urls.push(url);
+                }
+              }
+            }
+            // Direct URL on stream
+            const streamUrl = stream.url as string | undefined;
+            if (streamUrl && !urls.includes(streamUrl)) {
+              urls.push(streamUrl);
+            }
+          }
+        }
+
+        // Also grab video thumbnail
+        findVectorImages(record);
+
+        // Recurse
+        if (Array.isArray(obj)) {
+          for (const item of obj) walkForVideo(item, depth + 1);
+        } else {
+          for (const value of Object.values(record)) {
+            if (value && typeof value === 'object') walkForVideo(value, depth + 1);
+          }
+        }
+      };
+
+      walkForVideo(contentObj);
+
+      // Resolve media URN reference for video
+      const mediaRef = (contentObj.media || contentObj['*media']) as string | undefined;
+      if (typeof mediaRef === 'string' && mediaRef.startsWith('urn:')) {
+        const resolved = urnMap.get(mediaRef);
+        if (resolved) walkForVideo(resolved);
+      }
+    }
+
+    // ── Article extraction ──
+    if (mediaType === 'article') {
+      // GraphQL: articleComponent.navigationContext.actionTarget
+      // REST: navigationContext.actionTarget
+      const walkForArticle = (obj: unknown, depth = 0): void => {
+        if (depth > 4 || !obj || typeof obj !== 'object') return;
+        const record = obj as Record<string, unknown>;
+
+        if (record.navigationContext && typeof record.navigationContext === 'object') {
+          const nav = record.navigationContext as Record<string, unknown>;
+          const target = nav.actionTarget as string | undefined;
+          if (target && target.startsWith('http') && !urls.includes(target)) {
+            console.log('[MediaExtract] Found article URL:', target.substring(0, 80) + '...');
+            urls.push(target);
+          }
+        }
+
+        // Also grab article thumbnail image
+        findVectorImages(record);
+
+        for (const value of Object.values(record)) {
+          if (value && typeof value === 'object') walkForArticle(value, depth + 1);
+        }
+      };
+
+      walkForArticle(contentObj);
+    }
+
+    // ── Document / Carousel extraction ──
+    if (mediaType === 'document') {
+      const walkForDocument = (obj: unknown, depth = 0): void => {
+        if (depth > 5 || !obj || typeof obj !== 'object') return;
+        const record = obj as Record<string, unknown>;
+
+        // Transcribed document URL (full PDF)
+        const transcribedUrl = record.transcribedDocumentUrl as string | undefined;
+        if (transcribedUrl && !urls.includes(transcribedUrl)) {
+          console.log('[MediaExtract] Found document URL:', transcribedUrl.substring(0, 80) + '...');
+          urls.push(transcribedUrl);
+        }
+
+        // Individual carousel pages
+        if (Array.isArray(record.pages)) {
+          for (const page of record.pages as Array<Record<string, unknown>>) {
+            const pageUrl = page.imageUrl as string | undefined;
+            if (pageUrl && !urls.includes(pageUrl)) {
+              console.log('[MediaExtract] Found carousel page URL:', pageUrl.substring(0, 80) + '...');
+              urls.push(pageUrl);
+            }
+            // Some pages have vectorImage instead of imageUrl
+            findVectorImages(page);
+          }
+        }
+
+        // Resolve document URN reference
+        const docRef = record['*document'] as string | undefined;
+        if (typeof docRef === 'string') {
+          const resolved = urnMap.get(docRef);
+          if (resolved) walkForDocument(resolved);
+        }
+
+        for (const value of Object.values(record)) {
+          if (value && typeof value === 'object') walkForDocument(value, depth + 1);
+        }
+      };
+
+      walkForDocument(contentObj);
+    }
+
+    if (urls.length > 0) {
+      console.log(`[MediaExtract] Extracted ${urls.length} media URL(s) for ${mediaType} post`);
+    }
+  } catch (err) {
+    console.warn('[MediaExtract] Error extracting media URLs:', err);
+  }
+
+  return urls;
+}
+
+/**
  * Lightweight post extractor for background sync responses.
  *
  * Extracts basic post information from LinkedIn Voyager API responses that
@@ -1726,6 +1974,18 @@ function extractBasicPosts(responseData: Record<string, unknown>): Record<string
       }
     }
 
+    // ── Extract media URLs from content field ──
+    let resolvedContentObj: Record<string, unknown> | undefined;
+    if (contentField && typeof contentField === 'object') {
+      resolvedContentObj = contentField as Record<string, unknown>;
+    } else if (typeof contentField === 'string') {
+      resolvedContentObj = urnMap.get(contentField);
+    }
+    const mediaUrls = extractMediaUrls(resolvedContentObj, mediaType, urnMap);
+    if (mediaUrls.length > 0) {
+      console.log(`[BackgroundSync] Post ${urn.substring(0, 40)}... has ${mediaUrls.length} media URL(s) [${mediaType}]`);
+    }
+
     posts.push({
       activity_urn: urn,
       content,
@@ -1734,6 +1994,7 @@ function extractBasicPosts(responseData: Record<string, unknown>): Record<string
       reposts,
       impressions,
       media_type: mediaType,
+      media_urls: mediaUrls.length > 0 ? mediaUrls : null,
       posted_at: postedAt,
       source: 'background_sync',
     });

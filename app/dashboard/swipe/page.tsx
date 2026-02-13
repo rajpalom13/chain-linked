@@ -24,11 +24,11 @@ import {
   IconWand,
   IconLoader2,
   IconBookmark,
+  IconBulb,
+  IconCompass,
 } from "@tabler/icons-react"
 
-import { AppSidebar } from "@/components/app-sidebar"
 import { SwipeCard, SwipeCardStack, SwipeCardEmpty, type SwipeCardData } from "@/components/features/swipe-card"
-import { SiteHeader } from "@/components/site-header"
 import { SwipeSkeleton } from "@/components/skeletons/page-skeletons"
 import { RemixDialog } from "@/components/features/remix-dialog"
 import { SaveToCollectionDialog } from "@/components/features/save-to-collection-dialog"
@@ -42,10 +42,7 @@ import { useAuthContext } from "@/lib/auth/auth-provider"
 import { useDraft } from "@/lib/store/draft-context"
 import { swipeToast } from "@/lib/toast-utils"
 import { toast } from "sonner"
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar"
+import { usePageMeta } from "@/lib/dashboard-context"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -58,6 +55,34 @@ import {
 } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
+import { CrossNav, type CrossNavItem } from "@/components/shared/cross-nav"
+
+/**
+ * Related page navigation for the bottom of the Swipe page
+ */
+const swipeCrossNav: CrossNavItem[] = [
+  {
+    href: "/dashboard/compose",
+    icon: IconPencil,
+    label: "Compose a post",
+    description: "Write your own LinkedIn post from scratch.",
+    color: "primary",
+  },
+  {
+    href: "/dashboard/discover",
+    icon: IconCompass,
+    label: "Discover news",
+    description: "Find trending industry news and remix into posts.",
+    color: "blue-500",
+  },
+  {
+    href: "/dashboard/inspiration",
+    icon: IconBulb,
+    label: "Get inspiration",
+    description: "Browse curated viral posts for content ideas.",
+    color: "emerald-500",
+  },
+]
 import {
   pageVariants,
   staggerContainerVariants,
@@ -823,6 +848,9 @@ function SwipeContent() {
         suggestionsShown={suggestionsShown}
       />
 
+      {/* Related Pages */}
+      <CrossNav items={swipeCrossNav} />
+
       {/* Remix Dialog */}
       <RemixDialog
         isOpen={showRemixDialog}
@@ -851,26 +879,8 @@ function SwipeContent() {
  * @returns Swipe page with Tinder-style interface for reviewing AI suggestions
  */
 export default function SwipePage() {
+  usePageMeta({ title: "Swipe" })
   const { isLoading: authLoading } = useAuthContext()
 
-  return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar variant="inset" />
-      <SidebarInset>
-        <SiteHeader title="Swipe" />
-        <main id="main-content" className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col items-center gap-2">
-            {authLoading ? <SwipeSkeleton /> : <SwipeContent />}
-          </div>
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
-  )
+  return authLoading ? <SwipeSkeleton /> : <SwipeContent />
 }

@@ -184,6 +184,7 @@ function createImage(
     rotation: 0,
     src,
     alt: 'Brand logo',
+    preserveAspectRatio: true,
   }
 }
 
@@ -223,7 +224,7 @@ function generateBrandProfessional(kit: ResolvedBrandKit): CanvasTemplate {
   ]
   if (kit.logoUrl) {
     slide1Elements.unshift(
-      createImage(`${prefix}-slide-1-logo`, 80, 80, 100, 100, kit.logoUrl)
+      createImage(`${prefix}-slide-1-logo`, 60, 60, 180, 180, kit.logoUrl)
     )
   }
 
@@ -386,7 +387,7 @@ function generateBrandBold(kit: ResolvedBrandKit): CanvasTemplate {
     ]
     if (kit.logoUrl) {
       elements.push(
-        createImage(`${prefix}-slide-${slideNum}-logo`, 920, 920, 80, 80, kit.logoUrl)
+        createImage(`${prefix}-slide-${slideNum}-logo`, 880, 880, 160, 160, kit.logoUrl)
       )
     }
     return {
@@ -472,7 +473,7 @@ function generateBrandMinimal(kit: ResolvedBrandKit): CanvasTemplate {
   ]
   if (kit.logoUrl) {
     slide1Elements.unshift(
-      createImage(`${prefix}-slide-1-logo`, 80, 120, 80, 80, kit.logoUrl)
+      createImage(`${prefix}-slide-1-logo`, 60, 100, 180, 180, kit.logoUrl)
     )
   }
 
@@ -589,7 +590,7 @@ function generateBrandStory(kit: ResolvedBrandKit): CanvasTemplate {
   ]
   if (kit.logoUrl) {
     slide1Elements.unshift(
-      createImage(`${prefix}-slide-1-logo`, 490, 120, 100, 100, kit.logoUrl)
+      createImage(`${prefix}-slide-1-logo`, 440, 80, 200, 200, kit.logoUrl)
     )
   }
 
@@ -733,7 +734,7 @@ function generateBrandData(kit: ResolvedBrandKit): CanvasTemplate {
   ]
   if (kit.logoUrl) {
     slide1Elements.push(
-      createImage(`${prefix}-slide-1-logo`, 80, 1000, 60, 60, kit.logoUrl)
+      createImage(`${prefix}-slide-1-logo`, 60, 940, 140, 140, kit.logoUrl)
     )
   }
 
@@ -789,7 +790,7 @@ function generateBrandData(kit: ResolvedBrandKit): CanvasTemplate {
     ]
     if (kit.logoUrl) {
       elements.push(
-        createImage(`${prefix}-slide-${slideNum}-logo`, 80, 1000, 60, 60, kit.logoUrl)
+        createImage(`${prefix}-slide-${slideNum}-logo`, 60, 940, 140, 140, kit.logoUrl)
       )
     }
     return {

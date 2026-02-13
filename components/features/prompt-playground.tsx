@@ -39,6 +39,7 @@ import {
   IconCircleCheck,
   IconVersions,
   IconArrowBackUp,
+  IconPencil,
 } from "@tabler/icons-react"
 
 import { cn } from "@/lib/utils"
@@ -86,6 +87,8 @@ import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 
+import { useRouter } from "next/navigation"
+import { useDraft } from "@/lib/store/draft-context"
 import { trackFeatureUsed, trackAIGeneration } from "@/lib/analytics"
 import { TONE_OPTIONS, type RemixTone, getRemixSystemPrompt } from "@/lib/ai/remix-prompts"
 import {
@@ -1692,6 +1695,9 @@ function DatabasePromptSelector({
  * @returns Prompt playground UI
  */
 export function PromptPlayground() {
+  const router = useRouter()
+  const { setContent } = useDraft()
+
   // Mode & content state
   const [mode, setMode] = React.useState<PromptMode>("wording")
   const [source, setSource] = React.useState("")
@@ -2567,6 +2573,18 @@ export function PromptPlayground() {
               <Button variant="outline" onClick={() => handleCopy()} disabled={!output}>
                 <IconCopy className="size-4" />
                 Copy
+              </Button>
+              <Button
+                variant="outline"
+                disabled={!output}
+                onClick={() => {
+                  setContent(output)
+                  toast.success("Loaded into Compose")
+                  router.push("/dashboard/compose")
+                }}
+              >
+                <IconPencil className="size-4" />
+                Use in Compose
               </Button>
               <ExportMenu result={lastRunResult} disabled={!lastRunResult} />
             </div>

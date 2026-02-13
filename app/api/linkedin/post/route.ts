@@ -13,6 +13,7 @@ import {
   type CreatePostRequest,
   type LinkedInVisibility,
 } from '@/lib/linkedin'
+import { isPostingEnabled, POSTING_DISABLED_MESSAGE, DISABLED_DRAFT_STATUS } from '@/lib/linkedin/posting-config'
 
 /**
  * Request body for posting to LinkedIn
@@ -68,6 +69,26 @@ export async function POST(request: Request) {
       { error: 'Content exceeds maximum length of 3000 characters' },
       { status: 400 }
     )
+  }
+
+  // Safety gate: if posting is disabled, save as draft instead
+  if (!isPostingEnabled()) {
+    // Save to scheduled_posts as a draft
+    await supabase
+      .from('scheduled_posts')
+      .insert({
+        user_id: user.id,
+        content,
+        status: DISABLED_DRAFT_STATUS,
+        visibility: visibility || 'PUBLIC',
+        scheduled_for: new Date().toISOString(),
+      })
+
+    return NextResponse.json({
+      success: false,
+      draft: true,
+      message: POSTING_DISABLED_MESSAGE,
+    })
   }
 
   // Get LinkedIn tokens for user

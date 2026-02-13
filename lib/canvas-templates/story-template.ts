@@ -1,12 +1,13 @@
 /**
  * Story Template
  * Narrative flow style for storytelling carousels
+ * Enhanced with visual storytelling elements - framing shapes, progress indicators, motifs
  */
 
 import type { CanvasTemplate, CanvasSlide } from '@/types/canvas-editor';
 
 /**
- * Story template slides with narrative progression
+ * Story template slides with narrative progression and decorative framing
  */
 const defaultSlides: CanvasSlide[] = [
   // Slide 1: Hook
@@ -14,6 +15,7 @@ const defaultSlides: CanvasSlide[] = [
     id: 'story-slide-1',
     backgroundColor: '#0f172a',
     elements: [
+      // Bottom gradient block
       {
         id: 'story-1-gradient',
         type: 'shape',
@@ -25,6 +27,44 @@ const defaultSlides: CanvasSlide[] = [
         shapeType: 'rect',
         fill: '#1e293b',
         cornerRadius: 0,
+      },
+      // Large decorative circle (top-right, partially off-canvas)
+      {
+        id: 'story-1-deco-circle',
+        type: 'shape',
+        x: 750,
+        y: -200,
+        width: 550,
+        height: 550,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#1e293b40',
+      },
+      // Rotated accent rect (bottom-left)
+      {
+        id: 'story-1-deco-rect',
+        type: 'shape',
+        x: -200,
+        y: 750,
+        width: 400,
+        height: 400,
+        rotation: 45,
+        shapeType: 'rect',
+        fill: '#334155',
+        cornerRadius: 30,
+      },
+      // Top accent line
+      {
+        id: 'story-1-deco-line',
+        type: 'shape',
+        x: 80,
+        y: 100,
+        width: 40,
+        height: 3,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#3b82f6',
+        cornerRadius: 2,
       },
       {
         id: 'story-1-year',
@@ -94,6 +134,44 @@ const defaultSlides: CanvasSlide[] = [
     id: 'story-slide-2',
     backgroundColor: '#0f172a',
     elements: [
+      // Chapter progress indicator (bar showing 1/4)
+      {
+        id: 'story-2-progress-bg',
+        type: 'shape',
+        x: 80,
+        y: 50,
+        width: 920,
+        height: 3,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#1e293b',
+        cornerRadius: 2,
+      },
+      {
+        id: 'story-2-progress-fill',
+        type: 'shape',
+        x: 80,
+        y: 50,
+        width: 230,
+        height: 3,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#3b82f6',
+        cornerRadius: 2,
+      },
+      // Left vertical accent bar
+      {
+        id: 'story-2-deco-bar',
+        type: 'shape',
+        x: 40,
+        y: 130,
+        width: 3,
+        height: 60,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#3b82f6',
+        cornerRadius: 2,
+      },
       {
         id: 'story-2-chapter',
         type: 'text',
@@ -140,6 +218,18 @@ const defaultSlides: CanvasSlide[] = [
         align: 'left',
         lineHeight: 1.6,
       },
+      // Subtle decorative circle (bottom-right)
+      {
+        id: 'story-2-deco-circle',
+        type: 'shape',
+        x: 850,
+        y: 800,
+        width: 300,
+        height: 300,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#1e293b30',
+      },
       {
         id: 'story-2-line',
         type: 'shape',
@@ -159,6 +249,57 @@ const defaultSlides: CanvasSlide[] = [
     id: 'story-slide-3',
     backgroundColor: '#0f172a',
     elements: [
+      // Chapter progress indicator (2/4)
+      {
+        id: 'story-3-progress-bg',
+        type: 'shape',
+        x: 80,
+        y: 50,
+        width: 920,
+        height: 3,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#1e293b',
+        cornerRadius: 2,
+      },
+      {
+        id: 'story-3-progress-fill',
+        type: 'shape',
+        x: 80,
+        y: 50,
+        width: 460,
+        height: 3,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#ef4444',
+        cornerRadius: 2,
+      },
+      // Left vertical accent bar (red for conflict)
+      {
+        id: 'story-3-deco-bar',
+        type: 'shape',
+        x: 40,
+        y: 130,
+        width: 3,
+        height: 60,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#ef4444',
+        cornerRadius: 2,
+      },
+      // Rotated rect (background tension element)
+      {
+        id: 'story-3-deco-rect',
+        type: 'shape',
+        x: 700,
+        y: -100,
+        width: 500,
+        height: 500,
+        rotation: 45,
+        shapeType: 'rect',
+        fill: '#ef444410',
+        cornerRadius: 20,
+      },
       {
         id: 'story-3-chapter',
         type: 'text',
@@ -224,6 +365,56 @@ const defaultSlides: CanvasSlide[] = [
     id: 'story-slide-4',
     backgroundColor: '#0f172a',
     elements: [
+      // Chapter progress indicator (3/4)
+      {
+        id: 'story-4-progress-bg',
+        type: 'shape',
+        x: 80,
+        y: 50,
+        width: 920,
+        height: 3,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#1e293b',
+        cornerRadius: 2,
+      },
+      {
+        id: 'story-4-progress-fill',
+        type: 'shape',
+        x: 80,
+        y: 50,
+        width: 690,
+        height: 3,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#10b981',
+        cornerRadius: 2,
+      },
+      // Left vertical accent bar (green for growth)
+      {
+        id: 'story-4-deco-bar',
+        type: 'shape',
+        x: 40,
+        y: 130,
+        width: 3,
+        height: 60,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#10b981',
+        cornerRadius: 2,
+      },
+      // Subtle circle (growth/hope)
+      {
+        id: 'story-4-deco-circle',
+        type: 'shape',
+        x: -100,
+        y: 600,
+        width: 400,
+        height: 400,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#10b98110',
+      },
       {
         id: 'story-4-chapter',
         type: 'text',
@@ -289,6 +480,32 @@ const defaultSlides: CanvasSlide[] = [
     id: 'story-slide-5',
     backgroundColor: '#0f172a',
     elements: [
+      // Progress indicator (4/4 - complete)
+      {
+        id: 'story-5-progress-bg',
+        type: 'shape',
+        x: 80,
+        y: 50,
+        width: 920,
+        height: 3,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#1e293b',
+        cornerRadius: 2,
+      },
+      {
+        id: 'story-5-progress-fill',
+        type: 'shape',
+        x: 80,
+        y: 50,
+        width: 920,
+        height: 3,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#3b82f6',
+        cornerRadius: 2,
+      },
+      // Top gradient block (mirror of slide 1)
       {
         id: 'story-5-gradient',
         type: 'shape',
@@ -300,6 +517,31 @@ const defaultSlides: CanvasSlide[] = [
         shapeType: 'rect',
         fill: '#1e293b',
         cornerRadius: 0,
+      },
+      // Large decorative circle (bottom-left, mirror of slide 1's top-right)
+      {
+        id: 'story-5-deco-circle',
+        type: 'shape',
+        x: -200,
+        y: 650,
+        width: 550,
+        height: 550,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#1e293b40',
+      },
+      // Rotated rect accent (top-right, mirroring slide 1)
+      {
+        id: 'story-5-deco-rect',
+        type: 'shape',
+        x: 800,
+        y: -100,
+        width: 300,
+        height: 300,
+        rotation: 45,
+        shapeType: 'rect',
+        fill: '#334155',
+        cornerRadius: 20,
       },
       {
         id: 'story-5-emoji',
@@ -376,5 +618,6 @@ export const storyTemplate: CanvasTemplate = {
   category: 'bold',
   brandColors: ['#0f172a', '#1e293b', '#3b82f6', '#ef4444', '#10b981'],
   fonts: ['Inter'],
+  defaultTone: 'storytelling',
   defaultSlides,
 };

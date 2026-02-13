@@ -99,6 +99,8 @@ export interface PostTypeSelectorProps {
   showTip?: boolean
   /** Additional CSS class names */
   className?: string
+  /** Post type IDs to exclude from the dropdown */
+  excludeTypes?: PostTypeId[]
 }
 
 /**
@@ -121,6 +123,9 @@ function PostTypeIcon({ type, className }: { type: PostTypeDefinition; className
  * Groups post types by category (Storytelling, Educational, Engagement, Visual)
  * and displays each type with its icon, label, and description.
  * Optionally renders a contextual tip below the selector.
+ *
+ * @deprecated Use PostGoalSelector for the compose section. This component
+ * is kept for backward compatibility in the AI generation dialog.
  *
  * @param props - Component props
  * @param props.value - Currently selected post type ID
@@ -147,8 +152,25 @@ export function PostTypeSelector({
   disabled = false,
   showTip = false,
   className,
+  excludeTypes = [],
 }: PostTypeSelectorProps) {
-  const grouped = React.useMemo(() => getPostTypesGrouped(), [])
+  const grouped = React.useMemo(() => {
+    const allGrouped = getPostTypesGrouped()
+    if (excludeTypes.length === 0) return allGrouped
+
+    const filtered: typeof allGrouped = {
+      narrative: [],
+      educational: [],
+      engagement: [],
+      visual: [],
+    }
+    for (const [category, types] of Object.entries(allGrouped)) {
+      filtered[category as keyof typeof filtered] = types.filter(
+        (t) => !excludeTypes.includes(t.id as PostTypeId)
+      )
+    }
+    return filtered
+  }, [excludeTypes])
   const selectedType = value ? getPostType(value) : undefined
   const tip = value ? getPostTypeTip(value) : ''
 

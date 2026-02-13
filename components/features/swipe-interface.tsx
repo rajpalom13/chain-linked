@@ -48,47 +48,6 @@ export interface SwipeInterfaceProps {
   isLoading?: boolean
 }
 
-/**
- * @deprecated Sample suggestions for backward compatibility only. Do not use.
- */
-export const SAMPLE_SUGGESTIONS: PostSuggestion[] = [
-  {
-    id: "1",
-    content:
-      "The best leaders don't create followers - they create more leaders. Invest time in developing your team's decision-making skills, not just their execution abilities. What's one way you're empowering your team this week?",
-    category: "Leadership",
-    estimatedEngagement: 85,
-  },
-  {
-    id: "2",
-    content:
-      "Hot take: AI won't replace you. But someone who knows how to use AI effectively might. The skill gap of the next decade isn't coding - it's prompt engineering and AI collaboration. Are you investing in these skills?",
-    category: "Tech Trends",
-    estimatedEngagement: 92,
-  },
-  {
-    id: "3",
-    content:
-      "I used to think networking was about collecting contacts. Now I know it's about cultivating connections. Quality over quantity. One meaningful conversation beats 100 LinkedIn connections every time.",
-    category: "Career Growth",
-    estimatedEngagement: 78,
-  },
-  {
-    id: "4",
-    content:
-      "3 things I wish I knew earlier in my career:\n\n1. Saying 'no' is a superpower, not a weakness\n2. Your network is built before you need it\n3. Imposter syndrome never fully goes away - and that's okay\n\nWhat would you add to this list?",
-    category: "Career Advice",
-    estimatedEngagement: 88,
-  },
-  {
-    id: "5",
-    content:
-      "Remote work taught me something unexpected: the best meetings are the ones that didn't happen. Before scheduling that call, ask yourself: could this be an async message? Your team's focus time will thank you.",
-    category: "Productivity",
-    estimatedEngagement: 75,
-  },
-]
-
 /** Threshold in pixels for swipe to be considered a decision */
 const SWIPE_THRESHOLD = 100
 

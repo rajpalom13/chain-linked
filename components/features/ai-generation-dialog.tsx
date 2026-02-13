@@ -64,6 +64,11 @@ export interface AIGenerationDialogProps {
  */
 const TONE_OPTIONS = [
   {
+    value: 'match-my-style',
+    label: 'Match My Style',
+    description: 'Writes like you, based on your past posts',
+  },
+  {
     value: 'professional',
     label: 'Professional',
     description: 'Authoritative and industry-focused',

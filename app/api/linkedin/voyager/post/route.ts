@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { createVoyagerPostService, type CreatePostOptions } from '@/lib/linkedin/voyager-post'
 import { z } from 'zod'
+import { isPostingEnabled, POSTING_DISABLED_MESSAGE, DISABLED_DRAFT_STATUS } from '@/lib/linkedin/posting-config'
 
 /**
  * Request body validation schema
@@ -54,6 +55,26 @@ export async function POST(request: Request) {
     }
 
     const postData = validationResult.data
+
+    // Safety gate: if posting is disabled, save as draft instead
+    if (!isPostingEnabled()) {
+      const dbVisibility = (postData.visibility === 'CONNECTIONS' ? 'CONNECTIONS' : 'PUBLIC') as 'PUBLIC' | 'CONNECTIONS'
+      await supabase
+        .from('scheduled_posts')
+        .insert({
+          user_id: user.id,
+          content: postData.content,
+          status: DISABLED_DRAFT_STATUS,
+          visibility: dbVisibility,
+          scheduled_for: new Date().toISOString(),
+        })
+
+      return NextResponse.json({
+        success: false,
+        draft: true,
+        message: POSTING_DISABLED_MESSAGE,
+      })
+    }
 
     // Create Voyager post service
     const postService = await createVoyagerPostService(user.id)

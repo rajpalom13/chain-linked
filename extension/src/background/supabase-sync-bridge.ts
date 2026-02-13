@@ -147,7 +147,7 @@ export const FIELD_MAPPINGS: Record<string, Record<string, string>> = {
   },
   'feed_posts': {
     // Actual DB columns: activity_urn, author_urn, author_name, author_headline,
-    // author_profile_url, content, hashtags, media_type, reactions, comments,
+    // author_profile_url, content, hashtags, media_type, media_urls, reactions, comments,
     // reposts, engagement_score, posted_at, raw_data, created_at, updated_at
     'authorId': 'author_urn',
     'authorUrn': 'author_urn',
@@ -168,12 +168,13 @@ export const FIELD_MAPPINGS: Record<string, Record<string, string>> = {
     'numShares': 'reposts',
     'shareCount': 'reposts',
     'mediaType': 'media_type',
+    'mediaUrls': 'media_urls',
     'engagementScore': 'engagement_score',
     'postedAt': 'posted_at',
     'capturedAt': 'created_at',
   },
   'my_posts': {
-    // Actual DB columns: activity_urn, content, media_type, reactions, comments,
+    // Actual DB columns: activity_urn, content, media_type, media_urls, reactions, comments,
     // reposts, impressions, posted_at, raw_data, created_at, updated_at
     'activityUrn': 'activity_urn',
     'postText': 'content',
@@ -190,6 +191,7 @@ export const FIELD_MAPPINGS: Record<string, Record<string, string>> = {
     'numShares': 'reposts',
     'shareCount': 'reposts',
     'mediaType': 'media_type',
+    'mediaUrls': 'media_urls',
     'postedAt': 'posted_at',
     'capturedAt': 'created_at',
   },
@@ -303,14 +305,14 @@ export const TABLE_COLUMNS: Record<string, string[]> = {
     'capture_profile', 'capture_messaging', 'sync_enabled', 'sync_interval',
     'dark_mode', 'notifications_enabled', 'raw_settings', 'created_at', 'updated_at',
   ],
-  // Verified against live Supabase schema on 2026-02-06
+  // Verified against live Supabase schema on 2026-02-13
   'feed_posts': [
     'id', 'user_id', 'activity_urn', 'author_urn', 'author_name', 'author_headline',
-    'author_profile_url', 'content', 'hashtags', 'media_type', 'reactions', 'comments',
+    'author_profile_url', 'content', 'hashtags', 'media_type', 'media_urls', 'reactions', 'comments',
     'reposts', 'engagement_score', 'posted_at', 'raw_data', 'created_at', 'updated_at',
   ],
   'my_posts': [
-    'id', 'user_id', 'activity_urn', 'content', 'media_type', 'reactions', 'comments',
+    'id', 'user_id', 'activity_urn', 'content', 'media_type', 'media_urls', 'reactions', 'comments',
     'reposts', 'impressions', 'posted_at', 'raw_data', 'created_at', 'updated_at',
   ],
   'comments': [
@@ -1076,6 +1078,74 @@ export async function migrateExistingData(): Promise<{
 }
 
 /**
+ * Reconcile posts in Supabase with the current set of posts from LinkedIn.
+ * Deletes any rows whose activity_urn is NOT present in the current sync set,
+ * so that deleted or removed LinkedIn posts no longer appear on the platform.
+ *
+ * @param table - The Supabase table name ('my_posts' or 'feed_posts')
+ * @param currentUrns - Set of activity_urn values that currently exist on LinkedIn
+ */
+export async function reconcilePosts(
+  table: 'my_posts' | 'feed_posts',
+  currentUrns: Set<string>,
+): Promise<void> {
+  if (!currentUserId || currentUrns.size === 0) return;
+
+  try {
+    const supabase = (self as unknown as { supabase?: { from: (table: string) => unknown } }).supabase;
+    if (!supabase) return;
+
+    /**
+     * QueryBuilder type matching the lightweight Supabase client in lib/supabase/client.js.
+     * Filters (.eq, .in) are chainable and mutate the builder; terminal methods
+     * (.execute/.delete/.update) are async and consume the accumulated filters.
+     */
+    type QueryBuilder = {
+      select: (cols: string) => QueryBuilder;
+      eq: (col: string, val: string) => QueryBuilder;
+      in: (col: string, vals: string[]) => QueryBuilder;
+      delete: () => Promise<{ data?: unknown; error?: { message: string } | null }>;
+      then: (resolve: (v: { data?: { activity_urn: string }[]; error?: { message: string } | null }) => void, reject?: (e: unknown) => void) => void;
+    };
+
+    // Use a fresh query builder for SELECT (filters accumulate on the instance)
+    const selectClient = supabase.from(table) as QueryBuilder;
+    const { data: existingRows, error: fetchError } = await selectClient
+      .select('activity_urn')
+      .eq('user_id', currentUserId) as { data?: { activity_urn: string }[]; error?: { message: string } | null };
+
+    if (fetchError || !existingRows) {
+      console.warn(`[SyncBridge] reconcilePosts: failed to fetch ${table}:`, fetchError?.message);
+      return;
+    }
+
+    // Find URNs that are in Supabase but NOT in the current LinkedIn data
+    const staleUrns = existingRows
+      .map((r) => r.activity_urn)
+      .filter((urn) => !currentUrns.has(urn));
+
+    if (staleUrns.length === 0) return;
+
+    console.log(`[SyncBridge] reconcilePosts: removing ${staleUrns.length} stale rows from ${table}`);
+
+    // Use a NEW query builder for DELETE — filters must be set BEFORE calling .delete()
+    const deleteClient = supabase.from(table) as QueryBuilder;
+    const { error: deleteError } = await deleteClient
+      .eq('user_id', currentUserId)
+      .in('activity_urn', staleUrns)
+      .delete();
+
+    if (deleteError) {
+      console.error(`[SyncBridge] reconcilePosts: delete failed for ${table}:`, deleteError.message);
+    } else {
+      console.log(`[SyncBridge] reconcilePosts: removed ${staleUrns.length} stale rows from ${table}`);
+    }
+  } catch (err) {
+    console.error(`[SyncBridge] reconcilePosts error:`, err);
+  }
+}
+
+/**
  * Set the current user ID for sync operations
  */
 export function setCurrentUserId(userId: string | null): void {
@@ -1144,6 +1214,282 @@ async function recordSyncTime(): Promise<void> {
   console.log('[SyncBridge] Recorded sync time:', now);
 }
 
+// ---------------------------------------------------------------------------
+// Media Upload to Supabase Storage
+// ---------------------------------------------------------------------------
+
+/** Supabase Storage bucket name for post media */
+const MEDIA_BUCKET = 'post-media';
+
+/**
+ * Determine file extension from URL or Content-Type header.
+ * @param url - The source URL
+ * @param contentType - Optional Content-Type header value
+ * @returns File extension string (e.g. 'jpg', 'mp4')
+ */
+function getFileExtension(url: string, contentType?: string): string {
+  // Try Content-Type first
+  if (contentType) {
+    const mimeMap: Record<string, string> = {
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/gif': 'gif',
+      'image/webp': 'webp',
+      'video/mp4': 'mp4',
+      'video/webm': 'webm',
+      'application/pdf': 'pdf',
+    };
+    for (const [mime, ext] of Object.entries(mimeMap)) {
+      if (contentType.includes(mime)) return ext;
+    }
+  }
+
+  // Try URL path
+  const pathMatch = url.match(/\.(\w{3,4})(?:[?#]|$)/);
+  if (pathMatch) return pathMatch[1].toLowerCase();
+
+  // Default based on URL patterns
+  if (url.includes('video') || url.includes('mp4')) return 'mp4';
+  if (url.includes('pdf') || url.includes('document')) return 'pdf';
+  return 'jpg'; // default to jpg for images
+}
+
+/**
+ * Upload a single media file from a URL to Supabase Storage.
+ *
+ * Downloads from the source URL (e.g. LinkedIn CDN) and uploads to
+ * the post-media bucket in Supabase Storage.
+ *
+ * @param sourceUrl - The URL to download from
+ * @param storagePath - The path within the bucket (e.g. "{userId}/{urn}/{filename}")
+ * @returns The public URL of the uploaded file, or null on failure
+ */
+async function uploadMediaFile(
+  sourceUrl: string,
+  storagePath: string
+): Promise<string | null> {
+  const supabase = (self as unknown as {
+    supabase?: {
+      url: string;
+      anonKey: string;
+      authToken: string | null;
+    }
+  }).supabase;
+
+  if (!supabase?.authToken) {
+    console.warn('[MediaUpload] No auth token available for Storage upload');
+    return null;
+  }
+
+  try {
+    console.log(`[MediaUpload] Downloading: ${sourceUrl.substring(0, 80)}...`);
+
+    // Download the media file from LinkedIn CDN
+    const downloadResponse = await fetch(sourceUrl, {
+      headers: {
+        // Some LinkedIn CDN URLs need a user-agent
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    });
+
+    if (!downloadResponse.ok) {
+      console.warn(`[MediaUpload] Download failed: HTTP ${downloadResponse.status} for ${sourceUrl.substring(0, 60)}...`);
+      return null;
+    }
+
+    const contentType = downloadResponse.headers.get('Content-Type') || 'application/octet-stream';
+    const blob = await downloadResponse.blob();
+
+    if (blob.size === 0) {
+      console.warn('[MediaUpload] Downloaded file is empty, skipping');
+      return null;
+    }
+
+    // Cap upload size at 50MB
+    if (blob.size > 52428800) {
+      console.warn(`[MediaUpload] File too large (${(blob.size / 1024 / 1024).toFixed(1)}MB), skipping`);
+      return null;
+    }
+
+    console.log(`[MediaUpload] Downloaded ${(blob.size / 1024).toFixed(1)}KB, uploading to Storage: ${storagePath}`);
+
+    // Upload to Supabase Storage REST API
+    const uploadUrl = `${supabase.url}/storage/v1/object/${MEDIA_BUCKET}/${storagePath}`;
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${supabase.authToken}`,
+        'apikey': supabase.anonKey,
+        'Content-Type': contentType,
+        'x-upsert': 'true', // Overwrite if exists
+      },
+      body: blob,
+    });
+
+    if (!uploadResponse.ok) {
+      const errText = await uploadResponse.text().catch(() => 'unknown');
+      console.warn(`[MediaUpload] Upload failed: HTTP ${uploadResponse.status} - ${errText}`);
+      return null;
+    }
+
+    // Construct the public URL
+    const publicUrl = `${supabase.url}/storage/v1/object/public/${MEDIA_BUCKET}/${storagePath}`;
+    console.log(`[MediaUpload] Successfully uploaded: ${publicUrl.substring(0, 80)}...`);
+    return publicUrl;
+  } catch (err) {
+    console.warn('[MediaUpload] Error during media upload:', err);
+    return null;
+  }
+}
+
+/**
+ * Check if a URL is a LinkedIn CDN URL (not yet uploaded to Storage).
+ * @param url - URL to check
+ * @returns true if the URL is from LinkedIn CDN
+ */
+function isLinkedInCdnUrl(url: string): boolean {
+  return url.includes('media.licdn.com') ||
+         url.includes('media-exp') ||
+         url.includes('dms/image') ||
+         url.includes('dms/video');
+}
+
+/**
+ * Sanitize activity URN for use as a file path component.
+ * Replaces colons and other unsafe characters.
+ * @param urn - LinkedIn activity URN
+ * @returns Safe path-friendly string
+ */
+function sanitizeUrnForPath(urn: string): string {
+  return urn.replace(/[^a-zA-Z0-9-_]/g, '_').substring(0, 60);
+}
+
+/**
+ * Upload media for recently synced posts to Supabase Storage.
+ *
+ * This runs AFTER the main sync to avoid blocking the pipeline.
+ * It queries posts that still have LinkedIn CDN URLs and uploads them
+ * to Supabase Storage, then updates the database records.
+ *
+ * @param userId - The current user's ID
+ * @param tables - Which tables to process ('my_posts' and/or 'feed_posts')
+ */
+export async function uploadPostMediaToStorage(
+  userId: string,
+  tables: string[] = ['my_posts', 'feed_posts']
+): Promise<void> {
+  const supabase = (self as unknown as {
+    supabase?: {
+      url: string;
+      anonKey: string;
+      authToken: string | null;
+      from: (table: string) => {
+        select: (columns: string) => {
+          eq: (col: string, val: string) => {
+            not: (col: string, op: string, val: string) => Promise<{ data: Record<string, unknown>[] | null; error: { message: string } | null }>;
+          } & Promise<{ data: Record<string, unknown>[] | null; error: { message: string } | null }>;
+        };
+        update: (data: Record<string, unknown>) => {
+          eq: (col: string, val: string) => {
+            eq: (col: string, val: string) => Promise<{ error: { message: string } | null }>;
+          };
+        };
+      };
+    }
+  }).supabase;
+
+  if (!supabase?.authToken) {
+    console.log('[MediaUpload] Skipping — no auth token');
+    return;
+  }
+
+  console.log(`[MediaUpload] Starting media upload for user ${userId.substring(0, 8)}...`);
+  let totalUploaded = 0;
+  let totalFailed = 0;
+
+  for (const table of tables) {
+    try {
+      // Query posts that have media_urls containing LinkedIn CDN URLs
+      // We look for posts with non-null media_urls
+      const queryBuilder = supabase.from(table).select('id,activity_urn,media_urls,media_type').eq('user_id', userId);
+      const { data: posts, error } = await queryBuilder;
+
+      if (error) {
+        console.warn(`[MediaUpload] Error querying ${table}:`, error.message);
+        continue;
+      }
+
+      if (!posts || posts.length === 0) {
+        console.log(`[MediaUpload] No posts found in ${table}`);
+        continue;
+      }
+
+      // Filter to posts with LinkedIn CDN URLs that need uploading
+      const postsWithCdnMedia = posts.filter((p: Record<string, unknown>) => {
+        const urls = p.media_urls as string[] | null;
+        return urls && urls.length > 0 && urls.some((u: string) => isLinkedInCdnUrl(u));
+      });
+
+      if (postsWithCdnMedia.length === 0) {
+        console.log(`[MediaUpload] No posts with LinkedIn CDN URLs in ${table}`);
+        continue;
+      }
+
+      console.log(`[MediaUpload] Found ${postsWithCdnMedia.length} posts with CDN media in ${table}`);
+
+      // Process each post (limit to 10 per sync to avoid overwhelming the service worker)
+      for (const post of postsWithCdnMedia.slice(0, 10)) {
+        const activityUrn = post.activity_urn as string;
+        const originalUrls = post.media_urls as string[];
+        const urnPath = sanitizeUrnForPath(activityUrn);
+        const newUrls: string[] = [];
+
+        for (let i = 0; i < originalUrls.length; i++) {
+          const url = originalUrls[i];
+          if (!isLinkedInCdnUrl(url)) {
+            // Already a Storage URL, keep as-is
+            newUrls.push(url);
+            continue;
+          }
+
+          const ext = getFileExtension(url);
+          const storagePath = `${userId}/${urnPath}/${i}.${ext}`;
+          const storageUrl = await uploadMediaFile(url, storagePath);
+
+          if (storageUrl) {
+            newUrls.push(storageUrl);
+            totalUploaded++;
+          } else {
+            // Keep original CDN URL if upload fails — will retry next sync
+            newUrls.push(url);
+            totalFailed++;
+          }
+        }
+
+        // Update the post record with new Storage URLs if any changed
+        const hasNewUrls = newUrls.some((u, i) => u !== originalUrls[i]);
+        if (hasNewUrls) {
+          try {
+            const updateBuilder = supabase.from(table).update({ media_urls: newUrls }).eq('user_id', userId).eq('activity_urn', activityUrn);
+            const { error: updateError } = await updateBuilder;
+            if (updateError) {
+              console.warn(`[MediaUpload] Failed to update ${table} record:`, updateError.message);
+            } else {
+              console.log(`[MediaUpload] Updated ${table} record ${urnPath} with ${newUrls.length} Storage URLs`);
+            }
+          } catch (updateErr) {
+            console.warn(`[MediaUpload] Error updating ${table} record:`, updateErr);
+          }
+        }
+      }
+    } catch (tableErr) {
+      console.warn(`[MediaUpload] Error processing ${table}:`, tableErr);
+    }
+  }
+
+  console.log(`[MediaUpload] Complete: ${totalUploaded} uploaded, ${totalFailed} failed`);
+}
+
 /**
  * Sync result with retry information
  */
@@ -1191,6 +1537,14 @@ export async function syncWithRetry(maxRetries = 3): Promise<SyncWithRetryResult
       if (result.failed === 0) {
         console.log(`[SyncBridge] Sync succeeded on attempt ${attempt + 1}`);
         await recordSyncTime();
+
+        // Async media upload — runs after sync completes, non-blocking
+        if (currentUserId) {
+          uploadPostMediaToStorage(currentUserId).catch(err => {
+            console.warn('[SyncBridge] Media upload error (non-blocking):', err);
+          });
+        }
+
         return {
           success: true,
           synced: result.success,
@@ -1291,31 +1645,8 @@ export async function initSyncBridge(): Promise<void> {
     console.error('[SyncBridge] Error checking session:', error);
   }
 
-  // Setup online/offline listeners for auto-sync with retry
-  if (typeof window !== 'undefined') {
-    window.addEventListener('online', async () => {
-      console.log('[SyncBridge] Back online - triggering sync with retry');
-      const result = await syncWithRetry(3);
-      console.log('[SyncBridge] Online sync result:', result);
-    });
-
-    window.addEventListener('offline', () => {
-      console.log('[SyncBridge] Gone offline');
-    });
-  }
-
-  // Also listen in service worker context
-  if (typeof self !== 'undefined' && self.addEventListener) {
-    self.addEventListener('online', async () => {
-      console.log('[SyncBridge] ServiceWorker: Back online - triggering sync with retry');
-      const result = await syncWithRetry(3);
-      console.log('[SyncBridge] ServiceWorker online sync result:', result);
-    });
-
-    self.addEventListener('offline', () => {
-      console.log('[SyncBridge] ServiceWorker: Gone offline');
-    });
-  }
+  // Note: online/offline event listeners are registered at module level
+  // (below this function) to satisfy Chrome service worker requirements.
 
   console.log('[SyncBridge] Initialized');
 }
@@ -1334,4 +1665,21 @@ export function startPeriodicSync(intervalMinutes = 5): void {
   }, intervalMs);
 
   console.log(`[SyncBridge] Periodic sync started (every ${intervalMinutes} minutes)`);
+}
+
+// ============================================================
+// Top-level online/offline event listeners.
+// Chrome service workers require these to be registered during
+// initial script evaluation, NOT inside an async function.
+// ============================================================
+if (typeof self !== 'undefined' && self.addEventListener) {
+  self.addEventListener('online', async () => {
+    console.log('[SyncBridge] ServiceWorker: Back online - triggering sync with retry');
+    const result = await syncWithRetry(3);
+    console.log('[SyncBridge] ServiceWorker online sync result:', result);
+  });
+
+  self.addEventListener('offline', () => {
+    console.log('[SyncBridge] ServiceWorker: Gone offline');
+  });
 }

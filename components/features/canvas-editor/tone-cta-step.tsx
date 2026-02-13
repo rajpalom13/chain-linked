@@ -22,7 +22,9 @@ import {
   IconLink,
   IconMail,
   IconBookmark,
-  IconPencil
+  IconPencil,
+  IconX,
+  IconFingerprint,
 } from '@tabler/icons-react'
 
 import { Button } from '@/components/ui/button'
@@ -74,6 +76,12 @@ interface CtaOption {
  */
 const TONE_OPTIONS: ToneOption[] = [
   {
+    value: 'match-my-style',
+    label: 'Match My Style',
+    description: 'Writes like you, based on your past posts',
+    icon: <IconFingerprint className="w-5 h-5" />
+  },
+  {
     value: 'professional',
     label: 'Professional',
     description: 'Formal, credible, and authoritative',
@@ -109,6 +117,12 @@ const TONE_OPTIONS: ToneOption[] = [
  * Available CTA options
  */
 const CTA_OPTIONS: CtaOption[] = [
+  {
+    value: 'none',
+    label: 'None',
+    example: 'No call-to-action — end with a strong closing statement',
+    icon: <IconX className="w-5 h-5" />
+  },
   {
     value: 'follow',
     label: 'Follow',
@@ -287,7 +301,7 @@ export function ToneCtaStep({
         </div>
 
         {/* Selected CTA example */}
-        {formData.ctaType && formData.ctaType !== 'custom' && (
+        {formData.ctaType && formData.ctaType !== 'custom' && formData.ctaType !== 'none' && (
           <p className="text-sm text-muted-foreground italic">
             Example: "{CTA_OPTIONS.find(o => o.value === formData.ctaType)?.example}"
           </p>

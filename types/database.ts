@@ -490,6 +490,7 @@ export interface Database {
           activity_urn: string
           content: string | null
           media_type: string | null
+          media_urls: string[] | null
           reactions: number | null
           comments: number | null
           reposts: number | null
@@ -505,6 +506,7 @@ export interface Database {
           activity_urn: string
           content?: string | null
           media_type?: string | null
+          media_urls?: string[] | null
           reactions?: number | null
           comments?: number | null
           reposts?: number | null
@@ -520,6 +522,7 @@ export interface Database {
           activity_urn?: string
           content?: string | null
           media_type?: string | null
+          media_urls?: string[] | null
           reactions?: number | null
           comments?: number | null
           reposts?: number | null
@@ -544,6 +547,7 @@ export interface Database {
           content: string | null
           hashtags: Json | null
           media_type: string | null
+          media_urls: string[] | null
           reactions: number | null
           comments: number | null
           reposts: number | null
@@ -564,6 +568,7 @@ export interface Database {
           content?: string | null
           hashtags?: Json | null
           media_type?: string | null
+          media_urls?: string[] | null
           reactions?: number | null
           comments?: number | null
           reposts?: number | null
@@ -584,6 +589,7 @@ export interface Database {
           content?: string | null
           hashtags?: Json | null
           media_type?: string | null
+          media_urls?: string[] | null
           reactions?: number | null
           comments?: number | null
           reposts?: number | null

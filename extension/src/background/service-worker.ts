@@ -144,6 +144,7 @@ import {
   resetCircuitBreaker,
   handleBackgroundSyncAlarm,
   runDiagnostic,
+  extractMediaUrls,
 } from './background-sync';
 
 import type { BackgroundSyncConfig } from '../shared/sync-types';
@@ -202,6 +203,7 @@ interface ExtractedPost {
   activity_urn: string;
   content: string;
   media_type: string;
+  media_urls: string[] | null;
   reactions: number;
   comments: number;
   reposts: number;
@@ -368,10 +370,21 @@ function extractPostsFromResponse(responseData: unknown): ExtractedPost[] {
       }
     }
 
+    // Extract media URLs from content object
+    const mediaUrls = extractMediaUrls(
+      contentObj as Record<string, unknown> | undefined,
+      media_type,
+      urnMap
+    );
+    if (mediaUrls.length > 0) {
+      console.log(`[CL:WORKER] Post ${urn.substring(0, 40)}... has ${mediaUrls.length} media URL(s) [${media_type}]`);
+    }
+
     return {
       activity_urn: urn,
       content,
       media_type,
+      media_urls: mediaUrls.length > 0 ? mediaUrls : null,
       reactions,
       comments: commentsCount,
       reposts,
@@ -1187,6 +1200,21 @@ async function fetchLinkedInAPI(endpoint: string, options: RequestInit = {}): Pr
 }
 
 // ============================================
+// EXTERNAL MESSAGE HANDLING (from web app)
+// ============================================
+
+chrome.runtime.onMessageExternal.addListener(
+  (message: { type?: string }, _sender, sendResponse) => {
+    if (message?.type === 'CHAINLINKED_PING') {
+      sendResponse({
+        installed: true,
+        version: chrome.runtime.getManifest().version,
+      })
+    }
+    return true
+  }
+)
+
 // MESSAGE HANDLING
 // ============================================
 

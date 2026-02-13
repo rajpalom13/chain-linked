@@ -17,7 +17,8 @@ import {
   truncateToFit,
   type CarouselGenerationInput,
   type CarouselTone,
-  type CtaType
+  type CtaType,
+  type UserContext,
 } from '@/lib/ai/carousel-prompts'
 import type { TemplateSlot, SlideBreakdown } from '@/lib/ai/template-analyzer'
 import { PromptService, PromptType } from '@/lib/prompts'
@@ -30,8 +31,9 @@ const requestSchema = z.object({
   audience: z.string().optional(),
   industry: z.string().optional(),
   keyPoints: z.array(z.string()).optional(),
-  tone: z.enum(['professional', 'casual', 'educational', 'inspirational', 'storytelling']),
-  ctaType: z.enum(['follow', 'comment', 'share', 'link', 'dm', 'save', 'custom']).optional(),
+  tone: z.enum(['professional', 'casual', 'educational', 'inspirational', 'storytelling', 'match-my-style']),
+  additionalContext: z.string().optional(),
+  ctaType: z.enum(['none', 'follow', 'comment', 'share', 'link', 'dm', 'save', 'custom']).optional(),
   customCta: z.string().optional(),
   templateAnalysis: z.object({
     templateId: z.string(),
@@ -117,6 +119,114 @@ async function getApiKey(
 }
 
 /**
+ * Fetches user context from Supabase for personalised content generation.
+ * Pulls profile, company context, recent posts, and saved wishlist ideas.
+ * @param supabase - Supabase server client
+ * @param userId - Authenticated user ID
+ * @returns UserContext object (all fields optional)
+ */
+async function fetchUserContext(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  tone?: string
+): Promise<UserContext> {
+  const ctx: UserContext = {}
+
+  // Fetch more data for match-my-style to give AI deeper style analysis
+  const postLimit = tone === 'match-my-style' ? 15 : 5
+  const wishlistLimit = tone === 'match-my-style' ? 10 : 5
+
+  // Fetch profile, company, recent posts, and wishlist in parallel
+  const [profileResult, companyResult, postsResult, wishlistResult] = await Promise.allSettled([
+    supabase
+      .from('linkedin_profiles')
+      .select('first_name, last_name, headline, industry, summary')
+      .eq('user_id', userId)
+      .single(),
+    supabase
+      .from('company_context')
+      .select('company_name, industry, target_audience, value_proposition, products_and_services, tone_of_voice')
+      .eq('user_id', userId)
+      .eq('status', 'completed')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .single(),
+    supabase
+      .from('my_posts')
+      .select('content')
+      .eq('user_id', userId)
+      .order('posted_at', { ascending: false })
+      .limit(postLimit),
+    supabase
+      .from('swipe_wishlist')
+      .select('content')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(wishlistLimit),
+  ])
+
+  // Profile
+  if (profileResult.status === 'fulfilled' && profileResult.value.data) {
+    const p = profileResult.value.data
+    const fullName = [p.first_name, p.last_name].filter(Boolean).join(' ')
+    if (fullName) ctx.name = fullName
+    if (p.headline) ctx.headline = p.headline
+    if (p.industry) ctx.industry = p.industry
+  }
+
+  // Company context (some columns are JSONB so cast to string)
+  if (companyResult.status === 'fulfilled' && companyResult.value.data) {
+    const c = companyResult.value.data
+    if (c.company_name) ctx.companyName = String(c.company_name)
+    if (c.industry && !ctx.industry) ctx.industry = String(c.industry)
+    if (c.target_audience) ctx.targetAudience = String(c.target_audience)
+    if (c.value_proposition) ctx.valueProposition = String(c.value_proposition)
+    if (c.products_and_services) ctx.productsAndServices = String(c.products_and_services)
+    if (c.tone_of_voice) {
+      // tone_of_voice is JSONB with {descriptors, writingStyle, examples}
+      if (typeof c.tone_of_voice === 'object' && c.tone_of_voice !== null) {
+        const tov = c.tone_of_voice as Record<string, unknown>
+        const parts: string[] = []
+        if (Array.isArray(tov.descriptors)) {
+          parts.push(`Tone: ${(tov.descriptors as string[]).join(', ')}`)
+        }
+        if (typeof tov.writingStyle === 'string') {
+          parts.push(`Style: ${tov.writingStyle}`)
+        }
+        if (Array.isArray(tov.examples) && (tov.examples as string[]).length > 0) {
+          parts.push(`Example phrases: "${(tov.examples as string[]).slice(0, 3).join('", "')}"`)
+        }
+        ctx.toneOfVoice = parts.join('\n')
+      } else {
+        ctx.toneOfVoice = String(c.tone_of_voice)
+      }
+    }
+  }
+
+  // Recent posts (longer truncation for match-my-style to preserve more voice cues)
+  const postTruncateLimit = tone === 'match-my-style' ? 400 : 200
+  if (postsResult.status === 'fulfilled' && postsResult.value.data) {
+    const posts = postsResult.value.data
+      .map((p) => p.content)
+      .filter((c): c is string => !!c && c.length > 20)
+      .map((c) => c.length > postTruncateLimit ? c.slice(0, postTruncateLimit) + '...' : c)
+    if (posts.length > 0) ctx.recentPosts = posts
+  }
+
+  // Wishlist / saved ideas (longer truncation for match-my-style)
+  const ideaTruncateLimit = tone === 'match-my-style' ? 400 : 200
+  if (wishlistResult.status === 'fulfilled' && wishlistResult.value.data) {
+    const ideas = wishlistResult.value.data
+      .map((w) => w.content)
+      .filter((c): c is string => !!c && c.length > 20)
+      .map((c) => c.length > ideaTruncateLimit ? c.slice(0, ideaTruncateLimit) + '...' : c)
+    if (ideas.length > 0) ctx.savedIdeas = ideas
+  }
+
+  return ctx
+}
+
+/**
  * POST /api/ai/carousel/generate
  * Generates carousel content based on template and topic
  */
@@ -155,13 +265,11 @@ export async function POST(request: NextRequest) {
     // Get API key
     const apiKey = await getApiKey(supabase, user.id)
 
-    // Get base prompts from service with fallback to defaults
-    // Note: We still use buildCarouselSystemPrompt/buildCarouselUserPrompt for
-    // template-specific logic, but we can use the service prompts as an enhancement
-    const carouselSystemBase = await PromptService.getPromptWithFallback(PromptType.CAROUSEL_SYSTEM)
+    // Fetch user context for personalisation (profile, company, recent posts, wishlist)
+    const userContext = await fetchUserContext(supabase, user.id, input.tone)
+    input.userContext = userContext
 
-    // Build prompts using the template-aware builders
-    // The builders already incorporate the base prompt patterns
+    // Build prompts using the template-aware builders with user context
     const systemPrompt = buildCarouselSystemPrompt(input)
     const userPrompt = buildCarouselUserPrompt(input)
 

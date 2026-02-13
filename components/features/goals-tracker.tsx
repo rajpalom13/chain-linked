@@ -66,34 +66,6 @@ export interface GoalsTrackerProps {
 }
 
 /**
- * @deprecated Sample goals data for backward compatibility only. Do not use.
- */
-export const SAMPLE_GOALS: Goal[] = [
-  {
-    id: "weekly-goal",
-    period: "weekly",
-    target: 5,
-    current: 3,
-    startDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    endDate: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "monthly-goal",
-    period: "monthly",
-    target: 20,
-    current: 12,
-    startDate: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-    endDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-]
-
-/**
- * @deprecated Default streak values for backward compatibility only. Do not use.
- */
-export const DEFAULT_CURRENT_STREAK = 7
-export const DEFAULT_BEST_STREAK = 14
-
-/**
  * Returns a human-readable label for the goal period
  * @param period - The period type (daily, weekly, monthly)
  * @returns Formatted period label

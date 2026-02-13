@@ -68,109 +68,6 @@ export interface TeamLeaderboardProps {
 }
 
 /**
- * Sample data for development and testing purposes.
- * Contains 8 team members with varied statistics.
- */
-export const sampleTeamMembers: TeamMemberStats[] = [
-  {
-    id: "member-1",
-    name: "Sarah Chen",
-    avatarUrl: undefined,
-    role: "VP of Engineering",
-    postsThisWeek: 5,
-    postsThisMonth: 18,
-    totalEngagement: 15420,
-    engagementRate: 6.8,
-    rank: 1,
-    rankChange: 2,
-  },
-  {
-    id: "member-2",
-    name: "Marcus Johnson",
-    avatarUrl: undefined,
-    role: "Product Manager",
-    postsThisWeek: 4,
-    postsThisMonth: 15,
-    totalEngagement: 12350,
-    engagementRate: 5.9,
-    rank: 2,
-    rankChange: 0,
-  },
-  {
-    id: "member-3",
-    name: "Emily Rodriguez",
-    avatarUrl: undefined,
-    role: "Design Lead",
-    postsThisWeek: 3,
-    postsThisMonth: 14,
-    totalEngagement: 10890,
-    engagementRate: 5.2,
-    rank: 3,
-    rankChange: -1,
-  },
-  {
-    id: "member-4",
-    name: "David Kim",
-    avatarUrl: undefined,
-    role: "Head of Growth",
-    postsThisWeek: 4,
-    postsThisMonth: 12,
-    totalEngagement: 9560,
-    engagementRate: 4.8,
-    rank: 4,
-    rankChange: 1,
-  },
-  {
-    id: "member-5",
-    name: "Lisa Thompson",
-    avatarUrl: undefined,
-    role: "Engineering Manager",
-    postsThisWeek: 2,
-    postsThisMonth: 10,
-    totalEngagement: 8240,
-    engagementRate: 4.5,
-    rank: 5,
-    rankChange: -2,
-  },
-  {
-    id: "member-6",
-    name: "James Wilson",
-    avatarUrl: undefined,
-    role: "Content Strategist",
-    postsThisWeek: 3,
-    postsThisMonth: 11,
-    totalEngagement: 7120,
-    engagementRate: 4.2,
-    rank: 6,
-    rankChange: 0,
-  },
-  {
-    id: "member-7",
-    name: "Anna Martinez",
-    avatarUrl: undefined,
-    role: "Marketing Director",
-    postsThisWeek: 2,
-    postsThisMonth: 8,
-    totalEngagement: 5890,
-    engagementRate: 3.9,
-    rank: 7,
-    rankChange: 1,
-  },
-  {
-    id: "member-8",
-    name: "Michael Brown",
-    avatarUrl: undefined,
-    role: "Sales Lead",
-    postsThisWeek: 1,
-    postsThisMonth: 6,
-    totalEngagement: 4560,
-    engagementRate: 3.5,
-    rank: 8,
-    rankChange: -1,
-  },
-]
-
-/**
  * Generates initials from a full name.
  * @param name - Full name to extract initials from
  * @returns Two-letter initials string
@@ -373,9 +270,15 @@ function EmptyState() {
         <IconChartBar className="size-6 text-muted-foreground" />
       </div>
       <h3 className="font-medium text-sm mb-1">No team members yet</h3>
-      <p className="text-xs text-muted-foreground max-w-[240px]">
+      <p className="text-xs text-muted-foreground max-w-[240px] mb-4">
         Add team members to start tracking their LinkedIn performance.
       </p>
+      <a
+        href="/dashboard/team"
+        className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+      >
+        Set Up Team
+      </a>
     </div>
   )
 }
@@ -412,10 +315,8 @@ function EmptyState() {
  *
  * @example
  * ```tsx
- * // With sample data
- * import { TeamLeaderboard, sampleTeamMembers } from "@/components/features/team-leaderboard"
- *
- * <TeamLeaderboard members={sampleTeamMembers} />
+ * // With data
+ * <TeamLeaderboard members={teamMembers} />
  * ```
  */
 export function TeamLeaderboard({

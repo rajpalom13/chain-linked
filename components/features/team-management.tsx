@@ -15,6 +15,7 @@ import {
   IconUserPlus,
 } from '@tabler/icons-react'
 
+import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -159,14 +160,22 @@ export function TeamManagement({ className, teamId: preselectedTeamId }: TeamMan
   if (teams.length === 0) {
     return (
       <Card className={cn('', className)}>
-        <CardContent className="flex flex-col items-center justify-center py-12">
-          <div className="size-16 rounded-full bg-muted flex items-center justify-center mb-4">
+        <CardContent className="flex flex-col items-center justify-center gap-4 py-12">
+          <div className="size-16 rounded-full bg-muted flex items-center justify-center">
             <IconUsers className="size-8 text-muted-foreground" />
           </div>
-          <h3 className="text-lg font-semibold mb-2">No Team Found</h3>
-          <p className="text-muted-foreground text-center max-w-sm">
-            You are not part of any team yet. Create a company to get started.
-          </p>
+          <div className="flex flex-col items-center gap-1">
+            <h3 className="text-lg font-semibold">No Team Found</h3>
+            <p className="text-muted-foreground text-center max-w-sm">
+              You are not part of any team yet. Create a company to get started.
+            </p>
+          </div>
+          <Button asChild>
+            <Link href="/dashboard/team">
+              <IconPlus className="size-4 mr-2" />
+              Create Team
+            </Link>
+          </Button>
         </CardContent>
       </Card>
     )

@@ -65,39 +65,6 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-/**
- * @deprecated Mock data generator - use real data in production
- */
-export function generateSampleData(): AnalyticsDataPoint[] {
-  const data: AnalyticsDataPoint[] = []
-  const today = new Date()
-
-  for (let i = 89; i >= 0; i--) {
-    const date = new Date(today)
-    date.setDate(date.getDate() - i)
-
-    const dayOfWeek = date.getDay()
-    const isWeekday = dayOfWeek > 0 && dayOfWeek < 6
-    const baseMultiplier = isWeekday ? 1.2 : 0.8
-
-    const trendFactor = 1 + (90 - i) * 0.005
-    const randomFactor = 0.7 + Math.random() * 0.6
-
-    const impressions = Math.round(
-      1000 * baseMultiplier * trendFactor * randomFactor
-    )
-    const engagementRate = 0.02 + Math.random() * 0.06
-    const engagements = Math.round(impressions * engagementRate)
-
-    data.push({
-      date: date.toISOString().split("T")[0],
-      impressions,
-      engagements,
-    })
-  }
-
-  return data
-}
 
 /**
  * Loading skeleton for chart

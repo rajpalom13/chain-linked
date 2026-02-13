@@ -52,6 +52,8 @@ function buildSystemPrompt(
     industry?: string
     recentTopics?: string[]
     topPerformingPosts?: Array<{ content: string; engagement: number }>
+    recentPostsText?: string[]
+    savedIdeas?: string[]
   },
   tone: string = 'professional',
   length: 'short' | 'medium' | 'long' = 'medium'
@@ -80,6 +82,11 @@ ${tone === 'casual' ? '- Conversational and relatable\n- Personal stories and ex
 ${tone === 'inspiring' ? '- Motivational and uplifting\n- Success stories and lessons learned' : ''}
 ${tone === 'educational' ? '- Informative and instructive\n- How-to guidance and frameworks' : ''}
 ${tone === 'thought-provoking' ? '- Challenging conventional wisdom\n- Deep analysis and predictions' : ''}
+${tone === 'match-my-style' ? `- CRITICAL: Deeply analyze the author's writing samples below and replicate their EXACT voice
+- Mirror their sentence structures, paragraph lengths, and formatting habits
+- Use similar vocabulary, expressions, and rhetorical devices
+- Match their level of formality, humor, and storytelling approach
+- The output should be indistinguishable from their other posts` : ''}
 
 ## Length Requirements
 Target: ${lengthConfig.description}
@@ -107,7 +114,15 @@ Current setting: ${length}
 - Don't use emoji excessively (1-2 max, if any)
 - No generic motivational quotes
 - Don't write walls of text without breaks
-
+${userContext.recentPostsText && userContext.recentPostsText.length > 0 ? `
+## Writing Style Reference
+${tone === 'match-my-style' ? 'CRITICAL: Replicate the exact voice, structure, and style of these posts:' : 'Reference these recent posts for style context:'}
+${userContext.recentPostsText.map((post, i) => `${i + 1}. "${post}"`).join('\n')}
+` : ''}
+${userContext.savedIdeas && userContext.savedIdeas.length > 0 ? `
+## Content Preferences (Posts the author found interesting)
+${userContext.savedIdeas.map((idea, i) => `${i + 1}. "${idea}"`).join('\n')}
+` : ''}
 ## Output Format
 Return ONLY the post content, no explanations or meta-commentary.`
 }
@@ -142,9 +157,12 @@ function buildUserMessage(
 /**
  * Fetches user context from Supabase
  */
-async function getUserContext(userId: string) {
+async function getUserContext(userId: string, tone?: string) {
   try {
     const supabase = await createClient()
+
+    const postLimit = tone === 'match-my-style' ? 15 : 10
+    const wishlistLimit = tone === 'match-my-style' ? 10 : 0
 
     // Fetch user profile
     const { data: profile } = await supabase
@@ -159,7 +177,7 @@ async function getUserContext(userId: string) {
       .select('content, reactions, comments, reposts')
       .eq('user_id', userId)
       .order('posted_at', { ascending: false })
-      .limit(10)
+      .limit(postLimit)
 
     // Extract topics from recent posts (simple keyword extraction)
     const recentTopics = recentPosts
@@ -181,6 +199,24 @@ async function getUserContext(userId: string) {
       .sort((a, b) => b.engagement - a.engagement)
       .slice(0, 3)
 
+    // Fetch wishlist items for style reference
+    let wishlistItems: string[] = []
+    if (wishlistLimit > 0) {
+      const { data: wishlist } = await supabase
+        .from('swipe_wishlist')
+        .select('content')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(wishlistLimit)
+
+      if (wishlist) {
+        wishlistItems = wishlist
+          .map((w) => w.content)
+          .filter((c): c is string => !!c && c.length > 20)
+          .map((c) => c.length > 300 ? c.slice(0, 300) + '...' : c)
+      }
+    }
+
     // Construct full name from first_name and last_name
     const fullName = profile
       ? [profile.first_name, profile.last_name].filter(Boolean).join(' ') || undefined
@@ -192,6 +228,14 @@ async function getUserContext(userId: string) {
       industry: profile?.industry ?? undefined,
       recentTopics,
       topPerformingPosts,
+      recentPostsText: recentPosts
+        ?.map((p) => p.content)
+        .filter((c): c is string => !!c && c.length > 20)
+        .map((c) => {
+          const limit = tone === 'match-my-style' ? 400 : 200
+          return c.length > limit ? c.slice(0, limit) + '...' : c
+        }) || [],
+      savedIdeas: wishlistItems,
     }
   } catch (error) {
     console.error('Failed to fetch user context:', error)
@@ -228,7 +272,7 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser()
 
     // Fetch user context for personalization
-    const userContext = user ? await getUserContext(user.id) : {}
+    const userContext = user ? await getUserContext(user.id, tone) : {}
 
     // Determine the prompt type and get prompt from service
     let promptType: PromptType | undefined

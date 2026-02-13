@@ -6,8 +6,9 @@
 
 'use client'
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useContext, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { isExtensionInstalled as detectExtension } from '@/lib/extension/detect'
 import type { User, Session } from '@supabase/supabase-js'
 
 /**
@@ -124,6 +125,10 @@ interface AuthContextType {
   hasCompletedOnboarding: boolean
   /** Current step in the onboarding flow (1-4) */
   currentOnboardingStep: number
+  /** Whether the Chrome extension is installed (null = not checked yet) */
+  extensionInstalled: boolean | null
+  /** Force re-check extension status */
+  checkExtension: () => Promise<void>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
 }
@@ -148,6 +153,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [profile, setProfile] = useState<UserProfileWithLinkedIn | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [extensionInstalled, setExtensionInstalled] = useState<boolean | null>(null)
+
+  // Refs to hold latest state without causing re-renders
+  // Used by callbacks that need current state but shouldn't trigger re-renders
+  const profileRef = useRef<UserProfileWithLinkedIn | null>(null)
+  const userRef = useRef<User | null>(null)
+
+  // Keep refs in sync with state
+  profileRef.current = profile
+  userRef.current = user
 
   // Memoize the Supabase client to prevent re-creation on every render
   const supabase = useMemo(() => createClient(), [])
@@ -159,7 +174,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * @param userId - User ID to fetch profile for
    * @returns User profile with LinkedIn data or null
    */
-  const fetchProfile = async (userId: string): Promise<UserProfileWithLinkedIn | null> => {
+  const fetchProfile = useCallback(async (userId: string): Promise<UserProfileWithLinkedIn | null> => {
     try {
       // Run all queries in parallel for better performance
       // Using maybeSingle() instead of single() to handle missing records gracefully
@@ -244,26 +259,63 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.error('Error fetching profile:', error)
       return null
     }
-  }
+  }, [supabase])
 
   /**
-   * Refresh the current user's profile
+   * Safe profile setter — NEVER downgrades profile with LinkedIn data to null.
+   * If a fetch fails and returns null, we keep the existing profile rather than
+   * wiping out the user's avatar, headline, and other LinkedIn data.
+   * @param newProfile - New profile data (may be null on fetch failure)
    */
-  const refreshProfile = async () => {
-    if (!user) return
-    const newProfile = await fetchProfile(user.id)
-    setProfile(newProfile)
-  }
+  const safeSetProfile = useCallback((newProfile: UserProfileWithLinkedIn | null) => {
+    setProfile(prev => {
+      // If new profile is null but we already have one, keep the existing data
+      if (!newProfile && prev) {
+        console.log('[AuthProvider] Blocked null profile downgrade — keeping existing profile')
+        return prev
+      }
+      // If we have an existing profile with LinkedIn data and new one lacks it,
+      // merge to preserve LinkedIn data (fetch may have partially failed)
+      if (prev?.linkedin_profile && newProfile && !newProfile.linkedin_profile) {
+        console.log('[AuthProvider] Preserving LinkedIn data from existing profile')
+        return {
+          ...newProfile,
+          linkedin_profile: prev.linkedin_profile,
+          linkedin_analytics: prev.linkedin_analytics ?? newProfile.linkedin_analytics,
+        }
+      }
+      return newProfile
+    })
+  }, [])
+
+  /**
+   * Check if the Chrome extension is installed
+   */
+  const checkExtension = useCallback(async () => {
+    const installed = await detectExtension(true)
+    setExtensionInstalled(installed)
+  }, [])
+
+  /**
+   * Refresh the current user's profile (safe — never wipes existing data)
+   */
+  const refreshProfile = useCallback(async () => {
+    const currentUser = userRef.current
+    if (!currentUser) return
+    const newProfile = await fetchProfile(currentUser.id)
+    safeSetProfile(newProfile)
+  }, [fetchProfile, safeSetProfile])
 
   /**
    * Sign out the current user
    */
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     await supabase.auth.signOut()
+    // Only on explicit sign out do we clear everything (bypass safeSetProfile)
     setUser(null)
     setProfile(null)
     setSession(null)
-  }
+  }, [supabase])
 
   /**
    * Initialize auth state and listen for changes
@@ -284,7 +336,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     ): Promise<UserProfileWithLinkedIn | null> => {
       try {
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 5000) // Reduced to 5s
+        const timeoutId = setTimeout(() => controller.abort(), 10000) // 10s timeout
 
         const profilePromise = fetchProfile(userId)
         const result = await Promise.race([
@@ -331,11 +383,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
 
         if (event === 'TOKEN_REFRESHED') {
-          // Token refresh - only update if we have a valid session
-          // Don't clear existing state if refresh temporarily fails
+          // Token refresh — update session but ONLY update user if ID changed.
+          // Supabase token refreshes should not cause profile re-renders because
+          // the user object changes reference but contains the same data.
           if (newSession?.user) {
             setSession(newSession)
-            setUser(newSession.user)
+            // Only update user state if user ID actually changed (prevents
+            // unnecessary re-renders of all context consumers)
+            setUser(prev => {
+              if (prev?.id === newSession.user.id) return prev
+              return newSession.user
+            })
           }
           return
         }
@@ -343,6 +401,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // For other events (INITIAL_SESSION, SIGNED_IN, USER_UPDATED, PASSWORD_RECOVERY)
         if (newSession?.user) {
           if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+            // If SIGNED_IN fires right after INITIAL_SESSION and we already have
+            // a valid profile, skip re-fetching to avoid the race condition where
+            // the duplicate fetch might timeout or fail.
+            if (event === 'SIGNED_IN' && profileRef.current?.id === newSession.user.id) {
+              console.log('[AuthProvider] SIGNED_IN with existing profile — skipping re-fetch')
+              setSession(newSession)
+              setUser(prev => prev?.id === newSession.user.id ? prev : newSession.user)
+              if (!hasInitialized) {
+                hasInitialized = true
+                if (isMounted) setIsLoading(false)
+              }
+              return
+            }
+
             // Fetch profile BEFORE setting user/session so all state updates
             // are batched into a single render — avoids the flash where name
             // shows but avatar/headline are missing.
@@ -353,7 +425,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
               // React 18 batches these synchronous set* calls into one render
               setSession(newSession)
               setUser(newSession.user)
-              setProfile(userProfile)
+              // Use safeSetProfile to prevent null downgrades on fetch failure
+              if (userProfile) {
+                setProfile(userProfile)
+              } else if (!profileRef.current) {
+                // Only set null if we truly have no profile yet (first load)
+                setProfile(null)
+              }
+              // If userProfile is null but we already have a profile, keep existing
             }
           } else {
             // For USER_UPDATED, PASSWORD_RECOVERY — no profile re-fetch needed
@@ -406,9 +485,39 @@ export function AuthProvider({ children }: AuthProviderProps) {
       currentFetchId++ // Cancel any pending fetches
       subscription.unsubscribe()
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [supabase, fetchProfile]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const value: AuthContextType = {
+  // Check extension status when user becomes authenticated
+  useEffect(() => {
+    if (user && extensionInstalled === null) {
+      checkExtension()
+    }
+  }, [user, extensionInstalled, checkExtension])
+
+  // Re-fetch profile after a delay if LinkedIn data is missing.
+  // This handles the race condition where the extension sync writes to
+  // linkedin_profiles AFTER the auth provider's initial profile fetch.
+  useEffect(() => {
+    if (!user || isLoading) return
+    // If we have a user but no LinkedIn profile data, the extension may still be syncing
+    if (profile && !profile.linkedin_profile) {
+      const timer = setTimeout(async () => {
+        console.log('[AuthProvider] Re-fetching profile (LinkedIn data may have arrived from extension)')
+        const updated = await fetchProfile(user.id)
+        if (updated?.linkedin_profile) {
+          setProfile(updated)
+        }
+      }, 4000)
+      return () => clearTimeout(timer)
+    }
+  }, [user, isLoading, profile?.linkedin_profile, fetchProfile])
+
+  /**
+   * Memoize the context value to prevent unnecessary re-renders of consumers.
+   * Without this, every AuthProvider render creates a new value object, causing
+   * ALL useAuthContext() consumers to re-render even if no auth data changed.
+   */
+  const value: AuthContextType = useMemo(() => ({
     user,
     profile,
     session,
@@ -417,9 +526,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     hasCompletedCompanyOnboarding: profile?.company_onboarding_completed ?? false,
     hasCompletedOnboarding: profile?.onboarding_completed ?? false,
     currentOnboardingStep: profile?.onboarding_current_step ?? 1,
+    extensionInstalled,
+    checkExtension,
     signOut,
     refreshProfile,
-  }
+  }), [user, profile, session, isLoading, extensionInstalled, checkExtension, signOut, refreshProfile])
 
   return (
     <AuthContext.Provider value={value}>
@@ -451,6 +562,8 @@ export function useAuthContext(): AuthContextType {
       hasCompletedCompanyOnboarding: false,
       hasCompletedOnboarding: false,
       currentOnboardingStep: 1,
+      extensionInstalled: null,
+      checkExtension: async () => {},
       signOut: async () => {},
       refreshProfile: async () => {},
     }

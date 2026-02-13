@@ -2,6 +2,7 @@
  * Financial Tips Template
  * Black and green modern design for entrepreneur content
  * Inspired by the modern LinkedIn carousel aesthetic
+ * Enhanced with chart-like decorative shapes and money-themed geometric patterns
  */
 
 import type { CanvasTemplate, CanvasSlide } from '@/types/canvas-editor';
@@ -40,6 +41,41 @@ const defaultSlides: CanvasSlide[] = [
         shapeType: 'rect' as const,
         fill: '#2a2a2a',
       })),
+      // Decorative circle (top-left, chart-like)
+      {
+        id: 'fin-1-deco-circle',
+        type: 'shape',
+        x: -80,
+        y: -80,
+        width: 250,
+        height: 250,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#4ade8010',
+      },
+      // Small accent circles (bottom-right, dot pattern)
+      {
+        id: 'fin-1-deco-dot1',
+        type: 'shape',
+        x: 950,
+        y: 870,
+        width: 10,
+        height: 10,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#4ade80',
+      },
+      {
+        id: 'fin-1-deco-dot2',
+        type: 'shape',
+        x: 970,
+        y: 870,
+        width: 8,
+        height: 8,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#4ade8060',
+      },
       // Header - Author Name (left)
       {
         id: 'fin-1-author',
@@ -304,6 +340,59 @@ const defaultSlides: CanvasSlide[] = [
         fill: '#4ade80',
         cornerRadius: 24,
       },
+      // Chart-like decorative bars (simulating a bar chart)
+      {
+        id: 'fin-2-deco-bar1',
+        type: 'shape',
+        x: 820,
+        y: 650,
+        width: 30,
+        height: 80,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#00000020',
+        cornerRadius: 4,
+      },
+      {
+        id: 'fin-2-deco-bar2',
+        type: 'shape',
+        x: 860,
+        y: 610,
+        width: 30,
+        height: 120,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#00000030',
+        cornerRadius: 4,
+      },
+      {
+        id: 'fin-2-deco-bar3',
+        type: 'shape',
+        x: 900,
+        y: 570,
+        width: 30,
+        height: 160,
+        rotation: 0,
+        shapeType: 'rect',
+        fill: '#00000020',
+        cornerRadius: 4,
+      },
+      // Money emoji visual
+      {
+        id: 'fin-2-deco-emoji',
+        type: 'text',
+        x: 830,
+        y: 195,
+        width: 80,
+        height: 80,
+        rotation: 0,
+        text: '\u{1F4B0}',
+        fontSize: 50,
+        fontFamily: 'Inter',
+        fontWeight: 'normal',
+        fill: '#000000',
+        align: 'center',
+      },
       // Number circle
       {
         id: 'fin-2-number-circle',
@@ -491,6 +580,34 @@ const defaultSlides: CanvasSlide[] = [
         shapeType: 'rect',
         fill: '#4ade80',
         cornerRadius: 24,
+      },
+      // Decorative circle accent inside card
+      {
+        id: 'fin-3-deco-circle',
+        type: 'shape',
+        x: 750,
+        y: 550,
+        width: 250,
+        height: 250,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#00000010',
+      },
+      // Tax/receipt emoji
+      {
+        id: 'fin-3-deco-emoji',
+        type: 'text',
+        x: 120,
+        y: 360,
+        width: 80,
+        height: 80,
+        rotation: 0,
+        text: '\u{1F4CB}',
+        fontSize: 50,
+        fontFamily: 'Inter',
+        fontWeight: 'normal',
+        fill: '#000000',
+        align: 'center',
       },
       // Title (left side)
       {
@@ -680,6 +797,45 @@ const defaultSlides: CanvasSlide[] = [
         fill: '#4ade80',
         cornerRadius: 24,
       },
+      // Shield/security emoji for "secure your future"
+      {
+        id: 'fin-4-deco-emoji',
+        type: 'text',
+        x: 830,
+        y: 550,
+        width: 80,
+        height: 80,
+        rotation: 0,
+        text: '\u{1F6E1}\uFE0F',
+        fontSize: 50,
+        fontFamily: 'Inter',
+        fontWeight: 'normal',
+        fill: '#000000',
+        align: 'center',
+      },
+      // Decorative pie-chart-like element
+      {
+        id: 'fin-4-deco-circle1',
+        type: 'shape',
+        x: 820,
+        y: 650,
+        width: 100,
+        height: 100,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#00000015',
+      },
+      {
+        id: 'fin-4-deco-circle2',
+        type: 'shape',
+        x: 845,
+        y: 675,
+        width: 50,
+        height: 50,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#00000015',
+      },
       // Number circle (left side)
       {
         id: 'fin-4-number-circle',
@@ -868,6 +1024,41 @@ const defaultSlides: CanvasSlide[] = [
         fill: '#4ade80',
         cornerRadius: 24,
       },
+      // Large decorative circle (inside card, behind text)
+      {
+        id: 'fin-5-deco-circle',
+        type: 'shape',
+        x: 350,
+        y: 150,
+        width: 400,
+        height: 400,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#00000010',
+      },
+      // Confetti-like accent dots
+      {
+        id: 'fin-5-deco-dot1',
+        type: 'shape',
+        x: 200,
+        y: 200,
+        width: 12,
+        height: 12,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#00000020',
+      },
+      {
+        id: 'fin-5-deco-dot2',
+        type: 'shape',
+        x: 850,
+        y: 250,
+        width: 16,
+        height: 16,
+        rotation: 0,
+        shapeType: 'circle',
+        fill: '#00000015',
+      },
       // Main CTA text - "WAS THIS"
       {
         id: 'fin-5-cta-1',
@@ -980,5 +1171,6 @@ export const financialTipsTemplate: CanvasTemplate = {
   category: 'bold',
   brandColors: ['#1a1a1a', '#4ade80', '#ffffff', '#000000', '#fbbf24'],
   fonts: ['Inter'],
+  defaultTone: 'educational',
   defaultSlides,
 };

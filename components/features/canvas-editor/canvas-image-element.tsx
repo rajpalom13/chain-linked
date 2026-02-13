@@ -6,10 +6,43 @@
  * @module components/features/canvas-editor/canvas-image-element
  */
 
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { Image as KonvaImage, Transformer } from 'react-konva';
 import type Konva from 'konva';
 import type { CanvasImageElement as ImageElementType } from '@/types/canvas-editor';
+
+/**
+ * Create a tinted version of an image using an offscreen canvas.
+ * Draws the original image, then composites a solid color on top
+ * using 'source-atop' so only opaque pixels are tinted.
+ * @param img - Source image element
+ * @param tintColor - Hex color to apply as tint
+ * @returns Tinted HTMLCanvasElement or null on failure
+ */
+function createTintedImage(
+  img: HTMLImageElement,
+  tintColor: string
+): HTMLCanvasElement | null {
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth || img.width;
+    canvas.height = img.naturalHeight || img.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    // Draw original image
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    // Tint: fill only the opaque parts
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.fillStyle = tintColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    return canvas;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Props for the CanvasImageElement component
@@ -39,6 +72,12 @@ export function CanvasImageElement({
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
 
+  // Create tinted image when tintColor is set
+  const tintedImage = useMemo(() => {
+    if (!image || !element.tintColor) return null;
+    return createTintedImage(image, element.tintColor);
+  }, [image, element.tintColor]);
+
   // Load image from src, proxying external URLs to avoid CORS issues
   useEffect(() => {
     if (!element.src) {
@@ -56,6 +95,28 @@ export function CanvasImageElement({
     img.onload = () => {
       setImage(img);
       setIsLoading(false);
+
+      // Auto-adjust dimensions to match natural aspect ratio (e.g., for logos)
+      if (element.preserveAspectRatio && img.naturalWidth && img.naturalHeight) {
+        const natRatio = img.naturalWidth / img.naturalHeight;
+        const boxW = element.width;
+        const boxH = element.height;
+
+        let fitW: number, fitH: number;
+        if (boxW / boxH > natRatio) {
+          // Box is wider than image — fit by height
+          fitH = boxH;
+          fitW = Math.round(boxH * natRatio);
+        } else {
+          // Box is taller than image — fit by width
+          fitW = boxW;
+          fitH = Math.round(boxW / natRatio);
+        }
+
+        if (fitW !== element.width || fitH !== element.height) {
+          onChange({ width: fitW, height: fitH } as Partial<ImageElementType>);
+        }
+      }
     };
 
     img.onerror = () => {
@@ -157,7 +218,7 @@ export function CanvasImageElement({
         width={element.width}
         height={element.height}
         rotation={element.rotation}
-        image={image}
+        image={tintedImage || image}
         draggable={!element.locked}
         onClick={handleClick}
         onTap={handleTap}
@@ -195,7 +256,7 @@ export function CanvasImageElement({
           anchorFill="#ffffff"
           anchorSize={10}
           anchorCornerRadius={2}
-          keepRatio={false}
+          keepRatio={!!element.preserveAspectRatio}
         />
       )}
     </>

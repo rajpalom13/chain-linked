@@ -1,6 +1,8 @@
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
+import { motion } from "framer-motion"
+import { buttonHoverProps } from "@/lib/animations"
 
 import { cn } from "@/lib/utils"
 
@@ -60,4 +62,38 @@ function Button({
   )
 }
 
-export { Button, buttonVariants }
+/**
+ * AnimatedButton - A motion-enhanced button with hover/tap micro-interactions.
+ * Use for prominent CTA buttons (Post Now, New Post, Export, etc.).
+ * Wraps the standard Button in a motion.div for animation without type conflicts.
+ *
+ * @example
+ * <AnimatedButton variant="default">Post Now</AnimatedButton>
+ */
+function AnimatedButton({
+  className,
+  variant = "default",
+  size = "default",
+  asChild = false,
+  ...props
+}: React.ComponentProps<"button"> &
+  VariantProps<typeof buttonVariants> & {
+    asChild?: boolean
+  }) {
+  return (
+    <motion.div
+      className="inline-flex"
+      {...buttonHoverProps}
+    >
+      <Button
+        className={className}
+        variant={variant}
+        size={size}
+        asChild={asChild}
+        {...props}
+      />
+    </motion.div>
+  )
+}
+
+export { Button, AnimatedButton, buttonVariants }

@@ -59,10 +59,12 @@ export interface AnalyticsCardsProps {
   searchAppearances?: MetricData
   connections?: MetricData
   membersReached?: MetricData
+  /** When "primary", only show the 4 key metrics (impressions, engagement, followers, profile views) */
+  variant?: 'all' | 'primary'
 }
 
 /** Default zero values when no data is available */
-const DEFAULT_METRICS: Required<AnalyticsCardsProps> = {
+const DEFAULT_METRICS: Omit<Required<AnalyticsCardsProps>, 'variant'> = {
   impressions: { value: 0, change: 0 },
   engagementRate: { value: 0, change: 0 },
   followers: { value: 0, change: 0 },
@@ -152,17 +154,19 @@ function Sparkline({
 }
 
 /**
- * Generate sample sparkline data based on trend
+ * Generate deterministic sparkline data based on trend direction.
+ * Uses a seeded pseudo-random pattern to avoid visual jitter on re-render.
  */
 function generateSparklineData(isPositive: boolean): number[] {
   const base = 50
   const points = 12
   const data: number[] = []
+  // Deterministic offsets to avoid Math.random() jitter
+  const offsets = [3, -7, 5, -2, 8, -4, 6, -1, 9, -3, 7, -5]
 
   for (let i = 0; i < points; i++) {
     const trend = isPositive ? i * 2 : -i * 1.5
-    const random = (Math.random() - 0.5) * 20
-    data.push(Math.max(10, base + trend + random))
+    data.push(Math.max(10, base + trend + offsets[i]))
   }
 
   return data
@@ -298,8 +302,9 @@ export function AnalyticsCards({
   searchAppearances = DEFAULT_METRICS.searchAppearances,
   connections = DEFAULT_METRICS.connections,
   membersReached = DEFAULT_METRICS.membersReached,
+  variant = 'all',
 }: AnalyticsCardsProps) {
-  const metrics: MetricCardProps[] = [
+  const primaryMetrics: MetricCardProps[] = [
     {
       title: 'Total Impressions',
       value: impressions.value,
@@ -350,6 +355,9 @@ export function AnalyticsCards({
       description: 'Unique visitors to your profile',
       tooltip: 'The number of times your LinkedIn profile was viewed by members. High profile views often correlate with increased engagement and connection requests.',
     },
+  ]
+
+  const secondaryMetrics: MetricCardProps[] = [
     {
       title: 'Search Appearances',
       value: searchAppearances.value,
@@ -388,9 +396,14 @@ export function AnalyticsCards({
     },
   ]
 
+  const metrics = variant === 'primary' ? primaryMetrics : [...primaryMetrics, ...secondaryMetrics]
+
   return (
     <motion.div
-      className="grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2 @3xl/main:grid-cols-3 @5xl/main:grid-cols-4"
+      className={variant === 'primary'
+        ? "grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4"
+        : "grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2 @3xl/main:grid-cols-3 @5xl/main:grid-cols-4"
+      }
       variants={staggerContainerVariants}
       initial="initial"
       animate="animate"

@@ -15,7 +15,6 @@ import {
   IconSettings,
 } from "@tabler/icons-react"
 
-import { AppSidebar } from "@/components/app-sidebar"
 import { TeamActivityFeed } from "@/components/features/team-activity-feed"
 import { TeamLeaderboard } from "@/components/features/team-leaderboard"
 import { TeamHeader } from "@/components/features/team-header"
@@ -23,7 +22,6 @@ import { TeamMembersPreview } from "@/components/features/team-members-preview"
 import { PendingInvitationsCard, type PendingInvitation } from "@/components/features/pending-invitations-card"
 import { NoTeamState } from "@/components/features/no-team-state"
 import { TeamMemberList } from "@/components/features/team-member-list"
-import { SiteHeader } from "@/components/site-header"
 import { TeamSkeleton } from "@/components/skeletons/page-skeletons"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -33,10 +31,7 @@ import { useTeamLeaderboard } from "@/hooks/use-team-leaderboard"
 import { useTeam } from "@/hooks/use-team"
 import { useTeamInvitations } from "@/hooks/use-team-invitations"
 import { useAuthContext } from "@/lib/auth/auth-provider"
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar"
+import { usePageMeta } from "@/lib/dashboard-context"
 
 /**
  * Tab type for team page
@@ -156,7 +151,7 @@ function TeamContent() {
   }
 
   return (
-    <div className="flex flex-col animate-in fade-in duration-500">
+    <div className="flex flex-col">
       {/* Team Header */}
       <TeamHeader
         team={currentTeam}
@@ -396,24 +391,7 @@ function TeamContent() {
  * @returns Team page with tabs for overview, members, activity, and settings
  */
 export default function TeamPage() {
-  return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar variant="inset" />
-      <SidebarInset>
-        <SiteHeader title="Team" />
-        <main id="main-content" className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col">
-            <TeamContent />
-          </div>
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
-  )
+  usePageMeta({ title: "Team" })
+
+  return <TeamContent />
 }

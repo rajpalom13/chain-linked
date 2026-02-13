@@ -3,9 +3,10 @@
 /**
  * Property Panel Component
  * Right sidebar for editing element and slide properties
+ * Uses EnhancedColorPicker and supports image tint colors
  */
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   IconTypography,
   IconSquare,
@@ -14,12 +15,14 @@ import {
   IconAlignLeft,
   IconAlignCenter,
   IconAlignRight,
-  IconBold,
-  IconItalic,
-  IconPalette,
-  IconBorderRadius,
   IconLoader2,
-  IconPlus,
+  IconScissors,
+  IconCheck,
+  IconTemplate,
+  IconSparkles,
+  IconUpload,
+  IconLayoutList,
+  IconPalette,
 } from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,14 +35,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { removeImageBackground, type RemovalProgress } from '@/lib/image/background-removal';
+import { EnhancedColorPicker } from './enhanced-color-picker';
 import type {
   CanvasElement,
   CanvasSlide,
@@ -48,8 +48,7 @@ import type {
   CanvasImageElement,
   ElementType,
   TextAlign,
-  DEFAULT_FONTS,
-  DEFAULT_COLORS,
+  LeftPanelTab,
 } from '@/types/canvas-editor';
 
 const FONT_OPTIONS = [
@@ -71,103 +70,6 @@ const FONT_WEIGHTS = [
   { label: 'Bold', value: 'bold' },
 ];
 
-const DEFAULT_COLOR_PALETTE = [
-  '#000000',
-  '#ffffff',
-  '#1e3a5f',
-  '#3b82f6',
-  '#10b981',
-  '#f59e0b',
-  '#ef4444',
-  '#8b5cf6',
-  '#ec4899',
-  '#6b7280',
-];
-
-/**
- * Color picker popover component
- */
-function ColorPicker({
-  color,
-  onChange,
-  templateColors,
-}: {
-  color: string;
-  onChange: (color: string) => void;
-  templateColors: string[];
-}) {
-  const [customColor, setCustomColor] = useState(color);
-
-  const allColors = [...new Set([...templateColors, ...DEFAULT_COLOR_PALETTE])];
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full justify-start gap-2"
-        >
-          <div
-            className="h-4 w-4 rounded border"
-            style={{ backgroundColor: color }}
-          />
-          <span className="font-mono text-xs">{color}</span>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-64" align="start">
-        <div className="space-y-3">
-          {/* Preset colors */}
-          <div>
-            <Label className="text-xs text-muted-foreground">Preset Colors</Label>
-            <div className="mt-2 grid grid-cols-5 gap-2">
-              {allColors.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  className={cn(
-                    'h-8 w-8 rounded border-2 transition-all',
-                    color === c ? 'border-primary scale-110' : 'border-transparent hover:scale-105'
-                  )}
-                  style={{ backgroundColor: c }}
-                  onClick={() => onChange(c)}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Custom color input */}
-          <div>
-            <Label className="text-xs text-muted-foreground">Custom Color</Label>
-            <div className="mt-2 flex gap-2">
-              <Input
-                type="color"
-                value={customColor}
-                onChange={(e) => setCustomColor(e.target.value)}
-                className="h-8 w-12 cursor-pointer p-1"
-              />
-              <Input
-                type="text"
-                value={customColor}
-                onChange={(e) => setCustomColor(e.target.value)}
-                placeholder="#000000"
-                className="h-8 flex-1 font-mono text-xs"
-              />
-              <Button
-                size="sm"
-                onClick={() => onChange(customColor)}
-                className="h-8"
-              >
-                Apply
-              </Button>
-            </div>
-          </div>
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 /**
  * Props for the PropertyPanel component
  */
@@ -180,6 +82,8 @@ interface PropertyPanelProps {
   onAddElement: (type: ElementType) => void;
   onAddImageElement?: (src: string, width?: number, height?: number) => void;
   onDeleteElement: () => void;
+  /** Callback to switch the left panel to a specific tab */
+  onSwitchLeftTab?: (tab: LeftPanelTab) => void;
 }
 
 /**
@@ -195,96 +99,8 @@ export function PropertyPanel({
   onAddElement,
   onAddImageElement,
   onDeleteElement,
+  onSwitchLeftTab,
 }: PropertyPanelProps) {
-  const [imageUrl, setImageUrl] = useState('');
-  const [isLoadingUrl, setIsLoadingUrl] = useState(false);
-
-  /**
-   * Handle adding an image element from a URL
-   * Loads the image to determine its natural dimensions, then calls
-   * onAddImageElement with the URL and scaled dimensions
-   */
-  const handleImageFromUrl = () => {
-    if (!imageUrl.trim() || !onAddImageElement) return;
-
-    setIsLoadingUrl(true);
-    const img = new window.Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const maxSize = 500;
-      let width = img.width;
-      let height = img.height;
-      if (width > maxSize || height > maxSize) {
-        if (width > height) {
-          height = (height / width) * maxSize;
-          width = maxSize;
-        } else {
-          width = (width / height) * maxSize;
-          height = maxSize;
-        }
-      }
-      onAddImageElement(imageUrl.trim(), Math.round(width), Math.round(height));
-      setImageUrl('');
-      setIsLoadingUrl(false);
-    };
-    img.onerror = () => {
-      toast.error('Failed to load image from URL');
-      setIsLoadingUrl(false);
-    };
-    img.src = imageUrl.trim();
-  };
-
-  /**
-   * Handle image file upload
-   */
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !onAddImageElement) return;
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      toast.error('Invalid file type. Please select an image.');
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('File too large. Maximum size is 5MB.');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = e.target?.result as string;
-      if (!dataUrl) return;
-
-      // Create a temporary image to get dimensions
-      const img = new window.Image();
-      img.onload = () => {
-        // Scale image to fit canvas while maintaining aspect ratio
-        const maxSize = 500;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > maxSize || height > maxSize) {
-          if (width > height) {
-            height = (height / width) * maxSize;
-            width = maxSize;
-          } else {
-            width = (width / height) * maxSize;
-            height = maxSize;
-          }
-        }
-
-        onAddImageElement(dataUrl, Math.round(width), Math.round(height));
-      };
-      img.src = dataUrl;
-    };
-    reader.readAsDataURL(file);
-
-    // Reset the input
-    event.target.value = '';
-  };
   return (
     <div className="flex h-full w-72 flex-col border-l bg-muted/30">
       {/* Header */}
@@ -348,6 +164,7 @@ export function PropertyPanel({
                   <ImageProperties
                     element={selectedElement as CanvasImageElement}
                     onChange={onElementUpdate}
+                    templateColors={templateColors}
                   />
                 )}
 
@@ -369,83 +186,10 @@ export function PropertyPanel({
                 </Button>
               </>
             ) : (
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Select an element to edit its properties, or add a new element:
-                </p>
-
-                {/* Add element buttons */}
-                <div className="grid grid-cols-3 gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onAddElement('text')}
-                    className="flex flex-col gap-1 h-auto py-3"
-                  >
-                    <IconTypography className="h-5 w-5" />
-                    <span className="text-xs">Text</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onAddElement('shape')}
-                    className="flex flex-col gap-1 h-auto py-3"
-                  >
-                    <IconSquare className="h-5 w-5" />
-                    <span className="text-xs">Shape</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    asChild
-                    className="flex flex-col gap-1 h-auto py-3 cursor-pointer"
-                  >
-                    <label>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleImageUpload}
-                      />
-                      <IconPhoto className="h-5 w-5" />
-                      <span className="text-xs">Image</span>
-                    </label>
-                  </Button>
-                </div>
-
-                {/* URL Image Input */}
-                <div className="space-y-2 pt-3 border-t">
-                  <Label className="text-xs text-muted-foreground">Add image from URL</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="url"
-                      placeholder="https://example.com/image.png"
-                      value={imageUrl}
-                      onChange={(e) => setImageUrl(e.target.value)}
-                      className="h-8 text-xs flex-1"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleImageFromUrl();
-                        }
-                      }}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 px-3"
-                      onClick={handleImageFromUrl}
-                      disabled={!imageUrl.trim() || isLoadingUrl}
-                    >
-                      {isLoadingUrl ? (
-                        <IconLoader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <IconPlus className="h-3.5 w-3.5" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </div>
+              <NoElementSelected
+                onAddElement={onAddElement}
+                onSwitchLeftTab={onSwitchLeftTab}
+              />
             )}
           </TabsContent>
 
@@ -453,7 +197,7 @@ export function PropertyPanel({
           <TabsContent value="slide" className="space-y-4 p-4">
             <div className="space-y-2">
               <Label className="text-sm">Background Color</Label>
-              <ColorPicker
+              <EnhancedColorPicker
                 color={currentSlide.backgroundColor}
                 onChange={onSlideBackgroundChange}
                 templateColors={templateColors}
@@ -461,7 +205,7 @@ export function PropertyPanel({
             </div>
 
             <div className="pt-4 border-t">
-              <h4 className="text-sm font-medium mb-2">Add Elements</h4>
+              <h4 className="text-sm font-medium mb-2">Quick Add</h4>
               <div className="grid grid-cols-3 gap-2">
                 <Button
                   variant="outline"
@@ -484,58 +228,108 @@ export function PropertyPanel({
                 <Button
                   variant="outline"
                   size="sm"
-                  asChild
-                  className="flex flex-col gap-1 h-auto py-3 cursor-pointer"
+                  onClick={() => onSwitchLeftTab?.('uploads')}
+                  className="flex flex-col gap-1 h-auto py-3"
                 >
-                  <label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleImageUpload}
-                    />
-                    <IconPhoto className="h-5 w-5" />
-                    <span className="text-xs">Image</span>
-                  </label>
+                  <IconUpload className="h-5 w-5" />
+                  <span className="text-xs">Upload</span>
                 </Button>
-              </div>
-
-              {/* URL Image Input */}
-              <div className="space-y-2 pt-3 border-t mt-3">
-                <Label className="text-xs text-muted-foreground">Add image from URL</Label>
-                <div className="flex gap-2">
-                  <Input
-                    type="url"
-                    placeholder="https://example.com/image.png"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    className="h-8 text-xs flex-1"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleImageFromUrl();
-                      }
-                    }}
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 px-3"
-                    onClick={handleImageFromUrl}
-                    disabled={!imageUrl.trim() || isLoadingUrl}
-                  >
-                    {isLoadingUrl ? (
-                      <IconLoader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <IconPlus className="h-3.5 w-3.5" />
-                    )}
-                  </Button>
-                </div>
               </div>
             </div>
           </TabsContent>
         </Tabs>
       </div>
+    </div>
+  );
+}
+
+/**
+ * No element selected state with helpful quick-links
+ */
+function NoElementSelected({
+  onAddElement,
+  onSwitchLeftTab,
+}: {
+  onAddElement: (type: ElementType) => void;
+  onSwitchLeftTab?: (tab: LeftPanelTab) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Select an element on the canvas to edit its properties.
+      </p>
+
+      {/* Quick add element buttons */}
+      <div className="grid grid-cols-3 gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onAddElement('text')}
+          className="flex flex-col gap-1 h-auto py-3"
+        >
+          <IconTypography className="h-5 w-5" />
+          <span className="text-xs">Text</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onAddElement('shape')}
+          className="flex flex-col gap-1 h-auto py-3"
+        >
+          <IconSquare className="h-5 w-5" />
+          <span className="text-xs">Shape</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onSwitchLeftTab?.('uploads')}
+          className="flex flex-col gap-1 h-auto py-3"
+        >
+          <IconUpload className="h-5 w-5" />
+          <span className="text-xs">Upload</span>
+        </Button>
+      </div>
+
+      {/* Quick-link buttons to left panel tabs */}
+      {onSwitchLeftTab && (
+        <div className="pt-3 border-t space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Open Panel</Label>
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              type="button"
+              onClick={() => onSwitchLeftTab('templates')}
+              className="flex items-center gap-2 rounded-md border px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <IconTemplate className="h-3.5 w-3.5" />
+              Templates
+            </button>
+            <button
+              type="button"
+              onClick={() => onSwitchLeftTab('ai')}
+              className="flex items-center gap-2 rounded-md border px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <IconSparkles className="h-3.5 w-3.5" />
+              AI Generate
+            </button>
+            <button
+              type="button"
+              onClick={() => onSwitchLeftTab('graphics')}
+              className="flex items-center gap-2 rounded-md border px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <IconPhoto className="h-3.5 w-3.5" />
+              Graphics
+            </button>
+            <button
+              type="button"
+              onClick={() => onSwitchLeftTab('slides')}
+              className="flex items-center gap-2 rounded-md border px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <IconLayoutList className="h-3.5 w-3.5" />
+              Slides
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -610,7 +404,7 @@ function TextProperties({
       {/* Text Color */}
       <div className="space-y-2">
         <Label className="text-xs">Color</Label>
-        <ColorPicker
+        <EnhancedColorPicker
           color={element.fill}
           onChange={(color) => onChange({ fill: color })}
           templateColors={templateColors}
@@ -692,7 +486,7 @@ function ShapeProperties({
       {/* Fill Color */}
       <div className="space-y-2">
         <Label className="text-xs">Fill Color</Label>
-        <ColorPicker
+        <EnhancedColorPicker
           color={element.fill}
           onChange={(color) => onChange({ fill: color })}
           templateColors={templateColors}
@@ -738,7 +532,7 @@ function ShapeProperties({
       {(element.strokeWidth || 0) > 0 && (
         <div className="space-y-2">
           <Label className="text-xs">Stroke Color</Label>
-          <ColorPicker
+          <EnhancedColorPicker
             color={element.stroke || '#000000'}
             onChange={(color) => onChange({ stroke: color })}
             templateColors={templateColors}
@@ -750,15 +544,56 @@ function ShapeProperties({
 }
 
 /**
- * Image element properties
+ * Image element properties with tint color support
  */
 function ImageProperties({
   element,
   onChange,
+  templateColors,
 }: {
   element: CanvasImageElement;
   onChange: (updates: Partial<CanvasImageElement>) => void;
+  templateColors: string[];
 }) {
+  const [bgRemovalState, setBgRemovalState] = useState<
+    'idle' | 'downloading' | 'processing' | 'done'
+  >('idle');
+  const [bgRemovalProgress, setBgRemovalProgress] = useState(0);
+
+  const handleRemoveBackground = useCallback(async () => {
+    if (!element.src || bgRemovalState !== 'idle') return;
+
+    setBgRemovalState('downloading');
+    setBgRemovalProgress(0);
+
+    try {
+      const resultDataUrl = await removeImageBackground(
+        element.src,
+        (p: RemovalProgress) => {
+          setBgRemovalState(p.phase);
+          setBgRemovalProgress(Math.round(p.progress * 100));
+        },
+      );
+
+      onChange({ src: resultDataUrl });
+      setBgRemovalState('done');
+      toast.success('Background removed successfully');
+
+      setTimeout(() => setBgRemovalState('idle'), 2000);
+    } catch (err) {
+      console.error('[BgRemoval] Failed:', err);
+      toast.error('Failed to remove background. Try a different image.');
+      setBgRemovalState('idle');
+    }
+  }, [element.src, bgRemovalState, onChange]);
+
+  const isBusy = bgRemovalState === 'downloading' || bgRemovalState === 'processing';
+
+  // Show tint for small images (icons) or SVG data URLs
+  const isIcon =
+    (element.width <= 120 && element.height <= 120) ||
+    element.src?.startsWith('data:image/svg');
+
   return (
     <div className="space-y-4">
       {/* Alt Text */}
@@ -777,7 +612,7 @@ function ImageProperties({
       {element.src && (
         <div className="space-y-2">
           <Label className="text-xs">Preview</Label>
-          <div className="relative aspect-square w-full overflow-hidden rounded border bg-muted">
+          <div className="relative aspect-square w-full overflow-hidden rounded border bg-[repeating-conic-gradient(#e5e7eb_0%_25%,transparent_0%_50%)] bg-[length:16px_16px]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={element.src}
@@ -785,6 +620,79 @@ function ImageProperties({
               className="h-full w-full object-contain"
             />
           </div>
+        </div>
+      )}
+
+      {/* Tint Color (for icons/small images) */}
+      {isIcon && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs flex items-center gap-1">
+              <IconPalette className="h-3 w-3" />
+              Tint Color
+            </Label>
+            {element.tintColor && (
+              <button
+                type="button"
+                onClick={() => onChange({ tintColor: undefined })}
+                className="text-[10px] text-muted-foreground hover:text-foreground"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <EnhancedColorPicker
+            color={element.tintColor || '#000000'}
+            onChange={(color) => onChange({ tintColor: color })}
+            templateColors={templateColors}
+          />
+        </div>
+      )}
+
+      {/* Remove Background */}
+      {element.src && (
+        <div className="space-y-2">
+          <Label className="text-xs">Background</Label>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onClick={handleRemoveBackground}
+            disabled={isBusy}
+          >
+            {bgRemovalState === 'idle' && (
+              <>
+                <IconScissors className="mr-2 h-4 w-4" />
+                Remove Background
+              </>
+            )}
+            {bgRemovalState === 'downloading' && (
+              <>
+                <IconLoader2 className="mr-2 h-4 w-4 animate-spin" />
+                Loading model... {bgRemovalProgress}%
+              </>
+            )}
+            {bgRemovalState === 'processing' && (
+              <>
+                <IconLoader2 className="mr-2 h-4 w-4 animate-spin" />
+                Removing... {bgRemovalProgress}%
+              </>
+            )}
+            {bgRemovalState === 'done' && (
+              <>
+                <IconCheck className="mr-2 h-4 w-4" />
+                Done!
+              </>
+            )}
+          </Button>
+          {isBusy && (
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-300"
+                style={{ width: `${bgRemovalProgress}%` }}
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -821,24 +729,6 @@ function ImageProperties({
             Choose New Image
           </label>
         </Button>
-      </div>
-
-      {/* Load from URL */}
-      <div className="space-y-2">
-        <Label className="text-xs">Load from URL</Label>
-        <div className="flex gap-2">
-          <Input
-            type="url"
-            placeholder="Image URL"
-            className="h-8 text-xs flex-1"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                const url = (e.target as HTMLInputElement).value.trim();
-                if (url) onChange({ src: url });
-              }
-            }}
-          />
-        </div>
       </div>
     </div>
   );
