@@ -80,11 +80,15 @@ export async function GET(request: Request) {
     const uniqueUserIds = [...new Set((teamPosts || []).map(p => p.user_id))]
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('id, full_name, email, avatar_url')
+      .select('id, full_name, email, avatar_url, linkedin_avatar_url')
       .in('id', uniqueUserIds)
 
+    // Prefer LinkedIn avatar over default avatar
     const profileMap = new Map(
-      (profiles || []).map(p => [p.id, p])
+      (profiles || []).map(p => [p.id, {
+        ...p,
+        avatar_url: p.linkedin_avatar_url || p.avatar_url,
+      }])
     )
 
     // Enrich posts with author info

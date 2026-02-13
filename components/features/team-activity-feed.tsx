@@ -58,6 +58,8 @@ export interface TeamActivityItem {
   postedAt: string
   /** Optional post type for badge display */
   postType?: "text" | "article" | "image" | "video" | "poll"
+  /** Media URLs attached to the post */
+  mediaUrls?: string[] | null
 }
 
 /**
@@ -257,6 +259,23 @@ function PostCard({
             </button>
           )}
         </div>
+        {/* Post Media */}
+        {post.mediaUrls && post.mediaUrls.length > 0 && (
+          <div className="rounded-lg overflow-hidden border">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={post.mediaUrls[0]}
+              alt="Post media"
+              className="w-full max-h-64 object-cover"
+              loading="lazy"
+            />
+            {post.mediaUrls.length > 1 && (
+              <div className="text-xs text-muted-foreground text-center py-1 bg-muted/50">
+                +{post.mediaUrls.length - 1} more image{post.mediaUrls.length - 1 > 1 ? 's' : ''}
+              </div>
+            )}
+          </div>
+        )}
         <div className="flex items-center justify-between pt-2 border-t">
           <div className="flex gap-4">
             <MetricItem

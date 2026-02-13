@@ -110,7 +110,7 @@ export function useTeamPosts(limit: number = 20): UseTeamPostsReturn {
       // Step 3: Fetch profile info for all team members
       const { data: profilesData } = await supabase
         .from('profiles')
-        .select('id, full_name, email, avatar_url')
+        .select('id, full_name, email, avatar_url, linkedin_avatar_url')
         .in('id', teamMemberIds)
 
       const profileMap = new Map(
@@ -160,7 +160,7 @@ export function useTeamPosts(limit: number = 20): UseTeamPostsReturn {
           author: {
             name: profile?.full_name || profile?.email?.split('@')[0] || 'Unknown User',
             headline: headline || profile?.email || '',
-            avatar: profile?.avatar_url || null,
+            avatar: profile?.linkedin_avatar_url || profile?.avatar_url || null,
           },
           content: post.content || '',
           metrics: {
@@ -171,6 +171,7 @@ export function useTeamPosts(limit: number = 20): UseTeamPostsReturn {
           },
           postedAt: post.posted_at || post.created_at,
           postType: mapMediaToPostType(post.media_type),
+          mediaUrls: post.media_urls || null,
         }
       })
 

@@ -44,7 +44,7 @@ type TeamTab = "overview" | "members" | "activity" | "settings"
  */
 function TeamContent() {
   const router = useRouter()
-  const { user } = useAuthContext()
+  const { user, profile } = useAuthContext()
   const [activeTab, setActiveTab] = useState<TeamTab>("overview")
 
   const { posts, isLoading: postsLoading } = useTeamPosts(20)
@@ -157,6 +157,7 @@ function TeamContent() {
         team={currentTeam}
         userRole={currentUserRole}
         pendingInvitationsCount={pendingInvitations.length}
+        companyWebsite={profile?.company_website}
         onSettingsClick={handleSettingsClick}
         onInvitationsSent={handleInvitationsSent}
       />

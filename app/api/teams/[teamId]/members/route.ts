@@ -62,15 +62,15 @@ export async function GET(request: Request, context: RouteContext) {
     // Try to get from profiles table first, then users table as fallback
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('id, full_name, avatar_url, email')
+      .select('id, full_name, avatar_url, linkedin_avatar_url, email')
       .in('id', userIds)
 
-    // Build profile map
+    // Build profile map - prefer LinkedIn avatar over default avatar
     const profileMap = new Map(
       (profiles || []).map(p => [p.id, {
         email: p.email || '',
         full_name: p.full_name,
-        avatar_url: p.avatar_url,
+        avatar_url: p.linkedin_avatar_url || p.avatar_url,
       }])
     )
 

@@ -7,6 +7,7 @@
 'use client'
 
 import { IconUsers, IconSettings, IconUserPlus, IconCalendar } from '@tabler/icons-react'
+import { getLogoDevUrl } from '@/lib/logo-dev'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -30,6 +31,8 @@ interface TeamHeaderProps {
   userRole: TeamMemberRole | null
   /** Number of pending invitations */
   pendingInvitationsCount?: number
+  /** Company website for logo.dev fallback */
+  companyWebsite?: string | null
   /** Callback when settings clicked */
   onSettingsClick?: () => void
   /** Callback when invitations sent */
@@ -58,19 +61,25 @@ export function TeamHeader({
   team,
   userRole,
   pendingInvitationsCount = 0,
+  companyWebsite,
   onSettingsClick,
   onInvitationsSent,
 }: TeamHeaderProps) {
   const canInvite = userRole === 'owner' || userRole === 'admin'
   const canManage = userRole === 'owner' || userRole === 'admin'
 
+  // Determine logo URL: team logo → company logo → logo.dev fallback
+  const logoUrl = team.logo_url
+    || team.company?.logo_url
+    || getLogoDevUrl({ website: companyWebsite, companyName: team.company?.name || team.name })
+
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between p-4 md:p-6 border-b bg-card">
       <div className="flex items-center gap-4">
         {/* Team Avatar/Logo */}
         <Avatar className="h-14 w-14 border-2 border-primary/10">
-          {team.logo_url ? (
-            <AvatarImage src={team.logo_url} alt={team.name} />
+          {logoUrl ? (
+            <AvatarImage src={logoUrl} alt={team.name} />
           ) : null}
           <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
             {team.name.substring(0, 2).toUpperCase()}
