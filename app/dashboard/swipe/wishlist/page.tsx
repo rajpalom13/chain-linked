@@ -13,12 +13,9 @@ import { motion } from "framer-motion"
 import {
   IconArrowLeft,
   IconBookmark,
-  IconCalendar,
   IconCheck,
   IconFilter,
   IconLoader2,
-  IconPencil,
-  IconSwipe,
 } from "@tabler/icons-react"
 
 import { SwipeWishlist } from "@/components/features/swipe-wishlist"
@@ -38,34 +35,6 @@ import {
   pageVariants,
   fadeSlideUpVariants,
 } from "@/lib/animations"
-import { CrossNav, type CrossNavItem } from "@/components/shared/cross-nav"
-
-/**
- * Related page navigation for the bottom of the Wishlist page
- */
-const wishlistCrossNav: CrossNavItem[] = [
-  {
-    href: "/dashboard/swipe",
-    icon: IconSwipe,
-    label: "Back to swiping",
-    description: "Find more AI-generated post suggestions to save.",
-    color: "primary",
-  },
-  {
-    href: "/dashboard/compose",
-    icon: IconPencil,
-    label: "Compose a post",
-    description: "Write a new LinkedIn post from scratch.",
-    color: "blue-500",
-  },
-  {
-    href: "/dashboard/schedule",
-    icon: IconCalendar,
-    label: "View schedule",
-    description: "See your upcoming scheduled posts.",
-    color: "emerald-500",
-  },
-]
 import type { WishlistItem } from "@/types/database"
 
 /**
@@ -322,9 +291,6 @@ function WishlistContent() {
             onMoveToCollection={handleMoveToCollection}
           />
         </motion.div>
-
-        {/* Related Pages */}
-        <CrossNav items={wishlistCrossNav} />
 
         {/* Schedule Modal */}
         <ScheduleModal

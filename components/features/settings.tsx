@@ -4,6 +4,7 @@ import Image from "next/image"
 
 import * as React from "react"
 import { useTheme } from "next-themes"
+import { motion } from "framer-motion"
 import {
   IconAlertCircle,
   IconBell,
@@ -435,46 +436,51 @@ export function Settings({
   }
 
   return (
-    <div className="w-full max-w-4xl mx-auto">
+    <motion.div
+      className="w-full max-w-4xl mx-auto"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+    >
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="w-full flex-wrap h-auto gap-1 mb-6">
-          <TabsTrigger value="profile" className="gap-2">
-            <IconUser className="size-4" />
+        <TabsList className="w-full flex-wrap h-auto gap-1 mb-6 p-1">
+          <TabsTrigger value="profile" className="gap-1.5 text-xs">
+            <IconUser className="size-3.5" />
             Profile
           </TabsTrigger>
-          <TabsTrigger value="linkedin" className="gap-2">
-            <IconBrandLinkedin className="size-4" />
+          <TabsTrigger value="linkedin" className="gap-1.5 text-xs">
+            <IconBrandLinkedin className="size-3.5" />
             LinkedIn
           </TabsTrigger>
-          <TabsTrigger value="api-keys" className="gap-2">
-            <IconKey className="size-4" />
+          <TabsTrigger value="api-keys" className="gap-1.5 text-xs">
+            <IconKey className="size-3.5" />
             API Keys
           </TabsTrigger>
-          <TabsTrigger value="brand-kit" className="gap-2">
-            <IconPalette className="size-4" />
+          <TabsTrigger value="brand-kit" className="gap-1.5 text-xs">
+            <IconPalette className="size-3.5" />
             Brand Kit
           </TabsTrigger>
-          <TabsTrigger value="team" className="gap-2">
-            <IconUsers className="size-4" />
+          <TabsTrigger value="team" className="gap-1.5 text-xs">
+            <IconUsers className="size-3.5" />
             Team
           </TabsTrigger>
-          <TabsTrigger value="notifications" className="gap-2">
-            <IconBell className="size-4" />
+          <TabsTrigger value="notifications" className="gap-1.5 text-xs">
+            <IconBell className="size-3.5" />
             Notifications
           </TabsTrigger>
-          <TabsTrigger value="appearance" className="gap-2">
-            <IconPalette className="size-4" />
+          <TabsTrigger value="appearance" className="gap-1.5 text-xs">
+            <IconPalette className="size-3.5" />
             Appearance
           </TabsTrigger>
         </TabsList>
 
         {/* Profile Tab */}
         <TabsContent value="profile">
-          <Card>
+          <Card className="border-border/50">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Profile Settings</CardTitle>
+                  <CardTitle className="text-lg">Profile Settings</CardTitle>
                   <CardDescription>
                     Manage your personal information and avatar
                   </CardDescription>
@@ -502,8 +508,8 @@ export function Settings({
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Avatar Section */}
-              <div className="flex items-center gap-4">
-                <Avatar className="size-20">
+              <div className="flex items-center gap-4 p-4 rounded-xl border border-border/50 bg-muted/20">
+                <Avatar className="size-20 ring-2 ring-border/50 shadow-sm">
                   {(user.avatarUrl || linkedinProfile?.avatarUrl) ? (
                     <AvatarImage src={user.avatarUrl || linkedinProfile?.avatarUrl} alt={profileName} />
                   ) : null}
@@ -575,11 +581,11 @@ export function Settings({
 
         {/* LinkedIn Tab */}
         <TabsContent value="linkedin">
-          <Card>
+          <Card className="border-border/50">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>LinkedIn Connection</CardTitle>
+                  <CardTitle className="text-lg">LinkedIn Connection</CardTitle>
                   <CardDescription>
                     Manage your LinkedIn account connection and authentication
                   </CardDescription>
@@ -607,11 +613,11 @@ export function Settings({
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Connection Status */}
-              <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
+              <div className="flex items-center justify-between p-4 rounded-xl border border-border/50 bg-muted/30">
                 <div className="flex items-center gap-3">
                   <div
                     className={cn(
-                      "size-10 rounded-full flex items-center justify-center",
+                      "size-10 rounded-full flex items-center justify-center shadow-sm",
                       linkedinConnected ? "bg-[#0077b5]" : "bg-muted"
                     )}
                   >
@@ -664,7 +670,7 @@ export function Settings({
               </div>
 
               {/* Live OAuth Status Badge */}
-              <div className="flex items-center justify-between p-4 rounded-lg border">
+              <div className="flex items-center justify-between p-4 rounded-xl border border-border/50">
                 <div className="flex items-center gap-3">
                   <IconKey className="size-5 text-muted-foreground flex-shrink-0" />
                   <div>
@@ -686,7 +692,7 @@ export function Settings({
 
                 if (daysSinceSync >= 60) {
                   return (
-                    <div className="flex items-start gap-3 p-4 rounded-lg border border-destructive bg-destructive/5">
+                    <div className="flex items-start gap-3 p-4 rounded-xl border border-destructive/50 bg-destructive/5">
                       <IconAlertCircle className="size-5 text-destructive flex-shrink-0 mt-0.5" />
                       <div className="flex-1">
                         <p className="font-medium text-destructive">LinkedIn Token Expired</p>
@@ -701,7 +707,7 @@ export function Settings({
                   )
                 } else if (daysUntilExpiry <= 7) {
                   return (
-                    <div className="flex items-start gap-3 p-4 rounded-lg border border-yellow-500 bg-yellow-500/5">
+                    <div className="flex items-start gap-3 p-4 rounded-xl border border-yellow-500/50 bg-yellow-500/5">
                       <IconAlertCircle className="size-5 text-yellow-600 flex-shrink-0 mt-0.5" />
                       <div className="flex-1">
                         <p className="font-medium text-yellow-600">Token Expiring Soon</p>
@@ -720,7 +726,7 @@ export function Settings({
 
               {/* Connection Permissions Info */}
               {linkedinConnected && (
-                <div className="flex items-start gap-3 p-4 rounded-lg border bg-muted/30">
+                <div className="flex items-start gap-3 p-4 rounded-xl border border-border/50 bg-muted/30">
                   <IconKey className="size-5 text-muted-foreground flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
                     <p className="font-medium text-sm">Granted Permissions</p>
@@ -737,7 +743,7 @@ export function Settings({
               {linkedinConnected && linkedinProfile && (
                 <div className="space-y-4">
                   {/* Profile Header with Background */}
-                  <div className="rounded-lg border overflow-hidden">
+                  <div className="rounded-xl border border-border/50 overflow-hidden">
                     {/* Background Image */}
                     {linkedinProfile.backgroundImageUrl && (
                       <div className="h-24 relative">
@@ -775,66 +781,78 @@ export function Settings({
                   <div className="grid gap-3 sm:grid-cols-2">
                     {/* Location */}
                     {linkedinProfile.location && (
-                      <div className="flex items-center gap-3 p-3 rounded-lg border">
-                        <IconMapPin className="size-5 text-muted-foreground flex-shrink-0" />
+                      <div className="flex items-center gap-3 p-3 rounded-xl border border-border/50 hover:border-border transition-colors">
+                        <div className="rounded-lg bg-gradient-to-br from-muted to-muted/50 p-2 shrink-0">
+                          <IconMapPin className="size-4 text-muted-foreground" />
+                        </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Location</p>
-                          <p className="font-medium">{linkedinProfile.location}</p>
+                          <p className="font-medium text-sm">{linkedinProfile.location}</p>
                         </div>
                       </div>
                     )}
 
                     {/* Industry */}
                     {linkedinProfile.industry && (
-                      <div className="flex items-center gap-3 p-3 rounded-lg border">
-                        <IconBriefcase className="size-5 text-muted-foreground flex-shrink-0" />
+                      <div className="flex items-center gap-3 p-3 rounded-xl border border-border/50 hover:border-border transition-colors">
+                        <div className="rounded-lg bg-gradient-to-br from-muted to-muted/50 p-2 shrink-0">
+                          <IconBriefcase className="size-4 text-muted-foreground" />
+                        </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Industry</p>
-                          <p className="font-medium">{linkedinProfile.industry}</p>
+                          <p className="font-medium text-sm">{linkedinProfile.industry}</p>
                         </div>
                       </div>
                     )}
 
                     {/* Current Company */}
                     {linkedinProfile.currentCompany && (
-                      <div className="flex items-center gap-3 p-3 rounded-lg border">
-                        <IconBuilding className="size-5 text-muted-foreground flex-shrink-0" />
+                      <div className="flex items-center gap-3 p-3 rounded-xl border border-border/50 hover:border-border transition-colors">
+                        <div className="rounded-lg bg-gradient-to-br from-muted to-muted/50 p-2 shrink-0">
+                          <IconBuilding className="size-4 text-muted-foreground" />
+                        </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Company</p>
-                          <p className="font-medium">{linkedinProfile.currentCompany}</p>
+                          <p className="font-medium text-sm">{linkedinProfile.currentCompany}</p>
                         </div>
                       </div>
                     )}
 
                     {/* Education */}
                     {linkedinProfile.education && (
-                      <div className="flex items-center gap-3 p-3 rounded-lg border">
-                        <IconSchool className="size-5 text-muted-foreground flex-shrink-0" />
+                      <div className="flex items-center gap-3 p-3 rounded-xl border border-border/50 hover:border-border transition-colors">
+                        <div className="rounded-lg bg-gradient-to-br from-muted to-muted/50 p-2 shrink-0">
+                          <IconSchool className="size-4 text-muted-foreground" />
+                        </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Education</p>
-                          <p className="font-medium">{linkedinProfile.education}</p>
+                          <p className="font-medium text-sm">{linkedinProfile.education}</p>
                         </div>
                       </div>
                     )}
 
                     {/* Followers */}
                     {linkedinProfile.followersCount !== undefined && (
-                      <div className="flex items-center gap-3 p-3 rounded-lg border">
-                        <IconUsersGroup className="size-5 text-muted-foreground flex-shrink-0" />
+                      <div className="flex items-center gap-3 p-3 rounded-xl border border-border/50 hover:border-border transition-colors">
+                        <div className="rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 p-2 shrink-0">
+                          <IconUsersGroup className="size-4 text-primary" />
+                        </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Followers</p>
-                          <p className="font-medium">{linkedinProfile.followersCount.toLocaleString()}</p>
+                          <p className="font-medium text-sm">{linkedinProfile.followersCount.toLocaleString()}</p>
                         </div>
                       </div>
                     )}
 
                     {/* Connections */}
                     {linkedinProfile.connectionsCount !== undefined && (
-                      <div className="flex items-center gap-3 p-3 rounded-lg border">
-                        <IconUsers className="size-5 text-muted-foreground flex-shrink-0" />
+                      <div className="flex items-center gap-3 p-3 rounded-xl border border-border/50 hover:border-border transition-colors">
+                        <div className="rounded-lg bg-gradient-to-br from-blue-500/15 to-blue-500/5 p-2 shrink-0">
+                          <IconUsers className="size-4 text-blue-500" />
+                        </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Connections</p>
-                          <p className="font-medium">{linkedinProfile.connectionsCount.toLocaleString()}</p>
+                          <p className="font-medium text-sm">{linkedinProfile.connectionsCount.toLocaleString()}</p>
                         </div>
                       </div>
                     )}
@@ -842,9 +860,9 @@ export function Settings({
 
                   {/* About Section */}
                   {linkedinProfile.about && (
-                    <div className="p-4 rounded-lg border">
-                      <h4 className="font-medium mb-2">About</h4>
-                      <p className="text-sm text-muted-foreground whitespace-pre-wrap line-clamp-4">
+                    <div className="p-4 rounded-xl border border-border/50">
+                      <h4 className="font-medium text-sm mb-2">About</h4>
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap line-clamp-4 leading-relaxed">
                         {linkedinProfile.about}
                       </p>
                     </div>
@@ -852,7 +870,7 @@ export function Settings({
 
                   {/* Profile URL */}
                   {linkedinProfile.profileUrl && (
-                    <div className="flex items-center gap-3 p-3 rounded-lg border">
+                    <div className="flex items-center gap-3 p-3 rounded-xl border border-border/50">
                       <IconLink className="size-5 text-muted-foreground flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-muted-foreground">LinkedIn URL</p>
@@ -878,9 +896,9 @@ export function Settings({
               )}
 
               {/* Cookie Status */}
-              <div className="flex items-center justify-between p-4 rounded-lg border">
+              <div className="flex items-center justify-between p-4 rounded-xl border border-border/50">
                 <div className="flex items-center gap-3">
-                  <div className="size-10 rounded-full bg-muted flex items-center justify-center">
+                  <div className="size-10 rounded-full bg-muted/60 flex items-center justify-center">
                     <IconCookie className="size-5 text-muted-foreground" />
                   </div>
                   <div>
@@ -934,17 +952,17 @@ export function Settings({
         {/* Brand Kit Tab */}
         <TabsContent value="brand-kit">
           {brandKitLoading ? (
-            <Card>
+            <Card className="border-border/50">
               <CardContent className="flex items-center justify-center py-16">
                 <IconLoader2 className="size-6 animate-spin text-muted-foreground" />
               </CardContent>
             </Card>
           ) : !savedBrandKit ? (
             /* Empty state — no brand kit saved yet */
-            <Card>
+            <Card className="border-border/50">
               <CardContent className="flex flex-col items-center justify-center py-16 text-center space-y-4">
-                <div className="size-16 rounded-full bg-muted flex items-center justify-center">
-                  <IconPalette className="size-8 text-muted-foreground" />
+                <div className="size-16 rounded-full bg-gradient-to-br from-primary/15 to-primary/5 flex items-center justify-center">
+                  <IconPalette className="size-8 text-primary/60" />
                 </div>
                 <div className="space-y-1">
                   <h3 className="font-semibold text-lg">No Brand Kit Found</h3>
@@ -961,11 +979,11 @@ export function Settings({
               </CardContent>
             </Card>
           ) : (
-            <Card>
+            <Card className="border-border/50">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>Brand Kit</CardTitle>
+                    <CardTitle className="text-lg">Brand Kit</CardTitle>
                     <CardDescription>
                       Customize your brand colors, fonts, and logo for consistent posts
                     </CardDescription>
@@ -1024,7 +1042,7 @@ export function Settings({
                         <Label htmlFor={`brand-${key}`} className="text-xs text-muted-foreground">{label}</Label>
                         <div className="flex items-center gap-2">
                           <div
-                            className="size-9 rounded-md border shadow-sm shrink-0"
+                            className="size-9 rounded-lg border border-border/50 shadow-sm shrink-0 ring-1 ring-black/5"
                             style={{ backgroundColor: brandKit[key] }}
                           />
                           <Input
@@ -1075,7 +1093,7 @@ export function Settings({
                 {/* Logo */}
                 <div className="space-y-3">
                   <Label className="text-base font-medium">Brand Logo</Label>
-                  <div className="flex items-center gap-4 p-4 rounded-lg border border-dashed">
+                  <div className="flex items-center gap-4 p-4 rounded-xl border border-dashed border-border/50">
                     {brandKit.logoUrl ? (
                       <Image
                         src={brandKit.logoUrl}
@@ -1108,7 +1126,7 @@ export function Settings({
                 <div className="space-y-3">
                   <Label className="text-base font-medium">Preview</Label>
                   <div
-                    className="p-5 rounded-lg border overflow-hidden"
+                    className="p-5 rounded-xl border border-border/50 overflow-hidden shadow-sm"
                     style={{ backgroundColor: brandKit.backgroundColor, color: brandKit.textColor }}
                   >
                     <div className="space-y-3">
@@ -1188,10 +1206,10 @@ export function Settings({
 
         {/* Team Tab */}
         <TabsContent value="team">
-          <Card>
+          <Card className="border-border/50">
             <CardHeader className="flex-row items-center justify-between">
               <div>
-                <CardTitle>Team Members</CardTitle>
+                <CardTitle className="text-lg">Team Members</CardTitle>
                 <CardDescription>Manage your team and their permissions</CardDescription>
               </div>
               <div className="flex items-center gap-3">
@@ -1229,7 +1247,7 @@ export function Settings({
                 return (
                   <div
                     key={member.id}
-                    className="flex items-center justify-between p-4 rounded-lg border"
+                    className="flex items-center justify-between p-4 rounded-xl border border-border/50 hover:border-border transition-colors"
                   >
                     <div className="flex items-center gap-3">
                       <Avatar>
@@ -1291,11 +1309,11 @@ export function Settings({
 
         {/* Notifications Tab */}
         <TabsContent value="notifications">
-          <Card>
+          <Card className="border-border/50">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Notification Preferences</CardTitle>
+                  <CardTitle className="text-lg">Notification Preferences</CardTitle>
                   <CardDescription>
                     Choose what notifications you want to receive
                   </CardDescription>
@@ -1323,7 +1341,7 @@ export function Settings({
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Email Notifications Master Toggle */}
-              <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
+              <div className="flex items-center justify-between p-4 rounded-xl border border-border/50 bg-muted/30">
                 <div className="flex items-center gap-3">
                   <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center">
                     <IconMail className="size-5 text-primary" />
@@ -1416,7 +1434,7 @@ export function Settings({
           <AppearanceSettings />
         </TabsContent>
       </Tabs>
-    </div>
+    </motion.div>
   )
 }
 
@@ -1455,9 +1473,9 @@ function AppearanceSettings() {
 
   if (!mounted) {
     return (
-      <Card>
+      <Card className="border-border/50">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 text-lg">
             <IconPalette className="size-5" />
             Appearance
           </CardTitle>
@@ -1470,7 +1488,7 @@ function AppearanceSettings() {
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="h-32 rounded-xl border-2 border-border bg-muted animate-pulse"
+                className="h-32 rounded-xl border-2 border-border/50 bg-muted animate-pulse"
               />
             ))}
           </div>
@@ -1480,9 +1498,9 @@ function AppearanceSettings() {
   }
 
   return (
-    <Card>
+    <Card className="border-border/50">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2 text-lg">
           <IconPalette className="size-5" />
           Appearance
         </CardTitle>
@@ -1503,11 +1521,11 @@ function AppearanceSettings() {
                   key={option.value}
                   onClick={() => setTheme(option.value)}
                   className={cn(
-                    "relative flex flex-col items-center justify-center gap-3 p-6 rounded-xl border-2 transition-all duration-200",
-                    "hover:border-primary/50 hover:shadow-md",
+                    "relative flex flex-col items-center justify-center gap-3 p-6 rounded-xl border-2 transition-all duration-300",
+                    "hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5",
                     isSelected
                       ? "border-primary bg-primary/5 shadow-sm"
-                      : "border-border bg-card hover:bg-accent/50"
+                      : "border-border/50 bg-card hover:bg-accent/50"
                   )}
                 >
                   {/* Selection indicator */}
@@ -1574,7 +1592,7 @@ function AppearanceSettings() {
         {/* Preview Section */}
         <div className="space-y-3 pt-4 border-t">
           <Label className="text-base font-medium">Preview</Label>
-          <div className="p-4 rounded-xl border bg-gradient-to-br from-card via-card to-primary/5 dark:to-primary/10">
+          <div className="p-4 rounded-xl border border-border/50 bg-gradient-to-br from-card via-card to-primary/5 dark:to-primary/10">
             <div className="flex items-center gap-3 mb-3">
               <div className="size-10 rounded-full bg-primary/20 flex items-center justify-center">
                 <IconUser className="size-5 text-primary" />
@@ -1628,13 +1646,13 @@ function NotificationToggle({
   return (
     <div
       className={cn(
-        "flex items-center justify-between py-3 border-b last:border-b-0",
-        disabled && "opacity-50"
+        "flex items-center justify-between py-3.5 px-1 border-b border-border/40 last:border-b-0 transition-opacity",
+        disabled && "opacity-40"
       )}
     >
       <div>
-        <p className="font-medium">{title}</p>
-        <p className="text-sm text-muted-foreground">{description}</p>
+        <p className="font-medium text-sm">{title}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
       </div>
       <Switch checked={checked} onCheckedChange={onCheckedChange} disabled={disabled} />
     </div>

@@ -99,6 +99,8 @@ export interface ProfileData {
   onboarding_completed: boolean
   /** Current step in the onboarding flow (1-4) */
   onboarding_current_step: number
+  /** Whether the user has completed the dashboard tour */
+  dashboard_tour_completed: boolean
 }
 
 /**
@@ -243,6 +245,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         company_website: profileData.company_website ?? null,
         onboarding_completed: profileData.onboarding_completed ?? false,
         onboarding_current_step: profileData.onboarding_current_step ?? 1,
+        dashboard_tour_completed: profileData.dashboard_tour_completed ?? false,
         linkedin_profile: linkedinProfile ? {
           ...linkedinProfile,
           raw_data: linkedinProfile.raw_data as LinkedInProfile['raw_data'],
@@ -326,6 +329,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     let isMounted = true
     let hasInitialized = false
     let currentFetchId = 0 // Track fetch requests to cancel stale ones
+    let lastProfileFetchTime = 0 // Track when profile was last fetched
+    const abortController = new AbortController()
 
     /**
      * Fetch profile with timeout safety and cancellation support
@@ -334,31 +339,47 @@ export function AuthProvider({ children }: AuthProviderProps) {
       userId: string,
       fetchId: number
     ): Promise<UserProfileWithLinkedIn | null> => {
+      // Check if the effect has been cleaned up
+      if (abortController.signal.aborted) return null
+
       try {
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 10000) // 10s timeout
+        const timeoutId = setTimeout(() => {
+          if (fetchId === currentFetchId) {
+            // Only cancel if this is still the active fetch
+          }
+        }, 10000) // 10s timeout
 
         const profilePromise = fetchProfile(userId)
         const result = await Promise.race([
           profilePromise,
           new Promise<null>((_, reject) => {
-            controller.signal.addEventListener('abort', () => {
+            const onAbort = () => reject(new Error('Profile fetch aborted'))
+            abortController.signal.addEventListener('abort', onAbort)
+            setTimeout(() => {
+              abortController.signal.removeEventListener('abort', onAbort)
               reject(new Error('Profile fetch timeout'))
-            })
+            }, 10000)
           }),
         ])
 
         clearTimeout(timeoutId)
 
         // Check if this fetch is still valid (not superseded by a newer one)
-        if (fetchId !== currentFetchId) {
+        if (fetchId !== currentFetchId || abortController.signal.aborted) {
           return null
         }
 
+        lastProfileFetchTime = Date.now()
         return result
       } catch (err) {
-        // Only log if this is still the current fetch and it's a real error
-        if (fetchId === currentFetchId && err instanceof Error && err.message !== 'Profile fetch timeout') {
+        // Only log if this is still the current fetch, not aborted, and it's a real error
+        if (
+          fetchId === currentFetchId &&
+          !abortController.signal.aborted &&
+          err instanceof Error &&
+          err.message !== 'Profile fetch timeout' &&
+          err.message !== 'Profile fetch aborted'
+        ) {
           console.error('[AuthProvider] Profile fetch error:', err)
         }
         return null
@@ -370,7 +391,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       async (event, newSession) => {
         console.log('[AuthProvider] onAuthStateChange:', { event, hasSession: !!newSession, email: newSession?.user?.email })
 
-        if (!isMounted) return
+        if (!isMounted || abortController.signal.aborted) return
 
         // Handle different auth events appropriately
         if (event === 'SIGNED_OUT') {
@@ -402,10 +423,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (newSession?.user) {
           if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
             // If SIGNED_IN fires right after INITIAL_SESSION and we already have
-            // a valid profile, skip re-fetching to avoid the race condition where
-            // the duplicate fetch might timeout or fail.
-            if (event === 'SIGNED_IN' && profileRef.current?.id === newSession.user.id) {
-              console.log('[AuthProvider] SIGNED_IN with existing profile — skipping re-fetch')
+            // a valid profile that was fetched recently (within 60s), skip re-fetching
+            // to avoid the race condition where the duplicate fetch might timeout or fail.
+            const profileAge = Date.now() - lastProfileFetchTime
+            const isProfileFresh = profileAge < 60000 // 60 seconds
+            if (event === 'SIGNED_IN' && profileRef.current?.id === newSession.user.id && isProfileFresh) {
+              console.log('[AuthProvider] SIGNED_IN with fresh profile — skipping re-fetch')
               setSession(newSession)
               setUser(prev => prev?.id === newSession.user.id ? prev : newSession.user)
               if (!hasInitialized) {
@@ -421,7 +444,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             console.log('[AuthProvider] Fetching profile for:', newSession.user.email)
             const fetchId = ++currentFetchId
             const userProfile = await fetchProfileWithTimeout(newSession.user.id, fetchId)
-            if (isMounted && fetchId === currentFetchId) {
+            if (isMounted && fetchId === currentFetchId && !abortController.signal.aborted) {
               // React 18 batches these synchronous set* calls into one render
               setSession(newSession)
               setUser(newSession.user)
@@ -483,6 +506,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => {
       isMounted = false
       currentFetchId++ // Cancel any pending fetches
+      abortController.abort() // Abort any in-flight fetch operations
       subscription.unsubscribe()
     }
   }, [supabase, fetchProfile]) // eslint-disable-line react-hooks/exhaustive-deps

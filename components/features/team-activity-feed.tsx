@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { cn } from "@/lib/utils"
+import { cn, getInitials, formatMetricNumber } from "@/lib/utils"
 
 /**
  * Represents a team member's post activity item with engagement metrics.
@@ -76,37 +76,14 @@ export interface TeamActivityFeedProps {
   className?: string
   /** Compact mode - hides filters and shows fewer posts */
   compact?: boolean
+  /** Number of columns for grid layout (default 1 = vertical stack) */
+  columns?: 1 | 2
 }
 
-/** Maximum character count before content is truncated */
+/** Maximum character count before content is truncated in full mode */
 const CONTENT_TRUNCATE_LENGTH = 200
-
-/**
- * Formats a number into a compact, human-readable string.
- * @param num - The number to format
- * @returns Formatted string (e.g., "1.2K", "3.4M")
- */
-function formatMetricNumber(num: number): string {
-  if (num >= 1000000) {
-    return `${(num / 1000000).toFixed(1)}M`
-  }
-  if (num >= 1000) {
-    return `${(num / 1000).toFixed(1)}K`
-  }
-  return num.toString()
-}
-
-/**
- * Generates initials from a full name.
- * @param name - Full name to extract initials from
- * @returns Two-letter initials string
- */
-function getInitials(name: string): string {
-  const parts = name.split(" ").filter(Boolean)
-  if (parts.length === 0) return "?"
-  if (parts.length === 1) return parts[0].charAt(0).toUpperCase()
-  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
-}
+/** Maximum character count before content is truncated in compact mode */
+const COMPACT_CONTENT_TRUNCATE_LENGTH = 150
 
 /**
  * Returns the badge variant and label for a post type.
@@ -132,24 +109,97 @@ function getPostTypeBadge(postType?: TeamActivityItem["postType"]): {
 }
 
 /**
- * Renders a single metric item with icon and value.
+ * Renders a media grid in LinkedIn style — edge-to-edge, no border/rounding.
+ * @param mediaUrls - Array of media URLs to display
  */
-function MetricItem({
-  icon: Icon,
-  value,
-  label,
-}: {
-  icon: React.ElementType
-  value: number
-  label: string
-}) {
+function MediaGrid({ mediaUrls }: { mediaUrls: string[] }) {
+  const count = mediaUrls.length
+
+  if (count === 1) {
+    return (
+      /* eslint-disable-next-line @next/next/no-img-element */
+      <img
+        src={mediaUrls[0]}
+        alt="Post media"
+        className="w-full max-h-[512px] object-cover"
+        loading="lazy"
+      />
+    )
+  }
+
+  if (count === 2) {
+    return (
+      <div className="grid grid-cols-2 gap-[2px]">
+        {mediaUrls.slice(0, 2).map((url, i) => (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            key={i}
+            src={url}
+            alt={`Post media ${i + 1}`}
+            className="w-full h-52 object-cover"
+            loading="lazy"
+          />
+        ))}
+      </div>
+    )
+  }
+
+  if (count === 3) {
+    return (
+      <div className="grid grid-cols-2 gap-[2px]">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={mediaUrls[0]}
+          alt="Post media 1"
+          className="w-full h-full object-cover row-span-2"
+          style={{ gridRow: "1 / 3" }}
+          loading="lazy"
+        />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={mediaUrls[1]}
+          alt="Post media 2"
+          className="w-full h-[130px] object-cover"
+          loading="lazy"
+        />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={mediaUrls[2]}
+          alt="Post media 3"
+          className="w-full h-[130px] object-cover"
+          loading="lazy"
+        />
+      </div>
+    )
+  }
+
+  // 4+ images: 2x2 grid with overlay on 4th
   return (
-    <div
-      className="flex items-center gap-1 text-muted-foreground"
-      title={`${value.toLocaleString()} ${label}`}
-    >
-      <Icon className="size-4" />
-      <span className="text-xs">{formatMetricNumber(value)}</span>
+    <div className="grid grid-cols-2 gap-[2px]">
+      {mediaUrls.slice(0, 3).map((url, i) => (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          key={i}
+          src={url}
+          alt={`Post media ${i + 1}`}
+          className="w-full h-40 object-cover"
+          loading="lazy"
+        />
+      ))}
+      <div className="relative">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={mediaUrls[3]}
+          alt="Post media 4"
+          className="w-full h-40 object-cover"
+          loading="lazy"
+        />
+        {count > 4 && (
+          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+            <span className="text-white text-xl font-semibold">+{count - 4}</span>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -159,39 +209,38 @@ function MetricItem({
  */
 function PostCardSkeleton() {
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-start gap-3">
-          <Skeleton className="size-10 rounded-full" />
-          <div className="flex-1 space-y-2">
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-3 w-48" />
-          </div>
+    <div className="bg-card rounded-xl border border-border/50 overflow-hidden">
+      <div className="flex items-start gap-3 p-4 pb-0">
+        <Skeleton className="size-12 rounded-full shrink-0" />
+        <div className="flex-1 space-y-1.5 pt-0.5">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-3 w-48" />
           <Skeleton className="h-3 w-16" />
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-3/4" />
-        </div>
-        <div className="flex items-center justify-between pt-2">
-          <div className="flex gap-4">
-            <Skeleton className="h-4 w-12" />
-            <Skeleton className="h-4 w-12" />
-            <Skeleton className="h-4 w-12" />
-            <Skeleton className="h-4 w-12" />
-          </div>
-          <Skeleton className="h-8 w-20" />
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+      <div className="px-4 pt-3 pb-3 space-y-2">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-3/4" />
+      </div>
+      <div className="flex items-center justify-between px-4 py-2.5">
+        <Skeleton className="h-3 w-16" />
+        <Skeleton className="h-3 w-28" />
+      </div>
+      <div className="mx-4 border-t border-border/40" />
+      <div className="flex items-center gap-1 px-2 py-2">
+        <Skeleton className="h-9 flex-1 rounded-lg" />
+        <Skeleton className="h-9 flex-1 rounded-lg" />
+        <Skeleton className="h-9 flex-1 rounded-lg" />
+        <Skeleton className="h-9 flex-1 rounded-lg" />
+      </div>
+    </div>
   )
 }
 
 /**
- * Renders a single post card in the activity feed.
+ * Renders a single post card in pixel-perfect LinkedIn-native style.
+ * Edge-to-edge media, proper engagement layout, equal-width action buttons.
  */
 function PostCard({
   post,
@@ -204,113 +253,230 @@ function PostCard({
   const shouldTruncate = post.content.length > CONTENT_TRUNCATE_LENGTH
   const displayContent =
     shouldTruncate && !isExpanded
-      ? `${post.content.slice(0, CONTENT_TRUNCATE_LENGTH)}...`
+      ? post.content.slice(0, CONTENT_TRUNCATE_LENGTH)
       : post.content
 
   const postTypeBadge = getPostTypeBadge(post.postType)
   const relativeTime = formatDistanceToNow(new Date(post.postedAt), {
-    addSuffix: true,
+    addSuffix: false,
   })
 
+  const hasEngagement =
+    post.metrics.reactions > 0 ||
+    post.metrics.comments > 0 ||
+    post.metrics.reposts > 0
+
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-start gap-3">
-          <Avatar className="size-10">
-            {post.author.avatar && (
-              <AvatarImage src={post.author.avatar} alt={post.author.name} />
+    <div className="bg-card rounded-xl border border-border/50 shadow-sm overflow-hidden transition-shadow hover:shadow-md">
+      {/* Author header */}
+      <div className="flex items-start gap-3 p-4 pb-0">
+        <Avatar className="size-12 shrink-0">
+          {post.author.avatar && (
+            <AvatarImage src={post.author.avatar} alt={post.author.name} />
+          )}
+          <AvatarFallback className="text-sm font-semibold bg-gradient-to-br from-primary/20 to-primary/10 text-primary">
+            {getInitials(post.author.name)}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0 pt-0.5">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-[14px] leading-tight truncate">
+              {post.author.name}
+            </span>
+            {postTypeBadge && (
+              <Badge variant={postTypeBadge.variant} className="text-[10px] px-1.5 py-0 shrink-0">
+                {postTypeBadge.label}
+              </Badge>
             )}
-            <AvatarFallback className="text-sm font-medium">
-              {getInitials(post.author.name)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-sm truncate">
-                {post.author.name}
-              </span>
-              {postTypeBadge && (
-                <Badge variant={postTypeBadge.variant} className="text-[10px]">
-                  {postTypeBadge.label}
-                </Badge>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground truncate">
-              {post.author.headline}
-            </p>
           </div>
-          <span className="text-xs text-muted-foreground whitespace-nowrap">
-            {relativeTime}
-          </span>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div>
-          <p className="text-sm leading-relaxed whitespace-pre-wrap">
-            {displayContent}
+          <p className="text-[12px] text-muted-foreground truncate leading-snug mt-0.5">
+            {post.author.headline}
           </p>
-          {shouldTruncate && (
+          <p className="text-[12px] text-muted-foreground mt-0.5">
+            {relativeTime}
+          </p>
+        </div>
+      </div>
+
+      {/* Post content */}
+      <div className="px-4 pt-3 pb-3">
+        <div className="text-[14px] leading-[1.45] whitespace-pre-wrap">
+          {displayContent}
+          {shouldTruncate && !isExpanded && (
             <button
               type="button"
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="text-sm font-medium text-primary hover:underline mt-1"
+              onClick={() => setIsExpanded(true)}
+              className="text-muted-foreground hover:text-primary hover:underline font-semibold ml-0.5"
             >
-              {isExpanded ? "see less" : "see more"}
+              ...see more
             </button>
           )}
         </div>
-        {/* Post Media */}
-        {post.mediaUrls && post.mediaUrls.length > 0 && (
-          <div className="rounded-lg overflow-hidden border">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={post.mediaUrls[0]}
-              alt="Post media"
-              className="w-full max-h-64 object-cover"
-              loading="lazy"
-            />
-            {post.mediaUrls.length > 1 && (
-              <div className="text-xs text-muted-foreground text-center py-1 bg-muted/50">
-                +{post.mediaUrls.length - 1} more image{post.mediaUrls.length - 1 > 1 ? 's' : ''}
-              </div>
+        {shouldTruncate && isExpanded && (
+          <button
+            type="button"
+            onClick={() => setIsExpanded(false)}
+            className="text-[14px] text-muted-foreground hover:text-primary hover:underline font-semibold mt-1 block"
+          >
+            ...show less
+          </button>
+        )}
+      </div>
+
+      {/* Media — edge-to-edge, no padding */}
+      {post.mediaUrls && post.mediaUrls.length > 0 && (
+        <MediaGrid mediaUrls={post.mediaUrls} />
+      )}
+
+      {/* Engagement summary — reactions left, comments/reposts right */}
+      {hasEngagement && (
+        <div className="flex items-center justify-between px-4 py-2.5 text-[12px] text-muted-foreground">
+          <div className="flex items-center gap-1.5">
+            {post.metrics.reactions > 0 && (
+              <>
+                <span className="flex items-center -space-x-1">
+                  <span className="inline-flex items-center justify-center size-[18px] rounded-full bg-[#378FE9] text-[10px] ring-[1.5px] ring-card relative z-[2]">👍</span>
+                  {post.metrics.reactions > 3 && (
+                    <span className="inline-flex items-center justify-center size-[18px] rounded-full bg-[#DF704D] text-[10px] ring-[1.5px] ring-card relative z-[1]">❤️</span>
+                  )}
+                </span>
+                <span>{formatMetricNumber(post.metrics.reactions)}</span>
+              </>
             )}
           </div>
-        )}
-        <div className="flex items-center justify-between pt-2 border-t">
-          <div className="flex gap-4">
-            <MetricItem
-              icon={IconEye}
-              value={post.metrics.impressions}
-              label="impressions"
-            />
-            <MetricItem
-              icon={IconThumbUp}
-              value={post.metrics.reactions}
-              label="reactions"
-            />
-            <MetricItem
-              icon={IconMessageCircle}
-              value={post.metrics.comments}
-              label="comments"
-            />
-            <MetricItem
-              icon={IconShare}
-              value={post.metrics.reposts}
-              label="reposts"
-            />
+          <div className="flex items-center gap-1">
+            {post.metrics.comments > 0 && (
+              <span className="hover:text-primary hover:underline cursor-pointer">
+                {formatMetricNumber(post.metrics.comments)} comment{post.metrics.comments !== 1 ? 's' : ''}
+              </span>
+            )}
+            {post.metrics.comments > 0 && post.metrics.reposts > 0 && (
+              <span className="text-muted-foreground/40 mx-0.5">&middot;</span>
+            )}
+            {post.metrics.reposts > 0 && (
+              <span className="hover:text-primary hover:underline cursor-pointer">
+                {formatMetricNumber(post.metrics.reposts)} repost{post.metrics.reposts !== 1 ? 's' : ''}
+              </span>
+            )}
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onRemix?.(post.id)}
-            className="gap-1.5"
-          >
-            <IconSparkles className="size-4" />
-            Remix
-          </Button>
         </div>
-      </CardContent>
-    </Card>
+      )}
+
+      {/* Divider */}
+      <div className="mx-4 border-t border-border/40" />
+
+      {/* Action bar — 4 equal buttons, no dividers */}
+      <div className="flex items-center px-2 py-1">
+        <button type="button" className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[13px] font-semibold text-muted-foreground hover:bg-muted/50 rounded-lg transition-colors">
+          <IconThumbUp className="size-[18px]" />
+          <span>Like</span>
+        </button>
+        <button type="button" className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[13px] font-semibold text-muted-foreground hover:bg-muted/50 rounded-lg transition-colors">
+          <IconMessageCircle className="size-[18px]" />
+          <span>Comment</span>
+        </button>
+        <button type="button" className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[13px] font-semibold text-muted-foreground hover:bg-muted/50 rounded-lg transition-colors">
+          <IconShare className="size-[18px]" />
+          <span>Repost</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => onRemix?.(post.id)}
+          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[13px] font-semibold text-primary hover:bg-primary/5 rounded-lg transition-colors"
+        >
+          <IconSparkles className="size-[18px]" />
+          <span>Remix</span>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Compact post card for dashboard feed - mini LinkedIn-style.
+ */
+function CompactPostCard({ post }: { post: TeamActivityItem }) {
+  const shouldTruncate = post.content.length > COMPACT_CONTENT_TRUNCATE_LENGTH
+  const displayContent = shouldTruncate
+    ? `${post.content.slice(0, COMPACT_CONTENT_TRUNCATE_LENGTH)}...`
+    : post.content
+
+  const relativeTime = formatDistanceToNow(new Date(post.postedAt), {
+    addSuffix: false,
+  })
+
+  return (
+    <div className="p-3 rounded-xl border border-border/50 hover:bg-muted/30 transition-colors">
+      {/* Author header */}
+      <div className="flex items-start gap-3 mb-2">
+        <Avatar className="size-9 flex-shrink-0">
+          {post.author.avatar && (
+            <AvatarImage src={post.author.avatar} alt={post.author.name} />
+          )}
+          <AvatarFallback className="text-xs">
+            {getInitials(post.author.name)}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold truncate">{post.author.name}</span>
+            <span className="text-xs text-muted-foreground flex-shrink-0">{relativeTime}</span>
+          </div>
+          <p className="text-xs text-muted-foreground truncate">{post.author.headline}</p>
+        </div>
+      </div>
+
+      {/* Content */}
+      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3 mb-2">
+        {displayContent}
+      </p>
+
+      {/* First image thumbnail if available */}
+      {post.mediaUrls && post.mediaUrls.length > 0 && (
+        <div className="mb-2 rounded-lg overflow-hidden border border-border/50">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={post.mediaUrls[0]}
+            alt="Post media"
+            className="w-full h-32 object-cover"
+            loading="lazy"
+          />
+          {post.mediaUrls.length > 1 && (
+            <div className="text-[10px] text-muted-foreground text-center py-0.5 bg-muted/50">
+              +{post.mediaUrls.length - 1} more
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Metric summary */}
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        {post.metrics.impressions > 0 && (
+          <span className="flex items-center gap-1">
+            <IconEye className="size-3" />
+            {formatMetricNumber(post.metrics.impressions)}
+          </span>
+        )}
+        {post.metrics.reactions > 0 && (
+          <span className="flex items-center gap-1">
+            <IconThumbUp className="size-3" />
+            {formatMetricNumber(post.metrics.reactions)}
+          </span>
+        )}
+        {post.metrics.comments > 0 && (
+          <span className="flex items-center gap-1">
+            <IconMessageCircle className="size-3" />
+            {formatMetricNumber(post.metrics.comments)}
+          </span>
+        )}
+        {post.metrics.reposts > 0 && (
+          <span className="flex items-center gap-1">
+            <IconShare className="size-3" />
+            {formatMetricNumber(post.metrics.reposts)}
+          </span>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -319,9 +485,9 @@ function PostCard({
  */
 function EmptyState() {
   return (
-    <Card>
+    <Card className="border-border/50">
       <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-        <div className="rounded-full bg-muted p-3 mb-4">
+        <div className="rounded-full bg-gradient-to-br from-muted to-muted/50 p-3 mb-4">
           <IconMessageCircle className="size-6 text-muted-foreground" />
         </div>
         <h3 className="font-medium text-sm mb-1">No team activity yet</h3>
@@ -344,18 +510,6 @@ function EmptyState() {
  *   onRemix={(postId) => console.log("Remix post:", postId)}
  * />
  * ```
- *
- * @example
- * ```tsx
- * // With loading state
- * <TeamActivityFeed isLoading />
- * ```
- *
- * @example
- * ```tsx
- * // With data
- * <TeamActivityFeed posts={teamPosts} />
- * ```
  */
 export function TeamActivityFeed({
   posts,
@@ -363,6 +517,7 @@ export function TeamActivityFeed({
   isLoading = false,
   className,
   compact = false,
+  columns = 1,
 }: TeamActivityFeedProps) {
   const [filterType, setFilterType] = React.useState<string>("all")
   const [sortBy, setSortBy] = React.useState<string>("recent")
@@ -371,20 +526,18 @@ export function TeamActivityFeed({
   const filteredAndSortedPosts = React.useMemo(() => {
     if (!posts) return []
 
-    // Filter by post type
     let filtered = posts
     if (filterType !== "all") {
       filtered = posts.filter(post => post.postType === filterType)
     }
 
-    // Sort posts
     const sorted = [...filtered].sort((a, b) => {
       switch (sortBy) {
-        case "engagement":
-          // Sort by total engagement (reactions + comments + reposts)
+        case "engagement": {
           const engagementA = a.metrics.reactions + a.metrics.comments + a.metrics.reposts
           const engagementB = b.metrics.reactions + b.metrics.comments + b.metrics.reposts
           return engagementB - engagementA
+        }
         case "impressions":
           return b.metrics.impressions - a.metrics.impressions
         case "recent":
@@ -396,19 +549,39 @@ export function TeamActivityFeed({
     return sorted
   }, [posts, filterType, sortBy])
 
-  // Compact mode: simpler loading state
+  // --- Loading states ---
   if (isLoading) {
     if (compact) {
       return (
         <div className={cn("space-y-3", className)}>
           {Array.from({ length: 3 }).map((_, index) => (
-            <div key={index} className="flex items-start gap-3 p-3 border rounded-lg">
-              <Skeleton className="size-8 rounded-full flex-shrink-0" />
-              <div className="flex-1 space-y-2">
-                <Skeleton className="h-3 w-24" />
+            <div key={index} className="p-3 rounded-xl border border-border/50">
+              <div className="flex items-start gap-3 mb-2">
+                <Skeleton className="size-9 rounded-full flex-shrink-0" />
+                <div className="flex-1 space-y-1.5">
+                  <Skeleton className="h-3.5 w-28" />
+                  <Skeleton className="h-3 w-40" />
+                </div>
+              </div>
+              <div className="space-y-1.5 mb-2">
                 <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-2/3" />
+              </div>
+              <div className="flex gap-3">
+                <Skeleton className="h-3 w-10" />
+                <Skeleton className="h-3 w-10" />
               </div>
             </div>
+          ))}
+        </div>
+      )
+    }
+    if (columns === 2) {
+      return (
+        <div className={cn("grid grid-cols-1 lg:grid-cols-2 gap-4 items-start", className)}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <PostCardSkeleton key={i} />
           ))}
         </div>
       )
@@ -427,12 +600,23 @@ export function TeamActivityFeed({
     )
   }
 
-  // Empty state
+  // --- Empty states ---
   if (!posts || posts.length === 0) {
     if (compact) {
       return (
         <div className={cn("py-6 text-center text-sm text-muted-foreground", className)}>
           No recent activity from team members
+        </div>
+      )
+    }
+    if (columns === 2) {
+      return (
+        <div className={cn("text-center py-16", className)}>
+          <div className="rounded-full bg-muted/60 p-4 mx-auto w-fit mb-3">
+            <IconMessageCircle className="size-5 text-muted-foreground" />
+          </div>
+          <h3 className="font-medium text-sm mb-1">No activity yet</h3>
+          <p className="text-xs text-muted-foreground">Posts will appear here when your team is active</p>
         </div>
       )
     }
@@ -448,57 +632,36 @@ export function TeamActivityFeed({
     )
   }
 
-  // Compact mode: simplified list without filters
+  // --- Compact mode ---
   if (compact) {
     return (
       <div className={cn("space-y-3", className)}>
         {filteredAndSortedPosts.map((post) => (
-          <div key={post.id} className="flex items-start gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
-            <Avatar className="size-8 flex-shrink-0">
-              {post.author.avatar && (
-                <AvatarImage src={post.author.avatar} alt={post.author.name} />
-              )}
-              <AvatarFallback className="text-xs">
-                {getInitials(post.author.name)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-sm font-medium truncate">{post.author.name}</span>
-                <span className="text-xs text-muted-foreground">
-                  {formatDistanceToNow(new Date(post.postedAt), { addSuffix: true })}
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground line-clamp-2">
-                {post.content}
-              </p>
-              <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <IconEye className="size-3" />
-                  {formatMetricNumber(post.metrics.impressions)}
-                </span>
-                <span className="flex items-center gap-1">
-                  <IconThumbUp className="size-3" />
-                  {formatMetricNumber(post.metrics.reactions)}
-                </span>
-              </div>
-            </div>
-          </div>
+          <CompactPostCard key={post.id} post={post} />
         ))}
       </div>
     )
   }
 
-  // Full mode with filters
+  // --- Grid mode (2-column, no filter header) ---
+  if (columns === 2) {
+    return (
+      <div className={cn("grid grid-cols-1 lg:grid-cols-2 gap-4 items-start", className)}>
+        {filteredAndSortedPosts.map((post) => (
+          <PostCard key={post.id} post={post} onRemix={onRemix} />
+        ))}
+      </div>
+    )
+  }
+
+  // --- Full mode with filters (single column) ---
   return (
     <div className={cn("space-y-4", className)}>
-      {/* Filter and Sort Controls */}
       <Card hover>
         <CardHeader className="pb-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle>Team Activity</CardTitle>
             <div className="flex items-center gap-2">
-              {/* Post Type Filter */}
               <Select value={filterType} onValueChange={setFilterType}>
                 <SelectTrigger className="w-[140px]">
                   <IconFilter className="size-4 mr-2" />
@@ -513,8 +676,6 @@ export function TeamActivityFeed({
                   <SelectItem value="poll">Polls</SelectItem>
                 </SelectContent>
               </Select>
-
-              {/* Sort By */}
               <Select value={sortBy} onValueChange={setSortBy}>
                 <SelectTrigger className="w-[140px]">
                   <IconSortDescending className="size-4 mr-2" />
@@ -531,11 +692,10 @@ export function TeamActivityFeed({
         </CardHeader>
       </Card>
 
-      {/* Filtered and Sorted Posts */}
       {filteredAndSortedPosts.length === 0 ? (
-        <Card>
+        <Card className="border-border/50">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="rounded-full bg-muted p-3 mb-4">
+            <div className="rounded-full bg-gradient-to-br from-muted to-muted/50 p-3 mb-4">
               <IconFilter className="size-6 text-muted-foreground" />
             </div>
             <h3 className="font-medium text-sm mb-1">No posts match your filters</h3>

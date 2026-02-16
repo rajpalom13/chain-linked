@@ -444,8 +444,8 @@ export async function POST(request: NextRequest) {
     // Track response timing for analytics
     const startTime = Date.now()
 
-    // Create OpenAI client with user's API key
-    const openai = createOpenAIClient({ apiKey: openAIApiKey })
+    // Create OpenAI client with user's API key and explicit timeout
+    const openai = createOpenAIClient({ apiKey: openAIApiKey, timeout: 45000 })
 
     // Generate remixed post with GPT-4.1 via OpenRouter
     const response = await chatCompletion(openai, {

@@ -15,16 +15,14 @@ import { useInView } from "react-intersection-observer"
 import {
   IconAdjustmentsHorizontal,
   IconAlertCircle,
-  IconBulb,
   IconInbox,
   IconLoader2,
-  IconPencil,
   IconRefresh,
   IconSearch,
-  IconSwipe,
   IconTelescope,
 } from "@tabler/icons-react"
 
+import { ErrorBoundary } from "@/components/error-boundary"
 import { PageContent } from "@/components/shared/page-content"
 import { ArticleDetailDialog } from "@/components/features/article-detail-dialog"
 import { DiscoverNewsCard } from "@/components/features/discover-news-card"
@@ -47,34 +45,6 @@ import { useApiKeys } from "@/hooks/use-api-keys"
 import { useAuthContext } from "@/lib/auth/auth-provider"
 import { useDraft } from "@/lib/store/draft-context"
 import { cn } from "@/lib/utils"
-import { CrossNav, type CrossNavItem } from "@/components/shared/cross-nav"
-
-/**
- * Related page navigation for the bottom of the Discover page
- */
-const discoverCrossNav: CrossNavItem[] = [
-  {
-    href: "/dashboard/compose",
-    icon: IconPencil,
-    label: "Compose a post",
-    description: "Turn the news into engaging LinkedIn content.",
-    color: "primary",
-  },
-  {
-    href: "/dashboard/inspiration",
-    icon: IconBulb,
-    label: "Get inspiration",
-    description: "Browse curated viral posts for content ideas.",
-    color: "emerald-500",
-  },
-  {
-    href: "/dashboard/swipe",
-    icon: IconSwipe,
-    label: "Swipe suggestions",
-    description: "Review AI-generated post ideas in a swipe interface.",
-    color: "blue-500",
-  },
-]
 
 /**
  * Pill-style topic filter button with optional article count
@@ -325,11 +295,18 @@ function DiscoverContent() {
     rootMargin: "200px",
   })
 
+  /** Mounted ref guard for async operations */
+  const mountedRef = React.useRef(true)
+  React.useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+
   /**
    * Trigger load more when the infinite scroll sentinel comes into view
    */
   React.useEffect(() => {
-    if (inView && hasMore && !isLoading && !isLoadingMore) {
+    if (inView && hasMore && !isLoading && !isLoadingMore && mountedRef.current) {
       loadMore()
     }
   }, [inView, hasMore, isLoading, isLoadingMore, loadMore])
@@ -555,9 +532,6 @@ function DiscoverContent() {
         </>
       )}
 
-      {/* Related Pages */}
-      <CrossNav items={discoverCrossNav} />
-
       {/* Topic Selection Overlay for first-time users */}
       <TopicSelectionOverlay
         isOpen={showTopicSelection}
@@ -654,5 +628,9 @@ export default function DiscoverPage() {
   usePageMeta({ title: "Discover" })
   const { isLoading: authLoading } = useAuthContext()
 
-  return authLoading ? <DiscoverSkeleton /> : <DiscoverContent />
+  return authLoading ? <DiscoverSkeleton /> : (
+    <ErrorBoundary>
+      <DiscoverContent />
+    </ErrorBoundary>
+  )
 }

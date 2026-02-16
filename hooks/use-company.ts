@@ -392,7 +392,8 @@ export function useCompany(): UseCompanyReturn {
   // Fetch company on mount
   useEffect(() => {
     fetchUserCompany()
-  }, [fetchUserCompany])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return {
     company,

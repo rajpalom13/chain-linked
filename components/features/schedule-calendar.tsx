@@ -75,7 +75,6 @@ export interface ScheduleCalendarProps {
   /** Callback fired when a date cell is clicked */
   onDateClick?: (date: Date) => void
   /** Callback fired when a post needs to be rescheduled */
-  onReschedule?: (post: ScheduledPostItem, newDate: Date) => void
   /** Whether the component is in a loading state */
   isLoading?: boolean
   /** Additional CSS classes to apply to the container */
@@ -154,7 +153,7 @@ function truncateContent(content: string, maxLength: number): string {
  */
 function CalendarSkeleton() {
   return (
-    <Card>
+    <Card className="border-border/50">
       <CardHeader>
         <div className="flex items-center justify-between">
           <Skeleton className="h-6 w-40" />
@@ -339,7 +338,6 @@ export function ScheduleCalendar({
   onMonthChange,
   onPostClick,
   onDateClick,
-  onReschedule: _onReschedule,
   isLoading = false,
   className,
 }: ScheduleCalendarProps) {

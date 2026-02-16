@@ -12,7 +12,7 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { motion } from "framer-motion"
 import { PageContent } from "@/components/shared/page-content"
 import { useAuthContext } from "@/lib/auth/auth-provider"
-import { cn } from "@/lib/utils"
+import { cn, getInitials, formatMetricNumber } from "@/lib/utils"
 import { usePageMeta } from "@/lib/dashboard-context"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -51,33 +51,6 @@ import {
   staggerContainerVariants,
   staggerItemVariants,
 } from "@/lib/animations"
-import { CrossNav, type CrossNavItem } from "@/components/shared/cross-nav"
-import { IconChartBar, IconTemplate } from "@tabler/icons-react"
-
-/** Cross-navigation items for the posts page */
-const POSTS_CROSS_NAV: CrossNavItem[] = [
-  {
-    href: "/dashboard/compose",
-    icon: IconPencil,
-    label: "Compose a Post",
-    description: "Draft and publish new LinkedIn content.",
-    color: "primary",
-  },
-  {
-    href: "/dashboard/analytics",
-    icon: IconChartBar,
-    label: "View Analytics",
-    description: "Track your performance and engagement metrics.",
-    color: "emerald-500",
-  },
-  {
-    href: "/dashboard/templates",
-    icon: IconTemplate,
-    label: "Browse Templates",
-    description: "Start from proven post templates.",
-    color: "amber-500",
-  },
-]
 
 // ============================================================================
 // Types
@@ -161,22 +134,6 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 // ============================================================================
 
 /**
- * Formats a number with K/M suffixes for large values
- * @param num - The number to format
- * @returns Formatted string (e.g. "1.2K", "3.4M")
- */
-function formatNumber(num: number | null | undefined): string {
-  if (num == null) return "0"
-  if (num >= 1_000_000) {
-    return `${(num / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`
-  }
-  if (num >= 1_000) {
-    return `${(num / 1_000).toFixed(1).replace(/\.0$/, "")}K`
-  }
-  return num.toString()
-}
-
-/**
  * Calculates engagement rate for a post
  * @param post - The post to calculate engagement for
  * @returns Engagement rate as a percentage string (e.g. "4.2%")
@@ -253,14 +210,14 @@ function StatsSummary({
   const stats = [
     {
       label: "Total Posts",
-      value: formatNumber(totalPosts),
+      value: formatMetricNumber(totalPosts),
       icon: IconArticle,
       iconColor: "text-blue-500",
       bgColor: "bg-blue-500/10",
     },
     {
       label: "Total Impressions",
-      value: formatNumber(totalImpressions),
+      value: formatMetricNumber(totalImpressions),
       icon: IconEye,
       iconColor: "text-emerald-500",
       bgColor: "bg-emerald-500/10",
@@ -274,7 +231,7 @@ function StatsSummary({
     },
     {
       label: "Total Reactions",
-      value: formatNumber(totalReactions),
+      value: formatMetricNumber(totalReactions),
       icon: IconHeart,
       iconColor: "text-rose-500",
       bgColor: "bg-rose-500/10",
@@ -308,39 +265,6 @@ function StatsSummary({
 }
 
 /**
- * Metric bar that shows relative performance compared to the best post
- * @param props - Component props
- * @param props.value - Current value
- * @param props.max - Maximum value in the dataset (for normalization)
- * @returns A thin horizontal bar
- */
-function MetricBar({ value, max }: { value: number; max: number }) {
-  const width = max > 0 ? Math.max((value / max) * 100, 2) : 2
-  return (
-    <div className="h-1 w-full rounded-full bg-muted/60 overflow-hidden">
-      <motion.div
-        className="h-full rounded-full bg-gradient-to-r from-primary/70 to-primary/40"
-        initial={{ width: 0 }}
-        animate={{ width: `${width}%` }}
-        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-      />
-    </div>
-  )
-}
-
-/**
- * Generates initials from a full name for avatar fallback
- * @param name - Full name to extract initials from
- * @returns Two-letter initials string
- */
-function getInitials(name: string): string {
-  const parts = name.split(" ").filter(Boolean)
-  if (parts.length === 0) return "?"
-  if (parts.length === 1) return parts[0].charAt(0).toUpperCase()
-  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
-}
-
-/**
  * LinkedIn-style media gallery.
  * - Hero image on top: full width, good height
  * - Below: row of square thumbnails for the rest
@@ -362,7 +286,7 @@ function PostMediaGallery({ urls }: { urls: string[] }) {
 
   return (
     <>
-      <div className="mb-3 flex flex-col gap-1 overflow-hidden rounded-lg">
+      <div className="flex flex-col gap-0.5 overflow-hidden">
         {/* Hero image — full width */}
         <button
           type="button"
@@ -491,143 +415,164 @@ function PostMediaGallery({ urls }: { urls: string[] }) {
 }
 
 /**
- * Individual post card with content preview, media gallery, and engagement metrics
+ * LinkedIn-native post card with author header, content, media, engagement summary, and action bar
  * @param props - Component props
  * @param props.post - The post data to display
- * @param props.maxImpressions - Highest impression count across all posts (for bar normalization)
+ * @param props.authorInfo - Author display info for "My Posts" view
  * @param props.showAuthor - Whether to show author info (for team view)
- * @returns Post card element
+ * @returns LinkedIn-style post card element
  */
-function PostCard({ post, maxImpressions, showAuthor = false }: { post: MyPost; maxImpressions: number; showAuthor?: boolean }) {
+function PostCard({
+  post,
+  authorInfo,
+  showAuthor = false,
+}: {
+  post: MyPost
+  authorInfo?: { name: string; headline: string; avatarUrl?: string }
+  showAuthor?: boolean
+}) {
   const [expanded, setExpanded] = useState(false)
   const content = post.content || "No content available"
-  const isLong = content.length > 200
+  const isLong = content.length > 280
   const mediaUrls = post.media_urls ?? []
 
+  // Determine who to show as the author
+  const authorName = showAuthor && post.author
+    ? (post.author.full_name || post.author.email?.split('@')[0] || 'Unknown')
+    : (authorInfo?.name || 'You')
+  const authorHeadline = showAuthor ? '' : (authorInfo?.headline || '')
+  const authorAvatar = showAuthor && post.author
+    ? post.author.avatar_url
+    : authorInfo?.avatarUrl
+
+  const totalEngagement = (post.reactions ?? 0) + (post.comments ?? 0) + (post.reposts ?? 0)
+
   return (
-    <motion.div variants={staggerItemVariants} whileHover={{ y: -2 }} transition={{ duration: 0.15 }}>
+    <motion.div variants={staggerItemVariants}>
       <Card className="overflow-hidden border-border/50 transition-all duration-200 hover:border-border hover:shadow-sm">
-        <CardContent className="p-4 sm:p-5">
-          {/* Author row (team view only) */}
-          {showAuthor && post.author && (
-            <div className="flex items-center gap-2.5 mb-3 pb-3 border-b border-border/50">
-              <Avatar className="size-8">
-                {post.author.avatar_url && (
-                  <AvatarImage src={post.author.avatar_url} alt={post.author.full_name || ''} />
-                )}
-                <AvatarFallback className="text-xs font-medium">
-                  {getInitials(post.author.full_name || post.author.email || '?')}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium truncate">
-                  {post.author.full_name || post.author.email?.split('@')[0] || 'Unknown'}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Header row: date + media badge + ER */}
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs text-muted-foreground font-medium">
-              {relativeTime(post.posted_at)}
-            </span>
-            <div className="flex items-center gap-2">
-              {post.media_type && (
-                <Badge variant="secondary" className="text-[11px] capitalize font-medium gap-1">
-                  {mediaUrls.length > 0 && <IconPhoto className="size-3" />}
-                  {post.media_type}
-                  {mediaUrls.length > 1 && (
-                    <span className="text-muted-foreground">({mediaUrls.length})</span>
-                  )}
-                </Badge>
-              )}
-              <Badge
-                variant="outline"
-                className={cn(
-                  "text-[11px] font-semibold",
-                  getEngagementRateNum(post) >= 0.05
-                    ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400"
-                    : getEngagementRateNum(post) >= 0.02
-                      ? "border-amber-500/30 bg-amber-500/5 text-amber-600 dark:text-amber-400"
-                      : "border-muted-foreground/20 text-muted-foreground"
-                )}
-              >
-                {getEngagementRate(post)} ER
-              </Badge>
-            </div>
-          </div>
-
-          {/* Post content */}
-          <div className="mb-4">
-            <p
-              className={cn(
-                "text-sm leading-relaxed whitespace-pre-wrap break-words",
-                !expanded && isLong && "line-clamp-3"
-              )}
-            >
-              {content}
-            </p>
-            {isLong && (
-              <button
-                onClick={() => setExpanded(!expanded)}
-                className="mt-1.5 text-xs font-medium text-primary hover:underline inline-flex items-center gap-0.5"
-              >
-                {expanded ? (
-                  <>
-                    Show less <IconChevronUp className="size-3" />
-                  </>
-                ) : (
-                  <>
-                    Read more <IconChevronDown className="size-3" />
-                  </>
-                )}
-              </button>
+        {/* Author Header */}
+        <div className="flex items-start gap-3 p-4 pb-0">
+          <Avatar className="size-12 shrink-0">
+            {authorAvatar && (
+              <AvatarImage src={authorAvatar} alt={authorName} />
             )}
+            <AvatarFallback className="text-sm font-semibold bg-primary/10 text-primary">
+              {getInitials(authorName)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold truncate leading-tight">{authorName}</p>
+            {authorHeadline && (
+              <p className="text-xs text-muted-foreground truncate mt-0.5">{authorHeadline}</p>
+            )}
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {relativeTime(post.posted_at)}
+              {post.media_type && (
+                <span className="ml-1.5 inline-flex items-center gap-0.5">
+                  <IconPhoto className="size-3 inline" />
+                </span>
+              )}
+            </p>
           </div>
+          {/* ER Badge */}
+          <Badge
+            variant="outline"
+            className={cn(
+              "text-[10px] font-semibold shrink-0",
+              getEngagementRateNum(post) >= 0.05
+                ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400"
+                : getEngagementRateNum(post) >= 0.02
+                  ? "border-amber-500/30 bg-amber-500/5 text-amber-600 dark:text-amber-400"
+                  : "border-muted-foreground/20 text-muted-foreground"
+            )}
+          >
+            {getEngagementRate(post)} ER
+          </Badge>
+        </div>
 
-          {/* Media Gallery */}
-          {mediaUrls.length > 0 && (
-            <PostMediaGallery urls={mediaUrls} />
+        {/* Post Content */}
+        <div className="px-4 pt-3">
+          <p
+            className={cn(
+              "text-sm leading-relaxed whitespace-pre-wrap break-words",
+              !expanded && isLong && "line-clamp-4"
+            )}
+          >
+            {content}
+          </p>
+          {isLong && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="mt-1 text-sm font-medium text-muted-foreground hover:text-foreground hover:underline"
+            >
+              {expanded ? "...show less" : "...see more"}
+            </button>
           )}
+        </div>
 
-          {/* Performance bar */}
-          <div className="mb-4">
-            <MetricBar value={post.impressions ?? 0} max={maxImpressions} />
+        {/* Media Gallery — edge-to-edge */}
+        {mediaUrls.length > 0 && (
+          <div className="mt-3">
+            <PostMediaGallery urls={mediaUrls} />
           </div>
+        )}
 
-          {/* Engagement metrics row */}
-          <div className="grid grid-cols-4 gap-3 rounded-lg bg-muted/30 px-3 py-2.5">
-            <div className="flex flex-col items-center gap-0.5">
-              <div className="flex items-center gap-1 text-muted-foreground">
-                <IconEye className="size-3" />
-                <span className="text-[11px]">Views</span>
-              </div>
-              <span className="text-sm font-bold tabular-nums">{formatNumber(post.impressions)}</span>
+        {/* Engagement Summary — LinkedIn style */}
+        {totalEngagement > 0 && (
+          <div className="flex items-center justify-between px-4 py-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1">
+              {(post.reactions ?? 0) > 0 && (
+                <span className="inline-flex items-center">
+                  <span className="inline-flex -space-x-1">
+                    <span className="inline-flex size-4 items-center justify-center rounded-full bg-[#378FE9] text-[8px] text-white ring-1 ring-background">&#128077;</span>
+                    {(post.reactions ?? 0) > 3 && (
+                      <span className="inline-flex size-4 items-center justify-center rounded-full bg-[#DF704D] text-[8px] text-white ring-1 ring-background">&#10084;</span>
+                    )}
+                  </span>
+                  <span className="ml-1.5 tabular-nums">{formatMetricNumber(post.reactions)}</span>
+                </span>
+              )}
             </div>
-            <div className="flex flex-col items-center gap-0.5">
-              <div className="flex items-center gap-1 text-muted-foreground">
-                <IconHeart className="size-3" />
-                <span className="text-[11px]">Likes</span>
-              </div>
-              <span className="text-sm font-bold tabular-nums">{formatNumber(post.reactions)}</span>
-            </div>
-            <div className="flex flex-col items-center gap-0.5">
-              <div className="flex items-center gap-1 text-muted-foreground">
-                <IconMessageCircle className="size-3" />
-                <span className="text-[11px]">Comments</span>
-              </div>
-              <span className="text-sm font-bold tabular-nums">{formatNumber(post.comments)}</span>
-            </div>
-            <div className="flex flex-col items-center gap-0.5">
-              <div className="flex items-center gap-1 text-muted-foreground">
-                <IconRepeat className="size-3" />
-                <span className="text-[11px]">Reposts</span>
-              </div>
-              <span className="text-sm font-bold tabular-nums">{formatNumber(post.reposts)}</span>
+            <div className="flex items-center gap-3">
+              {(post.comments ?? 0) > 0 && (
+                <span className="tabular-nums hover:text-foreground hover:underline cursor-pointer">
+                  {formatMetricNumber(post.comments)} comments
+                </span>
+              )}
+              {(post.reposts ?? 0) > 0 && (
+                <span className="tabular-nums hover:text-foreground hover:underline cursor-pointer">
+                  {formatMetricNumber(post.reposts)} reposts
+                </span>
+              )}
+              {(post.impressions ?? 0) > 0 && (
+                <span className="tabular-nums">
+                  {formatMetricNumber(post.impressions)} views
+                </span>
+              )}
             </div>
           </div>
-        </CardContent>
+        )}
+
+        {/* Action Bar — LinkedIn style */}
+        <div className="border-t border-border/50 mx-4" />
+        <div className="grid grid-cols-4 px-2 py-1">
+          <button className="flex items-center justify-center gap-1.5 rounded-lg py-2.5 text-xs font-medium text-muted-foreground hover:bg-muted/60 transition-colors">
+            <IconHeart className="size-4" />
+            <span className="hidden sm:inline">Like</span>
+          </button>
+          <button className="flex items-center justify-center gap-1.5 rounded-lg py-2.5 text-xs font-medium text-muted-foreground hover:bg-muted/60 transition-colors">
+            <IconMessageCircle className="size-4" />
+            <span className="hidden sm:inline">Comment</span>
+          </button>
+          <button className="flex items-center justify-center gap-1.5 rounded-lg py-2.5 text-xs font-medium text-muted-foreground hover:bg-muted/60 transition-colors">
+            <IconRepeat className="size-4" />
+            <span className="hidden sm:inline">Repost</span>
+          </button>
+          <button className="flex items-center justify-center gap-1.5 rounded-lg py-2.5 text-xs font-medium text-muted-foreground hover:bg-muted/60 transition-colors">
+            <IconTrendingUp className="size-4" />
+            <span className="hidden sm:inline">Analytics</span>
+          </button>
+        </div>
       </Card>
     </motion.div>
   )
@@ -667,34 +612,38 @@ function PostsSkeleton() {
         <Skeleton className="h-9 w-[160px]" />
       </div>
 
-      {/* Post cards skeleton */}
+      {/* Post cards skeleton — LinkedIn style */}
       <div className="flex flex-col gap-3">
         {Array.from({ length: 5 }).map((_, i) => (
-          <Card key={i} className="border-border/50">
-            <CardContent className="p-4 sm:p-5 space-y-3">
-              <div className="flex items-center justify-between">
+          <Card key={i} className="border-border/50 overflow-hidden">
+            <div className="p-4 pb-0 flex items-start gap-3">
+              <Skeleton className="size-12 rounded-full shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-3 w-48" />
                 <Skeleton className="h-3 w-16" />
-                <Skeleton className="h-5 w-20 rounded-full" />
               </div>
-              <div className="space-y-1.5">
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-4/5" />
-                <Skeleton className="h-4 w-3/5" />
-              </div>
-              {/* Media gallery skeleton (alternating) */}
-              {i % 2 === 0 && (
-                <Skeleton className="h-40 w-full rounded-lg" />
-              )}
-              <Skeleton className="h-1 w-full rounded-full" />
-              <div className="grid grid-cols-4 gap-3 rounded-lg bg-muted/30 px-3 py-2.5">
-                {Array.from({ length: 4 }).map((_, j) => (
-                  <div key={j} className="flex flex-col items-center gap-1">
-                    <Skeleton className="h-3 w-12" />
-                    <Skeleton className="h-4 w-8" />
-                  </div>
-                ))}
-              </div>
-            </CardContent>
+            </div>
+            <div className="px-4 pt-3 space-y-1.5">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-4/5" />
+              <Skeleton className="h-4 w-3/5" />
+            </div>
+            {i % 2 === 0 && (
+              <Skeleton className="h-48 w-full mt-3" />
+            )}
+            <div className="px-4 py-2 flex justify-between">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-3 w-32" />
+            </div>
+            <div className="border-t border-border/50 mx-4" />
+            <div className="grid grid-cols-4 px-2 py-2">
+              {Array.from({ length: 4 }).map((_, j) => (
+                <div key={j} className="flex justify-center">
+                  <Skeleton className="h-4 w-16" />
+                </div>
+              ))}
+            </div>
           </Card>
         ))}
       </div>
@@ -740,7 +689,23 @@ function EmptyState({ hasSearch }: { hasSearch: boolean }) {
  * @returns The main posts list content area
  */
 function PostsContent() {
-  const { user } = useAuthContext()
+  const { user, profile } = useAuthContext()
+
+  /** User profile info for displaying on "My Posts" cards */
+  const userProfile = useMemo(() => {
+    const linkedinProfile = profile?.linkedin_profile
+    const rawData = linkedinProfile?.raw_data as Record<string, unknown> | null
+    const linkedInName = rawData?.name as string | undefined
+    const linkedInProfileName = linkedinProfile?.first_name && linkedinProfile?.last_name
+      ? `${linkedinProfile.first_name} ${linkedinProfile.last_name}`
+      : linkedinProfile?.first_name || undefined
+    const name = linkedInName || linkedInProfileName || profile?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'You'
+    const headline = linkedinProfile?.headline || (rawData?.headline as string | undefined) || profile?.linkedin_headline || ''
+    const linkedInAvatar = (rawData?.profilePhotoUrl as string | undefined) || linkedinProfile?.profile_picture_url || profile?.linkedin_avatar_url
+    const avatarUrl = linkedInAvatar || profile?.avatar_url || user?.user_metadata?.avatar_url || undefined
+
+    return { name: name as string, headline: headline as string, avatarUrl: avatarUrl as string | undefined }
+  }, [user, profile])
 
   const [viewMode, setViewMode] = useState<PostViewMode>("my_posts")
   const [posts, setPosts] = useState<MyPost[]>([])
@@ -870,12 +835,6 @@ function PostsContent() {
       totalReactions,
     }
   }, [posts, total])
-
-  /** Maximum impressions value across all posts, used for bar normalization */
-  const maxImpressions = useMemo(
-    () => Math.max(...posts.map((p) => p.impressions ?? 0), 1),
-    [posts]
-  )
 
   // -- Error state --
   if (error && posts.length === 0) {
@@ -1012,15 +971,12 @@ function PostsContent() {
             <PostCard
               key={post.id}
               post={post}
-              maxImpressions={maxImpressions}
+              authorInfo={userProfile}
               showAuthor={viewMode === "team_posts"}
             />
           ))}
         </motion.div>
       )}
-
-      {/* Related Pages */}
-      <CrossNav items={POSTS_CROSS_NAV} />
 
       {/* Load More */}
       {hasMore && !searchQuery.trim() && (

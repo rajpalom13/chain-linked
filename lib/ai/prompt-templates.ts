@@ -29,10 +29,11 @@ const BASE_RULES = `## LinkedIn Formatting Rules (CRITICAL)
 1. **THE HOOK IS EVERYTHING**: First 2 lines appear before "see more" - make them irresistible
 2. Use DOUBLE line breaks between ALL sections (this is the #1 readability factor)
 3. Keep paragraphs to 1-3 SHORT sentences max (mobile-first)
-4. Use "→" or "•" for bullet points, "- " works too
+4. Use bullet points when listing items (you may use "→", "•", or "- ")
 5. Use **bold** for 2-3 key phrases only (not whole sentences)
 6. End with 3-4 relevant hashtags (not 5+, looks spammy)
 7. End with a specific question or CTA that invites engagement
+8. **User overrides**: If the user provides specific formatting instructions, ALWAYS follow those over these defaults
 
 ## Proven Hook Patterns (Use ONE)
 - Bold statement: "[Surprising claim]." (period, line break, then expand)

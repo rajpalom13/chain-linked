@@ -49,17 +49,19 @@ export async function GET() {
       return NextResponse.json({ error: 'Failed to fetch teams' }, { status: 500 })
     }
 
-    // Get member counts for each team
-    const memberCountPromises = teamIds.map(async (teamId) => {
-      const { count } = await supabase
-        .from('team_members')
-        .select('*', { count: 'exact', head: true })
-        .eq('team_id', teamId)
-      return { teamId, count: count || 0 }
-    })
+    // Get member counts for all teams in a single query
+    const { data: memberCountData } = await supabase
+      .from('team_members')
+      .select('team_id')
+      .in('team_id', teamIds)
 
-    const memberCounts = await Promise.all(memberCountPromises)
-    const countMap = new Map(memberCounts.map(({ teamId, count }) => [teamId, count]))
+    // Build count map client-side from the single query result
+    const countMap = new Map<string, number>()
+    if (memberCountData) {
+      for (const row of memberCountData) {
+        countMap.set(row.team_id, (countMap.get(row.team_id) || 0) + 1)
+      }
+    }
 
     // Get company info for teams
     const companyIds = [...new Set(teams?.map(t => t.company_id).filter(Boolean))]

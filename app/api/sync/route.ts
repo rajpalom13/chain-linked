@@ -139,32 +139,40 @@ export async function POST(request: Request) {
       }
 
       case 'full_backup': {
-        // Handle full backup with multiple data types
-        const { profile, analytics, audience, posts, settings } = data
+        // Handle full backup with multiple data types, collecting errors
+        const { profile, analytics, audience, settings } = data
+        const backupErrors: string[] = []
 
         if (profile) {
-          await supabase
+          const { error } = await supabase
             .from('linkedin_profiles')
             .upsert({ user_id: user.id, ...profile, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+          if (error) backupErrors.push(`profile: ${error.message}`)
         }
 
         if (analytics) {
-          await supabase.from('linkedin_analytics').insert({ user_id: user.id, ...analytics })
+          const { error } = await supabase.from('linkedin_analytics').insert({ user_id: user.id, ...analytics })
+          if (error) backupErrors.push(`analytics: ${error.message}`)
         }
 
         if (audience) {
-          await supabase
+          const { error } = await supabase
             .from('audience_data')
             .upsert({ user_id: user.id, ...audience, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+          if (error) backupErrors.push(`audience: ${error.message}`)
         }
 
         if (settings) {
-          await supabase
+          const { error } = await supabase
             .from('extension_settings')
             .upsert({ user_id: user.id, ...settings, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+          if (error) backupErrors.push(`settings: ${error.message}`)
         }
 
-        results.backup = { success: true }
+        results.backup = {
+          success: backupErrors.length === 0,
+          errors: backupErrors.length > 0 ? backupErrors : undefined,
+        }
         break
       }
 

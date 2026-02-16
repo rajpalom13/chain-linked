@@ -154,7 +154,7 @@ function LeaderboardRowSkeleton() {
  */
 function LeaderboardSkeleton() {
   return (
-    <Card>
+    <Card className="border-border/50">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <Skeleton className="h-6 w-40" />
@@ -353,7 +353,7 @@ export function TeamLeaderboard({
 
   return (
     <div className={className}>
-      <Card>
+      <Card className="border-border/50">
         <Tabs value={timeRange} onValueChange={handleTimeRangeChange}>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between flex-wrap gap-3">

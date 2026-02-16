@@ -24,10 +24,9 @@ import {
   IconWand,
   IconLoader2,
   IconBookmark,
-  IconBulb,
-  IconCompass,
 } from "@tabler/icons-react"
 
+import { ErrorBoundary } from "@/components/error-boundary"
 import { SwipeCard, SwipeCardStack, SwipeCardEmpty, type SwipeCardData } from "@/components/features/swipe-card"
 import { SwipeSkeleton } from "@/components/skeletons/page-skeletons"
 import { RemixDialog } from "@/components/features/remix-dialog"
@@ -55,34 +54,6 @@ import {
 } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
-import { CrossNav, type CrossNavItem } from "@/components/shared/cross-nav"
-
-/**
- * Related page navigation for the bottom of the Swipe page
- */
-const swipeCrossNav: CrossNavItem[] = [
-  {
-    href: "/dashboard/compose",
-    icon: IconPencil,
-    label: "Compose a post",
-    description: "Write your own LinkedIn post from scratch.",
-    color: "primary",
-  },
-  {
-    href: "/dashboard/discover",
-    icon: IconCompass,
-    label: "Discover news",
-    description: "Find trending industry news and remix into posts.",
-    color: "blue-500",
-  },
-  {
-    href: "/dashboard/inspiration",
-    icon: IconBulb,
-    label: "Get inspiration",
-    description: "Browse curated viral posts for content ideas.",
-    color: "emerald-500",
-  },
-]
 import {
   pageVariants,
   staggerContainerVariants,
@@ -386,6 +357,7 @@ function SwipeContent() {
   // Refs for drag handling
   const containerRef = React.useRef<HTMLDivElement>(null)
   const startXRef = React.useRef(0)
+  const swipeInProgress = React.useRef(false)
 
   // Get categories for filter
   const categories = React.useMemo(() => extractCategories(suggestions), [suggestions])
@@ -413,36 +385,41 @@ function SwipeContent() {
    */
   const handleSwipe = React.useCallback(
     async (direction: "left" | "right") => {
-      if (!currentCard || isAnimatingOut) return
+      if (!currentCard || isAnimatingOut || swipeInProgress.current) return
+      swipeInProgress.current = true
 
-      // Trigger exit animation
-      setIsAnimatingOut(true)
-      setExitDirection(direction)
+      try {
+        // Trigger exit animation
+        setIsAnimatingOut(true)
+        setExitDirection(direction)
 
-      // Record the swipe
-      const action = direction === "right" ? "like" : "dislike"
-      await recordSwipe(currentCard.id, action, currentCard.content)
+        // Record the swipe
+        const action = direction === "right" ? "like" : "dislike"
+        await recordSwipe(currentCard.id, action, currentCard.content)
 
-      // Handle right swipe (like) - show collection picker
-      if (direction === "right") {
-        setPendingSaveCard(currentCard)
-        setShowCollectionPicker(true)
-      } else {
-        // Left swipe (skip) - dismiss suggestion
-        await dismissSuggestion(currentCard.id)
-      }
-
-      // Mark as seen after animation
-      setTimeout(() => {
-        setSwipeOffset(0)
-        setIsAnimatingOut(false)
-        setExitDirection(null)
-
-        // Show toast for skip only (save toast shown after collection pick)
-        if (direction !== "right") {
-          swipeToast.skipped()
+        // Handle right swipe (like) - show collection picker
+        if (direction === "right") {
+          setPendingSaveCard(currentCard)
+          setShowCollectionPicker(true)
+        } else {
+          // Left swipe (skip) - dismiss suggestion
+          await dismissSuggestion(currentCard.id)
         }
-      }, 300)
+
+        // Mark as seen after animation
+        setTimeout(() => {
+          setSwipeOffset(0)
+          setIsAnimatingOut(false)
+          setExitDirection(null)
+
+          // Show toast for skip only (save toast shown after collection pick)
+          if (direction !== "right") {
+            swipeToast.skipped()
+          }
+        }, 300)
+      } finally {
+        swipeInProgress.current = false
+      }
     },
     [currentCard, isAnimatingOut, recordSwipe, dismissSuggestion]
   )
@@ -848,9 +825,6 @@ function SwipeContent() {
         suggestionsShown={suggestionsShown}
       />
 
-      {/* Related Pages */}
-      <CrossNav items={swipeCrossNav} />
-
       {/* Remix Dialog */}
       <RemixDialog
         isOpen={showRemixDialog}
@@ -882,5 +856,9 @@ export default function SwipePage() {
   usePageMeta({ title: "Swipe" })
   const { isLoading: authLoading } = useAuthContext()
 
-  return authLoading ? <SwipeSkeleton /> : <SwipeContent />
+  return authLoading ? <SwipeSkeleton /> : (
+    <ErrorBoundary>
+      <SwipeContent />
+    </ErrorBoundary>
+  )
 }

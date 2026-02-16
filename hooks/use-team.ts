@@ -319,7 +319,8 @@ export function useTeam(): UseTeamReturn {
   // Fetch teams on mount
   useEffect(() => {
     fetchTeams()
-  }, [fetchTeams])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Fetch members when current team changes
   useEffect(() => {
@@ -329,7 +330,8 @@ export function useTeam(): UseTeamReturn {
       setMembers([])
       setCurrentUserRole(null)
     }
-  }, [currentTeam?.id, fetchMembers])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTeam?.id])
 
   return {
     teams,

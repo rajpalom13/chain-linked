@@ -4,7 +4,7 @@
  * Handles photo search via API, and client-side filtering for icons and shapes.
  */
 
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { iconCollection } from '@/lib/graphics-library/icon-collection';
 import { shapeCollection } from '@/lib/graphics-library/shape-collection';
 import type {
@@ -215,6 +215,15 @@ export function useGraphicsLibrary(): UseGraphicsLibraryReturn {
 
     return filtered;
   }, [shapeQuery, shapeCategory]);
+
+  // Cleanup: abort pending photo search on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   return {
     photos,

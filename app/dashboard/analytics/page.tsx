@@ -27,12 +27,9 @@ import {
   IconRefresh,
   IconClock,
   IconDownload,
-  IconPencil,
-  IconCalendar,
   IconSearch,
   IconUsers,
   IconUsersGroup,
-  IconArticle,
 } from "@tabler/icons-react"
 import Link from "next/link"
 import { toast } from "sonner"
@@ -40,34 +37,6 @@ import {
   staggerContainerVariants,
   staggerItemVariants,
 } from '@/lib/animations'
-import { CrossNav, type CrossNavItem } from "@/components/shared/cross-nav"
-
-/**
- * Actionable insight navigation items for the analytics page bottom
- */
-const analyticsInsightNav: CrossNavItem[] = [
-  {
-    href: "/dashboard/compose",
-    icon: IconPencil,
-    label: "Create more content",
-    description: "Consistent posting helps build your audience.",
-    color: "primary",
-  },
-  {
-    href: "/dashboard/schedule",
-    icon: IconCalendar,
-    label: "Stay consistent",
-    description: "Schedule posts ahead to maintain your posting rhythm.",
-    color: "blue-500",
-  },
-  {
-    href: "/dashboard/posts",
-    icon: IconArticle,
-    label: "Review your posts",
-    description: "See all your published content and track individual performance.",
-    color: "emerald-500",
-  },
-]
 
 /**
  * Compact secondary metric display
@@ -82,7 +51,7 @@ function SecondaryMetric({ icon: Icon, label, value, change }: {
   const isPositive = change >= 0
   return (
     <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-card px-4 py-3 transition-colors hover:border-border">
-      <div className="rounded-lg bg-muted p-2 shrink-0">
+      <div className="rounded-xl bg-gradient-to-br from-muted to-muted/50 p-2 shrink-0">
         <Icon className="size-4 text-muted-foreground" />
       </div>
       <div className="flex-1 min-w-0">
@@ -318,8 +287,6 @@ function AnalyticsContent() {
         </motion.div>
       </motion.div>
 
-      {/* Actionable Insight Cards */}
-      <CrossNav items={analyticsInsightNav} />
     </PageContent>
   )
 }

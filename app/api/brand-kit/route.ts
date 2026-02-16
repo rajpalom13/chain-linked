@@ -107,15 +107,9 @@ export async function POST(request: Request) {
       )
     }
 
-    // If this kit should be active, deactivate other kits first
-    if (body.isActive !== false) {
-      await supabase
-        .from('brand_kits')
-        .update({ is_active: false })
-        .eq('user_id', user.id)
-    }
+    // Create brand kit first (inactive), then atomically activate it
+    const shouldBeActive = body.isActive !== false
 
-    // Create brand kit
     const insertData = {
       user_id: user.id,
       team_id: body.teamId || null,
@@ -130,7 +124,7 @@ export async function POST(request: Request) {
       logo_url: body.logoUrl || null,
       logo_storage_path: body.logoStoragePath || null,
       raw_extraction: (body.rawExtraction || null) as Json,
-      is_active: body.isActive !== false,
+      is_active: false, // Insert as inactive first to avoid race condition
     }
 
     const { data: brandKit, error: insertError } = await supabase
@@ -138,6 +132,25 @@ export async function POST(request: Request) {
       .insert(insertData)
       .select()
       .single()
+
+    if (!insertError && brandKit && shouldBeActive) {
+      // Deactivate all OTHER kits for this user, then activate this one
+      // Using neq to exclude the newly created kit avoids the race condition
+      // where deactivate-then-insert could leave no active kit on failure
+      await supabase
+        .from('brand_kits')
+        .update({ is_active: false })
+        .eq('user_id', user.id)
+        .neq('id', brandKit.id)
+
+      await supabase
+        .from('brand_kits')
+        .update({ is_active: true })
+        .eq('id', brandKit.id)
+        .eq('user_id', user.id)
+
+      brandKit.is_active = true
+    }
 
     if (insertError) {
       console.error('Failed to create brand kit:', insertError)

@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import { motion } from "framer-motion"
 import {
   IconEdit,
   IconEye,
@@ -18,9 +19,10 @@ import {
 } from "@tabler/icons-react"
 
 import { trackTemplateAction } from "@/lib/analytics"
+import { staggerContainerVariants, staggerItemVariants } from "@/lib/animations"
 import { cn } from "@/lib/utils"
 import { useDraft } from "@/lib/store/draft-context"
-import { templateToast } from "@/lib/toast-utils"
+import { templateToast, showError } from "@/lib/toast-utils"
 import { useConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -232,6 +234,16 @@ export function TemplateLibrary({
       return
     }
 
+    if (formData.name.trim().length < 3) {
+      showError("Name must be at least 3 characters")
+      return
+    }
+
+    if (formData.content.trim().length < 10) {
+      showError("Content must be at least 10 characters")
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
@@ -247,7 +259,7 @@ export function TemplateLibrary({
       }
 
       if (editingTemplate) {
-        trackTemplateAction("created", editingTemplate.id)
+        trackTemplateAction("edited", editingTemplate.id)
         onEditTemplate?.(editingTemplate.id, templateData)
       } else {
         trackTemplateAction("created", "new")
@@ -435,18 +447,24 @@ export function TemplateLibrary({
 
         {/* Template Grid/List */}
         {!isLoading && filteredTemplates.length > 0 && (
-          <div
+          <motion.div
             className={cn(
               viewMode === "grid"
                 ? "grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
                 : "flex flex-col gap-3"
             )}
+            variants={staggerContainerVariants}
+            initial="initial"
+            animate="animate"
           >
             {filteredTemplates.map((template) => (
-              <div
+              <motion.div
                 key={template.id}
+                variants={staggerItemVariants}
+                whileHover={{ y: -2 }}
+                transition={{ duration: 0.15 }}
                 className={cn(
-                  "group rounded-lg border bg-card p-4 transition-all duration-200 hover:shadow-md hover:border-primary/20 dark:hover:border-primary/30",
+                  "group rounded-xl border border-border/50 bg-card p-4 transition-all duration-200 hover:shadow-md hover:border-border dark:hover:border-primary/30",
                   viewMode === "list" && "flex items-start gap-4"
                 )}
               >
@@ -512,7 +530,7 @@ export function TemplateLibrary({
                   )}
                 >
                   <Button
-                    variant="outline"
+                    variant="default"
                     size="sm"
                     onClick={() => handleUseTemplate(template)}
                     className={cn(viewMode === "grid" && "flex-1")}
@@ -545,9 +563,9 @@ export function TemplateLibrary({
                     <IconTrash className="size-4" />
                   </Button>
                 </div>
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         )}
       </CardContent>
 
@@ -658,8 +676,8 @@ export function TemplateLibrary({
                 onClick={handleSubmit}
                 disabled={
                   isSubmitting ||
-                  !formData.name.trim() ||
-                  !formData.content.trim() ||
+                  formData.name.trim().length < 3 ||
+                  formData.content.trim().length < 10 ||
                   !formData.category
                 }
                 className="flex-1"

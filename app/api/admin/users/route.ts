@@ -70,12 +70,20 @@ export async function GET(request: Request) {
       .range(offset, offset + limit - 1)
 
     if (search) {
-      // Escape special characters to prevent SQL injection
-      const escapedSearch = search
-        .replace(/[%_\\]/g, '\\$&') // Escape special regex/like chars
-        .replace(/[()]/g, '') // Remove parentheses that could break syntax
+      // Sanitize search input for PostgREST filter syntax safety
+      // Remove characters that have special meaning in PostgREST filters:
+      // commas (separate filters), periods (separate field.operator.value),
+      // parentheses (grouping), and percent/underscore (LIKE wildcards)
+      const sanitizedSearch = search
+        .replace(/[%_\\.,()]/g, '')
+        .trim()
+        .slice(0, 100) // Limit length
 
-      query = query.or(`full_name.ilike.%${escapedSearch}%,email.ilike.%${escapedSearch}%`)
+      if (sanitizedSearch.length > 0) {
+        query = query.or(
+          `full_name.ilike.%${sanitizedSearch}%,email.ilike.%${sanitizedSearch}%`
+        )
+      }
     }
 
     // Filter by onboarding completion status

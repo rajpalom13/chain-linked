@@ -760,7 +760,8 @@ export function useResearch() {
         abortControllerRef.current.abort()
       }
     }
-  }, [stopPolling])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return {
     ...state,

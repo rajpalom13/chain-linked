@@ -156,7 +156,7 @@ export function ApiKeySettings({ onSave, onDelete }: ApiKeySettingsProps) {
   // Show loading skeleton while fetching initial status
   if (isLoading) {
     return (
-      <Card>
+      <Card className="border-border/50">
         <CardHeader>
           <CardTitle>API Keys</CardTitle>
           <CardDescription>

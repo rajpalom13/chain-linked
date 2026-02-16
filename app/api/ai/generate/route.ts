@@ -96,10 +96,11 @@ Current setting: ${length}
 ## Advanced Formatting Rules
 1. **Hook (First 1-2 lines)**: Start with a surprising stat, question, or bold statement
 2. **Structure**: Use line breaks generously (double line breaks between sections)
-3. **Lists**: Use "- " for bullet points when listing items
+3. **Lists**: Use bullet points when listing items (you may use "- ", "→", or "•")
 4. **Emphasis**: Use **bold** for key phrases (sparingly, 2-3 times max)
 5. **Hashtags**: Include 3-5 relevant hashtags at the end
 6. **Call-to-Action**: End with a question or invitation to comment
+7. **User overrides**: If the user provides specific formatting instructions (e.g. "no dashes", "no bullet points"), ALWAYS follow those over the defaults above
 
 ## Engagement Optimization
 - Use the "scroll-stop" technique: make first line irresistible
@@ -128,28 +129,34 @@ Return ONLY the post content, no explanations or meta-commentary.`
 }
 
 /**
- * Builds the user message with topic and context
+ * Builds the user message with topic, length, and additional context.
+ * The additional context is placed directly in the user message because
+ * LLMs give the strongest weight to the most recent (user) message.
+ * Formatting uses numbered lists instead of dashes so the message format
+ * itself does not conflict with user instructions like "no dashes".
  */
 function buildUserMessage(
   topic: string,
-  context?: string,
-  length: 'short' | 'medium' | 'long' = 'medium'
+  length: 'short' | 'medium' | 'long' = 'medium',
+  context?: string
 ): string {
   const lengthConfig = LENGTH_TARGETS[length]
 
   let message = `Create a LinkedIn post about: ${topic}\n\n`
 
-  if (context) {
-    message += `Additional context: ${context}\n\n`
+  message += `Requirements:\n`
+  message += `1. Keep it between ${lengthConfig.min}-${lengthConfig.max} characters\n`
+  message += `2. Start with a compelling hook\n`
+  message += `3. Use strategic line breaks and formatting\n`
+  message += `4. End with 3-5 relevant hashtags\n`
+  message += `5. Include a call-to-action question\n`
+
+  if (context?.trim()) {
+    message += `\nIMPORTANT — The user has given these specific instructions. You MUST follow them exactly, even if they override the default formatting rules above:\n\n`
+    message += `${context.trim()}\n`
   }
 
-  message += `Remember to:\n`
-  message += `- Keep it between ${lengthConfig.min}-${lengthConfig.max} characters\n`
-  message += `- Start with a compelling hook\n`
-  message += `- Use strategic line breaks and formatting\n`
-  message += `- End with 3-5 relevant hashtags\n`
-  message += `- Include a call-to-action question\n\n`
-  message += `Generate the post now.`
+  message += `\nGenerate the post now.`
 
   return message
 }
@@ -301,7 +308,15 @@ export async function POST(request: NextRequest) {
       promptSource = 'default'
     }
 
-    const userMessage = buildUserMessage(topic, context, length)
+    // Inject additional context into the system prompt as a strict mandatory rule
+    if (context?.trim()) {
+      systemPrompt += `\n\n## MANDATORY USER INSTRUCTIONS (MUST FOLLOW)
+The user has provided the following specific instructions and context. You MUST strictly follow these instructions. They override any conflicting default behavior. This is non-negotiable:
+
+${context.trim()}`
+    }
+
+    const userMessage = buildUserMessage(topic, length, context)
 
     // Track start time for response metrics
     const startTime = Date.now()

@@ -14,26 +14,7 @@ import { useAuthContext } from "@/lib/auth/auth-provider"
 import { usePageMeta } from "@/lib/dashboard-context"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { IconAlertCircle, IconRefresh, IconPencil, IconBulb } from "@tabler/icons-react"
-import { CrossNav, type CrossNavItem } from "@/components/shared/cross-nav"
-
-/** Cross-navigation items for the templates page */
-const TEMPLATES_CROSS_NAV: CrossNavItem[] = [
-  {
-    href: "/dashboard/compose",
-    icon: IconPencil,
-    label: "Compose a Post",
-    description: "Draft and publish new LinkedIn content.",
-    color: "primary",
-  },
-  {
-    href: "/dashboard/inspiration",
-    icon: IconBulb,
-    label: "Get Inspiration",
-    description: "Browse viral posts for content ideas.",
-    color: "emerald-500",
-  },
-]
+import { IconAlertCircle, IconRefresh } from "@tabler/icons-react"
 
 /**
  * Templates page content component with real data
@@ -54,7 +35,7 @@ function TemplatesContent() {
   if (error) {
     return (
       <div className="flex flex-col gap-4 p-4 md:gap-6 md:p-6">
-        <Card className="border-destructive bg-destructive/5">
+        <Card className="border-destructive/50 bg-destructive/5">
           <CardContent className="flex items-center justify-between py-4">
             <div className="flex items-center gap-2 text-destructive">
               <IconAlertCircle className="h-5 w-5" />
@@ -84,9 +65,6 @@ function TemplatesContent() {
         onDeleteTemplate={deleteTemplate}
         onUseTemplate={incrementUsage}
       />
-
-      {/* Related Pages */}
-      <CrossNav items={TEMPLATES_CROSS_NAV} />
     </PageContent>
   )
 }

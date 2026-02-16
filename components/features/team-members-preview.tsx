@@ -206,7 +206,7 @@ export function TeamMembersPreview({
   })
 
   return (
-    <Card>
+    <Card className="border-border/50">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base font-semibold">

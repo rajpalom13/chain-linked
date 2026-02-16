@@ -9,7 +9,7 @@
  * @module hooks/use-onboarding-guard
  */
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useAuthContext } from "@/lib/auth/auth-provider"
 import {
@@ -130,13 +130,19 @@ export function useOnboardingGuard(): UseOnboardingGuardReturn {
   } = useAuthContext()
   const [checking, setChecking] = useState(true)
 
+  // Use refs for values that should not trigger re-runs of the effect
+  const routerRef = useRef(router)
+  routerRef.current = router
+  const onboardingStepRef = useRef(currentOnboardingStep)
+  onboardingStepRef.current = currentOnboardingStep
+
   useEffect(() => {
     if (isLoading) return
 
     const verify = async () => {
       try {
         if (!user) {
-          router.replace("/login")
+          routerRef.current.replace("/login")
           return
         }
 
@@ -146,7 +152,7 @@ export function useOnboardingGuard(): UseOnboardingGuardReturn {
         // If full onboarding is completed, redirect to dashboard
         if (hasCompletedOnboarding) {
           clearLocalStep()
-          router.replace("/dashboard")
+          routerRef.current.replace("/dashboard")
           return
         }
 
@@ -156,7 +162,7 @@ export function useOnboardingGuard(): UseOnboardingGuardReturn {
         // If company onboarding is completed and user is on company onboarding page,
         // redirect to dashboard
         if (isCompanyOnboardingPath && hasCompletedCompanyOnboarding) {
-          router.replace("/dashboard")
+          routerRef.current.replace("/dashboard")
           return
         }
 
@@ -164,7 +170,7 @@ export function useOnboardingGuard(): UseOnboardingGuardReturn {
 
         // Use database-backed step from auth context as the authoritative source
         // instead of localStorage (which can become stale and cause redirect loops)
-        const dbStep = currentOnboardingStep
+        const dbStep = onboardingStepRef.current
         const localStep = getLocalStep()
 
         // Reconcile: take the higher of DB vs local to avoid regressing
@@ -177,7 +183,7 @@ export function useOnboardingGuard(): UseOnboardingGuardReturn {
         if (currentPathStep) {
           const maxAllowed = highestStep + 1
           if (currentPathStep > maxAllowed) {
-            router.replace(STEP_PATHS[Math.min(maxAllowed, MAX_STEP)])
+            routerRef.current.replace(STEP_PATHS[Math.min(maxAllowed, MAX_STEP)])
             return
           }
 
@@ -198,7 +204,8 @@ export function useOnboardingGuard(): UseOnboardingGuardReturn {
     }
 
     verify()
-  }, [isLoading, user, pathname, router, hasCompletedOnboarding, hasCompletedCompanyOnboarding, currentOnboardingStep])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, user, pathname, hasCompletedOnboarding, hasCompletedCompanyOnboarding])
 
   return { checking }
 }

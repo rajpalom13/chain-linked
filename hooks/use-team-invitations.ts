@@ -270,7 +270,8 @@ export function useTeamInvitations(options: UseTeamInvitationsOptions): UseTeamI
   // Fetch invitations when teamId changes
   useEffect(() => {
     fetchInvitations()
-  }, [fetchInvitations])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamId])
 
   return {
     invitations,

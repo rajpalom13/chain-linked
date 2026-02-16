@@ -132,20 +132,32 @@ export function ExtensionInstallPrompt({
   const handleInstall = () => {
     window.open(CHROME_STORE_URL, '_blank', 'noopener,noreferrer')
     onInstall?.()
+    // dismissPrompt + onDismiss are called inside handleOpenChange
     onOpenChange?.(false)
   }
 
   /**
-   * Handle dismiss/close
+   * Handle explicit "Maybe Later" dismiss
    */
   const handleDismiss = () => {
-    dismissPrompt(dontShowAgain)
-    onDismiss?.(dontShowAgain)
+    // dismissPrompt + onDismiss are called inside handleOpenChange
     onOpenChange?.(false)
   }
 
+  /**
+   * Handle any close action (X button, overlay click, Escape key).
+   * Always persists a temporary dismissal so the prompt doesn't reopen.
+   */
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      dismissPrompt(dontShowAgain)
+      onDismiss?.(dontShowAgain)
+    }
+    onOpenChange?.(nextOpen)
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden">
         {/* Header with gradient background */}
         <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-6 pb-4">
@@ -331,43 +343,55 @@ export function useExtensionPrompt(options?: {
 }) {
   const { delay = 1500, autoCheck = false } = options || {}
   const [showPrompt, setShowPrompt] = React.useState(false)
-  const [isChecking, setIsChecking] = React.useState(false)
+  const isCheckingRef = React.useRef(false)
+  const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hasCheckedRef = React.useRef(false)
 
   /**
-   * Check if prompt should be shown and show it after delay
+   * Check if prompt should be shown and show it after delay.
+   * Uses a ref for the checking guard to avoid recreating the callback
+   * on every state change (which would cause an infinite effect loop).
    */
   const checkAndShowPrompt = React.useCallback(async () => {
-    if (isChecking) return
-
-    setIsChecking(true)
+    if (isCheckingRef.current) return
+    isCheckingRef.current = true
 
     try {
       const shouldShow = await shouldShowExtensionPrompt()
 
       if (shouldShow) {
-        // Show after delay for better UX
-        setTimeout(() => {
+        // Clear any previously stacked timeout
+        if (timeoutRef.current) clearTimeout(timeoutRef.current)
+        timeoutRef.current = setTimeout(() => {
           setShowPrompt(true)
+          timeoutRef.current = null
         }, delay)
       }
     } catch (error) {
       console.warn('[Extension Prompt] Error checking prompt state:', error)
     } finally {
-      setIsChecking(false)
+      isCheckingRef.current = false
     }
-  }, [delay, isChecking])
+  }, [delay])
 
-  // Auto-check on mount if enabled
+  // Auto-check once when autoCheck becomes true
   React.useEffect(() => {
-    if (autoCheck) {
+    if (autoCheck && !hasCheckedRef.current) {
+      hasCheckedRef.current = true
       checkAndShowPrompt()
     }
   }, [autoCheck, checkAndShowPrompt])
+
+  // Cleanup timeout on unmount
+  React.useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    }
+  }, [])
 
   return {
     showPrompt,
     setShowPrompt,
     checkAndShowPrompt,
-    isChecking,
   }
 }

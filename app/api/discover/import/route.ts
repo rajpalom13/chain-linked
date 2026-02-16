@@ -78,17 +78,30 @@ const importRequestSchema = z.object({
 })
 
 /**
+ * Pre-compiled regex map for topic classification.
+ * Built once at module load to avoid recompiling on each call.
+ */
+const TOPIC_REGEX_MAP: Map<string, RegExp> = new Map(
+  Object.entries(TOPIC_KEYWORDS).map(([topic, keywords]) => {
+    // Escape special regex characters in keywords and join with alternation
+    const pattern = keywords
+      .map((kw) => kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('|')
+    return [topic, new RegExp(pattern, 'i')]
+  })
+)
+
+/**
  * Auto-classify topics based on content keywords
+ * Uses pre-compiled regex patterns for efficient single-pass matching per topic
  * @param content - Post content text
  * @returns Array of matched topic slugs
  */
 function classifyTopics(content: string): string[] {
-  const lowerContent = content.toLowerCase()
   const matched: string[] = []
 
-  for (const [topic, keywords] of Object.entries(TOPIC_KEYWORDS)) {
-    const hasMatch = keywords.some((keyword) => lowerContent.includes(keyword))
-    if (hasMatch) {
+  for (const [topic, regex] of TOPIC_REGEX_MAP) {
+    if (regex.test(content)) {
       matched.push(topic)
     }
   }

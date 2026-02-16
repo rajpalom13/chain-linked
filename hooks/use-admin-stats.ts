@@ -74,7 +74,8 @@ export function useAdminStats(): UseAdminStatsReturn {
    */
   useEffect(() => {
     fetchStats()
-  }, [fetchStats])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return {
     data,

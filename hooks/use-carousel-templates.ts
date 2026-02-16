@@ -273,33 +273,37 @@ export function useCarouselTemplates(): UseCarouselTemplatesReturn {
    */
   const incrementUsage = useCallback(
     async (id: string): Promise<void> => {
-      const template = savedTemplates.find((t) => t.id === id)
-      if (!template) return
+      let previousCount: number | undefined
 
-      const newCount = template.usageCount + 1
+      // Optimistic update using functional setState to avoid stale closure
+      setSavedTemplates((prev) => {
+        const template = prev.find((t) => t.id === id)
+        if (!template) return prev
+        previousCount = template.usageCount
+        return prev.map((t) =>
+          t.id === id ? { ...t, usageCount: t.usageCount + 1 } : t
+        )
+      })
 
-      // Optimistic update
-      setSavedTemplates((prev) =>
-        prev.map((t) => (t.id === id ? { ...t, usageCount: newCount } : t))
-      )
+      if (previousCount === undefined) return
 
       try {
         await fetch('/api/carousel-templates', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, usageCount: newCount }),
+          body: JSON.stringify({ id, usageCount: previousCount + 1 }),
         })
       } catch (err) {
         console.error('Failed to increment template usage:', err)
         // Revert optimistic update on failure
         setSavedTemplates((prev) =>
           prev.map((t) =>
-            t.id === id ? { ...t, usageCount: template.usageCount } : t
+            t.id === id ? { ...t, usageCount: t.usageCount - 1 } : t
           )
         )
       }
     },
-    [savedTemplates]
+    []
   )
 
   /**

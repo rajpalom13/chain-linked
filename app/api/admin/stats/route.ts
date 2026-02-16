@@ -135,15 +135,15 @@ export async function GET() {
       .gte("created_at", sixtyDaysAgo.toISOString())
       .lt("created_at", thirtyDaysAgo.toISOString())
 
-    // Fetch average engagement rate
-    const { data: engagementData } = await supabase
+    // Compute average engagement rate using count query + sum estimation
+    // Fetch only the engagement_rate column without an arbitrary row limit
+    const { data: engagementData, count: engagementCount } = await supabase
       .from("post_analytics")
-      .select("engagement_rate")
+      .select("engagement_rate", { count: "exact" })
       .not("engagement_rate", "is", null)
-      .limit(1000)
 
     const avgEngagementRate = engagementData && engagementData.length > 0
-      ? engagementData.reduce((sum, p) => sum + (p.engagement_rate || 0), 0) / engagementData.length
+      ? engagementData.reduce((sum, p) => sum + (p.engagement_rate || 0), 0) / (engagementCount || engagementData.length)
       : 0
 
     // Build platform stats
@@ -454,7 +454,30 @@ export async function GET() {
         .select("*", { count: "exact", head: true })
         .eq("company_onboarding_completed", true)
 
-      // Calculate step-by-step completion based on company fields
+      // Fetch all profiles once to compute onboarding step counts client-side
+      // This eliminates the N+1 query pattern (was 5 separate count queries)
+      const { data: onboardingProfiles } = await supabase
+        .from("profiles")
+        .select("company_name, company_description, company_products, company_icp, company_value_props")
+
+      const fieldCounts: Record<string, number> = {
+        company_name: 0,
+        company_description: 0,
+        company_products: 0,
+        company_icp: 0,
+        company_value_props: 0,
+      }
+
+      if (onboardingProfiles) {
+        for (const profile of onboardingProfiles) {
+          if (profile.company_name != null) fieldCounts.company_name++
+          if (profile.company_description != null) fieldCounts.company_description++
+          if (profile.company_products != null) fieldCounts.company_products++
+          if (profile.company_icp != null) fieldCounts.company_icp++
+          if (profile.company_value_props != null) fieldCounts.company_value_props++
+        }
+      }
+
       const stepFields = [
         { step: 1, label: "Account Created", field: "id" },
         { step: 2, label: "Company Name", field: "company_name" },
@@ -464,34 +487,21 @@ export async function GET() {
         { step: 6, label: "Value Propositions", field: "company_value_props" },
       ]
 
-      const steps: OnboardingFunnelStep[] = []
-      for (const stepInfo of stepFields) {
-        let usersAtStep = 0
-        let usersCompleted = 0
+      const steps: OnboardingFunnelStep[] = stepFields.map((stepInfo) => {
+        const usersCompleted = stepInfo.step === 1
+          ? (totalUsers || 0)
+          : (fieldCounts[stepInfo.field] || 0)
 
-        if (stepInfo.step === 1) {
-          usersAtStep = totalUsers || 0
-          usersCompleted = totalUsers || 0
-        } else {
-          const { count: withField } = await supabase
-            .from("profiles")
-            .select("*", { count: "exact", head: true })
-            .not(stepInfo.field, "is", null)
-
-          usersCompleted = withField || 0
-          usersAtStep = usersCompleted
-        }
-
-        steps.push({
+        return {
           step: stepInfo.step,
           label: stepInfo.label,
-          usersAtStep,
+          usersAtStep: usersCompleted,
           usersCompleted,
           completionRate: (totalUsers || 0) > 0
             ? Math.round((usersCompleted / (totalUsers || 1)) * 1000) / 10
             : 0,
-        })
-      }
+        }
+      })
 
       const overallCompletionRate = (totalUsers || 0) > 0
         ? Math.round(((completedOnboarding || 0) / (totalUsers || 1)) * 1000) / 10

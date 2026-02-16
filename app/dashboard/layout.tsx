@@ -13,6 +13,7 @@ import { IconLoader2 } from '@tabler/icons-react'
 
 import { useAuthContext } from '@/lib/auth/auth-provider'
 import { DashboardProvider } from '@/lib/dashboard-context'
+import { DashboardTour } from '@/components/features/dashboard-tour'
 import { AppSidebar } from '@/components/app-sidebar'
 import { SiteHeader } from '@/components/site-header'
 import {
@@ -74,6 +75,12 @@ export default function DashboardLayout({
 
   return (
     <DashboardProvider>
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-background focus:text-foreground focus:rounded-md focus:ring-2 focus:ring-ring"
+      >
+        Skip to main content
+      </a>
       <SidebarProvider
         style={
           {
@@ -82,6 +89,7 @@ export default function DashboardLayout({
           } as React.CSSProperties
         }
       >
+        <DashboardTour />
         <AppSidebar variant="inset" />
         <SidebarInset>
           <SiteHeader />

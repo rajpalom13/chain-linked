@@ -188,7 +188,8 @@ export function useSwipeSuggestions(initialLimit = DEFAULT_LIMIT): UseSwipeSugge
       setIsLoading(false)
       setIsLoadingMore(false)
     }
-  }, [supabase, filters])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.category, filters.minEngagement])
 
   /**
    * Fetch available categories
@@ -215,7 +216,8 @@ export function useSwipeSuggestions(initialLimit = DEFAULT_LIMIT): UseSwipeSugge
     } catch (err) {
       console.error('Categories fetch error:', err)
     }
-  }, [supabase])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   /**
    * Refetch suggestions (reset to beginning)

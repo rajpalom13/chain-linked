@@ -18,7 +18,7 @@ export function DashboardSkeleton() {
         {/* Quick Action Cards */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mt-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Card key={i} className="h-[100px]">
+            <Card key={i} className="h-[100px] border-border/50">
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-3">
                   <Skeleton className="size-10 rounded-lg" />
@@ -67,7 +67,7 @@ export function DashboardSkeleton() {
         </Card>
 
         {/* Goals Skeleton */}
-        <Card>
+        <Card className="border-border/50">
           <CardHeader>
             <Skeleton className="h-6 w-32" />
             <Skeleton className="h-4 w-48" />
@@ -88,7 +88,7 @@ export function DashboardSkeleton() {
 
       {/* Team Activity Skeleton */}
       <div className="px-4 lg:px-6">
-        <Card>
+        <Card className="border-border/50">
           <CardHeader>
             <Skeleton className="h-6 w-40" />
             <Skeleton className="h-4 w-56" />
@@ -129,7 +129,7 @@ export function ComposeSkeleton() {
       <div className="px-4 lg:px-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Editor Column */}
-          <Card>
+          <Card className="border-border/50">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -170,7 +170,7 @@ export function ComposeSkeleton() {
           </Card>
 
           {/* Preview Column */}
-          <Card>
+          <Card className="border-border/50">
             <CardHeader>
               <Skeleton className="h-6 w-40" />
               <Skeleton className="h-4 w-64" />
@@ -210,7 +210,7 @@ export function ScheduleSkeleton() {
     <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 animate-in fade-in duration-300">
       <div className="grid grid-cols-1 gap-4 px-4 lg:grid-cols-2 lg:px-6">
         {/* Calendar Skeleton */}
-        <Card>
+        <Card className="border-border/50">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -250,7 +250,7 @@ export function ScheduleSkeleton() {
         </Card>
 
         {/* Scheduled Posts List Skeleton */}
-        <Card>
+        <Card className="border-border/50">
           <CardHeader>
             <Skeleton className="h-6 w-40" />
             <Skeleton className="h-4 w-56" />
@@ -305,7 +305,7 @@ export function TemplatesSkeleton() {
   return (
     <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 animate-in fade-in duration-300">
       <div className="px-4 lg:px-6">
-        <Card>
+        <Card className="border-border/50">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -471,7 +471,7 @@ export function CarouselsSkeleton() {
   return (
     <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 animate-in fade-in duration-300">
       <div className="px-4 lg:px-6">
-        <Card>
+        <Card className="border-border/50">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -599,7 +599,7 @@ export function AnalyticsSkeleton() {
         </Card>
 
         {/* Goals Tracker */}
-        <Card>
+        <Card className="border-border/50">
           <CardHeader>
             <Skeleton className="h-6 w-32" />
             <Skeleton className="h-4 w-48" />
@@ -621,7 +621,7 @@ export function AnalyticsSkeleton() {
       {/* Leaderboard and Post Performance Row */}
       <div className="grid grid-cols-1 gap-4 px-4 lg:grid-cols-2 lg:px-6">
         {/* Team Leaderboard */}
-        <Card>
+        <Card className="border-border/50">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -654,7 +654,7 @@ export function AnalyticsSkeleton() {
         </Card>
 
         {/* Post Performance */}
-        <Card>
+        <Card className="border-border/50">
           <CardHeader>
             <Skeleton className="h-6 w-40" />
             <Skeleton className="h-4 w-56" />
@@ -686,7 +686,7 @@ export function TeamSkeleton() {
   return (
     <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 animate-in fade-in duration-300">
       <div className="px-4 lg:px-6">
-        <Card>
+        <Card className="border-border/50">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -818,7 +818,7 @@ export function SettingsSkeleton() {
   return (
     <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 animate-in fade-in duration-300">
       <div className="px-4 lg:px-6">
-        <Card>
+        <Card className="border-border/50">
           <CardHeader>
             <Skeleton className="h-6 w-24" />
             <Skeleton className="h-4 w-64" />

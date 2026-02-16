@@ -16,33 +16,6 @@ import { ComposeSkeleton } from "@/components/skeletons/page-skeletons"
 import { useAuthContext } from "@/lib/auth/auth-provider"
 import { createClient } from "@/lib/supabase/client"
 import { usePageMeta } from "@/lib/dashboard-context"
-import { CrossNav, type CrossNavItem } from "@/components/shared/cross-nav"
-import { IconCalendar, IconTemplate, IconBulb } from "@tabler/icons-react"
-
-/** Cross-navigation items for the compose page */
-const COMPOSE_CROSS_NAV: CrossNavItem[] = [
-  {
-    href: "/dashboard/schedule",
-    icon: IconCalendar,
-    label: "View Schedule",
-    description: "See your upcoming scheduled posts.",
-    color: "blue-500",
-  },
-  {
-    href: "/dashboard/templates",
-    icon: IconTemplate,
-    label: "Browse Templates",
-    description: "Start from proven post templates.",
-    color: "amber-500",
-  },
-  {
-    href: "/dashboard/inspiration",
-    icon: IconBulb,
-    label: "Get Inspiration",
-    description: "Browse viral posts for content ideas.",
-    color: "emerald-500",
-  },
-]
 
 /**
  * Data structure for editing a scheduled post
@@ -231,9 +204,6 @@ function ComposeContent() {
           onScheduleConfirm={handleSchedule}
         />
       </ErrorBoundary>
-
-      {/* Related Pages */}
-      <CrossNav items={COMPOSE_CROSS_NAV} />
     </PageContent>
   )
 }

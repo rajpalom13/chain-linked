@@ -148,7 +148,7 @@ export function useSettings(): UseSettingsReturn {
       // Fetch user profile from profiles table
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, full_name, email, avatar_url')
         .eq('id', authUser.id)
         .single()
 
@@ -273,7 +273,7 @@ export function useSettings(): UseSettingsReturn {
       // Fetch extension settings
       const { data: settingsData, error: settingsError } = await supabase
         .from('extension_settings')
-        .select('*')
+        .select('auto_capture_enabled, capture_feed, capture_analytics, capture_profile, capture_messaging, sync_enabled, sync_interval, dark_mode, notifications_enabled, raw_settings')
         .eq('user_id', authUser.id)
         .single()
 

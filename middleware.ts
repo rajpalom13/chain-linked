@@ -100,7 +100,7 @@ export async function middleware(request: NextRequest) {
             .eq('id', user.id)
             .single(),
           new Promise<{ data: null }>((resolve) =>
-            setTimeout(() => resolve({ data: null }), 3000)
+            setTimeout(() => resolve({ data: null }), 8000)
           ),
         ])
 
@@ -150,11 +150,11 @@ export async function middleware(request: NextRequest) {
         .eq('id', user.id)
         .single()
 
-      // Race the profile query against a 3-second timeout (fail-open)
+      // Race the profile query against an 8-second timeout (fail-open)
       const result = await Promise.race([
         profileQuery,
         new Promise<{ data: null; error: null }>((resolve) =>
-          setTimeout(() => resolve({ data: null, error: null }), 3000)
+          setTimeout(() => resolve({ data: null, error: null }), 8000)
         ),
       ])
 

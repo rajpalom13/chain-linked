@@ -256,7 +256,8 @@ export function useApiKeys(): UseApiKeysReturn {
   // Fetch status on mount
   useEffect(() => {
     fetchStatus()
-  }, [fetchStatus])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return {
     status,

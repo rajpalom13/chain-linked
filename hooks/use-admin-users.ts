@@ -103,6 +103,9 @@ export function useAdminUsers(): UseAdminUsersReturn {
     sortOrder: "desc",
   })
 
+  // Destructure filter values to use as stable deps
+  const { onboardingCompleted, linkedinConnected, sortBy, sortOrder } = filters
+
   /**
    * Fetches users from the API with current filters
    */
@@ -121,17 +124,17 @@ export function useAdminUsers(): UseAdminUsersReturn {
       }
 
       // Add filter params
-      if (filters.onboardingCompleted !== null && filters.onboardingCompleted !== undefined) {
-        params.append("onboardingCompleted", String(filters.onboardingCompleted))
+      if (onboardingCompleted !== null && onboardingCompleted !== undefined) {
+        params.append("onboardingCompleted", String(onboardingCompleted))
       }
-      if (filters.linkedinConnected !== null && filters.linkedinConnected !== undefined) {
-        params.append("linkedinConnected", String(filters.linkedinConnected))
+      if (linkedinConnected !== null && linkedinConnected !== undefined) {
+        params.append("linkedinConnected", String(linkedinConnected))
       }
-      if (filters.sortBy) {
-        params.append("sortBy", filters.sortBy)
+      if (sortBy) {
+        params.append("sortBy", sortBy)
       }
-      if (filters.sortOrder) {
-        params.append("sortOrder", filters.sortOrder)
+      if (sortOrder) {
+        params.append("sortOrder", sortOrder)
       }
 
       const response = await fetch(`/api/admin/users?${params}`)
@@ -151,7 +154,7 @@ export function useAdminUsers(): UseAdminUsersReturn {
     } finally {
       setIsLoading(false)
     }
-  }, [page, limit, search, filters])
+  }, [page, limit, search, onboardingCompleted, linkedinConnected, sortBy, sortOrder])
 
   /**
    * Fetch users when filters change
@@ -172,7 +175,7 @@ export function useAdminUsers(): UseAdminUsersReturn {
    */
   useEffect(() => {
     setPage(1)
-  }, [filters])
+  }, [onboardingCompleted, linkedinConnected, sortBy, sortOrder])
 
   return {
     users,

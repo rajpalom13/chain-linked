@@ -8,6 +8,7 @@
 
 import { useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
+import { motion } from "framer-motion"
 import {
   IconLayoutDashboard,
   IconUsers,
@@ -15,6 +16,7 @@ import {
   IconSettings,
 } from "@tabler/icons-react"
 
+import { ErrorBoundary } from "@/components/error-boundary"
 import { TeamActivityFeed } from "@/components/features/team-activity-feed"
 import { TeamLeaderboard } from "@/components/features/team-leaderboard"
 import { TeamHeader } from "@/components/features/team-header"
@@ -151,7 +153,12 @@ function TeamContent() {
   }
 
   return (
-    <div className="flex flex-col">
+    <motion.div
+      className="flex flex-col"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+    >
       {/* Team Header */}
       <TeamHeader
         team={currentTeam}
@@ -209,17 +216,6 @@ function TeamContent() {
                 onViewAll={handleViewAllMembers}
               />
 
-              {canManage && (
-                <PendingInvitationsCard
-                  invitations={pendingInvitations}
-                  isLoading={invitationsLoading}
-                  teamId={currentTeam.id}
-                  canManage={canManage}
-                  onResend={handleResendInvitation}
-                  onCancel={handleCancelInvitation}
-                  compact
-                />
-              )}
             </div>
 
             {/* Right Column - Leaderboard and Activity */}
@@ -232,21 +228,11 @@ function TeamContent() {
                 isLoading={leaderboardLoading}
               />
 
-              <Card>
+              <Card className="border-border/50">
                 <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base font-semibold">
+                  <CardTitle className="text-base font-semibold">
                       Recent Activity
                     </CardTitle>
-                    <Button
-                      variant="link"
-                      size="sm"
-                      className="text-xs h-auto p-0"
-                      onClick={() => setActiveTab("activity")}
-                    >
-                      View all
-                    </Button>
-                  </div>
                 </CardHeader>
                 <CardContent>
                   <TeamActivityFeed posts={posts.slice(0, 3)} isLoading={postsLoading} compact />
@@ -292,7 +278,7 @@ function TeamContent() {
 
         {/* Activity Tab */}
         <TabsContent value="activity" className="mt-0 p-4 md:p-6">
-          <Card>
+          <Card className="border-border/50">
             <CardHeader>
               <CardTitle>Team Activity</CardTitle>
               <CardDescription>
@@ -308,7 +294,7 @@ function TeamContent() {
         {/* Settings Tab */}
         <TabsContent value="settings" className="mt-0 p-4 md:p-6">
           <div className="max-w-2xl">
-            <Card>
+            <Card className="border-border/50">
               <CardHeader>
                 <CardTitle>Team Settings</CardTitle>
                 <CardDescription>
@@ -383,7 +369,7 @@ function TeamContent() {
           </div>
         </TabsContent>
       </Tabs>
-    </div>
+    </motion.div>
   )
 }
 
@@ -394,5 +380,9 @@ function TeamContent() {
 export default function TeamPage() {
   usePageMeta({ title: "Team" })
 
-  return <TeamContent />
+  return (
+    <ErrorBoundary>
+      <TeamContent />
+    </ErrorBoundary>
+  )
 }

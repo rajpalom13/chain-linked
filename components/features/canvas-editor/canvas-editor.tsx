@@ -279,17 +279,17 @@ export function CanvasEditor({
   );
 
   /**
-   * Ref holding a pending shape configuration from the graphics library
+   * State holding a pending shape configuration from the graphics library
    */
-  const pendingShapeConfigRef = useRef<ShapeElementConfig | null>(null);
+  const [pendingShapeConfig, setPendingShapeConfig] = useState<ShapeElementConfig | null>(null);
 
   /**
    * Apply pending shape configuration when a new element is selected
    */
   useEffect(() => {
-    if (pendingShapeConfigRef.current && selectedElementId) {
-      const config = pendingShapeConfigRef.current;
-      pendingShapeConfigRef.current = null;
+    if (pendingShapeConfig && selectedElementId) {
+      const config = pendingShapeConfig;
+      setPendingShapeConfig(null);
       updateElement(selectedElementId, {
         width: config.width,
         height: config.height,
@@ -301,14 +301,14 @@ export function CanvasEditor({
         rotation: config.rotation || 0,
       });
     }
-  }, [selectedElementId, updateElement]);
+  }, [pendingShapeConfig, selectedElementId, updateElement]);
 
   /**
    * Handle inserting a shape from the graphics panel
    */
   const handleInsertGraphicShape = useCallback(
     (config: ShapeElementConfig) => {
-      pendingShapeConfigRef.current = config;
+      setPendingShapeConfig(config);
       addElement('shape');
     },
     [addElement]

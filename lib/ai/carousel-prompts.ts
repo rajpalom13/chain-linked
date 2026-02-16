@@ -142,7 +142,7 @@ const CTA_TEMPLATES: Record<CtaType, string> = {
  * @returns Complete system prompt
  */
 export function buildCarouselSystemPrompt(input: CarouselGenerationInput): string {
-  const { templateAnalysis, tone, audience, industry, userContext } = input
+  const { templateAnalysis, tone, audience, industry, userContext, additionalContext } = input
 
   // Build template structure description
   const structureDesc = buildStructureDescription(templateAnalysis)
@@ -182,6 +182,7 @@ ${slotRequirements}
 5. **LinkedIn Style**: Write for LinkedIn's professional audience
 6. **Swipe-Worthy**: Create micro-cliffhangers between slides
 7. **Use the REAL author name**: If any slot asks for a name, handle, or author, use the person's REAL name from the Author Profile section. NEVER invent a name or alias.
+8. **User overrides**: If the user provides specific formatting instructions (e.g. "no dashes", "no bullet points"), ALWAYS follow those over the defaults above
 
 ## Output Format
 Return ONLY a valid JSON object with slot IDs as keys and generated content as values.
@@ -192,7 +193,12 @@ Example format:
   "slot-1-element3": "First key insight"
 }
 
-Do not include any explanation or markdown formatting - just the JSON object.`
+Do not include any explanation or markdown formatting - just the JSON object.${additionalContext?.trim() ? `
+
+## MANDATORY USER INSTRUCTIONS (MUST FOLLOW)
+The user has provided the following specific instructions and context. You MUST strictly follow these instructions. They override any conflicting default behavior. This is non-negotiable:
+
+${additionalContext.trim()}` : ''}`
 
   return systemPrompt
 }
@@ -343,13 +349,17 @@ ${ctaInstruction}
 
 **Slots to Fill** (${templateAnalysis.totalSlots} total):
 ${JSON.stringify(slotList, null, 2)}
-${additionalContext ? `\n**Additional Context**:\n${additionalContext}\n` : ''}
+
 Remember:
-- Slide 1 must STOP THE SCROLL - make it impossible to ignore
-- Each middle slide should deliver on the hook's promise
-- Final slide should drive maximum engagement
-- Stay within character limits for each slot
-- Return ONLY the JSON object with slot content`
+1. Slide 1 must STOP THE SCROLL — make it impossible to ignore
+2. Each middle slide should deliver on the hook's promise
+3. Final slide should drive maximum engagement
+4. Stay within character limits for each slot
+5. Return ONLY the JSON object with slot content${additionalContext?.trim() ? `
+
+IMPORTANT — The user has given these specific instructions. You MUST follow them exactly, even if they override the default formatting rules above:
+
+${additionalContext.trim()}` : ''}`
 
   return userPrompt
 }

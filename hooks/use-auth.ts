@@ -152,7 +152,8 @@ export function useAuth(): UseAuthReturn {
     return () => {
       subscription.unsubscribe()
     }
-  }, [supabase, fetchProfile])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase])
 
   return {
     ...state,

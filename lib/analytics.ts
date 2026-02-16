@@ -173,7 +173,7 @@ export function trackPostPublished(method: "direct" | "clipboard"): void {
  * @param action - The action performed on the template
  * @param templateId - The unique identifier of the template
  */
-export function trackTemplateAction(action: "created" | "used" | "deleted", templateId: string): void {
+export function trackTemplateAction(action: "created" | "edited" | "used" | "deleted", templateId: string): void {
   safeCapture("template_action", { action, template_id: templateId })
 }
 

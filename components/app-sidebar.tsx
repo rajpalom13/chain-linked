@@ -347,7 +347,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       {/* Sidebar Content - Navigation Groups */}
       <SidebarContent className="px-2 py-2">
         {/* Quick Create Button */}
-        <div className="mb-1">
+        <div className="mb-1" data-tour="quick-create">
           <Link
             href="/dashboard/compose"
             className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-150"
@@ -362,6 +362,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <Collapsible
             open={openSections.overview}
             onOpenChange={() => toggleSection('overview')}
+            data-tour="sidebar-overview"
           >
             <SectionHeader
               label="Overview"
@@ -407,6 +408,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <Collapsible
             open={openSections.content}
             onOpenChange={() => toggleSection('content')}
+            data-tour="sidebar-content"
           >
             <SectionHeader
               label="Content"

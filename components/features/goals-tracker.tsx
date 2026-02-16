@@ -468,7 +468,7 @@ function StreakSection({
  */
 function GoalsTrackerSkeleton() {
   return (
-    <Card>
+    <Card className="border-border/50">
       <CardHeader>
         <Skeleton className="h-5 w-32" />
         <Skeleton className="h-4 w-48" />

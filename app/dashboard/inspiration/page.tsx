@@ -42,27 +42,8 @@ import { formatDistanceToNow } from "date-fns"
 import { useDraft } from "@/lib/store/draft-context"
 import { inspirationToast } from "@/lib/toast-utils"
 import { useRouter } from "next/navigation"
+import { getInitials, formatMetricNumber } from "@/lib/utils"
 import type { InspirationPost } from "@/components/features/inspiration-feed"
-import { CrossNav, type CrossNavItem } from "@/components/shared/cross-nav"
-import { IconPencil, IconTemplate } from "@tabler/icons-react"
-
-/** Cross-navigation items for the inspiration page */
-const INSPIRATION_CROSS_NAV: CrossNavItem[] = [
-  {
-    href: "/dashboard/compose",
-    icon: IconPencil,
-    label: "Compose a Post",
-    description: "Draft and publish new LinkedIn content.",
-    color: "primary",
-  },
-  {
-    href: "/dashboard/templates",
-    icon: IconTemplate,
-    label: "Browse Templates",
-    description: "Start from proven post templates.",
-    color: "amber-500",
-  },
-]
 
 /**
  * Category badge variants mapping - matches inferred categories
@@ -92,33 +73,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   "growth": "Growth",
   "design": "Design",
   "general": "General",
-}
-
-/**
- * Formats a number into a compact, human-readable string
- * @param num - The number to format
- * @returns Formatted string (e.g., "1.2K", "3.4M")
- */
-function formatMetricNumber(num: number): string {
-  if (num >= 1000000) {
-    return `${(num / 1000000).toFixed(1)}M`
-  }
-  if (num >= 1000) {
-    return `${(num / 1000).toFixed(1)}K`
-  }
-  return num.toString()
-}
-
-/**
- * Generates initials from a full name
- * @param name - Full name to extract initials from
- * @returns Two-letter initials string
- */
-function getInitials(name: string): string {
-  const parts = name.split(" ").filter(Boolean)
-  if (parts.length === 0) return "?"
-  if (parts.length === 1) return parts[0].charAt(0).toUpperCase()
-  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
 }
 
 /**
@@ -174,7 +128,7 @@ function PostDetailModal({
               {post.author.avatar && (
                 <AvatarImage src={post.author.avatar} alt={post.author.name} />
               )}
-              <AvatarFallback className="text-sm font-medium">
+              <AvatarFallback className="text-sm font-medium bg-gradient-to-br from-primary/20 to-primary/10 text-primary">
                 {getInitials(post.author.name)}
               </AvatarFallback>
             </Avatar>
@@ -223,7 +177,7 @@ function PostDetailModal({
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2 pt-4 border-t">
+        <div className="flex gap-2 pt-4 border-t border-border/50">
           <Button
             variant="default"
             onClick={() => {
@@ -255,33 +209,6 @@ function PostDetailModal({
         </div>
       </DialogContent>
     </Dialog>
-  )
-}
-
-/**
- * Quick Create Card Component
- * @description Allows users to quickly start creating a new post
- */
-function QuickCreateCard() {
-  const router = useRouter()
-
-  return (
-    <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
-      <CardContent className="flex items-center gap-4 p-4">
-        <div className="flex-1">
-          <h3 className="font-semibold text-lg flex items-center gap-2">
-            <IconSparkles className="size-5 text-primary" />
-            Create Your Next Post
-          </h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            Get inspired by viral content below, then create your own masterpiece
-          </p>
-        </div>
-        <Button onClick={() => router.push("/dashboard/compose")} className="shrink-0">
-          Start Writing
-        </Button>
-      </CardContent>
-    </Card>
   )
 }
 
@@ -365,7 +292,7 @@ function InspirationContent() {
   if (error && posts.length === 0) {
     return (
       <div className="flex flex-col gap-4 p-4 md:gap-6 md:p-6">
-        <Card className="border-destructive bg-destructive/5">
+        <Card className="border-destructive/50 bg-destructive/5">
           <CardContent className="flex items-center justify-between py-4">
             <div className="flex items-center gap-2 text-destructive">
               <IconAlertCircle className="h-5 w-5" />
@@ -388,10 +315,7 @@ function InspirationContent() {
 
   return (
     <PageContent>
-      {/* Quick Create Card - Top */}
-      <QuickCreateCard />
-
-      {/* Inspiration Feed - Full Width Below */}
+      {/* Inspiration Feed */}
       <ErrorBoundary>
         <InspirationFeed
           posts={posts}
@@ -432,9 +356,6 @@ function InspirationContent() {
         onRemixed={handleRemixComplete}
         hasApiKey={hasApiKey}
       />
-
-      {/* Related Pages */}
-      <CrossNav items={INSPIRATION_CROSS_NAV} />
     </PageContent>
   )
 }

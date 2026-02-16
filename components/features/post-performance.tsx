@@ -178,7 +178,7 @@ function formatChartDate(dateString: string): string {
  */
 function PostPerformanceSkeleton() {
   return (
-    <Card>
+    <Card className="border-border/50">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <Skeleton className="h-6 w-40" />
@@ -307,9 +307,9 @@ function EngagementBreakdown({ metrics }: { metrics: PostMetrics[] }) {
  */
 function EmptyState() {
   return (
-    <Card>
+    <Card className="border-border/50">
       <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-        <div className="rounded-full bg-muted p-3 mb-4">
+        <div className="rounded-full bg-gradient-to-br from-muted to-muted/50 p-3 mb-4">
           <IconChartLine className="size-6 text-muted-foreground" />
         </div>
         <h3 className="font-medium text-sm mb-1">No post selected</h3>
@@ -382,7 +382,7 @@ export function PostPerformance({
 
   return (
     <div className={className}>
-      <Card>
+      <Card className="border-border/50">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-lg">

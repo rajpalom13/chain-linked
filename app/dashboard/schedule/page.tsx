@@ -6,12 +6,22 @@
  * @module app/dashboard/schedule/page
  */
 
-import { useCallback } from "react"
+import { useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { toast } from "sonner"
-import { IconPencil } from "@tabler/icons-react"
+import { motion } from "framer-motion"
+import {
+  IconPencil,
+  IconCalendarEvent,
+  IconClock,
+  IconSend,
+  IconCalendarStats,
+  IconBulb,
+} from "@tabler/icons-react"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 import { PageContent } from "@/components/shared/page-content"
 import { usePostingConfig } from "@/hooks/use-posting-config"
 import { ScheduleCalendar } from "@/components/features/schedule-calendar"
@@ -20,26 +30,7 @@ import { ScheduleSkeleton } from "@/components/skeletons/page-skeletons"
 import { useScheduledPosts } from "@/hooks/use-scheduled-posts"
 import { useAuthContext } from "@/lib/auth/auth-provider"
 import { usePageMeta } from "@/lib/dashboard-context"
-import { CrossNav, type CrossNavItem } from "@/components/shared/cross-nav"
-import { IconArticle, IconChartBar } from "@tabler/icons-react"
-
-/** Cross-navigation items for the schedule page */
-const SCHEDULE_CROSS_NAV: CrossNavItem[] = [
-  {
-    href: "/dashboard/posts",
-    icon: IconArticle,
-    label: "View All Posts",
-    description: "See your published content and engagement data.",
-    color: "emerald-500",
-  },
-  {
-    href: "/dashboard/analytics",
-    icon: IconChartBar,
-    label: "View Analytics",
-    description: "Track your growth and performance metrics.",
-    color: "blue-500",
-  },
-]
+import { staggerContainerVariants, staggerItemVariants } from "@/lib/animations"
 
 /**
  * Schedule page content component with real data
@@ -58,6 +49,14 @@ function ScheduleContent() {
     mediaUrls: post.media_urls as string[] | undefined,
   }))
 
+  // Compute stats
+  const stats = useMemo(() => {
+    const pending = rawPosts.filter(p => p.status === 'pending' || p.status === 'scheduled').length
+    const posted = rawPosts.filter(p => p.status === 'posted').length
+    const failed = rawPosts.filter(p => p.status === 'failed').length
+    return { pending, posted, failed, total: rawPosts.length }
+  }, [rawPosts])
+
   // Navigate to compose page for scheduling new posts
   const handleScheduleNew = useCallback(() => {
     router.push("/dashboard/compose")
@@ -65,10 +64,8 @@ function ScheduleContent() {
 
   // Handle edit - navigate to compose page with post ID
   const handleEdit = useCallback((postId: string) => {
-    // For now, navigate to compose with the post content
     const post = rawPosts.find(p => p.id === postId)
     if (post) {
-      // Store the post data in sessionStorage for the compose page to pick up
       sessionStorage.setItem('editScheduledPost', JSON.stringify({
         id: post.id,
         content: post.content,
@@ -94,7 +91,6 @@ function ScheduleContent() {
 
   // Handle post now - update status to trigger immediate posting
   const handlePostNow = useCallback(async (postId: string) => {
-    // Block when posting is disabled
     if (!isPostingEnabled) {
       toast.warning("Posting disabled", {
         description: disabledMessage,
@@ -102,7 +98,6 @@ function ScheduleContent() {
       return
     }
 
-    // Update the scheduled time to now and status to pending
     const success = await updatePost(postId, {
       scheduled_for: new Date().toISOString(),
       status: 'pending',
@@ -121,36 +116,144 @@ function ScheduleContent() {
   return (
     <PageContent>
       {/* Page Header */}
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Content Calendar</h2>
-        <p className="text-sm text-muted-foreground">
-          Plan and schedule your LinkedIn posts for maximum reach.
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Content Calendar</h2>
+          <p className="text-sm text-muted-foreground">
+            Plan and schedule your LinkedIn posts for maximum reach.
+          </p>
+        </div>
+        <Button onClick={handleScheduleNew} className="gap-1.5 shrink-0">
+          <IconPencil className="size-4" />
+          Schedule Post
+        </Button>
       </div>
 
-      {/* Calendar View and List View */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Calendar View */}
-        <ScheduleCalendar
-          posts={scheduledPosts}
-          isLoading={isLoading}
-        />
+      {/* Quick Stats Row */}
+      <motion.div
+        className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+        variants={staggerContainerVariants}
+        initial="initial"
+        animate="animate"
+      >
+        <motion.div variants={staggerItemVariants}>
+          <ScheduleStatCard
+            label="Scheduled"
+            value={stats.pending}
+            icon={IconClock}
+            iconColor="text-primary"
+            iconBg="from-primary/15 to-primary/5"
+            isLoading={isLoading}
+          />
+        </motion.div>
+        <motion.div variants={staggerItemVariants}>
+          <ScheduleStatCard
+            label="Published"
+            value={stats.posted}
+            icon={IconSend}
+            iconColor="text-emerald-500"
+            iconBg="from-emerald-500/15 to-emerald-500/5"
+            isLoading={isLoading}
+          />
+        </motion.div>
+        <motion.div variants={staggerItemVariants}>
+          <ScheduleStatCard
+            label="This Month"
+            value={stats.total}
+            icon={IconCalendarStats}
+            iconColor="text-blue-500"
+            iconBg="from-blue-500/15 to-blue-500/5"
+            isLoading={isLoading}
+          />
+        </motion.div>
+        <motion.div variants={staggerItemVariants}>
+          <QuickTipCard />
+        </motion.div>
+      </motion.div>
 
-        {/* List View */}
-        <ScheduledPosts
-          posts={listPosts}
-          isLoading={isLoading}
-          onScheduleNew={handleScheduleNew}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onPostNow={handlePostNow}
-          isPostingEnabled={isPostingEnabled}
-        />
-      </div>
+      {/* Calendar (full width) */}
+      <ScheduleCalendar
+        posts={scheduledPosts}
+        isLoading={isLoading}
+      />
 
-      {/* Related Pages */}
-      <CrossNav items={SCHEDULE_CROSS_NAV} />
+      {/* Scheduled Posts List (full width below calendar) */}
+      <ScheduledPosts
+        posts={listPosts}
+        isLoading={isLoading}
+        onScheduleNew={handleScheduleNew}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        onPostNow={handlePostNow}
+        isPostingEnabled={isPostingEnabled}
+      />
     </PageContent>
+  )
+}
+
+/**
+ * Stat card for schedule overview
+ */
+function ScheduleStatCard({
+  label,
+  value,
+  icon: Icon,
+  iconColor,
+  iconBg,
+  isLoading,
+}: {
+  label: string
+  value: number
+  icon: React.ElementType
+  iconColor: string
+  iconBg: string
+  isLoading: boolean
+}) {
+  if (isLoading) {
+    return (
+      <Card className="border-border/50">
+        <CardContent className="p-4 flex items-center gap-3">
+          <Skeleton className="size-10 rounded-xl" />
+          <div className="space-y-1.5">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-6 w-10" />
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card className="border-border/50 hover:border-border transition-colors">
+      <CardContent className="p-4 flex items-center gap-3">
+        <div className={`rounded-xl bg-gradient-to-br ${iconBg} p-2.5 shrink-0`}>
+          <Icon className={`size-4 ${iconColor}`} />
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground font-medium">{label}</p>
+          <p className="text-xl font-bold tabular-nums leading-tight">{value}</p>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
+ * Quick tip card for scheduling best practices
+ */
+function QuickTipCard() {
+  return (
+    <Card className="border-border/50 bg-gradient-to-br from-amber-500/5 to-transparent hover:border-amber-500/30 transition-colors">
+      <CardContent className="p-4 flex items-center gap-3">
+        <div className="rounded-xl bg-gradient-to-br from-amber-500/15 to-amber-500/5 p-2.5 shrink-0">
+          <IconBulb className="size-4 text-amber-500" />
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground font-medium">Best Times</p>
+          <p className="text-xs font-medium leading-tight mt-0.5">Tue-Thu, 8-10 AM</p>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 

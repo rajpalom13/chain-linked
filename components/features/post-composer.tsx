@@ -239,18 +239,25 @@ export function PostComposer({
 
   // Fetch user's OpenAI API key status for AI generation
   React.useEffect(() => {
+    let cancelled = false
     async function fetchApiKeyStatus() {
       try {
         const response = await fetch('/api/settings/api-keys')
+        if (cancelled) return
         if (response.ok) {
           const data = await response.json()
-          setHasApiKey(data.hasKey === true)
+          if (!cancelled) {
+            setHasApiKey(data.hasKey === true)
+          }
         }
       } catch (error) {
-        console.error('Failed to fetch API key status:', error)
+        if (!cancelled) {
+          console.error('Failed to fetch API key status:', error)
+        }
       }
     }
     fetchApiKeyStatus()
+    return () => { cancelled = true }
   }, [])
 
   // Update draft when content changes
@@ -510,7 +517,7 @@ export function PostComposer({
               </CardDescription>
             </CardHeader>
 
-            <CardContent className="flex flex-1 flex-col gap-4">
+            <CardContent className="flex flex-1 flex-col gap-3">
               {/* Posting Disabled Warning */}
               {!isPostingEnabled && (
                 <div className="flex items-center gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
@@ -624,7 +631,7 @@ export function PostComposer({
                   onChange={(e) => handleContentChange(e.target.value)}
                   placeholder="What do you want to talk about?"
                   className={cn(
-                    "border-input bg-background placeholder:text-muted-foreground h-full min-h-[200px] w-full resize-none rounded-md border px-3 py-2 text-sm shadow-xs transition-colors",
+                    "border-input bg-background placeholder:text-muted-foreground h-full min-h-[260px] w-full resize-none rounded-md border px-3 py-2.5 text-sm leading-relaxed shadow-xs transition-colors",
                     "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-none focus-visible:ring-[3px]",
                     isOverLimit && "border-destructive focus-visible:border-destructive"
                   )}
@@ -935,14 +942,15 @@ export function PostComposer({
                 </div>
 
                 {/* Engagement Stats (Placeholder) */}
-                <div className="text-muted-foreground flex items-center px-4 py-1.5 text-xs border-t">
-                  <span className="flex items-center gap-1">
-                    <span className="inline-flex items-center justify-center size-4 rounded-full bg-blue-500 text-white">
-                      <IconThumbUp className="size-2.5" />
+                <div className="text-muted-foreground flex items-center px-4 py-2 text-xs">
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-flex -space-x-1">
+                      <span className="inline-flex items-center justify-center size-4 rounded-full bg-[#378FE9] text-[8px] text-white ring-1 ring-white dark:ring-zinc-900">&#128077;</span>
+                      <span className="inline-flex items-center justify-center size-4 rounded-full bg-[#DF704D] text-[8px] text-white ring-1 ring-white dark:ring-zinc-900">&#10084;</span>
                     </span>
-                    0
+                    <span className="tabular-nums">0</span>
                   </span>
-                  <span className="ml-auto flex items-center gap-1.5">
+                  <span className="ml-auto flex items-center gap-2 tabular-nums">
                     <span>0 comments</span>
                     <span className="leading-none">&#183;</span>
                     <span>0 reposts</span>
@@ -991,16 +999,15 @@ export function PostComposer({
               </div>
             </CardContent>
 
-            <CardFooter className="flex-col items-start gap-2 border-t pt-4 text-sm">
-              <p className="text-muted-foreground">
-                <strong className="text-foreground">Tip:</strong> Select text and click{" "}
-                <strong className="text-foreground">B</strong> for{" "}
-                <span className="font-medium">𝗕𝗼𝗹𝗱</span>,{" "}
+            <CardFooter className="border-t pt-3 pb-3">
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                <strong className="text-foreground font-medium">Tip:</strong> Select text and click{" "}
+                <strong className="text-foreground font-medium">B</strong> for{" "}
+                <span>𝗕𝗼𝗹𝗱</span>,{" "}
                 <em className="text-foreground">I</em> for{" "}
-                <span className="font-medium">𝘐𝘵𝘢𝘭𝘪𝘤</span>, or use the font picker for{" "}
-                <span className="font-medium">𝙼𝚘𝚗𝚘</span>,{" "}
-                <span className="font-medium">𝒮𝒸𝓇𝒾𝓅𝓉</span>, and more.
-                AI-generated formatting renders instantly.
+                <span>𝘐𝘵𝘢𝘭𝘪𝘤</span>, or use the font picker for{" "}
+                <span>𝙼𝚘𝚗𝚘</span>,{" "}
+                <span>𝒮𝒸𝓇𝒾𝓅𝓉</span>, and more.
               </p>
             </CardFooter>
           </Card>
@@ -1014,7 +1021,7 @@ export function PostComposer({
         onSchedule={handleScheduleConfirm}
         postPreview={{
           content,
-          mediaCount: draft.mediaFiles.length,
+          mediaCount: mediaFiles.length,
         }}
         isSubmitting={isScheduling}
       />

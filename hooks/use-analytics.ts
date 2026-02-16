@@ -133,7 +133,7 @@ export function useAnalytics(userId?: string): UseAnalyticsReturn {
       setIsLoading(true)
       setError(null)
 
-      // Fetch all analytics records for charting, ordered by captured_at
+      // Fetch analytics records for charting, ordered by captured_at
       const { data: analytics, error: fetchError } = await supabase
         .from('linkedin_analytics')
         .select('*')

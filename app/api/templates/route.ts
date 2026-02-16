@@ -126,14 +126,39 @@ export async function PATCH(request: Request) {
     let query = supabase.from('templates')
 
     if (increment_usage) {
-      // Special case: increment usage count (anyone can use public templates)
+      // Fetch the template to check ownership or public status
       const { data: template } = await supabase
         .from('templates')
-        .select('usage_count')
+        .select('usage_count, is_public, user_id')
         .eq('id', id)
         .single()
 
-      updates.usage_count = (template?.usage_count || 0) + 1
+      if (!template) {
+        return NextResponse.json({ error: 'Template not found' }, { status: 404 })
+      }
+
+      // Only allow usage increment if template is public or owned by user
+      if (!template.is_public && template.user_id !== user.id) {
+        return NextResponse.json({ error: 'Not authorized to use this template' }, { status: 403 })
+      }
+
+      updates.usage_count = (template.usage_count || 0) + 1
+
+      // For public templates not owned by user, update without the user_id filter
+      if (template.is_public && template.user_id !== user.id) {
+        const { data: updatedTemplate, error: updateError } = await query
+          .update(updates)
+          .eq('id', id)
+          .select()
+          .single()
+
+        if (updateError) {
+          console.error('Update error:', updateError)
+          return NextResponse.json({ error: 'Failed to update template' }, { status: 500 })
+        }
+
+        return NextResponse.json({ template: updatedTemplate })
+      }
     }
 
     const { data: updatedTemplate, error: updateError } = await query

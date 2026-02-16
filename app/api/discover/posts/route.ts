@@ -32,7 +32,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url)
   const topic = searchParams.get("topic") || ""
-  const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10))
+  const page = Math.min(1000, Math.max(1, parseInt(searchParams.get("page") || "1", 10)))
   const limit = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") || "12", 10)))
   const sort = (searchParams.get("sort") || "engagement") as SortOption
   const search = searchParams.get("search") || ""
@@ -49,11 +49,18 @@ export async function GET(request: Request) {
       query = query.contains("topics", [topic])
     }
 
-    // Search in content and author name
+    // Search in content and author name with sanitized input
     if (search) {
-      query = query.or(
-        `content.ilike.%${search}%,author_name.ilike.%${search}%`
-      )
+      const sanitizedSearch = search
+        .replace(/[%_\\.,()]/g, '')
+        .trim()
+        .slice(0, 100)
+
+      if (sanitizedSearch.length > 0) {
+        query = query.or(
+          `content.ilike.%${sanitizedSearch}%,author_name.ilike.%${sanitizedSearch}%`
+        )
+      }
     }
 
     // Apply sorting

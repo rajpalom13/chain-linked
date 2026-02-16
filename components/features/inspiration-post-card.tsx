@@ -450,7 +450,7 @@ export function InspirationPostCard({
  */
 export function InspirationPostCardSkeleton({ compact = false }: { compact?: boolean }) {
   return (
-    <Card className="h-full overflow-hidden">
+    <Card className="h-full overflow-hidden border-border/50">
       <CardContent className={cn("space-y-3", compact ? "pt-3" : "pt-4")}>
         <div className="flex items-start gap-3">
           <Skeleton className={cn("rounded-full shrink-0", compact ? "size-8" : "size-10")} />

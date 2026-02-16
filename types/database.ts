@@ -95,6 +95,8 @@ export interface Database {
           discover_topics_selected: boolean
           /** Array of selected discover topic slugs */
           discover_topics: string[]
+          /** Whether the user has completed the dashboard tour */
+          dashboard_tour_completed: boolean
         }
         Insert: {
           id: string
@@ -122,6 +124,8 @@ export interface Database {
           onboarding_current_step?: number
           discover_topics_selected?: boolean
           discover_topics?: string[]
+          /** Whether the user has completed the dashboard tour */
+          dashboard_tour_completed?: boolean
         }
         Update: {
           id?: string
@@ -149,6 +153,8 @@ export interface Database {
           onboarding_current_step?: number
           discover_topics_selected?: boolean
           discover_topics?: string[]
+          /** Whether the user has completed the dashboard tour */
+          dashboard_tour_completed?: boolean
         }
         Relationships: []
       }
