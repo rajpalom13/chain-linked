@@ -48,6 +48,9 @@ tmpclaude-*
 .hive-mind/
 .mcp.json
 
+# Playwright MCP
+.playwright-mcp/
+
 # IDE/Editor
 .idea/
 .vscode/
@@ -59,7 +62,6 @@ tmpclaude-*
 .settings/
 
 # OS files
-.DS_Store
 Thumbs.db
 ehthumbs.db
 Desktop.ini
@@ -81,9 +83,9 @@ tmp/
 temp/
 *.tmp
 *.temp
+*.bak
 
 # Package manager locks (keep one, ignore others if not used)
-# Uncomment the ones you don't use:
 # package-lock.json
 # yarn.lock
 # pnpm-lock.yaml
@@ -103,3 +105,14 @@ storybook-static/
 
 # Turbo
 .turbo/
+
+# Screenshots and QA artifacts
+/*.png
+/*.jpg
+/*.jpeg
+
+# Extension build artifacts
+extension/dist.zip
+
+# Empty data files
+linkedin-dataset.json
