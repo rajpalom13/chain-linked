@@ -14,6 +14,7 @@ interface ProfileData {
   headline: string | null;
   location: string | null;
   profilePhoto: string | null;
+  backgroundImage: string | null;
   connectionCount: number | null;
   followerCount: number | null;
   aboutSection: string | null;
@@ -333,6 +334,60 @@ const LinkedInDOMExtractor = {
       }
 
       // ============================================
+      // BANNER / BACKGROUND IMAGE EXTRACTION
+      // ============================================
+      let backgroundImage: string | null = null;
+
+      const bannerSelectors = [
+        // LinkedIn profile background image selectors
+        '.profile-background-image__image',
+        'img[class*="profile-background"]',
+        '.pv-top-card__cover-photo img',
+        '.profile-topcard__background-image img',
+        // 2026 layouts - banner/cover section
+        '[class*="profile-background"] img',
+        '.artdeco-entity-image--profile-background img',
+        'section[class*="top-card"] img[class*="background"]',
+        // Cover image as CSS background-image
+        '[class*="cover-img"] img',
+        'img[alt*="background"]',
+        'img[alt*="banner"]',
+        'img[alt*="cover"]',
+      ];
+
+      for (const selector of bannerSelectors) {
+        const el = document.querySelector(selector) as HTMLImageElement;
+        if (el?.src && !el.src.includes('data:image') && el.src.includes('licdn')) {
+          backgroundImage = el.src;
+          console.log(`[CAPTURE][PROFILE] Banner image found via: ${selector}`);
+          break;
+        }
+      }
+
+      // Fallback: Check for background-image CSS on banner containers
+      if (!backgroundImage) {
+        const bannerContainerSelectors = [
+          '.profile-background-image',
+          '[class*="profile-background"]',
+          '.pv-top-card__cover-photo',
+          '[class*="cover-photo"]',
+          '[class*="banner-image"]',
+        ];
+        for (const selector of bannerContainerSelectors) {
+          const el = document.querySelector(selector) as HTMLElement;
+          if (el) {
+            const bgImage = window.getComputedStyle(el).backgroundImage;
+            const urlMatch = bgImage?.match(/url\(["']?(https?:\/\/[^"')]+)["']?\)/);
+            if (urlMatch && urlMatch[1].includes('licdn')) {
+              backgroundImage = urlMatch[1];
+              console.log(`[CAPTURE][PROFILE] Banner image found via CSS background: ${selector}`);
+              break;
+            }
+          }
+        }
+      }
+
+      // ============================================
       // FOLLOWER/CONNECTION COUNT EXTRACTION
       // ============================================
       let connectionCount: number | null = null;
@@ -432,6 +487,7 @@ const LinkedInDOMExtractor = {
         headline,
         location,
         profilePhoto,
+        backgroundImage,
         connectionCount,
         followerCount,
         aboutSection,
@@ -444,6 +500,7 @@ const LinkedInDOMExtractor = {
         headline: result.headline ? result.headline.substring(0, 50) + '...' : null,
         location: result.location,
         hasPhoto: !!result.profilePhoto,
+        hasBanner: !!result.backgroundImage,
         followerCount: result.followerCount,
         connectionCount: result.connectionCount
       });

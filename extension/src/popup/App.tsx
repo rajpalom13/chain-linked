@@ -1,6 +1,6 @@
 /**
  * App - Minimal popup for ChainLinked extension
- * Focused on authentication and essential navigation
+ * Focused on authentication and auto-capture status
  * @module popup/App
  */
 
@@ -16,43 +16,11 @@ interface AuthState {
   pendingCount?: number;
 }
 
-/** LinkedIn page link for data capture */
-interface CaptureLink {
-  href: string;
-  label: string;
-  desc: string;
-  captureType: string;
-}
-
-/** Capture page categories */
-const CAPTURE_PAGES: { category: string; links: CaptureLink[] }[] = [
-  {
-    category: 'Profile & Network',
-    links: [
-      { href: 'https://www.linkedin.com/in/me/', label: 'My Profile', desc: 'Name, headline, connections', captureType: 'profile' },
-      { href: 'https://www.linkedin.com/mynetwork/', label: 'My Network', desc: 'Connections & invitations', captureType: 'connections' },
-    ],
-  },
-  {
-    category: 'Analytics',
-    links: [
-      { href: 'https://www.linkedin.com/analytics/creator/content/', label: 'Content Analytics', desc: 'Impressions & engagement', captureType: 'creator_analytics' },
-      { href: 'https://www.linkedin.com/analytics/creator/audience/', label: 'Audience Analytics', desc: 'Follower demographics', captureType: 'audience_analytics' },
-      { href: 'https://www.linkedin.com/analytics/creator/top-posts/', label: 'Top Posts', desc: 'Best performing posts', captureType: 'creator_analytics' },
-      { href: 'https://www.linkedin.com/analytics/profile-views/', label: 'Profile Views', desc: 'Who viewed your profile', captureType: 'profile_views' },
-    ],
-  },
-  {
-    category: 'Content',
-    links: [
-      { href: 'https://www.linkedin.com/feed/', label: 'Feed', desc: 'Posts & updates', captureType: 'feed' },
-      { href: 'https://www.linkedin.com/dashboard/', label: 'Dashboard', desc: 'Overview metrics', captureType: 'creator_analytics' },
-    ],
-  },
-];
+/** Dashboard URL */
+const DASHBOARD_URL = 'https://chain-linked-theta.vercel.app/login';
 
 /**
- * Main App component - Minimal auth-focused UI
+ * Main App component - Minimal auth-focused UI with auto-capture status
  */
 function App() {
   const [authState, setAuthState] = useState<AuthState>({ isAuthenticated: false });
@@ -234,7 +202,7 @@ function App() {
 
             {/* Dashboard Link */}
             <a
-              href="https://chainlinked.app"
+              href={DASHBOARD_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-between w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl shadow-sm hover:from-blue-700 hover:to-blue-800 transition-all group"
@@ -255,40 +223,52 @@ function App() {
               </svg>
             </a>
 
-            {/* LinkedIn Capture Pages */}
+            {/* Auto-Capture Status */}
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">Visit pages to capture data</p>
-                <span className="text-[9px] text-slate-400">{CAPTURE_PAGES.reduce((n, g) => n + g.links.length, 0)} pages</span>
-              </div>
-              {CAPTURE_PAGES.map((group) => (
-                <div key={group.category}>
-                  <div className="px-3 py-1.5 bg-slate-50/50 border-b border-slate-100">
-                    <p className="text-[9px] font-semibold text-blue-600 uppercase tracking-wider">{group.category}</p>
+              <div className="p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
+                    <svg className="w-4 h-4 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                      <polyline points="22 4 12 14.01 9 11.01" />
+                    </svg>
                   </div>
-                  <div className="divide-y divide-slate-100">
-                    {group.links.map((link) => (
-                      <a
-                        key={link.href}
-                        href={link.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-between px-3 py-2 hover:bg-blue-50/50 transition-colors group"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <span className="text-xs font-medium text-slate-700">{link.label}</span>
-                          <span className="text-[10px] text-slate-400 ml-2">{link.desc}</span>
-                        </div>
-                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all shrink-0 ml-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
-                          <polyline points="15 3 21 3 21 9" />
-                          <line x1="10" y1="14" x2="21" y2="3" />
-                        </svg>
-                      </a>
-                    ))}
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">Auto-Capture Active</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">Data is captured automatically as you browse LinkedIn</p>
                   </div>
                 </div>
-              ))}
+                <div className="bg-slate-50 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <svg className="w-3.5 h-3.5 text-blue-500 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="16" x2="12" y2="12" />
+                      <line x1="12" y1="8" x2="12.01" y2="8" />
+                    </svg>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      Your profile, analytics, posts, and audience data are synced to the cloud whenever you visit LinkedIn. No action needed.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* LinkedIn Connection Status */}
+              <div className="px-4 py-3 border-t border-slate-100 flex items-center justify-between">
+                <span className="text-[11px] text-slate-500">LinkedIn</span>
+                {linkedInConnected === null ? (
+                  <span className="text-[11px] text-slate-400">Checking...</span>
+                ) : linkedInConnected ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span className="text-[11px] text-emerald-600 font-medium">Logged in</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    <span className="text-[11px] text-amber-600 font-medium">Not logged in</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Sign Out */}
@@ -352,24 +332,18 @@ function App() {
               {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
             </button>
 
-            {/* Getting Started Info */}
+            {/* Auto-Capture Info */}
             <div className="pt-4 border-t border-slate-100">
-              <p className="text-[10px] text-slate-400 text-center mb-3">After signing in, visit these pages to capture data:</p>
-              <div className="bg-slate-50 rounded-lg overflow-hidden divide-y divide-slate-100">
-                {CAPTURE_PAGES.flatMap((g) => g.links).map((link) => (
-                  <a
-                    key={link.href}
-                    href={link.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between px-3 py-2 text-xs text-slate-600 hover:bg-slate-100 transition-colors"
-                  >
-                    <span>{link.label}</span>
-                    <svg className="w-3 h-3 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
-                  </a>
-                ))}
+              <div className="bg-blue-50 rounded-xl p-4 text-center">
+                <div className="w-10 h-10 mx-auto mb-3 rounded-full bg-blue-100 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                  </svg>
+                </div>
+                <p className="text-xs font-medium text-blue-800 mb-1">Automatic Data Capture</p>
+                <p className="text-[11px] text-blue-600 leading-relaxed">
+                  Sign in and browse LinkedIn normally. Your data will be captured and synced automatically.
+                </p>
               </div>
             </div>
           </div>

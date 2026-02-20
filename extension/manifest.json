@@ -33,12 +33,18 @@
   },
 
   "externally_connectable": {
-    "matches": ["http://localhost:3000/*"]
+    "matches": [
+      "http://localhost:3000/*",
+      "https://chain-linked-theta.vercel.app/*"
+    ]
   },
 
   "content_scripts": [
     {
-      "matches": ["http://localhost:3000/*"],
+      "matches": [
+        "http://localhost:3000/*",
+        "https://chain-linked-theta.vercel.app/*"
+      ],
       "js": ["content/webapp-bridge.js"],
       "run_at": "document_start",
       "world": "MAIN"
@@ -88,7 +94,10 @@
     },
     {
       "resources": ["content/webapp-bridge.js"],
-      "matches": ["http://localhost:3000/*"]
+      "matches": [
+        "http://localhost:3000/*",
+        "https://chain-linked-theta.vercel.app/*"
+      ]
     }
   ],
 

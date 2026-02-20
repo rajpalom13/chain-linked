@@ -278,6 +278,7 @@ interface ProfileExtractionData {
   headline?: string | null;
   location?: string | null;
   profilePhoto?: string | null;
+  backgroundImage?: string | null;
   connectionCount?: number | null;
   followerCount?: number | null;
   aboutSection?: string | null;
@@ -997,6 +998,7 @@ class AutoCaptureController {
           // Map DOMExtractor properties to expected names for database
           followers_count: data.followerCount,
           connections_count: data.connectionCount,
+          backgroundImage: data.backgroundImage,
           pageType: 'profile',
           extractedAt: new Date().toISOString(),
           source: 'dom',
