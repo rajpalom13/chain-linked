@@ -314,7 +314,7 @@ export function AnalyticsCards({
         positive: 'Content reach growing',
         negative: 'Content reach declining',
       },
-      description: 'Views across all posts this period',
+      description: 'Impressions across all posts this period',
       tooltip: 'The total number of times your posts were displayed to LinkedIn members. This includes multiple views by the same person. Higher impressions indicate broader content visibility.',
     },
     {

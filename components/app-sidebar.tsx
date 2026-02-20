@@ -149,7 +149,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     if (pathname?.includes('/dashboard/drafts') ||
         pathname?.includes('/dashboard/templates') ||
         pathname?.includes('/dashboard/inspiration') ||
-        pathname?.includes('/dashboard/compose') ||
         pathname?.includes('/dashboard/carousels')) {
       setOpenSections(prev => ({ ...prev, content: true }))
     }
