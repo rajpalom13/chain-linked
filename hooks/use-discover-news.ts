@@ -6,6 +6,7 @@
  */
 
 import * as React from "react"
+import { toast } from "sonner"
 import type { DiscoverNewsArticle } from "@/types/database"
 
 /**
@@ -652,6 +653,67 @@ export function useDiscoverNews() {
   }, [])
 
   /**
+   * Fetch new articles from Perplexity on demand (force bypasses duplicate check)
+   */
+  const fetchNewArticles = React.useCallback(async () => {
+    const topicSlugs = state.topics
+      .map((t) => t.slug)
+      .filter((s) => s !== "all")
+
+    if (topicSlugs.length === 0) return
+
+    setState((prev) => ({ ...prev, isSeeding: true }))
+
+    try {
+      const response = await fetch("/api/discover/news/seed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topics: topicSlugs, force: true }),
+      })
+
+      if (!response.ok) {
+        toast.error("Failed to fetch new articles")
+        setState((prev) => ({ ...prev, isSeeding: false }))
+        return
+      }
+
+      const data = await response.json()
+
+      if (data.reason === "no_api_key") {
+        toast.warning("Perplexity API key not configured")
+        setState((prev) => ({ ...prev, isSeeding: false }))
+        return
+      }
+
+      if (data.articlesIngested > 0) {
+        toast.success(`Fetched ${data.articlesIngested} new articles`)
+      } else {
+        toast.info("No new articles found for your topics")
+      }
+
+      // Re-fetch the feed to show new articles
+      const result = await fetchNewsArticles(
+        state.activeTopic,
+        1,
+        state.sort,
+        ""
+      )
+      const articles = result.articles.map(dbToNewsArticle)
+      setState((prev) => ({
+        ...prev,
+        articles,
+        isSeeding: false,
+        page: 1,
+        hasMore: result.pagination.hasMore,
+        searchQuery: "",
+      }))
+    } catch {
+      toast.error("Failed to fetch new articles")
+      setState((prev) => ({ ...prev, isSeeding: false }))
+    }
+  }, [state.topics, state.activeTopic, state.sort])
+
+  /**
    * Retry loading articles
    */
   const retry = React.useCallback(() => {
@@ -693,6 +755,7 @@ export function useDiscoverNews() {
     completeTopicSelection,
     retry,
     refresh,
+    fetchNewArticles,
     loadMore,
   }
 }

@@ -70,6 +70,7 @@ export async function POST(request: Request) {
     // ---- Topic validation ----
     const body = await request.json()
     const topics: string[] = body.topics || []
+    const force: boolean = body.force === true
 
     if (topics.length === 0) {
       return NextResponse.json(
@@ -80,28 +81,30 @@ export async function POST(request: Request) {
 
     const validTopics = topics.filter((t) => t !== "all")
 
-    // ---- Duplicate check ----
-    let query = supabase
-      .from("discover_news_articles")
-      .select("id", { count: "exact", head: true })
+    // ---- Duplicate check (skip when force = true) ----
+    if (!force) {
+      let query = supabase
+        .from("discover_news_articles")
+        .select("id", { count: "exact", head: true })
 
-    if (validTopics.length > 0) {
-      query = query.in("topic", validTopics)
-    }
+      if (validTopics.length > 0) {
+        query = query.in("topic", validTopics)
+      }
 
-    const { count, error: countError } = await query
+      const { count, error: countError } = await query
 
-    if (countError) {
-      console.warn("[Seed] Error checking article count:", countError)
-    }
+      if (countError) {
+        console.warn("[Seed] Error checking article count:", countError)
+      }
 
-    if (count && count > 0) {
-      return NextResponse.json<SeedResponse>({
-        seeded: false,
-        reason: "already_exists",
-        message: "Articles already exist for the requested topics",
-        count,
-      })
+      if (count && count > 0) {
+        return NextResponse.json<SeedResponse>({
+          seeded: false,
+          reason: "already_exists",
+          message: "Articles already exist for the requested topics",
+          count,
+        })
+      }
     }
 
     // ---- Run the ingest pipeline directly (no Inngest event dispatch) ----

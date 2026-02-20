@@ -1643,7 +1643,7 @@ export interface Database {
         Row: {
           id: string
           user_id: string
-          status: 'pending' | 'generating' | 'completed' | 'failed'
+          status: 'pending' | 'generating' | 'completed' | 'failed' | 'cancelled'
           suggestions_requested: number
           suggestions_generated: number
           company_context_id: string | null
@@ -1656,7 +1656,7 @@ export interface Database {
         Insert: {
           id?: string
           user_id: string
-          status?: 'pending' | 'generating' | 'completed' | 'failed'
+          status?: 'pending' | 'generating' | 'completed' | 'failed' | 'cancelled'
           suggestions_requested?: number
           suggestions_generated?: number
           company_context_id?: string | null
@@ -1669,7 +1669,7 @@ export interface Database {
         Update: {
           id?: string
           user_id?: string
-          status?: 'pending' | 'generating' | 'completed' | 'failed'
+          status?: 'pending' | 'generating' | 'completed' | 'failed' | 'cancelled'
           suggestions_requested?: number
           suggestions_generated?: number
           company_context_id?: string | null
@@ -2237,7 +2237,7 @@ export type SuggestionStatus = 'active' | 'used' | 'dismissed' | 'expired'
 export type WishlistStatus = 'saved' | 'scheduled' | 'posted' | 'removed'
 
 /** Generation run status enum */
-export type GenerationRunStatus = 'pending' | 'generating' | 'completed' | 'failed'
+export type GenerationRunStatus = 'pending' | 'generating' | 'completed' | 'failed' | 'cancelled'
 
 /** Writing style profile type alias */
 export type WritingStyleProfile = Tables<'writing_style_profiles'>

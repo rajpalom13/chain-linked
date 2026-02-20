@@ -16,6 +16,54 @@ const MAX_ACTIVE_SUGGESTIONS = 10
  * Triggers generation of new AI suggestions for the swipe feature
  * @returns JSON response with runId and status
  */
+/**
+ * DELETE /api/swipe/generate
+ * Cancels an active suggestion generation run
+ * @returns JSON response with success status and runId
+ */
+export async function DELETE() {
+  try {
+    const supabase = await createClient()
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    const { data: activeRun, error: findError } = await supabase
+      .from('suggestion_generation_runs')
+      .select('id, status')
+      .eq('user_id', user.id)
+      .in('status', ['pending', 'generating'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (findError || !activeRun) {
+      return NextResponse.json(
+        { error: 'No active generation to cancel' },
+        { status: 404 }
+      )
+    }
+
+    await supabase
+      .from('suggestion_generation_runs')
+      .update({ status: 'cancelled', error_message: 'Cancelled by user' })
+      .eq('id', activeRun.id)
+
+    return NextResponse.json({ success: true, runId: activeRun.id })
+  } catch (error) {
+    console.error('[API] Cancel generation error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
 export async function POST() {
   try {
     const supabase = await createClient()

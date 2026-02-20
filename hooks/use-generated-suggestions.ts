@@ -22,7 +22,7 @@ const POLLING_INTERVAL = 2000
  */
 interface GenerationStatusResponse {
   runId: string
-  status: 'pending' | 'generating' | 'completed' | 'failed'
+  status: 'pending' | 'generating' | 'completed' | 'failed' | 'cancelled'
   progress: number
   suggestionsRequested: number
   suggestionsGenerated: number
@@ -66,6 +66,8 @@ export interface UseGeneratedSuggestionsReturn {
   markAsUsed: (id: string) => Promise<boolean>
   /** Dismiss a suggestion (removes from active list) */
   dismissSuggestion: (id: string) => Promise<boolean>
+  /** Cancel an in-progress generation */
+  cancelGeneration: () => Promise<boolean>
   /** Refetch suggestions from server */
   refetch: () => Promise<void>
 
@@ -284,6 +286,31 @@ export function useGeneratedSuggestions(): UseGeneratedSuggestionsReturn {
   }, [startPolling])
 
   /**
+   * Cancel an in-progress generation
+   */
+  const cancelGeneration = useCallback(async (): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/swipe/generate', { method: 'DELETE' })
+      if (!response.ok) {
+        const data = await response.json()
+        toast.error(data.error || 'Failed to cancel generation')
+        return false
+      }
+      clearPolling()
+      setIsGenerating(false)
+      setCurrentRunId(null)
+      setGenerationProgress(0)
+      setGenerationError(null)
+      toast.info('Generation cancelled')
+      return true
+    } catch (err) {
+      console.error('Cancel generation error:', err)
+      toast.error('Failed to cancel generation')
+      return false
+    }
+  }, [clearPolling])
+
+  /**
    * Update suggestion status
    */
   const updateSuggestionStatus = useCallback(async (
@@ -405,6 +432,7 @@ export function useGeneratedSuggestions(): UseGeneratedSuggestionsReturn {
     isGenerating,
     generationProgress,
     generateNew,
+    cancelGeneration,
     markAsUsed,
     dismissSuggestion,
     refetch,

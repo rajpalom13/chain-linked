@@ -16,10 +16,12 @@ import {
   IconBrain,
   IconFileText,
   IconDeviceFloppy,
+  IconX,
 } from "@tabler/icons-react"
 
 import { cn } from "@/lib/utils"
 import { Progress } from "@/components/ui/progress"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 
 /**
@@ -37,6 +39,8 @@ export interface GenerationProgressProps {
   isGenerating: boolean
   /** Error message if generation failed */
   error?: string | null
+  /** Optional callback to cancel the generation */
+  onCancel?: () => void
   /** Optional CSS class name */
   className?: string
 }
@@ -133,6 +137,7 @@ export function GenerationProgress({
   progress,
   isGenerating,
   error,
+  onCancel,
   className,
 }: GenerationProgressProps) {
   const status = getStatusFromProgress(progress, !!error)
@@ -192,16 +197,29 @@ export function GenerationProgress({
                     >
                       {config.label}
                     </motion.span>
-                    {!error && (
-                      <motion.span
-                        key={progress}
-                        initial={{ scale: 1.2 }}
-                        animate={{ scale: 1 }}
-                        className="text-sm font-medium tabular-nums text-muted-foreground"
-                      >
-                        {Math.round(progress)}%
-                      </motion.span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {!error && (
+                        <motion.span
+                          key={progress}
+                          initial={{ scale: 1.2 }}
+                          animate={{ scale: 1 }}
+                          className="text-sm font-medium tabular-nums text-muted-foreground"
+                        >
+                          {Math.round(progress)}%
+                        </motion.span>
+                      )}
+                      {onCancel && !error && status !== "completed" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={onCancel}
+                          className="text-xs text-muted-foreground hover:text-destructive shrink-0 h-auto py-0.5 px-1.5"
+                        >
+                          <IconX className="size-3.5 mr-1" />
+                          Cancel
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   <motion.p

@@ -719,6 +719,7 @@ function DiscoverTopicsTab() {
     completeTopicSelection,
     retry,
     refresh,
+    fetchNewArticles,
     loadMore,
   } = useDiscoverNews()
 
@@ -816,6 +817,23 @@ function DiscoverTopicsTab() {
             <IconTelescope className="size-4" />
             <span className="hidden sm:inline">
               {isResearchMode ? "Exit Research" : "Deep Research"}
+            </span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchNewArticles}
+            disabled={isSeeding}
+            className="gap-2"
+            title="Fetch fresh articles from Perplexity AI"
+          >
+            {isSeeding ? (
+              <IconLoader2 className="size-4 animate-spin" />
+            ) : (
+              <IconSparkles className="size-4" />
+            )}
+            <span className="hidden sm:inline">
+              {isSeeding ? "Fetching..." : "Fetch New"}
             </span>
           </Button>
           <Button variant="ghost" size="icon" onClick={refresh} title="Refresh feed">
@@ -1121,6 +1139,7 @@ function SwipeTab() {
     markAsUsed,
     dismissSuggestion,
     generateNew,
+    cancelGeneration,
     canGenerate,
     activeCount,
     isGenerating,
@@ -1394,6 +1413,7 @@ function SwipeTab() {
         progress={generationProgress}
         isGenerating={isGenerating}
         error={generationError}
+        onCancel={cancelGeneration}
         className="w-full max-w-md"
       />
 
@@ -1441,9 +1461,20 @@ function SwipeTab() {
           )}
 
           {isGenerating && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <IconLoader2 className="size-4 animate-spin" />
-              <span className="hidden sm:inline">{Math.round(generationProgress)}%</span>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <IconLoader2 className="size-4 animate-spin" />
+                <span className="hidden sm:inline">{Math.round(generationProgress)}%</span>
+              </div>
+              <Button
+                onClick={cancelGeneration}
+                variant="ghost"
+                size="sm"
+                className="gap-1 text-xs text-muted-foreground hover:text-destructive"
+              >
+                <IconX className="size-3.5" />
+                Cancel
+              </Button>
             </div>
           )}
         </div>

@@ -14,7 +14,8 @@ const STATUS_PROGRESS: Record<string, number> = {
   pending: 0,
   generating: 50,
   completed: 100,
-  failed: 100
+  failed: 100,
+  cancelled: 100
 }
 
 /**
