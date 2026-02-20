@@ -9,6 +9,7 @@
 import { Suspense, useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -16,7 +17,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-import { IconBrandGoogle, IconLoader2, IconLink, IconMail, IconSparkles } from '@tabler/icons-react'
+import { IconBrandGoogle, IconLoader2, IconMail, IconSparkles } from '@tabler/icons-react'
 import { toast } from 'sonner'
 
 /**
@@ -391,7 +392,7 @@ export default function LoginPage() {
               animate={{ scale: 1, rotate: 0 }}
               transition={{ delay: 0.2, type: "spring", stiffness: 200, damping: 15 }}
             >
-              <IconLink className="h-8 w-8 text-primary" />
+              <Image src="/logo.png" alt="ChainLinked" width={32} height={32} className="size-8" />
             </motion.div>
             <motion.div
               initial={{ opacity: 0, y: 10 }}

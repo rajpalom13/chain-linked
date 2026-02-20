@@ -9,6 +9,7 @@
 import { Suspense, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -16,7 +17,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-import { IconBrandGoogle, IconLoader2, IconLink, IconUserPlus, IconSparkles } from '@tabler/icons-react'
+import { IconBrandGoogle, IconLoader2, IconUserPlus, IconSparkles } from '@tabler/icons-react'
 import { toast } from 'sonner'
 
 /**
@@ -104,47 +105,40 @@ function SignupForm() {
     }
 
     setIsLoading(true)
-    const supabase = createClient()
 
     try {
-      // Sign up the user
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name: name || email.split('@')[0],
-          },
-          emailRedirectTo: `${window.location.origin}/api/auth/callback`,
-        },
+      // Create user via server-side admin API (auto-confirmed, no email verification)
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, name: name || email.split('@')[0] }),
       })
 
-      if (error) {
-        console.error('Signup error:', error)
-        if (error.message.includes('already registered')) {
-          toast.error('An account with this email already exists')
-        } else {
-          toast.error(error.message || 'Failed to create account')
-        }
+      const result = await response.json()
+
+      if (!response.ok) {
+        toast.error(result.error || 'Failed to create account')
         setIsLoading(false)
         return
       }
 
-      if (data.user) {
-        // Profile creation is handled by the handle_new_user database trigger.
-        // No client-side upsert needed.
+      // User created and auto-confirmed — sign in immediately
+      const supabase = createClient()
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
 
-        if (data.session) {
-          // User is auto-confirmed, redirect to dashboard
-          toast.success('Account created successfully!')
-          router.push('/dashboard')
-          router.refresh()
-        } else {
-          // Email verification required — redirect to dedicated verification page
-          toast.success('Account created! Please check your email to verify your account.')
-          router.push(`/verify-email${email ? `?email=${encodeURIComponent(email)}` : ''}`)
-        }
+      if (signInError) {
+        console.error('Auto sign-in error:', signInError)
+        toast.error('Account created! Please sign in manually.')
+        router.push('/login')
+        return
       }
+
+      toast.success('Account created successfully!')
+      router.push('/dashboard')
+      router.refresh()
     } catch (error) {
       console.error('Signup error:', error)
       toast.error('An unexpected error occurred')
@@ -420,7 +414,7 @@ export default function SignupPage() {
               animate={{ scale: 1, rotate: 0 }}
               transition={{ delay: 0.2, type: "spring", stiffness: 200, damping: 15 }}
             >
-              <IconLink className="h-8 w-8 text-primary" />
+              <Image src="/logo.png" alt="ChainLinked" width={32} height={32} className="size-8" />
             </motion.div>
             <motion.div
               initial={{ opacity: 0, y: 10 }}
