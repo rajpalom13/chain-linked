@@ -328,8 +328,8 @@ export function AnalyticsCards({
         positive: 'Audience more engaged',
         negative: 'Engagement needs focus',
       },
-      description: 'Likes, comments, and shares',
-      tooltip: 'Percentage of people who engaged with your content (likes, comments, shares, clicks) divided by total impressions. A higher rate means your content resonates with your audience.',
+      description: 'Reactions, comments, and shares',
+      tooltip: 'Percentage of people who engaged with your content (reactions, comments, shares, reposts) divided by total impressions. A higher rate means your content resonates with your audience.',
     },
     {
       title: 'Total Followers',

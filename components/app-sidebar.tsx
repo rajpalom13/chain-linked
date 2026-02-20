@@ -15,18 +15,12 @@ import { motion, AnimatePresence } from "framer-motion"
 import {
   IconArticle,
   IconBulb,
-  IconCalendar,
   IconChartBar,
   IconChevronRight,
-  IconCirclePlusFilled,
-  IconCompass,
   IconDashboard,
   IconLink,
-  IconPencil,
   IconPresentation,
-  IconSwipe,
   IconTemplate,
-  IconTerminal2,
   IconUsers,
   type Icon,
 } from "@tabler/icons-react"
@@ -79,27 +73,12 @@ const overviewNavItems: NavItem[] = [
     exact: true,
   },
   {
-    title: "Analytics",
+    title: "Analytics & Goals",
     url: "/dashboard/analytics",
     icon: IconChartBar,
   },
   {
-    title: "Posts",
-    url: "/dashboard/posts",
-    icon: IconArticle,
-  },
-  {
-    title: "Compose",
-    url: "/dashboard/compose",
-    icon: IconPencil,
-  },
-  {
-    title: "Schedule",
-    url: "/dashboard/schedule",
-    icon: IconCalendar,
-  },
-  {
-    title: "Team",
+    title: "Team Activity",
     url: "/dashboard/team",
     icon: IconUsers,
   },
@@ -107,14 +86,9 @@ const overviewNavItems: NavItem[] = [
 
 const contentNavItems: NavItem[] = [
   {
-    title: "Templates",
-    url: "/dashboard/templates",
-    icon: IconTemplate,
-  },
-  {
-    title: "Prompt Playground",
-    url: "/dashboard/prompts",
-    icon: IconTerminal2,
+    title: "Saved Drafts",
+    url: "/dashboard/drafts",
+    icon: IconArticle,
   },
   {
     title: "Inspiration",
@@ -122,19 +96,14 @@ const contentNavItems: NavItem[] = [
     icon: IconBulb,
   },
   {
-    title: "Discover",
-    url: "/dashboard/discover",
-    icon: IconCompass,
-  },
-  {
-    title: "Swipe",
-    url: "/dashboard/swipe",
-    icon: IconSwipe,
-  },
-  {
-    title: "Carousels",
+    title: "Create Carousel",
     url: "/dashboard/carousels",
     icon: IconPresentation,
+  },
+  {
+    title: "Template Library",
+    url: "/dashboard/templates",
+    icon: IconTemplate,
   },
 ]
 
@@ -174,17 +143,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   useEffect(() => {
     if (pathname === '/dashboard' ||
         pathname?.includes('/dashboard/analytics') ||
-        pathname?.includes('/dashboard/posts') ||
-        pathname?.includes('/dashboard/compose') ||
-        pathname?.includes('/dashboard/schedule') ||
         pathname?.includes('/dashboard/team')) {
       setOpenSections(prev => ({ ...prev, overview: true }))
     }
-    if (pathname?.includes('/dashboard/templates') ||
-        pathname?.includes('/dashboard/prompts') ||
+    if (pathname?.includes('/dashboard/drafts') ||
+        pathname?.includes('/dashboard/templates') ||
         pathname?.includes('/dashboard/inspiration') ||
-        pathname?.includes('/dashboard/discover') ||
-        pathname?.includes('/dashboard/swipe') ||
+        pathname?.includes('/dashboard/compose') ||
         pathname?.includes('/dashboard/carousels')) {
       setOpenSections(prev => ({ ...prev, content: true }))
     }
@@ -346,17 +311,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       {/* Sidebar Content - Navigation Groups */}
       <SidebarContent className="px-2 py-2">
-        {/* Quick Create Button */}
-        <div className="mb-1" data-tour="quick-create">
-          <Link
-            href="/dashboard/compose"
-            className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-150"
-          >
-            <IconCirclePlusFilled className="size-4" />
-            <span>Quick Create</span>
-          </Link>
-        </div>
-
         {/* Overview Section - Collapsible */}
         {mounted ? (
           <Collapsible

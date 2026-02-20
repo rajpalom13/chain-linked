@@ -140,9 +140,9 @@ function SignupForm() {
           router.push('/dashboard')
           router.refresh()
         } else {
-          // Email verification required
+          // Email verification required — redirect to dedicated verification page
           toast.success('Account created! Please check your email to verify your account.')
-          router.push('/login')
+          router.push(`/verify-email${email ? `?email=${encodeURIComponent(email)}` : ''}`)
         }
       }
     } catch (error) {

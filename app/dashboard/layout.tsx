@@ -7,9 +7,9 @@
 
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { IconLoader2 } from '@tabler/icons-react'
+import { IconLoader2, IconX, IconInfoCircle } from '@tabler/icons-react'
 
 import { useAuthContext } from '@/lib/auth/auth-provider'
 import { DashboardProvider } from '@/lib/dashboard-context'
@@ -22,6 +22,60 @@ import {
 } from '@/components/ui/sidebar'
 
 export const dynamic = 'force-dynamic'
+
+/** localStorage key for dismissing the data sync banner */
+const SYNC_BANNER_DISMISSED_KEY = 'chainlinked_sync_banner_dismissed'
+
+/**
+ * Persistent banner informing users that LinkedIn data syncing may take time
+ * Dismissible via localStorage so it persists across sessions
+ * @returns Dismissible banner or null if already dismissed
+ */
+function DataSyncBanner() {
+  const [dismissed, setDismissed] = useState(() => {
+    if (typeof window === 'undefined') return true
+    try {
+      return localStorage.getItem(SYNC_BANNER_DISMISSED_KEY) === 'true'
+    } catch {
+      return false
+    }
+  })
+
+  const dismiss = useCallback(() => {
+    setDismissed(true)
+    try {
+      localStorage.setItem(SYNC_BANNER_DISMISSED_KEY, 'true')
+    } catch {
+      // localStorage may be unavailable
+    }
+  }, [])
+
+  if (dismissed) return null
+
+  return (
+    <div className="bg-primary/5 border-b border-primary/10 px-4 py-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <IconInfoCircle className="size-4 text-primary shrink-0" />
+          <p>
+            LinkedIn data syncing may take up to 24 hours. In the meantime, feel free to explore features in{' '}
+            <a href="/dashboard/compose" className="text-primary font-medium hover:underline">
+              Create
+            </a>.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={dismiss}
+          className="shrink-0 text-muted-foreground hover:text-foreground transition-colors p-0.5"
+          aria-label="Dismiss banner"
+        >
+          <IconX className="size-4" />
+        </button>
+      </div>
+    </div>
+  )
+}
 
 /**
  * Loading component displayed while checking auth status
@@ -93,6 +147,7 @@ export default function DashboardLayout({
         <AppSidebar variant="inset" />
         <SidebarInset>
           <SiteHeader />
+          <DataSyncBanner />
           <main id="main-content" className="flex flex-1 flex-col">
             <div className="@container/main flex flex-1 flex-col gap-2">
               {children}

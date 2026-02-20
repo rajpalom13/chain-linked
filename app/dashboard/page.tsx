@@ -2,451 +2,618 @@
 
 /**
  * Dashboard Page
- * @description Main dashboard for ChainLinked - LinkedIn content management platform
+ * @description LinkedIn-style dashboard with 3-column layout:
+ * Left: Profile card with metrics | Center: Create post + feed | Right: Tips, streaks, getting started
  * @module app/dashboard/page
  */
 
 import * as React from "react"
-import { motion, useSpring, useTransform } from "framer-motion"
-import { useEffect, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
+import { motion } from "framer-motion"
+import dynamic from "next/dynamic"
+import Link from "next/link"
+import Image from "next/image"
+import {
+  IconPencil,
+  IconPhoto,
+  IconCalendarEvent,
+  IconSparkles,
+  IconEye,
+  IconUserPlus,
+  IconUsers,
+  IconUser,
+  IconTrendingUp,
+  IconBulb,
+  IconFlame,
+  IconChevronRight,
+  IconRocket,
+  IconCheck,
+  IconArticle,
+  IconPresentation,
+  IconTemplate,
+} from "@tabler/icons-react"
+
 import {
   ExtensionInstallBanner,
   ExtensionInstallPrompt,
   useExtensionPrompt,
 } from "@/components/features/extension-install-prompt"
 import { isPromptDismissed } from "@/lib/extension/detect"
-import { TeamActivityFeed } from "@/components/features/team-activity-feed"
 import { DashboardSkeleton } from "@/components/skeletons/page-skeletons"
-import { useTeamPosts } from "@/hooks/use-team-posts"
-import { useScheduledPosts } from "@/hooks/use-scheduled-posts"
 import { useAnalytics } from "@/hooks/use-analytics"
-import { usePostingGoals } from "@/hooks/use-posting-goals"
-import { useSwipeWishlist } from "@/hooks/use-swipe-wishlist"
 import { useAuthContext } from "@/lib/auth/auth-provider"
 import { usePageMeta } from "@/lib/dashboard-context"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
-import {
-  IconPencil,
-  IconCalendarEvent,
-  IconSparkles,
-  IconEye,
-  IconUserPlus,
-  IconThumbUp,
-  IconUser,
-  IconTrendingUp,
-  IconTrendingDown,
-  IconCheck,
-  IconX,
-  IconFlame,
-  IconBookmark,
-  IconSend,
-} from "@tabler/icons-react"
-import Link from "next/link"
-import { formatDistanceToNow } from "date-fns"
-import {
-  pageVariants,
-  staggerContainerVariants,
-  staggerItemVariants,
-} from "@/lib/animations"
+import { pageVariants } from "@/lib/animations"
+
+/** Dynamically import Lottie so it doesn't block SSR */
+const Lottie = dynamic(() => import("lottie-react"), { ssr: false })
+
+/** Lottie reaction animation URL */
+const LOTTIE_REACTION_URL =
+  "https://lottie.host/4f86270c-2dad-4dc0-afd9-2f93058330fa/d2KU6m2R6p.json"
+
+/** Daily tips for the right sidebar */
+const DAILY_TIPS = [
+  "Posts with a question at the end get 2x more comments.",
+  "Posting between 8-10am gets the most visibility on LinkedIn.",
+  "Carousel posts get 3x more reach than text-only posts.",
+  "Engage with 5 posts before publishing yours for better reach.",
+  "Use line breaks generously — walls of text get scrolled past.",
+  "Your first line is your headline. Make it count.",
+  "Tag people who'd genuinely find your post useful.",
+  "Repurpose your best content every 3-4 months.",
+  "Reply to every comment within the first hour of posting.",
+  "Share a personal story — vulnerability drives engagement.",
+]
+
+/** Getting started checklist items */
+const GETTING_STARTED_ITEMS = [
+  { key: "extension", label: "Install browser extension", href: "#" },
+  { key: "profile", label: "Complete your profile", href: "/dashboard/settings" },
+  { key: "post", label: "Create your first post", href: "/dashboard/compose" },
+  { key: "template", label: "Browse templates", href: "/dashboard/templates" },
+]
 
 /**
- * Animated number counter component
- * Shows value immediately when 0, animates only for non-zero values
+ * Format large numbers to compact form
+ * @param num - Number to format
+ * @returns Formatted string like "1.2K" or "345"
  */
-function AnimatedNumber({
-  value,
-  decimals = 0,
-  suffix = '',
-}: {
-  value: number
-  decimals?: number
-  suffix?: string
-}) {
-  const spring = useSpring(0, { stiffness: 50, damping: 20 })
-  const display = useTransform(spring, (current) => {
-    if (decimals > 0) {
-      return `${current.toFixed(decimals)}${suffix}`
-    }
-    return `${Math.round(current).toLocaleString()}${suffix}`
-  })
-
-  useEffect(() => {
-    if (value === 0) {
-      spring.jump(0)
-    } else {
-      spring.set(value)
-    }
-  }, [spring, value])
-
-  return <motion.span>{display}</motion.span>
+function formatCompact(num: number): string {
+  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
+  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`
+  return num.toString()
 }
 
 /**
- * Quick stat card for dashboard overview
+ * Get today's tip based on day of year (deterministic per day)
+ * @returns A tip string
  */
-function QuickStatCard({
-  title,
-  value,
-  change,
-  icon: Icon,
-  suffix = '',
-  decimals = 0,
-  isLoading = false,
-  accent = 'primary',
-}: {
-  title: string
-  value: number
-  change: number
-  icon: React.ElementType
-  suffix?: string
-  decimals?: number
-  isLoading?: boolean
-  accent?: 'primary' | 'blue' | 'emerald' | 'amber'
-}) {
-  const isPositive = change >= 0
-  const TrendIcon = isPositive ? IconTrendingUp : IconTrendingDown
-
-  const accentStyles = {
-    primary: {
-      card: 'hover:border-primary/30',
-      icon: 'from-primary/15 to-primary/5 ring-primary/10',
-      iconColor: 'text-primary',
-    },
-    blue: {
-      card: 'hover:border-blue-500/30',
-      icon: 'from-blue-500/15 to-blue-500/5 ring-blue-500/10',
-      iconColor: 'text-blue-500',
-    },
-    emerald: {
-      card: 'hover:border-emerald-500/30',
-      icon: 'from-emerald-500/15 to-emerald-500/5 ring-emerald-500/10',
-      iconColor: 'text-emerald-500',
-    },
-    amber: {
-      card: 'hover:border-amber-500/30',
-      icon: 'from-amber-500/15 to-amber-500/5 ring-amber-500/10',
-      iconColor: 'text-amber-500',
-    },
-  }
-
-  const styles = accentStyles[accent]
-
-  if (isLoading) {
-    return (
-      <Card className="border-border/50">
-        <CardContent className="p-4">
-          <div className="flex items-start justify-between">
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-8 w-24" />
-            </div>
-            <Skeleton className="h-10 w-10 rounded-lg" />
-          </div>
-          <Skeleton className="h-4 w-16 mt-2" />
-        </CardContent>
-      </Card>
-    )
-  }
-
-  return (
-    <motion.div
-      whileHover={{ y: -2 }}
-      transition={{ type: "spring", stiffness: 400, damping: 17 }}
-    >
-      <Card className={`border-border/50 ${styles.card} transition-all duration-300`}>
-        <CardContent className="p-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{title}</p>
-              <p className="text-2xl font-bold tabular-nums mt-1">
-                <AnimatedNumber value={value} decimals={decimals} suffix={suffix} />
-              </p>
-            </div>
-            <div className={`rounded-xl bg-gradient-to-br ${styles.icon} p-2.5 shadow-sm ring-1`}>
-              <Icon className={`size-5 ${styles.iconColor}`} />
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 mt-3 pt-2 border-t border-border/40">
-            <TrendIcon className={`size-3.5 ${isPositive ? 'text-emerald-500' : 'text-red-500'}`} />
-            <span className={`text-xs font-semibold ${isPositive ? 'text-emerald-500' : 'text-red-500'}`}>
-              {isPositive ? '+' : ''}{change.toFixed(1)}%
-            </span>
-            <span className="text-xs text-muted-foreground">vs last period</span>
-          </div>
-        </CardContent>
-      </Card>
-    </motion.div>
-  )
+function getTodaysTip(): string {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), 0, 0)
+  const diff = now.getTime() - start.getTime()
+  const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24))
+  return DAILY_TIPS[dayOfYear % DAILY_TIPS.length]
 }
 
-/**
- * Getting Started checklist for new users
- */
-function GettingStartedChecklist({
-  linkedInConnected,
-  extensionInstalled,
-  hasScheduledPosts,
-  onDismiss,
-}: {
-  linkedInConnected: boolean
-  extensionInstalled: boolean
-  hasScheduledPosts: boolean
-  onDismiss: () => void
-}) {
-  const steps = [
-    { label: "Connect LinkedIn", done: linkedInConnected, href: "/dashboard/settings" },
-    { label: "Install extension", done: extensionInstalled, href: "/dashboard/settings" },
-    { label: "Create first post", done: false, href: "/dashboard/compose" },
-    { label: "Schedule content", done: hasScheduledPosts, href: "/dashboard/schedule" },
-  ]
-  const completed = steps.filter(s => s.done).length
-  const progressPercent = (completed / steps.length) * 100
-
-  // If all done, don't show
-  if (completed === steps.length) return null
-
-  return (
-    <motion.div
-      className="px-4 lg:px-6"
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: "auto" }}
-      exit={{ opacity: 0, height: 0 }}
-    >
-      <Card className="border-primary/20 bg-gradient-to-r from-primary/5 via-transparent to-transparent overflow-hidden">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <h3 className="text-sm font-semibold">Getting Started</h3>
-              <span className="text-xs text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">{completed}/{steps.length}</span>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 p-0 text-muted-foreground"
-              onClick={onDismiss}
-            >
-              <IconX className="size-4" />
-              <span className="sr-only">Dismiss</span>
-            </Button>
-          </div>
-          {/* Progress bar */}
-          <div className="h-1.5 bg-muted/50 rounded-full mb-3 overflow-hidden">
-            <motion.div
-              className="h-full bg-primary rounded-full"
-              initial={{ width: 0 }}
-              animate={{ width: `${progressPercent}%` }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {steps.map((step) => (
-              <Link
-                key={step.label}
-                href={step.href}
-                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-muted/50 transition-colors border border-transparent hover:border-border/50"
-              >
-                {step.done ? (
-                  <div className="size-5 rounded-full bg-emerald-500/15 flex items-center justify-center shrink-0">
-                    <IconCheck className="size-3 text-emerald-500" />
-                  </div>
-                ) : (
-                  <div className="size-5 rounded-full border-2 border-muted-foreground/20 shrink-0" />
-                )}
-                <span className={`text-xs font-medium ${step.done ? "text-muted-foreground line-through" : ""}`}>{step.label}</span>
-              </Link>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    </motion.div>
-  )
-}
-
-/* =============================================================================
-   NEW DASHBOARD WIDGETS
-   ============================================================================= */
+// ============================================================================
+// Left Column: Profile Card
+// ============================================================================
 
 /**
- * Widget: Next Up — hero count with compact upcoming post timeline
- * @param props.rawPosts - Raw scheduled posts from useScheduledPosts
- * @param props.isLoading - Loading state
+ * LinkedIn-style profile card with avatar, name, tagline and key metrics
+ * @param props.className - Additional CSS classes
  */
-function NextUpStrip({
-  rawPosts,
-  isLoading,
-}: {
-  rawPosts: { id: string; content: string; scheduled_for: string; status: string }[]
-  isLoading: boolean
-}) {
-  const upcoming = useMemo(() => {
-    return rawPosts
-      .filter(p => p.status === 'pending' || p.status === 'scheduled')
-      .sort((a, b) => new Date(a.scheduled_for).getTime() - new Date(b.scheduled_for).getTime())
-      .slice(0, 3)
-  }, [rawPosts])
+function ProfileCard({ className }: { className?: string }) {
+  const { user, profile } = useAuthContext()
+  const { metrics } = useAnalytics(user?.id)
 
-  if (isLoading) {
-    return (
-      <Card className="border-border/50 h-full">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <Skeleton className="h-3 w-16" />
-            <Skeleton className="size-8 rounded-lg" />
-          </div>
-          <Skeleton className="h-8 w-16 mb-4" />
-          <div className="space-y-2">
-            {Array.from({ length: 2 }).map((_, i) => (
-              <Skeleton key={i} className="h-8 w-full rounded-md" />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
+  const displayName = profile?.full_name
+    || (profile?.linkedin_profile?.first_name && profile?.linkedin_profile?.last_name
+      ? `${profile.linkedin_profile.first_name} ${profile.linkedin_profile.last_name}`
+      : null)
+    || profile?.name
+    || user?.user_metadata?.full_name
+    || user?.email?.split("@")[0]
+    || "User"
+
+  const headline = profile?.linkedin_profile?.headline
+    || profile?.linkedin_profile?.raw_data?.headline
+    || profile?.linkedin_headline
+    || profile?.company_name
+    || ""
+
+  const avatarUrl = profile?.linkedin_profile?.profile_picture_url
+    || profile?.linkedin_profile?.raw_data?.profilePhotoUrl
+    || profile?.linkedin_avatar_url
+    || profile?.avatar_url
+    || user?.user_metadata?.avatar_url
+    || ""
+
+  const followers = metrics?.followers.value ?? 0
+  const connections = metrics?.connections?.value ?? 0
+  const profileViews = metrics?.profileViews.value ?? 0
 
   return (
-    <Card className="border-border/50 h-full">
-      <CardContent className="p-4 flex flex-col h-full">
-        <div className="flex items-center justify-between">
-          <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Next Up</p>
-          <div className="rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 p-1.5">
-            <IconSend className="size-4 text-primary" />
-          </div>
-        </div>
+    <Card className={cn("border-border/50 overflow-hidden", className)}>
+      {/* Banner gradient */}
+      <div className="h-16 bg-gradient-to-r from-primary/20 via-primary/10 to-secondary/20" />
 
-        <div className="flex items-baseline gap-1.5 mt-2">
-          <span className="text-3xl font-bold tabular-nums">
-            <AnimatedNumber value={upcoming.length} />
-          </span>
-          <span className="text-sm text-muted-foreground font-medium">scheduled</span>
-        </div>
+      <CardContent className="pt-0 px-4 pb-4 -mt-8">
+        {/* Avatar */}
+        <Avatar className="size-16 border-4 border-background shadow-md">
+          {avatarUrl && <AvatarImage src={avatarUrl as string} alt={displayName as string} />}
+          <AvatarFallback className="text-lg font-semibold bg-primary/10 text-primary">
+            {(displayName as string).charAt(0).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
 
-        <div className="mt-auto pt-3 space-y-1.5">
-          {upcoming.length === 0 ? (
-            <div className="text-center py-2">
-              <p className="text-[11px] text-muted-foreground mb-2">Nothing scheduled yet</p>
-              <Button variant="outline" size="sm" className="h-7 text-[11px]" asChild>
-                <Link href="/dashboard/compose">
-                  <IconPencil className="size-3 mr-1" />
-                  Compose
-                </Link>
-              </Button>
-            </div>
-          ) : (
-            <>
-              {upcoming.map((post) => (
-                <div
-                  key={post.id}
-                  className="flex items-center gap-2 py-1.5 px-2 rounded-md bg-muted/30"
-                >
-                  <div className="size-1.5 rounded-full bg-primary shrink-0" />
-                  <p className="text-[11px] truncate flex-1">{post.content.slice(0, 45)}{post.content.length > 45 ? '...' : ''}</p>
-                  <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
-                    {formatDistanceToNow(new Date(post.scheduled_for), { addSuffix: false })}
-                  </span>
-                </div>
-              ))}
-              <Link href="/dashboard/schedule" className="text-[11px] text-primary hover:underline block text-right pt-1">
-                View schedule →
-              </Link>
-            </>
+        {/* Name & headline */}
+        <div className="mt-2">
+          <h3 className="font-semibold text-sm leading-tight">{displayName}</h3>
+          {headline && (
+            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+              {headline as string}
+            </p>
           )}
         </div>
+
+        <Separator className="my-3" />
+
+        {/* Metrics */}
+        <div className="space-y-2">
+          <Link
+            href="/dashboard/analytics"
+            className="flex items-center justify-between text-xs hover:bg-muted/50 -mx-2 px-2 py-1 rounded-md transition-colors group"
+          >
+            <span className="text-muted-foreground flex items-center gap-1.5">
+              <IconEye className="size-3.5" />
+              Profile viewers
+            </span>
+            <span className="font-semibold text-primary tabular-nums">
+              {formatCompact(profileViews)}
+            </span>
+          </Link>
+          <Link
+            href="/dashboard/analytics"
+            className="flex items-center justify-between text-xs hover:bg-muted/50 -mx-2 px-2 py-1 rounded-md transition-colors group"
+          >
+            <span className="text-muted-foreground flex items-center gap-1.5">
+              <IconUserPlus className="size-3.5" />
+              Followers
+            </span>
+            <span className="font-semibold text-primary tabular-nums">
+              {formatCompact(followers)}
+            </span>
+          </Link>
+          <Link
+            href="/dashboard/analytics"
+            className="flex items-center justify-between text-xs hover:bg-muted/50 -mx-2 px-2 py-1 rounded-md transition-colors group"
+          >
+            <span className="text-muted-foreground flex items-center gap-1.5">
+              <IconUsers className="size-3.5" />
+              Connections
+            </span>
+            <span className="font-semibold text-primary tabular-nums">
+              {formatCompact(connections)}
+            </span>
+          </Link>
+        </div>
+
+        <Separator className="my-3" />
+
+        {/* Quick links */}
+        <div className="space-y-1">
+          <Link
+            href="/dashboard/drafts"
+            className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground -mx-2 px-2 py-1 rounded-md transition-colors"
+          >
+            <IconArticle className="size-3.5" />
+            Saved Drafts
+          </Link>
+          <Link
+            href="/dashboard/analytics"
+            className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground -mx-2 px-2 py-1 rounded-md transition-colors"
+          >
+            <IconTrendingUp className="size-3.5" />
+            Analytics & Goals
+          </Link>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ============================================================================
+// Center Column: Create Post + Recent Activity
+// ============================================================================
+
+/**
+ * LinkedIn-style "Start a post" prompt card
+ * Clicking opens the compose page
+ */
+function CreatePostCard({ className }: { className?: string }) {
+  const { profile, user } = useAuthContext()
+
+  const avatarUrl = profile?.linkedin_profile?.profile_picture_url
+    || profile?.linkedin_avatar_url
+    || profile?.avatar_url
+    || user?.user_metadata?.avatar_url
+    || ""
+
+  const displayName = profile?.full_name
+    || profile?.name
+    || user?.user_metadata?.full_name
+    || "User"
+
+  return (
+    <Card className={cn("border-border/50", className)}>
+      <CardContent className="p-4">
+        <div className="flex items-center gap-3">
+          <Avatar className="size-10 shrink-0">
+            {avatarUrl && <AvatarImage src={avatarUrl as string} alt={displayName as string} />}
+            <AvatarFallback className="text-sm font-medium bg-primary/10 text-primary">
+              {(displayName as string).charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <Link
+            href="/dashboard/compose"
+            className="flex-1 rounded-full border border-border/60 hover:bg-muted/50 transition-colors px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground"
+          >
+            Start a post...
+          </Link>
+        </div>
+
+        {/* Action buttons row */}
+        <div className="flex items-center gap-1 mt-3 -mx-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex-1 h-9 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
+            asChild
+          >
+            <Link href="/dashboard/compose">
+              <IconPhoto className="size-4 text-blue-500" />
+              Media
+            </Link>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex-1 h-9 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
+            asChild
+          >
+            <Link href="/dashboard/compose">
+              <IconSparkles className="size-4 text-amber-500" />
+              AI Generate
+            </Link>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex-1 h-9 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
+            asChild
+          >
+            <Link href="/dashboard/carousels">
+              <IconPresentation className="size-4 text-emerald-500" />
+              Carousel
+            </Link>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex-1 h-9 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
+            asChild
+          >
+            <Link href="/dashboard/templates">
+              <IconTemplate className="size-4 text-purple-500" />
+              Template
+            </Link>
+          </Button>
+        </div>
       </CardContent>
     </Card>
   )
 }
 
 /**
- * Widget: Posting Streak — hero metric with weekly progress dots
- * @param props.currentStreak - Current consecutive days posted
- * @param props.bestStreak - All-time best streak
- * @param props.isLoading - Loading state
+ * Quick analytics snapshot shown below the create post card
+ * Shows impressions, engagement rate, and trend
  */
-function PostingStreakIndicator({
-  currentStreak,
-  bestStreak,
-  isLoading,
-}: {
-  currentStreak: number
-  bestStreak: number
-  isLoading: boolean
-}) {
-  const weekDots = useMemo(() => {
-    const today = new Date()
-    const dayOfWeek = today.getDay()
-    const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+function QuickAnalyticsCard({ className }: { className?: string }) {
+  const { user } = useAuthContext()
+  const { metrics, isLoading } = useAnalytics(user?.id)
+  const [lottieData, setLottieData] = useState<unknown>(null)
 
-    return Array.from({ length: 7 }, (_, i) => ({
-      label: ['M', 'T', 'W', 'T', 'F', 'S', 'S'][i],
-      filled: i <= adjustedDay && (adjustedDay - i) < currentStreak,
-      isToday: i === adjustedDay,
-    }))
-  }, [currentStreak])
+  useEffect(() => {
+    fetch(LOTTIE_REACTION_URL)
+      .then(res => res.json())
+      .then(data => setLottieData(data))
+      .catch(() => {})
+  }, [])
 
   if (isLoading) {
     return (
-      <Card className="border-border/50 h-full">
+      <Card className={cn("border-border/50", className)}>
         <CardContent className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="size-8 rounded-lg" />
-          </div>
-          <Skeleton className="h-8 w-20 mb-4" />
-          <div className="flex items-center gap-2">
-            {Array.from({ length: 7 }).map((_, i) => (
-              <Skeleton key={i} className="size-6 rounded-full" />
-            ))}
+          <div className="animate-pulse space-y-3">
+            <div className="h-4 bg-muted rounded w-32" />
+            <div className="grid grid-cols-3 gap-4">
+              <div className="h-12 bg-muted rounded" />
+              <div className="h-12 bg-muted rounded" />
+              <div className="h-12 bg-muted rounded" />
+            </div>
           </div>
         </CardContent>
       </Card>
     )
   }
 
+  const impressions = metrics?.impressions.value ?? 0
+  const impressionsChange = metrics?.impressions.change ?? 0
+  const engagement = metrics?.engagementRate.value ?? 0
+  const engagementChange = metrics?.engagementRate.change ?? 0
+  const followers = metrics?.followers.value ?? 0
+  const followersChange = metrics?.followers.change ?? 0
+
   return (
-    <Card className="border-border/50 h-full">
-      <CardContent className="p-4 flex flex-col h-full">
-        <div className="flex items-center justify-between">
-          <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Posting Streak</p>
-          <div className="rounded-lg bg-gradient-to-br from-orange-500/15 to-amber-500/5 p-1.5">
-            <IconFlame className={cn("size-4", currentStreak > 0 ? "text-orange-500" : "text-muted-foreground")} />
+    <Card className={cn("border-border/50", className)}>
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-sm font-medium flex items-center gap-1.5">
+            <IconTrendingUp className="size-4 text-primary" />
+            Your Performance
+          </h4>
+          <Link
+            href="/dashboard/analytics"
+            className="text-xs text-primary hover:underline flex items-center gap-0.5"
+          >
+            View all
+            <IconChevronRight className="size-3" />
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          {/* Impressions */}
+          <div className="text-center p-2 rounded-lg bg-muted/30">
+            <p className="text-lg font-bold tabular-nums">{formatCompact(impressions)}</p>
+            <p className="text-[10px] text-muted-foreground">Impressions</p>
+            <div className={cn(
+              "text-[10px] font-medium mt-0.5",
+              impressionsChange >= 0 ? "text-emerald-500" : "text-red-500"
+            )}>
+              {impressionsChange >= 0 ? "+" : ""}{impressionsChange.toFixed(1)}%
+            </div>
+          </div>
+
+          {/* Engagement */}
+          <div className="text-center p-2 rounded-lg bg-muted/30 relative">
+            {lottieData && (
+              <div className="absolute -top-2 -right-1 size-6">
+                <Lottie animationData={lottieData} loop autoplay className="size-6" />
+              </div>
+            )}
+            <p className="text-lg font-bold tabular-nums">{engagement.toFixed(1)}%</p>
+            <p className="text-[10px] text-muted-foreground">Engagement</p>
+            <div className={cn(
+              "text-[10px] font-medium mt-0.5",
+              engagementChange >= 0 ? "text-emerald-500" : "text-red-500"
+            )}>
+              {engagementChange >= 0 ? "+" : ""}{engagementChange.toFixed(1)}%
+            </div>
+          </div>
+
+          {/* Followers */}
+          <div className="text-center p-2 rounded-lg bg-muted/30">
+            <p className="text-lg font-bold tabular-nums">{formatCompact(followers)}</p>
+            <p className="text-[10px] text-muted-foreground">Followers</p>
+            <div className={cn(
+              "text-[10px] font-medium mt-0.5",
+              followersChange >= 0 ? "text-emerald-500" : "text-red-500"
+            )}>
+              {followersChange >= 0 ? "+" : ""}{followersChange.toFixed(1)}%
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
+ * Quick actions grid for common tasks
+ */
+function QuickActionsCard({ className }: { className?: string }) {
+  const actions = [
+    { label: "Write Post", icon: IconPencil, href: "/dashboard/compose", color: "text-blue-500" },
+    { label: "Inspiration", icon: IconBulb, href: "/dashboard/inspiration", color: "text-amber-500" },
+    { label: "Carousel", icon: IconPresentation, href: "/dashboard/carousels", color: "text-emerald-500" },
+    { label: "Templates", icon: IconTemplate, href: "/dashboard/templates", color: "text-purple-500" },
+  ]
+
+  return (
+    <Card className={cn("border-border/50", className)}>
+      <CardContent className="p-4">
+        <h4 className="text-sm font-medium mb-3">Quick Actions</h4>
+        <div className="grid grid-cols-2 gap-2">
+          {actions.map((action) => (
+            <Link
+              key={action.label}
+              href={action.href}
+              className="flex items-center gap-2.5 p-2.5 rounded-lg border border-border/40 hover:bg-muted/50 hover:border-primary/20 transition-all group"
+            >
+              <div className="rounded-lg bg-muted/50 p-1.5 group-hover:bg-primary/10 transition-colors">
+                <action.icon className={cn("size-4", action.color)} />
+              </div>
+              <span className="text-xs font-medium">{action.label}</span>
+            </Link>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ============================================================================
+// Right Column: Tips, Streaks, Getting Started
+// ============================================================================
+
+/**
+ * Daily tip card with rotating tips
+ */
+function DailyTipCard({ className }: { className?: string }) {
+  const tip = useMemo(() => getTodaysTip(), [])
+
+  return (
+    <Card className={cn("border-border/50 bg-gradient-to-br from-amber-500/5 to-transparent", className)}>
+      <CardContent className="p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="rounded-lg bg-amber-500/10 p-1.5">
+            <IconBulb className="size-4 text-amber-500" />
+          </div>
+          <h4 className="text-sm font-medium">Daily Tip</h4>
+        </div>
+        <p className="text-xs text-muted-foreground leading-relaxed">{tip}</p>
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
+ * Posting streak tracker
+ * Tracks consecutive days of posting
+ */
+function StreakCard({ className }: { className?: string }) {
+  // Streak would come from the backend — for now show encouraging default
+  const streak = 0
+  const weekDays = ["M", "T", "W", "T", "F", "S", "S"]
+  const today = new Date().getDay()
+  // Convert Sunday=0 to Monday=0 indexing
+  const adjustedToday = today === 0 ? 6 : today - 1
+
+  return (
+    <Card className={cn("border-border/50", className)}>
+      <CardContent className="p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="rounded-lg bg-orange-500/10 p-1.5">
+            <IconFlame className="size-4 text-orange-500" />
+          </div>
+          <h4 className="text-sm font-medium">Posting Streak</h4>
+          {streak > 0 && (
+            <span className="ml-auto text-xs font-bold text-orange-500 tabular-nums">
+              {streak} day{streak !== 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+
+        {/* Week visualization */}
+        <div className="flex items-center gap-1.5">
+          {weekDays.map((day, i) => (
+            <div key={i} className="flex-1 flex flex-col items-center gap-1">
+              <div
+                className={cn(
+                  "size-7 rounded-full flex items-center justify-center text-[10px] font-medium border transition-colors",
+                  i === adjustedToday
+                    ? "border-primary bg-primary/10 text-primary"
+                    : i < adjustedToday
+                      ? "border-muted bg-muted/50 text-muted-foreground"
+                      : "border-border/40 text-muted-foreground/50"
+                )}
+              >
+                {day}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {streak === 0 && (
+          <p className="text-[11px] text-muted-foreground mt-2.5 text-center">
+            Post today to start your streak!
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
+ * Getting started checklist for new users
+ */
+function GettingStartedCard({ className }: { className?: string }) {
+  const { profile, extensionInstalled } = useAuthContext()
+
+  // Determine completed items
+  const completedItems = useMemo(() => {
+    const completed = new Set<string>()
+    if (extensionInstalled) completed.add("extension")
+    if (profile?.onboarding_completed) completed.add("profile")
+    return completed
+  }, [extensionInstalled, profile?.onboarding_completed])
+
+  const progress = completedItems.size
+  const total = GETTING_STARTED_ITEMS.length
+
+  // Hide if all items are completed
+  if (progress >= total) return null
+
+  return (
+    <Card className={cn("border-border/50 bg-gradient-to-br from-primary/5 to-transparent", className)}>
+      <CardContent className="p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="rounded-lg bg-primary/10 p-1.5">
+            <IconRocket className="size-4 text-primary" />
+          </div>
+          <div className="flex-1">
+            <h4 className="text-sm font-medium">Get Started</h4>
+            <p className="text-[10px] text-muted-foreground">{progress}/{total} complete</p>
           </div>
         </div>
 
-        <div className="flex items-baseline gap-1.5 mt-2">
-          <span className="text-3xl font-bold tabular-nums text-orange-500">
-            <AnimatedNumber value={currentStreak} />
-          </span>
-          <span className="text-sm text-muted-foreground font-medium">
-            {currentStreak === 1 ? 'day' : 'days'}
-          </span>
+        {/* Progress bar */}
+        <div className="h-1.5 bg-muted rounded-full overflow-hidden mb-3">
+          <motion.div
+            className="h-full bg-primary rounded-full"
+            initial={{ width: 0 }}
+            animate={{ width: `${(progress / total) * 100}%` }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+          />
         </div>
 
-        <div className="mt-auto pt-3">
-          <div className="flex items-center justify-between">
-            {weekDots.map((dot, i) => (
-              <div key={i} className="flex flex-col items-center gap-0.5">
+        {/* Checklist */}
+        <div className="space-y-1.5">
+          {GETTING_STARTED_ITEMS.map((item) => {
+            const done = completedItems.has(item.key)
+            return (
+              <Link
+                key={item.key}
+                href={done ? "#" : item.href}
+                className={cn(
+                  "flex items-center gap-2 text-xs py-1 transition-colors rounded",
+                  done
+                    ? "text-muted-foreground line-through"
+                    : "text-foreground hover:text-primary"
+                )}
+              >
                 <div
                   className={cn(
-                    "size-6 rounded-full flex items-center justify-center text-[10px] font-medium transition-all",
-                    dot.filled
-                      ? "bg-orange-500 text-white shadow-sm shadow-orange-500/25"
-                      : dot.isToday
-                      ? "ring-2 ring-orange-500/30 bg-orange-50 text-orange-600 dark:bg-orange-500/10"
-                      : "bg-muted/60 text-muted-foreground"
+                    "size-4 rounded-full border flex items-center justify-center shrink-0",
+                    done
+                      ? "bg-primary border-primary"
+                      : "border-border"
                   )}
                 >
-                  {dot.filled ? <IconCheck className="size-3" /> : dot.label}
+                  {done && <IconCheck className="size-2.5 text-primary-foreground" />}
                 </div>
-              </div>
-            ))}
-          </div>
-          <p className="text-[10px] text-muted-foreground mt-2 text-center">
-            Personal best: {bestStreak} day{bestStreak !== 1 ? 's' : ''}
-          </p>
+                {item.label}
+              </Link>
+            )
+          })}
         </div>
       </CardContent>
     </Card>
@@ -454,86 +621,50 @@ function PostingStreakIndicator({
 }
 
 /**
- * Widget: Content Pipeline — hero total with split scheduled/saved blocks
- * @param props.scheduledCount - Number of scheduled/pending posts
- * @param props.wishlistCount - Number of items in wishlist
- * @param props.isLoading - Loading state
+ * Today's date display card
  */
-function ContentPipelineSummary({
-  scheduledCount,
-  wishlistCount,
-  isLoading,
-}: {
-  scheduledCount: number
-  wishlistCount: number
-  isLoading: boolean
-}) {
-  if (isLoading) {
-    return (
-      <Card className="border-border/50 h-full">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <Skeleton className="h-3 w-20" />
-            <Skeleton className="size-8 rounded-lg" />
-          </div>
-          <Skeleton className="h-8 w-16 mb-4" />
-          <div className="grid grid-cols-2 gap-2">
-            <Skeleton className="h-16 rounded-lg" />
-            <Skeleton className="h-16 rounded-lg" />
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
+function TodayCard({ className }: { className?: string }) {
+  const now = new Date()
+  const greeting = now.getHours() < 12
+    ? "Good morning"
+    : now.getHours() < 18
+      ? "Good afternoon"
+      : "Good evening"
+
+  const { profile, user } = useAuthContext()
+  const firstName = profile?.full_name?.split(" ")[0]
+    || profile?.linkedin_profile?.first_name
+    || profile?.name?.split(" ")[0]
+    || user?.user_metadata?.full_name?.split(" ")[0]
+    || user?.email?.split("@")[0]
+    || ""
 
   return (
-    <Card className="border-border/50 h-full">
-      <CardContent className="p-4 flex flex-col h-full">
-        <div className="flex items-center justify-between">
-          <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Pipeline</p>
-          <div className="rounded-lg bg-gradient-to-br from-violet-500/15 to-violet-500/5 p-1.5">
-            <IconBookmark className="size-4 text-violet-500" />
-          </div>
-        </div>
-
-        <div className="flex items-baseline gap-1.5 mt-2">
-          <span className="text-3xl font-bold tabular-nums">
-            <AnimatedNumber value={scheduledCount + wishlistCount} />
+    <Card className={cn("border-border/50", className)}>
+      <CardContent className="p-4">
+        <div className="flex items-center gap-2 mb-1">
+          <IconCalendarEvent className="size-4 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">
+            {now.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
           </span>
-          <span className="text-sm text-muted-foreground font-medium">total items</span>
         </div>
-
-        <div className="mt-auto pt-3 grid grid-cols-2 gap-2">
-          <Link
-            href="/dashboard/schedule"
-            className="block p-2.5 rounded-lg bg-primary/5 hover:bg-primary/10 transition-colors text-center group"
-          >
-            <span className="text-lg font-bold tabular-nums block group-hover:text-primary transition-colors">{scheduledCount}</span>
-            <span className="text-[10px] text-muted-foreground">Scheduled</span>
-          </Link>
-          <Link
-            href="/dashboard/swipe/wishlist"
-            className="block p-2.5 rounded-lg bg-violet-500/5 hover:bg-violet-500/10 transition-colors text-center group"
-          >
-            <span className="text-lg font-bold tabular-nums block group-hover:text-violet-500 transition-colors">{wishlistCount}</span>
-            <span className="text-[10px] text-muted-foreground">Saved</span>
-          </Link>
-        </div>
+        <p className="text-sm font-medium">
+          {greeting}{firstName ? `, ${firstName}` : ""}!
+        </p>
       </CardContent>
     </Card>
   )
 }
 
+// ============================================================================
+// Main Dashboard Content
+// ============================================================================
+
 /**
- * Dashboard content component with real data
+ * Dashboard content component with LinkedIn-style 3-column layout
  */
 function DashboardContent() {
   const { user, profile, extensionInstalled } = useAuthContext()
-  const { posts: teamPosts, isLoading: postsLoading } = useTeamPosts(20)
-  const { posts: scheduledPosts, rawPosts: scheduledRawPosts } = useScheduledPosts(30)
-  const { metrics, isLoading: analyticsLoading } = useAnalytics(user?.id)
-  const { currentStreak, bestStreak, isLoading: goalsLoading } = usePostingGoals()
-  const { totalItems: wishlistCount, isLoading: wishlistLoading } = useSwipeWishlist()
 
   // Suppress extension prompts while the dashboard tour is active / not yet completed
   const tourCompleted = profile?.dashboard_tour_completed !== false
@@ -549,37 +680,9 @@ function DashboardContent() {
   const showExtensionBanner =
     tourCompleted && extensionInstalled === false && !isPromptDismissed() && !bannerDismissed
 
-  // Track if Getting Started checklist is dismissed (persisted in localStorage)
-  const [checklistDismissed, setChecklistDismissed] = React.useState(() => {
-    if (typeof window === "undefined") return false
-    try {
-      return localStorage.getItem("chainlinked_checklist_dismissed") === "true"
-    } catch {
-      return false
-    }
-  })
-  const dismissChecklist = React.useCallback(() => {
-    setChecklistDismissed(true)
-    try {
-      localStorage.setItem("chainlinked_checklist_dismissed", "true")
-    } catch {
-      // localStorage may be unavailable in some environments
-    }
-  }, [])
-
-  // Count of pending/scheduled posts for pipeline widget
-  const pendingScheduledCount = useMemo(() => {
-    return scheduledRawPosts.filter(
-      p => p.status === 'pending' || p.status === 'scheduled'
-    ).length
-  }, [scheduledRawPosts])
-
-  // Get display name for welcome message - prioritize full_name from DB
-  const displayName = profile?.full_name?.split(' ')[0] || profile?.name?.split(' ')[0] || user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'there'
-
   return (
     <motion.div
-      className="flex flex-col gap-4 py-4 md:gap-6 md:py-6"
+      className="flex flex-col gap-4 py-4 md:py-6"
       variants={pageVariants}
       initial="initial"
       animate="animate"
@@ -590,8 +693,7 @@ function DashboardContent() {
         onDismiss={() => setBannerDismissed(true)}
       />
 
-      {/* Extension Install Popup Dialog — always mounted so Radix can clean
-          up body styles properly; the `open` prop controls visibility */}
+      {/* Extension Install Popup Dialog */}
       <ExtensionInstallPrompt
         open={showPrompt && tourCompleted}
         onOpenChange={setShowPrompt}
@@ -601,182 +703,41 @@ function DashboardContent() {
         }}
       />
 
-      {/* Getting Started Checklist */}
-      {!checklistDismissed && (
-        <GettingStartedChecklist
-          linkedInConnected={!!profile?.linkedin_profile}
-          extensionInstalled={extensionInstalled === true}
-          hasScheduledPosts={scheduledPosts.length > 0}
-          onDismiss={dismissChecklist}
-        />
-      )}
-
-      {/* Welcome Section */}
-      <div className="px-4 lg:px-6" data-tour="welcome-section">
-        <motion.div
-          className="mb-6"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: 0.2, type: "spring", stiffness: 400 }}
-                >
-                  <IconSparkles className="size-6 text-primary" />
-                </motion.div>
-                <h2 className="text-2xl font-bold tracking-tight">
-                  {new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening'}, {displayName}!
-                </h2>
-              </div>
-              <p className="text-muted-foreground">
-                Here&apos;s your LinkedIn content overview for today.
-              </p>
-            </div>
-            <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">
-              <IconCalendarEvent className="size-4" />
-              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-            </div>
+      {/* LinkedIn-style 3-column layout */}
+      <div className="px-4 lg:px-6">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[240px_1fr_280px] xl:grid-cols-[260px_1fr_300px]">
+          {/* LEFT COLUMN: Profile card */}
+          <div className="space-y-4" data-tour="profile-card">
+            <ProfileCard />
           </div>
-        </motion.div>
 
-        {/* Quick Stats Overview */}
-        <motion.div
-          className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-6"
-          data-tour="quick-stats"
-          variants={staggerContainerVariants}
-          initial="initial"
-          animate="animate"
-        >
-          <motion.div variants={staggerItemVariants}>
-            <QuickStatCard
-              title="Impressions"
-              value={metrics?.impressions.value || 0}
-              change={metrics?.impressions.change || 0}
-              icon={IconEye}
-              accent="primary"
-              isLoading={analyticsLoading}
-            />
-          </motion.div>
-          <motion.div variants={staggerItemVariants}>
-            <QuickStatCard
-              title="Followers"
-              value={metrics?.followers.value || 0}
-              change={metrics?.followers.change || 0}
-              icon={IconUserPlus}
-              accent="blue"
-              isLoading={analyticsLoading}
-            />
-          </motion.div>
-          <motion.div variants={staggerItemVariants}>
-            <QuickStatCard
-              title="Engagement"
-              value={metrics?.engagementRate.value || 0}
-              change={metrics?.engagementRate.change || 0}
-              icon={IconThumbUp}
-              suffix="%"
-              decimals={1}
-              accent="emerald"
-              isLoading={analyticsLoading}
-            />
-          </motion.div>
-          <motion.div variants={staggerItemVariants}>
-            <QuickStatCard
-              title="Profile Views"
-              value={metrics?.profileViews.value || 0}
-              change={metrics?.profileViews.change || 0}
-              icon={IconUser}
-              accent="amber"
-              isLoading={analyticsLoading}
-            />
-          </motion.div>
-        </motion.div>
-      </div>
+          {/* CENTER COLUMN: Create post + analytics + quick actions */}
+          <div className="space-y-4" data-tour="create-post">
+            <CreatePostCard />
+            <QuickAnalyticsCard />
+            <QuickActionsCard />
+          </div>
 
-      {/* 3-column utility row: Streak | Next Up | Pipeline */}
-      <div className="px-4 lg:px-6" data-tour="widgets-row">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.4 }}
-          >
-            <PostingStreakIndicator
-              currentStreak={currentStreak}
-              bestStreak={bestStreak}
-              isLoading={goalsLoading}
-            />
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.45, duration: 0.4 }}
-          >
-            <NextUpStrip rawPosts={scheduledRawPosts} isLoading={analyticsLoading} />
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5, duration: 0.4 }}
-          >
-            <ContentPipelineSummary
-              scheduledCount={pendingScheduledCount}
-              wishlistCount={wishlistCount}
-              isLoading={wishlistLoading}
-            />
-          </motion.div>
+          {/* RIGHT COLUMN: Today, tips, streak, getting started */}
+          <div className="space-y-4" data-tour="sidebar-widgets">
+            <TodayCard />
+            <DailyTipCard />
+            <StreakCard />
+            <GettingStartedCard />
+          </div>
         </div>
       </div>
-
-      {/* Recent Activity Feed — 2-column LinkedIn post grid */}
-      <motion.div
-        className="px-4 lg:px-6"
-        data-tour="activity-feed"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.6, duration: 0.5 }}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-lg font-semibold tracking-tight">Recent Activity</h3>
-            <p className="text-sm text-muted-foreground">Latest posts from your feed</p>
-          </div>
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/dashboard/posts" className="text-sm text-primary hover:text-primary/80">
-              View All →
-            </Link>
-          </Button>
-        </div>
-        <TeamActivityFeed
-          posts={teamPosts.slice(0, 8)}
-          isLoading={postsLoading}
-          columns={2}
-        />
-      </motion.div>
-
     </motion.div>
   )
 }
 
 /**
  * Dashboard page component
- * @returns Dashboard page with quick actions, schedule calendar, goals, and team activity
+ * @returns LinkedIn-style dashboard with profile, create post, and tips/streaks
  */
 export default function DashboardPage() {
   usePageMeta({
     title: "Dashboard",
-    headerActions: (
-      <Button asChild size="sm">
-        <Link href="/dashboard/compose">
-          <IconPencil className="size-4 mr-1" />
-          New Post
-        </Link>
-      </Button>
-    ),
   })
   const { isLoading: authLoading } = useAuthContext()
 

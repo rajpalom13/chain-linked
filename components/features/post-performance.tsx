@@ -268,7 +268,7 @@ function EngagementBreakdown({ metrics }: { metrics: PostMetrics[] }) {
   const total = totals.likes + totals.comments + totals.shares + totals.clicks
 
   const breakdownItems = [
-    { label: "Likes", value: totals.likes, color: "bg-blue-500" },
+    { label: "Reactions", value: totals.likes, color: "bg-blue-500" },
     { label: "Comments", value: totals.comments, color: "bg-green-500" },
     { label: "Shares", value: totals.shares, color: "bg-purple-500" },
     { label: "Clicks", value: totals.clicks, color: "bg-orange-500" },
