@@ -315,7 +315,7 @@ function CreatePostCard({ className }: { className?: string }) {
             asChild
           >
             <Link href="/dashboard/compose">
-              <IconPhoto className="size-4 text-blue-500" />
+              <IconPhoto className="size-4 text-primary" />
               Media
             </Link>
           </Button>
@@ -326,7 +326,7 @@ function CreatePostCard({ className }: { className?: string }) {
             asChild
           >
             <Link href="/dashboard/compose">
-              <IconSparkles className="size-4 text-amber-500" />
+              <IconSparkles className="size-4 text-secondary" />
               AI Generate
             </Link>
           </Button>
@@ -337,7 +337,7 @@ function CreatePostCard({ className }: { className?: string }) {
             asChild
           >
             <Link href="/dashboard/carousels">
-              <IconPresentation className="size-4 text-emerald-500" />
+              <IconPresentation className="size-4 text-primary" />
               Carousel
             </Link>
           </Button>
@@ -348,7 +348,7 @@ function CreatePostCard({ className }: { className?: string }) {
             asChild
           >
             <Link href="/dashboard/templates">
-              <IconTemplate className="size-4 text-purple-500" />
+              <IconTemplate className="size-4 text-muted-foreground" />
               Template
             </Link>
           </Button>
@@ -421,21 +421,21 @@ function AnalyticsOverviewCard({ className }: { className?: string }) {
         </div>
 
         {/* Metrics row */}
-        <div className="grid grid-cols-3 gap-px bg-border/30 mx-4">
+        <div className="grid grid-cols-3 mx-4 divide-x divide-border/40">
           {/* Impressions */}
-          <div className="bg-background text-center py-2.5 px-2">
+          <div className="text-center py-2.5 px-2">
             <p className="text-lg font-bold tabular-nums leading-tight">{formatCompact(impressions)}</p>
             <p className="text-[10px] text-muted-foreground mt-0.5">Impressions</p>
             <div className={cn(
               "text-[10px] font-medium",
-              impressionsChange >= 0 ? "text-emerald-500" : "text-red-500"
+              impressionsChange >= 0 ? "text-success" : "text-destructive"
             )}>
               {impressionsChange >= 0 ? "+" : ""}{impressionsChange.toFixed(1)}%
             </div>
           </div>
 
           {/* Engagement */}
-          <div className="bg-background text-center py-2.5 px-2 relative">
+          <div className="text-center py-2.5 px-2 relative">
             {lottieData && (
               <div className="absolute -top-1 -right-0.5 size-5">
                 <Lottie animationData={lottieData} loop autoplay className="size-5" />
@@ -445,19 +445,19 @@ function AnalyticsOverviewCard({ className }: { className?: string }) {
             <p className="text-[10px] text-muted-foreground mt-0.5">Engagement</p>
             <div className={cn(
               "text-[10px] font-medium",
-              engagementChange >= 0 ? "text-emerald-500" : "text-red-500"
+              engagementChange >= 0 ? "text-success" : "text-destructive"
             )}>
               {engagementChange >= 0 ? "+" : ""}{engagementChange.toFixed(1)}%
             </div>
           </div>
 
           {/* Followers */}
-          <div className="bg-background text-center py-2.5 px-2">
+          <div className="text-center py-2.5 px-2">
             <p className="text-lg font-bold tabular-nums leading-tight">{formatCompact(followers)}</p>
             <p className="text-[10px] text-muted-foreground mt-0.5">Followers</p>
             <div className={cn(
               "text-[10px] font-medium",
-              followersChange >= 0 ? "text-emerald-500" : "text-red-500"
+              followersChange >= 0 ? "text-success" : "text-destructive"
             )}>
               {followersChange >= 0 ? "+" : ""}{followersChange.toFixed(1)}%
             </div>
@@ -675,7 +675,7 @@ function RecentPostsFeed({ className }: { className?: string }) {
 }
 
 // ============================================================================
-// Right Column: Tips, Streak, Schedule, Goals
+// Right Column: Greeting, Streak, Schedule, Tips, Getting Started
 // ============================================================================
 
 /**
@@ -748,12 +748,12 @@ function StreakCard({ className }: { className?: string }) {
     <Card className={cn("border-border/50", className)}>
       <CardContent className="p-4">
         <div className="flex items-center gap-2 mb-3">
-          <div className="rounded-lg bg-orange-500/10 p-1.5">
-            <IconFlame className="size-4 text-orange-500" />
+          <div className="rounded-lg bg-secondary/10 p-1.5">
+            <IconFlame className="size-4 text-secondary" />
           </div>
           <h4 className="text-sm font-medium">Posting Streak</h4>
           {currentStreak > 0 && (
-            <span className="ml-auto text-xs font-bold text-orange-500 tabular-nums">
+            <span className="ml-auto text-xs font-bold text-secondary tabular-nums">
               {currentStreak} day{currentStreak !== 1 ? "s" : ""}
             </span>
           )}
@@ -973,7 +973,7 @@ function GoalsSummaryCard({ className }: { className?: string }) {
                   </span>
                   <span className={cn(
                     "font-medium tabular-nums",
-                    isComplete ? "text-emerald-500" : "text-foreground"
+                    isComplete ? "text-success" : "text-foreground"
                   )}>
                     {goal.current}/{goal.target}
                   </span>
@@ -982,7 +982,7 @@ function GoalsSummaryCard({ className }: { className?: string }) {
                   <div
                     className={cn(
                       "h-full rounded-full transition-all duration-500",
-                      isComplete ? "bg-emerald-500" : "bg-primary"
+                      isComplete ? "bg-success" : "bg-primary"
                     )}
                     style={{ width: `${progress}%` }}
                   />
@@ -1003,11 +1003,11 @@ function DailyTipCard({ className }: { className?: string }) {
   const tip = useMemo(() => getTodaysTip(), [])
 
   return (
-    <Card className={cn("border-border/50 bg-gradient-to-br from-amber-500/5 to-transparent", className)}>
+    <Card className={cn("border-border/50 bg-gradient-to-br from-secondary/5 to-transparent", className)}>
       <CardContent className="p-4">
         <div className="flex items-center gap-2 mb-2">
-          <div className="rounded-lg bg-amber-500/10 p-1.5">
-            <IconBulb className="size-4 text-amber-500" />
+          <div className="rounded-lg bg-secondary/10 p-1.5">
+            <IconBulb className="size-4 text-secondary" />
           </div>
           <h4 className="text-sm font-medium">Daily Tip</h4>
         </div>
@@ -1156,12 +1156,11 @@ function DashboardContent() {
             <RecentPostsFeed />
           </div>
 
-          {/* RIGHT COLUMN: Greeting, streak, schedule, goals, tip, getting started */}
+          {/* RIGHT COLUMN: Greeting, streak, schedule, tip, getting started */}
           <div className="space-y-4" data-tour="sidebar-widgets">
             <GreetingCard />
             <StreakCard />
             <UpcomingScheduleCard />
-            <GoalsSummaryCard />
             <DailyTipCard />
             <GettingStartedCard />
           </div>
