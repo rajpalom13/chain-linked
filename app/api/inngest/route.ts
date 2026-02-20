@@ -12,6 +12,7 @@ import {
   generateSuggestionsWorkflow,
   dailyContentIngest,
   onDemandContentIngest,
+  swipeAutoRefill,
 } from '@/lib/inngest/functions'
 
 /**
@@ -26,5 +27,6 @@ export const { GET, POST, PUT } = serve({
     generateSuggestionsWorkflow,
     dailyContentIngest,
     onDemandContentIngest,
+    swipeAutoRefill,
   ],
 })

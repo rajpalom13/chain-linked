@@ -177,6 +177,18 @@ export type InngestEvents = {
       success: boolean
     }
   }
+
+  // Swipe Auto-Refill Events
+  'swipe/auto-refill.completed': {
+    data: {
+      /** Total users checked */
+      totalUsers: number
+      /** Number of refills triggered */
+      refillsTriggered: number
+      /** Users already at max suggestions */
+      atMax: number
+    }
+  }
 }
 
 /**
