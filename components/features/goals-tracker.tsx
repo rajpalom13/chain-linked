@@ -2,7 +2,7 @@
 
 /**
  * Goals Tracker Component
- * @description Tracks posting goals with progress indicators, kebab menus, and streak display
+ * @description Tracks posting goals with progress indicators, kebab menus, dialog editing, and streak display
  * @module components/features/goals-tracker
  */
 
@@ -11,13 +11,13 @@ import {
   IconFlame,
   IconPencil,
   IconCheck,
-  IconX,
   IconTarget,
   IconTrendingUp,
   IconTrendingDown,
   IconMinus,
   IconDotsVertical,
   IconTrash,
+  IconPlus,
 } from "@tabler/icons-react"
 
 import { cn } from "@/lib/utils"
@@ -31,6 +31,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Tooltip,
@@ -54,6 +55,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 /**
  * Represents a posting goal with period, target, and progress tracking
@@ -87,8 +103,20 @@ export interface GoalsTrackerProps {
   onUpdateGoal?: (goalId: string, target: number) => void
   /** Callback when a goal is removed */
   onRemoveGoal?: (goalId: string) => void
+  /** Callback when a new goal is created */
+  onCreateGoal?: (period: "daily" | "weekly" | "monthly", target: number) => void
   /** Whether the component is in a loading state */
   isLoading?: boolean
+}
+
+/** All available goal periods */
+const ALL_PERIODS: Goal["period"][] = ["daily", "weekly", "monthly"]
+
+/** Period display labels for the dialog */
+const PERIOD_LABELS: Record<Goal["period"], string> = {
+  daily: "Daily",
+  weekly: "Weekly",
+  monthly: "Monthly",
 }
 
 /**
@@ -267,49 +295,153 @@ function ProgressRing({
 }
 
 /**
- * Individual goal card component with progress tracking, kebab menu, and editing
+ * Dialog for creating or editing a posting goal
+ * @param props.open - Whether dialog is open
+ * @param props.onOpenChange - Callback to toggle open state
+ * @param props.editingGoal - Goal being edited (null for create mode)
+ * @param props.usedPeriods - Periods already in use (filtered out of selector during creation)
+ * @param props.onSave - Callback with period and target when saved
+ */
+function GoalFormDialog({
+  open,
+  onOpenChange,
+  editingGoal,
+  usedPeriods,
+  onSave,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  editingGoal: Goal | null
+  usedPeriods: Goal["period"][]
+  onSave: (period: Goal["period"], target: number) => void
+}) {
+  const isEditMode = editingGoal !== null
+  const [period, setPeriod] = React.useState<Goal["period"] | "">(
+    editingGoal?.period ?? ""
+  )
+  const [targetValue, setTargetValue] = React.useState(
+    editingGoal?.target.toString() ?? ""
+  )
+
+  // Reset form state when the dialog opens with a different goal
+  React.useEffect(() => {
+    if (open) {
+      setPeriod(editingGoal?.period ?? "")
+      setTargetValue(editingGoal?.target.toString() ?? "")
+    }
+  }, [open, editingGoal])
+
+  const availablePeriods = ALL_PERIODS.filter(
+    (p) => !usedPeriods.includes(p) || p === editingGoal?.period
+  )
+
+  const parsedTarget = parseInt(targetValue, 10)
+  const isValid = (isEditMode || period !== "") && !isNaN(parsedTarget) && parsedTarget >= 1
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!isValid) return
+    const selectedPeriod = isEditMode ? editingGoal!.period : (period as Goal["period"])
+    onSave(selectedPeriod, parsedTarget)
+    onOpenChange(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[400px]">
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>
+              {isEditMode ? "Edit Goal" : "Create Goal"}
+            </DialogTitle>
+            <DialogDescription>
+              {isEditMode
+                ? `Update your ${PERIOD_LABELS[editingGoal!.period].toLowerCase()} posting target.`
+                : "Set a new posting goal to track your content creation."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            {/* Period selector */}
+            <div className="grid gap-2">
+              <Label htmlFor="goal-period">Period</Label>
+              {isEditMode ? (
+                <Input
+                  id="goal-period"
+                  value={PERIOD_LABELS[editingGoal!.period]}
+                  disabled
+                />
+              ) : (
+                <Select
+                  value={period}
+                  onValueChange={(v) => setPeriod(v as Goal["period"])}
+                >
+                  <SelectTrigger id="goal-period" className="w-full">
+                    <SelectValue placeholder="Select period" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availablePeriods.map((p) => (
+                      <SelectItem key={p} value={p}>
+                        {PERIOD_LABELS[p]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            {/* Target input */}
+            <div className="grid gap-2">
+              <Label htmlFor="goal-target">Target Posts</Label>
+              <Input
+                id="goal-target"
+                type="number"
+                min={1}
+                placeholder="e.g. 5"
+                value={targetValue}
+                onChange={(e) => setTargetValue(e.target.value)}
+                autoFocus={isEditMode}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={!isValid}>
+              {isEditMode ? "Save Changes" : "Create Goal"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/**
+ * Individual goal card component with progress tracking, kebab menu, and editing via dialog
  * @param props.goal - The goal data
- * @param props.onUpdateGoal - Callback when goal target is updated
+ * @param props.onEditGoal - Callback when "Edit" is selected from kebab menu
  * @param props.onRemoveGoal - Callback when goal is removed
  */
 function GoalCard({
   goal,
-  onUpdateGoal,
+  onEditGoal,
   onRemoveGoal,
 }: {
   goal: Goal
-  onUpdateGoal?: (goalId: string, target: number) => void
+  onEditGoal?: (goal: Goal) => void
   onRemoveGoal?: (goalId: string) => void
 }) {
-  const [isEditing, setIsEditing] = React.useState(false)
-  const [editValue, setEditValue] = React.useState(goal.target.toString())
   const [showRemoveDialog, setShowRemoveDialog] = React.useState(false)
 
   const progress = calculateProgress(goal.current, goal.target)
   const status = getGoalStatus(goal)
-
-  const handleSave = () => {
-    const newTarget = parseInt(editValue, 10)
-    if (!isNaN(newTarget) && newTarget > 0) {
-      onUpdateGoal?.(goal.id, newTarget)
-    } else {
-      setEditValue(goal.target.toString())
-    }
-    setIsEditing(false)
-  }
-
-  const handleCancel = () => {
-    setEditValue(goal.target.toString())
-    setIsEditing(false)
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      handleSave()
-    } else if (e.key === "Escape") {
-      handleCancel()
-    }
-  }
 
   const periodTooltips = {
     daily: "Track your daily posting goal. Resets every day at midnight.",
@@ -340,7 +472,7 @@ function GoalCard({
               {status.message}
             </Badge>
             {/* Kebab menu */}
-            {(onUpdateGoal || onRemoveGoal) && (
+            {(onEditGoal || onRemoveGoal) && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-7 w-7">
@@ -349,10 +481,10 @@ function GoalCard({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  {onUpdateGoal && (
-                    <DropdownMenuItem onClick={() => setIsEditing(true)}>
+                  {onEditGoal && (
+                    <DropdownMenuItem onClick={() => onEditGoal(goal)}>
                       <IconPencil className="size-4 mr-2" />
-                      Edit Goals
+                      Edit Goal
                     </DropdownMenuItem>
                   )}
                   {onRemoveGoal && (
@@ -361,7 +493,7 @@ function GoalCard({
                       onClick={() => setShowRemoveDialog(true)}
                     >
                       <IconTrash className="size-4 mr-2" />
-                      Remove Goals
+                      Remove Goal
                     </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>
@@ -403,47 +535,15 @@ function GoalCard({
               <div className="flex items-baseline gap-1">
                 <span className="text-lg font-semibold tabular-nums">{goal.current}</span>
                 <span className="text-muted-foreground text-sm">/</span>
-                {isEditing ? (
-                  <div className="flex items-center gap-1">
-                    <Input
-                      type="number"
-                      min={1}
-                      value={editValue}
-                      onChange={(e) => setEditValue(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                      className="h-7 w-16 text-sm"
-                      autoFocus
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={handleSave}
-                      className="h-6 w-6"
-                    >
-                      <IconCheck className="size-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={handleCancel}
-                      className="h-6 w-6"
-                    >
-                      <IconX className="size-3" />
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    <span className="text-lg font-semibold tabular-nums">{goal.target}</span>
-                    <span className="text-muted-foreground text-sm">posts</span>
-                  </>
-                )}
+                <span className="text-lg font-semibold tabular-nums">{goal.target}</span>
+                <span className="text-muted-foreground text-sm">posts</span>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Remove Goals Confirmation Dialog */}
+      {/* Remove Goal Confirmation Dialog */}
       <AlertDialog open={showRemoveDialog} onOpenChange={setShowRemoveDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -578,9 +678,10 @@ function GoalsTrackerSkeleton() {
  * Displays posting goals for different time periods (daily, weekly, monthly) with:
  * - Progress bars showing completion percentage
  * - Status badges indicating if user is on track, behind, or has reached their goal
- * - Kebab menu on each goal card with Edit Goals and Remove Goals actions
+ * - Kebab menu on each goal card with Edit and Remove actions via dialog
+ * - "Add Goal" button for creating new goals
  * - Streak tracking with current and best streak display
- * - "Create your goals to view" placeholder when no goals are set
+ * - "Create First Goal" placeholder when no goals are set
  *
  * @example
  * ```tsx
@@ -590,6 +691,7 @@ function GoalsTrackerSkeleton() {
  *   bestStreak={15}
  *   onUpdateGoal={(id, target) => updateGoal(id, target)}
  *   onRemoveGoal={(id) => removeGoal(id)}
+ *   onCreateGoal={(period, target) => createGoal(period, target)}
  * />
  * ```
  */
@@ -599,8 +701,12 @@ export function GoalsTracker({
   bestStreak = 0,
   onUpdateGoal,
   onRemoveGoal,
+  onCreateGoal,
   isLoading = false,
 }: GoalsTrackerProps) {
+  const [dialogOpen, setDialogOpen] = React.useState(false)
+  const [editingGoal, setEditingGoal] = React.useState<Goal | null>(null)
+
   if (isLoading) {
     return <GoalsTrackerSkeleton />
   }
@@ -619,60 +725,120 @@ export function GoalsTracker({
   // Check if we have any data to show
   const hasGoals = goals.length > 0
   const hasStreakData = currentStreak > 0 || bestStreak > 0
+  const usedPeriods = goals.map((g) => g.period)
+  const canAddGoal = usedPeriods.length < ALL_PERIODS.length
+
+  /** Open the dialog in create mode */
+  const handleOpenCreate = () => {
+    setEditingGoal(null)
+    setDialogOpen(true)
+  }
+
+  /** Open the dialog in edit mode */
+  const handleEditGoal = (goal: Goal) => {
+    setEditingGoal(goal)
+    setDialogOpen(true)
+  }
+
+  /** Handle save from dialog (routes to create or update) */
+  const handleDialogSave = (period: Goal["period"], target: number) => {
+    if (editingGoal) {
+      onUpdateGoal?.(editingGoal.id, target)
+    } else {
+      onCreateGoal?.(period, target)
+    }
+  }
 
   return (
-    <Card hover>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <IconTarget className="size-5" />
-          Posting Goals
-        </CardTitle>
-        <CardDescription>
-          Track your content creation progress across different time periods
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Overall progress summary */}
-        {goals.length > 0 && (
-          <div className="bg-primary/5 space-y-2 rounded-lg p-3">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Overall Progress</span>
-              <span className="font-medium tabular-nums">{overallProgress}%</span>
-            </div>
-            <ProgressBar value={overallProgress} className="h-1.5" />
-          </div>
-        )}
-
-        {/* Individual goal cards */}
-        {sortedGoals.map((goal) => (
-          <GoalCard
-            key={goal.id}
-            goal={goal}
-            onUpdateGoal={onUpdateGoal}
-            onRemoveGoal={onRemoveGoal}
-          />
-        ))}
-
-        {/* Empty state for goals */}
-        {!hasGoals && (
-          <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
-            <div className="rounded-full bg-gradient-to-br from-primary/15 to-secondary/10 p-4">
-              <IconTarget className="size-7 text-primary" />
-            </div>
+    <>
+      <Card hover>
+        <CardHeader>
+          <div className="flex items-center justify-between">
             <div>
-              <h4 className="text-sm font-medium mb-1">Create your goals to view</h4>
-              <p className="text-muted-foreground text-xs max-w-[220px]">
-                Set a posting goal to start tracking your content creation progress.
-              </p>
+              <CardTitle className="flex items-center gap-2">
+                <IconTarget className="size-5" />
+                Posting Goals
+              </CardTitle>
+              <CardDescription>
+                Track your content creation progress across different time periods
+              </CardDescription>
             </div>
+            {canAddGoal && onCreateGoal && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 shrink-0"
+                onClick={handleOpenCreate}
+              >
+                <IconPlus className="size-3.5" />
+                Add Goal
+              </Button>
+            )}
           </div>
-        )}
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Overall progress summary */}
+          {goals.length > 0 && (
+            <div className="bg-primary/5 space-y-2 rounded-lg p-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Overall Progress</span>
+                <span className="font-medium tabular-nums">{overallProgress}%</span>
+              </div>
+              <ProgressBar value={overallProgress} className="h-1.5" />
+            </div>
+          )}
 
-        {/* Streak section - only show if there's streak data or goals */}
-        {(hasStreakData || hasGoals) && (
-          <StreakSection currentStreak={currentStreak} bestStreak={bestStreak} />
-        )}
-      </CardContent>
-    </Card>
+          {/* Individual goal cards */}
+          {sortedGoals.map((goal) => (
+            <GoalCard
+              key={goal.id}
+              goal={goal}
+              onEditGoal={onUpdateGoal ? handleEditGoal : undefined}
+              onRemoveGoal={onRemoveGoal}
+            />
+          ))}
+
+          {/* Empty state for goals */}
+          {!hasGoals && (
+            <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+              <div className="rounded-full bg-gradient-to-br from-primary/15 to-secondary/10 p-4">
+                <IconTarget className="size-7 text-primary" />
+              </div>
+              <div>
+                <h4 className="text-sm font-medium mb-1">No posting goals yet</h4>
+                <p className="text-muted-foreground text-xs max-w-[220px]">
+                  Set a posting goal to start tracking your content creation progress.
+                </p>
+              </div>
+              {onCreateGoal && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="gap-1.5 mt-1"
+                  onClick={handleOpenCreate}
+                >
+                  <IconPlus className="size-3.5" />
+                  Create First Goal
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* Streak section - only show if there's streak data or goals */}
+          {(hasStreakData || hasGoals) && (
+            <StreakSection currentStreak={currentStreak} bestStreak={bestStreak} />
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Goal create / edit dialog */}
+      <GoalFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        editingGoal={editingGoal}
+        usedPeriods={usedPeriods}
+        onSave={handleDialogSave}
+      />
+    </>
   )
 }

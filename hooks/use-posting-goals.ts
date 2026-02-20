@@ -14,6 +14,43 @@ import type { Goal } from '@/components/features/goals-tracker'
 
 
 /**
+ * Computes the start and end ISO date strings for a given goal period
+ * @param period - The goal period (daily, weekly, monthly)
+ * @returns Object with start and end ISO date strings
+ */
+export function getGoalPeriodDates(period: 'daily' | 'weekly' | 'monthly'): { start: string; end: string } {
+  const now = new Date()
+  let start: Date
+  let end: Date
+
+  switch (period) {
+    case 'daily': {
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      end = new Date(start)
+      end.setDate(end.getDate() + 1)
+      end.setMilliseconds(end.getMilliseconds() - 1)
+      break
+    }
+    case 'weekly': {
+      const day = now.getDay()
+      const diff = day === 0 ? 6 : day - 1 // Monday = start of week
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diff)
+      end = new Date(start)
+      end.setDate(end.getDate() + 7)
+      end.setMilliseconds(end.getMilliseconds() - 1)
+      break
+    }
+    case 'monthly': {
+      start = new Date(now.getFullYear(), now.getMonth(), 1)
+      end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+      break
+    }
+  }
+
+  return { start: start.toISOString(), end: end.toISOString() }
+}
+
+/**
  * Hook return type for posting goals data
  */
 interface UsePostingGoalsReturn {
@@ -33,6 +70,10 @@ interface UsePostingGoalsReturn {
   refetch: () => Promise<void>
   /** Update a goal's target */
   updateGoalTarget: (goalId: string, target: number) => Promise<void>
+  /** Create a new goal */
+  createGoal: (period: 'daily' | 'weekly' | 'monthly', target: number) => Promise<void>
+  /** Remove a goal */
+  removeGoal: (goalId: string) => Promise<void>
 }
 
 /**
@@ -251,6 +292,72 @@ export function usePostingGoals(userId?: string): UsePostingGoalsReturn {
     }
   }, [supabase])
 
+  /**
+   * Create a new posting goal
+   * @param period - Goal period (daily, weekly, monthly)
+   * @param target - Target number of posts
+   */
+  const createGoal = useCallback(async (period: 'daily' | 'weekly' | 'monthly', target: number) => {
+    const targetUserId = userId || user?.id
+    if (!targetUserId) throw new Error('No user ID available')
+
+    try {
+      const { start, end } = getGoalPeriodDates(period)
+
+      const { data, error: insertError } = await supabase
+        .from('posting_goals')
+        .insert({
+          user_id: targetUserId,
+          period,
+          target_posts: target,
+          current_posts: 0,
+          start_date: start,
+          end_date: end,
+        })
+        .select()
+        .single()
+
+      if (insertError) throw insertError
+
+      // Update local state
+      const newGoal: Goal = {
+        id: data.id,
+        period: data.period as 'daily' | 'weekly' | 'monthly',
+        target: data.target_posts,
+        current: data.current_posts,
+        startDate: data.start_date,
+        endDate: data.end_date,
+      }
+      setGoals(prev => [...prev, newGoal])
+      setRawGoals(prev => [...prev, data])
+    } catch (err) {
+      console.error('Goal create error:', err)
+      throw err
+    }
+  }, [supabase, userId, user?.id])
+
+  /**
+   * Remove a posting goal
+   * @param goalId - ID of the goal to remove
+   */
+  const removeGoal = useCallback(async (goalId: string) => {
+    try {
+      const { error: deleteError } = await supabase
+        .from('posting_goals')
+        .delete()
+        .eq('id', goalId)
+
+      if (deleteError) throw deleteError
+
+      // Update local state
+      setGoals(prev => prev.filter(g => g.id !== goalId))
+      setRawGoals(prev => prev.filter(g => g.id !== goalId))
+    } catch (err) {
+      console.error('Goal remove error:', err)
+      throw err
+    }
+  }, [supabase])
+
   // Fetch when auth state changes or on mount
   useEffect(() => {
     fetchGoals()
@@ -268,5 +375,7 @@ export function usePostingGoals(userId?: string): UsePostingGoalsReturn {
     error,
     refetch: fetchGoals,
     updateGoalTarget,
+    createGoal,
+    removeGoal,
   }
 }

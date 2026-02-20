@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import {
   IconAlertTriangle,
   IconBold,
@@ -178,12 +178,13 @@ function extractHashtags(text: string): string[] {
 }
 
 /**
- * A rich text editor for composing LinkedIn posts with live preview.
+ * A rich text editor for composing LinkedIn posts with AI generation and live preview.
  *
  * Features:
- * - Two-column layout with editor and LinkedIn-style preview
+ * - Two-column layout: left = AI generation, right = editable LinkedIn preview
+ * - Double-click preview to enter inline edit mode with formatting toolbar
  * - Goal-based post type selection (Tell a Story, Teach, Engage, Visual)
- * - Inline AI generation panel with tone and length controls
+ * - Always-expanded AI generation panel with tone and length controls
  * - Unicode font picker for LinkedIn-compatible text styling
  * - Rich text formatting via markdown-like syntax (bold, italic, lists)
  * - Real-time character counter with code-point-aware LinkedIn limit
@@ -217,16 +218,68 @@ export function PostComposer({
   const [showScheduleModal, setShowScheduleModal] = React.useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = React.useState(false)
   const [showAIDialog, setShowAIDialog] = React.useState(false)
-  const [showAIPanel, setShowAIPanel] = React.useState(false)
+  const [isEditing, setIsEditing] = React.useState(false)
   const [mediaFiles, setMediaFiles] = React.useState<MediaFile[]>([])
   const [hasApiKey, setHasApiKey] = React.useState<boolean>(false)
   const [selectedGoal, setSelectedGoal] = React.useState<GoalCategory | undefined>(undefined)
   const [selectedFormat, setSelectedFormat] = React.useState<PostTypeId | undefined>(undefined)
   const [activeFontStyle, setActiveFontStyle] = React.useState<UnicodeFontStyle>('normal')
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
+  const editingZoneRef = React.useRef<HTMLDivElement>(null)
 
   // Auto-save status indicator
   const { isSaving, lastSaved } = useAutoSave(content, 1500)
+
+  // Click-outside detection for edit mode
+  React.useEffect(() => {
+    if (!isEditing) return
+
+    function handleClickOutside(e: MouseEvent) {
+      const target = e.target as HTMLElement
+      // Don't exit if clicking a Radix popover (FontPicker, EmojiPicker)
+      if (target.closest('[data-radix-popper-content-wrapper]')) return
+      if (editingZoneRef.current && !editingZoneRef.current.contains(target)) {
+        setIsEditing(false)
+      }
+    }
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setIsEditing(false)
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isEditing])
+
+  // Auto-resize textarea when in edit mode
+  React.useEffect(() => {
+    if (!isEditing) return
+    const textarea = textareaRef.current
+    if (!textarea) return
+
+    function resize() {
+      if (!textarea) return
+      textarea.style.height = 'auto'
+      textarea.style.height = `${textarea.scrollHeight}px`
+    }
+
+    resize()
+    textarea.addEventListener('input', resize)
+    return () => {
+      textarea.removeEventListener('input', resize)
+    }
+  }, [isEditing, content])
+
+  // Focus textarea when entering edit mode
+  React.useEffect(() => {
+    if (isEditing && textareaRef.current) {
+      textareaRef.current.focus()
+    }
+  }, [isEditing])
 
   // Sync content with draft context (when loaded from template or remix)
   // We intentionally exclude 'content' from deps to prevent infinite loops
@@ -479,10 +532,17 @@ export function PostComposer({
     })
   }
 
+  /**
+   * Enters edit mode on the right-side preview
+   */
+  const enterEditMode = () => {
+    setIsEditing(true)
+  }
+
   return (
     <TooltipProvider>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Editor Column */}
+        {/* Left Column — AI Generation Only */}
         <motion.div
           variants={fadeSlideUpVariants}
           initial="initial"
@@ -492,7 +552,7 @@ export function PostComposer({
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <CardTitle>Post Editor</CardTitle>
+                  <CardTitle>AI Generation</CardTitle>
                   <LinkedInStatusBadge variant="badge" showReconnect={false} />
                 </div>
                 {/* Auto-save indicator */}
@@ -513,7 +573,7 @@ export function PostComposer({
                 )}
               </div>
               <CardDescription>
-                Compose your LinkedIn post with rich text formatting
+                Generate post content with AI assistance
               </CardDescription>
             </CardHeader>
 
@@ -526,7 +586,7 @@ export function PostComposer({
                 </div>
               )}
 
-              {/* Goal Selector (replaces PostTypeSelector dropdown) */}
+              {/* Goal Selector */}
               <PostGoalSelector
                 selectedGoal={selectedGoal}
                 selectedFormat={selectedFormat}
@@ -535,273 +595,432 @@ export function PostComposer({
                 excludeGoals={['visual']}
               />
 
-              {/* AI Inline Panel (replaces modal-only AI button) */}
+              {/* AI Inline Panel — always expanded */}
               <AIInlinePanel
-                isExpanded={showAIPanel}
-                onToggle={() => setShowAIPanel((v) => !v)}
+                isExpanded={true}
+                onToggle={() => {}}
                 onGenerated={(generatedContent) => {
                   handleContentChange(convertMarkdownToUnicode(generatedContent))
                   trackFeatureUsed("ai_generation_inline")
                   showSuccess('Post generated!')
-                  setShowAIPanel(false)
+                  setIsEditing(false)
                 }}
                 hasApiKey={hasApiKey}
                 defaultPostType={selectedFormat}
                 selectedGoal={selectedGoal ? GOAL_LABELS[selectedGoal]?.label : undefined}
                 onAdvancedClick={() => {
-                  setShowAIPanel(false)
                   setShowAIDialog(true)
                 }}
               />
+            </CardContent>
+          </Card>
+        </motion.div>
 
-              {/* Formatting Toolbar */}
-              <div className="flex flex-wrap items-center gap-1 rounded-md border p-1">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => applyUnicodeFont('bold')}
-                      aria-label="Bold"
-                    >
-                      <IconBold className="size-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Bold (Unicode)</TooltipContent>
-                </Tooltip>
+        {/* Right Column — Editable Preview + Toolbar + Actions */}
+        <motion.div
+          variants={fadeSlideUpVariants}
+          initial="initial"
+          animate="animate"
+          transition={{ delay: 0.1 }}
+        >
+          <Card className="flex flex-col">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2">
+                <IconBrandLinkedin className="size-4 text-[#0A66C2]" />
+                LinkedIn Preview
+              </CardTitle>
+              <CardDescription>
+                {isEditing
+                  ? "Editing — click outside or press Escape to finish"
+                  : "Double-click the content area to edit"}
+              </CardDescription>
+            </CardHeader>
 
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => applyUnicodeFont('italic')}
-                      aria-label="Italic"
-                    >
-                      <IconItalic className="size-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Italic (Unicode)</TooltipContent>
-                </Tooltip>
+            <CardContent className="flex-1 flex flex-col gap-3">
+              {/* LinkedIn Post Preview Card */}
+              <div className="rounded-lg border bg-white shadow-sm dark:bg-zinc-900 dark:border-zinc-700/60 overflow-hidden">
+                {/* Profile Header */}
+                <div className="flex items-start gap-3 p-4 pb-3">
+                  <Avatar className="size-12 ring-1 ring-border/50">
+                    {userProfile.avatarUrl ? (
+                      <AvatarImage src={userProfile.avatarUrl} alt={userProfile.name} />
+                    ) : null}
+                    <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
+                      {userProfile.name
+                        .split(" ")
+                        .map((n) => n[0])
+                        .join("")
+                        .toUpperCase()
+                        .slice(0, 2)}
+                    </AvatarFallback>
+                  </Avatar>
 
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => insertFormatting("\n- ", "")}
-                      aria-label="List"
-                    >
-                      <IconList className="size-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>List item (- text)</TooltipContent>
-                </Tooltip>
-
-                <Separator orientation="vertical" className="mx-1 h-6" />
-
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => insertFormatting("#")}
-                      aria-label="Hashtag"
-                    >
-                      <IconHash className="size-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Add hashtag</TooltipContent>
-                </Tooltip>
-
-                <Separator orientation="vertical" className="mx-1 h-6" />
-
-                {/* Unicode Font Picker */}
-                <FontPicker
-                  activeFontStyle={activeFontStyle}
-                  onFontSelect={(style) => applyUnicodeFont(style)}
-                />
-              </div>
-
-              {/* Textarea */}
-              <div className="relative flex-1">
-                <textarea
-                  ref={textareaRef}
-                  value={content}
-                  onChange={(e) => handleContentChange(e.target.value)}
-                  placeholder="What do you want to talk about?"
-                  className={cn(
-                    "border-input bg-background placeholder:text-muted-foreground h-full min-h-[260px] w-full resize-none rounded-md border px-3 py-2.5 text-sm leading-relaxed shadow-xs transition-colors",
-                    "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-none focus-visible:ring-[3px]",
-                    isOverLimit && "border-destructive focus-visible:border-destructive"
-                  )}
-                  aria-label="Post content"
-                  aria-describedby="character-count"
-                />
-              </div>
-
-              {/* Media Preview */}
-              {mediaFiles.length > 0 && (
-                <div className="rounded-md border p-3">
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-sm font-medium">
-                      Attached media ({mediaFiles.length})
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 text-xs text-muted-foreground"
-                      onClick={() => {
-                        mediaFiles.forEach((f) => URL.revokeObjectURL(f.previewUrl))
-                        setMediaFiles([])
-                      }}
-                    >
-                      Clear all
-                    </Button>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-semibold leading-tight text-sm">{userProfile.name}</h4>
+                    <p className="text-muted-foreground text-xs leading-tight mt-0.5 line-clamp-1">
+                      {userProfile.headline}
+                    </p>
+                    <p className="text-muted-foreground mt-0.5 flex items-center gap-1 text-xs">
+                      <span>Just now</span>
+                      <span className="leading-none">&#183;</span>
+                      <IconWorld className="size-3" />
+                    </p>
                   </div>
-                  <div className="grid grid-cols-4 gap-2">
-                    {mediaFiles.map((file) => (
+                </div>
+
+                {/* Editing Zone — wraps content + toolbar + media buttons */}
+                <div ref={editingZoneRef}>
+                  {/* Post Content — dual mode */}
+                  <div className="px-4 pb-3">
+                    {isEditing ? (
+                      /* Edit mode: borderless textarea styled to match preview */
+                      <textarea
+                        ref={textareaRef}
+                        value={content}
+                        onChange={(e) => handleContentChange(e.target.value)}
+                        placeholder="What do you want to talk about?"
+                        className={cn(
+                          "w-full resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:text-muted-foreground",
+                          "min-h-[120px]",
+                          isOverLimit && "text-destructive"
+                        )}
+                        aria-label="Post content"
+                        aria-describedby="character-count"
+                      />
+                    ) : (
+                      /* Preview mode: rendered content with double-click to edit */
                       <div
-                        key={file.id}
-                        className="group relative aspect-square overflow-hidden rounded-md border bg-muted"
+                        className="group relative cursor-text min-h-[120px]"
+                        onDoubleClick={enterEditMode}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') enterEditMode()
+                        }}
+                        tabIndex={0}
+                        role="button"
+                        aria-label="Double-click to edit post content"
                       >
-                        {file.type === "image" ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={file.previewUrl}
-                            alt={file.file.name}
-                            className="size-full object-cover"
-                          />
+                        {content.trim() ? (
+                          <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                            {parseMarkdownLikeSyntax(content)}
+                          </div>
                         ) : (
-                          <div className="flex size-full flex-col items-center justify-center gap-1 text-muted-foreground">
-                            <IconFile className="size-6" />
-                            <span className="max-w-full truncate px-1 text-xs">
-                              {file.file.name}
-                            </span>
+                          <div className="flex flex-col items-center justify-center py-8 text-center">
+                            <div className="rounded-full bg-muted/60 p-3 mb-2">
+                              <IconPencil className="size-5 text-muted-foreground/50" />
+                            </div>
+                            <p className="text-muted-foreground text-sm italic">
+                              Your post content will appear here...
+                            </p>
                           </div>
                         )}
-                        <Button
-                          variant="destructive"
-                          size="icon"
-                          className="absolute right-1 top-1 size-5 opacity-0 transition-opacity group-hover:opacity-100"
-                          onClick={() => handleRemoveMedia(file.id)}
-                          aria-label={`Remove ${file.file.name}`}
-                        >
-                          <IconX className="size-3" />
-                        </Button>
+                        {/* Double-click hint on hover */}
+                        <div className="absolute inset-0 flex items-center justify-center rounded-md bg-muted/30 opacity-0 transition-opacity group-hover:opacity-100 pointer-events-none">
+                          <span className="rounded-full bg-background/90 px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-sm">
+                            Double-click to edit
+                          </span>
+                        </div>
                       </div>
-                    ))}
+                    )}
                   </div>
-                </div>
-              )}
 
-              {/* Character Counter & Media Buttons */}
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  {/* Emoji Picker */}
-                  <EmojiPicker
-                    isOpen={showEmojiPicker}
-                    onClose={() => setShowEmojiPicker(false)}
-                    onSelect={(emoji) => {
-                      insertEmoji(emoji)
-                      setShowEmojiPicker(false)
-                    }}
-                  >
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="Add emoji"
-                          onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                  {/* Formatting Toolbar — visible only in edit mode */}
+                  <AnimatePresence>
+                    {isEditing && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.15 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="flex flex-wrap items-center gap-1 border-t px-4 py-2">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={() => applyUnicodeFont('bold')}
+                                aria-label="Bold"
+                              >
+                                <IconBold className="size-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Bold (Unicode)</TooltipContent>
+                          </Tooltip>
+
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={() => applyUnicodeFont('italic')}
+                                aria-label="Italic"
+                              >
+                                <IconItalic className="size-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Italic (Unicode)</TooltipContent>
+                          </Tooltip>
+
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={() => insertFormatting("\n- ", "")}
+                                aria-label="List"
+                              >
+                                <IconList className="size-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>List item (- text)</TooltipContent>
+                          </Tooltip>
+
+                          <Separator orientation="vertical" className="mx-1 h-6" />
+
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={() => insertFormatting("#")}
+                                aria-label="Hashtag"
+                              >
+                                <IconHash className="size-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Add hashtag</TooltipContent>
+                          </Tooltip>
+
+                          <Separator orientation="vertical" className="mx-1 h-6" />
+
+                          {/* Unicode Font Picker */}
+                          <FontPicker
+                            activeFontStyle={activeFontStyle}
+                            onFontSelect={(style) => applyUnicodeFont(style)}
+                          />
+
+                          <Separator orientation="vertical" className="mx-1 h-6" />
+
+                          {/* Emoji Picker */}
+                          <EmojiPicker
+                            isOpen={showEmojiPicker}
+                            onClose={() => setShowEmojiPicker(false)}
+                            onSelect={(emoji) => {
+                              insertEmoji(emoji)
+                              setShowEmojiPicker(false)
+                            }}
+                          >
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  aria-label="Add emoji"
+                                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                                >
+                                  <IconMoodSmile className="size-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Add emoji</TooltipContent>
+                            </Tooltip>
+                          </EmojiPicker>
+
+                          {/* Image Attachment */}
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label="Add image"
+                                onClick={() => {
+                                  const input = document.createElement("input")
+                                  input.type = "file"
+                                  input.accept = "image/*"
+                                  input.multiple = true
+                                  input.onchange = (e) => {
+                                    const files = (e.target as HTMLInputElement).files
+                                    if (files) handleFileSelect(files, "image")
+                                  }
+                                  input.click()
+                                }}
+                              >
+                                <IconPhoto className="size-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Add image</TooltipContent>
+                          </Tooltip>
+
+                          {/* Document Attachment */}
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label="Add document"
+                                onClick={() => {
+                                  const input = document.createElement("input")
+                                  input.type = "file"
+                                  input.accept = ".pdf,.doc,.docx"
+                                  input.onchange = (e) => {
+                                    const files = (e.target as HTMLInputElement).files
+                                    if (files) handleFileSelect(files, "document")
+                                  }
+                                  input.click()
+                                }}
+                              >
+                                <IconFile className="size-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Add document</TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* Media Preview */}
+                {mediaFiles.length > 0 && (
+                  <div className="border-t px-4 py-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-sm font-medium">
+                        Attached media ({mediaFiles.length})
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-xs text-muted-foreground"
+                        onClick={() => {
+                          mediaFiles.forEach((f) => URL.revokeObjectURL(f.previewUrl))
+                          setMediaFiles([])
+                        }}
+                      >
+                        Clear all
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2">
+                      {mediaFiles.map((file) => (
+                        <div
+                          key={file.id}
+                          className="group relative aspect-square overflow-hidden rounded-md border bg-muted"
                         >
-                          <IconMoodSmile className="size-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Add emoji</TooltipContent>
-                    </Tooltip>
-                  </EmojiPicker>
+                          {file.type === "image" ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={file.previewUrl}
+                              alt={file.file.name}
+                              className="size-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex size-full flex-col items-center justify-center gap-1 text-muted-foreground">
+                              <IconFile className="size-6" />
+                              <span className="max-w-full truncate px-1 text-xs">
+                                {file.file.name}
+                              </span>
+                            </div>
+                          )}
+                          <Button
+                            variant="destructive"
+                            size="icon"
+                            className="absolute right-1 top-1 size-5 opacity-0 transition-opacity group-hover:opacity-100"
+                            onClick={() => handleRemoveMedia(file.id)}
+                            aria-label={`Remove ${file.file.name}`}
+                          >
+                            <IconX className="size-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-                  {/* Image Attachment */}
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label="Add image"
-                        onClick={() => {
-                          const input = document.createElement("input")
-                          input.type = "file"
-                          input.accept = "image/*"
-                          input.multiple = true
-                          input.onchange = (e) => {
-                            const files = (e.target as HTMLInputElement).files
-                            if (files) handleFileSelect(files, "image")
-                          }
-                          input.click()
-                        }}
-                      >
-                        <IconPhoto className="size-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Add image</TooltipContent>
-                  </Tooltip>
-
-                  {/* Document Attachment */}
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label="Add document"
-                        onClick={() => {
-                          const input = document.createElement("input")
-                          input.type = "file"
-                          input.accept = ".pdf,.doc,.docx"
-                          input.onchange = (e) => {
-                            const files = (e.target as HTMLInputElement).files
-                            if (files) handleFileSelect(files, "document")
-                          }
-                          input.click()
-                        }}
-                      >
-                        <IconFile className="size-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Add document</TooltipContent>
-                  </Tooltip>
+                {/* Engagement Stats (Placeholder) */}
+                <div className="text-muted-foreground flex items-center px-4 py-2 text-xs">
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-flex -space-x-1">
+                      <span className="inline-flex items-center justify-center size-4 rounded-full bg-[#378FE9] text-[8px] text-white ring-1 ring-white dark:ring-zinc-900">&#128077;</span>
+                      <span className="inline-flex items-center justify-center size-4 rounded-full bg-[#DF704D] text-[8px] text-white ring-1 ring-white dark:ring-zinc-900">&#10084;</span>
+                    </span>
+                    <span className="tabular-nums">0</span>
+                  </span>
+                  <span className="ml-auto flex items-center gap-2 tabular-nums">
+                    <span>0 comments</span>
+                    <span className="leading-none">&#183;</span>
+                    <span>0 reposts</span>
+                  </span>
                 </div>
 
-                {/* Character Count */}
-                <div id="character-count" className="flex items-center gap-2">
-                  <div
-                    className={cn(
-                      "h-2 w-24 overflow-hidden rounded-full bg-muted",
-                      isOverLimit && "bg-destructive/20"
-                    )}
+                {/* LinkedIn Action Buttons */}
+                <div className="flex items-center justify-around border-t py-0.5 px-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground flex-1 gap-1.5 text-xs font-medium"
+                    disabled
                   >
-                    <div
-                      className={cn(
-                        "h-full transition-all duration-300",
-                        isOverLimit ? "bg-destructive" : "bg-primary"
-                      )}
-                      style={{ width: `${characterPercentage}%` }}
-                    />
-                  </div>
-                  <span
-                    className={cn(
-                      "text-sm tabular-nums",
-                      isOverLimit
-                        ? "text-destructive font-medium"
-                        : "text-muted-foreground"
-                    )}
+                    <IconThumbUp className="size-4" />
+                    Like
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground flex-1 gap-1.5 text-xs font-medium"
+                    disabled
                   >
-                    {characterCount.toLocaleString()}/{maxLength.toLocaleString()}
-                  </span>
+                    <IconMessageCircle className="size-4" />
+                    Comment
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground flex-1 gap-1.5 text-xs font-medium"
+                    disabled
+                  >
+                    <IconRepeat className="size-4" />
+                    Repost
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground flex-1 gap-1.5 text-xs font-medium"
+                    disabled
+                  >
+                    <IconSend className="size-4" />
+                    Send
+                  </Button>
                 </div>
               </div>
 
-              {/* Hashtag Suggestions */}
+              {/* Character Counter — always visible below preview card */}
+              <div id="character-count" className="flex items-center gap-2">
+                <div
+                  className={cn(
+                    "h-2 flex-1 overflow-hidden rounded-full bg-muted",
+                    isOverLimit && "bg-destructive/20"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "h-full transition-all duration-300",
+                      isOverLimit ? "bg-destructive" : "bg-primary"
+                    )}
+                    style={{ width: `${characterPercentage}%` }}
+                  />
+                </div>
+                <span
+                  className={cn(
+                    "text-sm tabular-nums whitespace-nowrap",
+                    isOverLimit
+                      ? "text-destructive font-medium"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  {characterCount.toLocaleString()}/{maxLength.toLocaleString()}
+                </span>
+              </div>
+
+              {/* Hashtag Display — always visible when hashtags exist */}
               {hashtags.length > 0 && (
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-muted-foreground text-xs">Hashtags:</span>
@@ -817,6 +1036,7 @@ export function PostComposer({
               )}
             </CardContent>
 
+            {/* Action Buttons — moved from left footer */}
             <CardFooter className="flex justify-between gap-2 border-t pt-4">
               <div className="flex items-center gap-2">
                 <PostActionsMenu content={content} variant="ghost" />
@@ -872,146 +1092,6 @@ export function PostComposer({
             </CardFooter>
           </Card>
         </motion.div>
-
-        {/* Preview Column */}
-        <motion.div
-          variants={fadeSlideUpVariants}
-          initial="initial"
-          animate="animate"
-          transition={{ delay: 0.1 }}
-        >
-          <Card className="flex flex-col">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2">
-                <IconBrandLinkedin className="size-4 text-[#0A66C2]" />
-                LinkedIn Preview
-              </CardTitle>
-              <CardDescription>
-                See how your post will appear on LinkedIn
-              </CardDescription>
-            </CardHeader>
-
-            <CardContent className="flex-1">
-              {/* LinkedIn Post Preview Card */}
-              <div className="rounded-lg border bg-white shadow-sm dark:bg-zinc-900 dark:border-zinc-700/60 overflow-hidden">
-                {/* Profile Header */}
-                <div className="flex items-start gap-3 p-4 pb-3">
-                  <Avatar className="size-12 ring-1 ring-border/50">
-                    {userProfile.avatarUrl ? (
-                      <AvatarImage src={userProfile.avatarUrl} alt={userProfile.name} />
-                    ) : null}
-                    <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
-                      {userProfile.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")
-                        .toUpperCase()
-                        .slice(0, 2)}
-                    </AvatarFallback>
-                  </Avatar>
-
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-semibold leading-tight text-sm">{userProfile.name}</h4>
-                    <p className="text-muted-foreground text-xs leading-tight mt-0.5 line-clamp-1">
-                      {userProfile.headline}
-                    </p>
-                    <p className="text-muted-foreground mt-0.5 flex items-center gap-1 text-xs">
-                      <span>Just now</span>
-                      <span className="leading-none">&#183;</span>
-                      <IconWorld className="size-3" />
-                    </p>
-                  </div>
-                </div>
-
-                {/* Post Content */}
-                <div className="px-4 pb-4">
-                  {content.trim() ? (
-                    <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                      {parseMarkdownLikeSyntax(content)}
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center py-8 text-center">
-                      <div className="rounded-full bg-muted/60 p-3 mb-2">
-                        <IconPencil className="size-5 text-muted-foreground/50" />
-                      </div>
-                      <p className="text-muted-foreground text-sm italic">
-                        Your post content will appear here...
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Engagement Stats (Placeholder) */}
-                <div className="text-muted-foreground flex items-center px-4 py-2 text-xs">
-                  <span className="flex items-center gap-1.5">
-                    <span className="inline-flex -space-x-1">
-                      <span className="inline-flex items-center justify-center size-4 rounded-full bg-[#378FE9] text-[8px] text-white ring-1 ring-white dark:ring-zinc-900">&#128077;</span>
-                      <span className="inline-flex items-center justify-center size-4 rounded-full bg-[#DF704D] text-[8px] text-white ring-1 ring-white dark:ring-zinc-900">&#10084;</span>
-                    </span>
-                    <span className="tabular-nums">0</span>
-                  </span>
-                  <span className="ml-auto flex items-center gap-2 tabular-nums">
-                    <span>0 comments</span>
-                    <span className="leading-none">&#183;</span>
-                    <span>0 reposts</span>
-                  </span>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex items-center justify-around border-t py-0.5 px-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground flex-1 gap-1.5 text-xs font-medium"
-                    disabled
-                  >
-                    <IconThumbUp className="size-4" />
-                    Like
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground flex-1 gap-1.5 text-xs font-medium"
-                    disabled
-                  >
-                    <IconMessageCircle className="size-4" />
-                    Comment
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground flex-1 gap-1.5 text-xs font-medium"
-                    disabled
-                  >
-                    <IconRepeat className="size-4" />
-                    Repost
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground flex-1 gap-1.5 text-xs font-medium"
-                    disabled
-                  >
-                    <IconSend className="size-4" />
-                    Send
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-
-            <CardFooter className="border-t pt-3 pb-3">
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                <strong className="text-foreground font-medium">Tip:</strong> Select text and click{" "}
-                <strong className="text-foreground font-medium">B</strong> for{" "}
-                <span>𝗕𝗼𝗹𝗱</span>,{" "}
-                <em className="text-foreground">I</em> for{" "}
-                <span>𝘐𝘵𝘢𝘭𝘪𝘤</span>, or use the font picker for{" "}
-                <span>𝙼𝚘𝚗𝚘</span>,{" "}
-                <span>𝒮𝒸𝓇𝒾𝓅𝓉</span>, and more.
-              </p>
-            </CardFooter>
-          </Card>
-        </motion.div>
       </div>
 
       {/* Schedule Modal */}
@@ -1034,6 +1114,7 @@ export function PostComposer({
           handleContentChange(convertMarkdownToUnicode(generatedContent))
           trackFeatureUsed("ai_generation_dialog")
           showSuccess('Post generated successfully!')
+          setIsEditing(false)
         }}
         hasApiKey={hasApiKey}
         defaultPostType={selectedFormat}

@@ -3,19 +3,16 @@
 /**
  * Analytics & Goals Page
  * @description Redesigned analytics page with Performance Overview, Performance Trend chart,
- * Posting Goals, and My Recent Posts section
+ * Posting Goals, and My Recent Posts grid with LinkedIn-style popup
  * @module app/dashboard/analytics/page
  */
 
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { motion } from 'framer-motion'
+import Image from 'next/image'
 import { AnalyticsCards } from "@/components/features/analytics-cards"
 import { AnalyticsChart } from "@/components/features/analytics-chart"
 import { GoalsTracker } from "@/components/features/goals-tracker"
-// Post Performance is hidden per ticket #36 - keeping import for future use
-// import { PostPerformance } from "@/components/features/post-performance"
-// Team Leaderboard moved to Team Activity page per ticket #35
-// import { TeamLeaderboard } from "@/components/features/team-leaderboard"
 import { AnalyticsSkeleton } from "@/components/skeletons/page-skeletons"
 import { PageContent } from "@/components/shared/page-content"
 import { useAnalytics } from "@/hooks/use-analytics"
@@ -27,6 +24,13 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
 import { createClient } from "@/lib/supabase/client"
 import {
   IconAlertCircle,
@@ -40,11 +44,14 @@ import {
   IconPhoto,
   IconArticle,
   IconMoodEmpty,
+  IconThumbUp,
 } from "@tabler/icons-react"
 import { toast } from "sonner"
 import {
   staggerContainerVariants,
   staggerItemVariants,
+  staggerGridContainerVariants,
+  staggerScaleItemVariants,
 } from '@/lib/animations'
 
 /**
@@ -54,6 +61,7 @@ interface MyRecentPost {
   id: string
   content: string | null
   media_type: string | null
+  media_urls: string[] | null
   reactions: number | null
   comments: number | null
   reposts: number | null
@@ -93,7 +101,7 @@ function relativeTime(dateStr: string | null): string {
  * @param limit - Maximum number of posts to fetch
  * @returns Recent posts array and loading state
  */
-function useMyRecentPosts(userId: string | undefined, limit = 5) {
+function useMyRecentPosts(userId: string | undefined, limit = 9) {
   const [posts, setPosts] = useState<MyRecentPost[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const supabase = createClient()
@@ -109,7 +117,7 @@ function useMyRecentPosts(userId: string | undefined, limit = 5) {
       setIsLoading(true)
       const { data, error } = await supabase
         .from('my_posts')
-        .select('id, content, media_type, reactions, comments, reposts, impressions, posted_at, created_at')
+        .select('id, content, media_type, media_urls, reactions, comments, reposts, impressions, posted_at, created_at')
         .eq('user_id', userId)
         .order('posted_at', { ascending: false })
         .limit(limit)
@@ -136,80 +144,196 @@ function useMyRecentPosts(userId: string | undefined, limit = 5) {
 }
 
 /**
- * Compact recent post row component
+ * Grid card for a recent post with image/text preview
  * @param props.post - The post data
- * @param props.authorName - Display name for the post author
- * @param props.authorAvatar - Avatar URL for the author
+ * @param props.onClick - Callback when the card is clicked
  */
-function RecentPostRow({
+function PostGridCard({
   post,
-  authorName,
-  authorAvatar,
+  onClick,
 }: {
   post: MyRecentPost
-  authorName: string
-  authorAvatar?: string
+  onClick: () => void
 }) {
-  const content = post.content || "No content available"
+  const imageUrl = post.media_urls?.[0] ?? null
+  const content = post.content || "No content"
   const totalEngagement = (post.reactions ?? 0) + (post.comments ?? 0) + (post.reposts ?? 0)
 
   return (
-    <motion.div variants={staggerItemVariants}>
-      <div className="flex items-start gap-3 rounded-lg border border-border/50 p-3 transition-colors hover:border-border hover:bg-muted/30">
-        <Avatar className="size-9 shrink-0">
-          {authorAvatar && <AvatarImage src={authorAvatar} alt={authorName} />}
-          <AvatarFallback className="text-xs font-semibold bg-primary/10 text-primary">
-            {getInitials(authorName)}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="text-sm font-medium truncate">{authorName}</span>
-            <span className="text-xs text-muted-foreground shrink-0">
-              {relativeTime(post.posted_at)}
-            </span>
-            {post.media_type && (
-              <IconPhoto className="size-3 text-muted-foreground shrink-0" />
+    <motion.div variants={staggerScaleItemVariants}>
+      <button
+        type="button"
+        onClick={onClick}
+        className="group relative flex w-full flex-col overflow-hidden rounded-lg border border-border/50 bg-card text-left transition-colors hover:border-border hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {/* Image or text preview area */}
+        <div className="relative aspect-square w-full overflow-hidden bg-muted/50">
+          {imageUrl ? (
+            <Image
+              src={imageUrl}
+              alt="Post media"
+              fill
+              className="object-cover transition-transform duration-200 group-hover:scale-105"
+              sizes="(max-width: 640px) 50vw, 33vw"
+            />
+          ) : (
+            <div className="flex h-full items-center p-3">
+              <p className="text-xs text-muted-foreground line-clamp-5 leading-relaxed">
+                {content}
+              </p>
+            </div>
+          )}
+          {/* Media type badge */}
+          {post.media_type && imageUrl && (
+            <div className="absolute top-1.5 right-1.5 rounded bg-black/60 p-0.5">
+              <IconPhoto className="size-3 text-white" />
+            </div>
+          )}
+        </div>
+
+        {/* Bottom metrics bar */}
+        <div className="flex items-center justify-between gap-2 px-2.5 py-2">
+          <span className="text-[11px] text-muted-foreground truncate">
+            {relativeTime(post.posted_at)}
+          </span>
+          <div className="flex items-center gap-2 shrink-0">
+            {totalEngagement > 0 && (
+              <span className="flex items-center gap-0.5 text-[11px] text-muted-foreground tabular-nums">
+                <IconHeart className="size-3" />
+                {formatMetricNumber(totalEngagement)}
+              </span>
             )}
-          </div>
-          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-            {content}
-          </p>
-          {/* Metrics row */}
-          <div className="flex items-center gap-3 mt-2">
             {(post.impressions ?? 0) > 0 && (
-              <span className="flex items-center gap-1 text-[11px] text-muted-foreground tabular-nums">
+              <span className="flex items-center gap-0.5 text-[11px] text-muted-foreground tabular-nums">
                 <IconEye className="size-3" />
                 {formatMetricNumber(post.impressions)}
               </span>
             )}
-            {(post.reactions ?? 0) > 0 && (
-              <span className="flex items-center gap-1 text-[11px] text-muted-foreground tabular-nums">
-                <IconHeart className="size-3" />
-                {formatMetricNumber(post.reactions)}
-              </span>
-            )}
-            {(post.comments ?? 0) > 0 && (
-              <span className="flex items-center gap-1 text-[11px] text-muted-foreground tabular-nums">
-                <IconMessageCircle className="size-3" />
-                {formatMetricNumber(post.comments)}
-              </span>
-            )}
-            {(post.reposts ?? 0) > 0 && (
-              <span className="flex items-center gap-1 text-[11px] text-muted-foreground tabular-nums">
-                <IconRepeat className="size-3" />
-                {formatMetricNumber(post.reposts)}
-              </span>
-            )}
           </div>
         </div>
-      </div>
+      </button>
     </motion.div>
   )
 }
 
 /**
- * My Recent Posts section component
+ * LinkedIn-style post popup dialog showing full post content and metrics
+ * @param props.post - The post to display (null when closed)
+ * @param props.open - Whether the dialog is open
+ * @param props.onOpenChange - Callback when dialog state changes
+ * @param props.authorName - Display name of the author
+ * @param props.authorAvatar - Avatar URL of the author
+ */
+function LinkedInPostDialog({
+  post,
+  open,
+  onOpenChange,
+  authorName,
+  authorAvatar,
+}: {
+  post: MyRecentPost | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  authorName: string
+  authorAvatar?: string
+}) {
+  if (!post) return null
+
+  const imageUrl = post.media_urls?.[0] ?? null
+  const reactions = post.reactions ?? 0
+  const comments = post.comments ?? 0
+  const reposts = post.reposts ?? 0
+  const impressions = post.impressions ?? 0
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="p-0 gap-0 overflow-hidden sm:max-w-lg">
+        {/* Visually hidden title for accessibility */}
+        <DialogHeader className="sr-only">
+          <DialogTitle>Post Detail</DialogTitle>
+          <DialogDescription>Full view of your LinkedIn post</DialogDescription>
+        </DialogHeader>
+
+        {/* Author header */}
+        <div className="flex items-center gap-3 px-4 pt-4 pb-3">
+          <Avatar className="size-10 shrink-0">
+            {authorAvatar && <AvatarImage src={authorAvatar} alt={authorName} />}
+            <AvatarFallback className="text-sm font-semibold bg-primary/10 text-primary">
+              {getInitials(authorName)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold truncate">{authorName}</p>
+            <p className="text-xs text-muted-foreground">
+              {relativeTime(post.posted_at)}
+            </p>
+          </div>
+        </div>
+
+        {/* Post content */}
+        <div className="px-4 pb-3">
+          <p className="text-sm whitespace-pre-wrap leading-relaxed">
+            {post.content || "No content available"}
+          </p>
+        </div>
+
+        {/* Full-width image */}
+        {imageUrl && (
+          <div className="relative w-full bg-muted">
+            <Image
+              src={imageUrl}
+              alt="Post media"
+              width={600}
+              height={400}
+              className="w-full object-contain"
+              sizes="(max-width: 640px) 100vw, 512px"
+            />
+          </div>
+        )}
+
+        {/* Engagement stats */}
+        <div className="px-4 py-3 space-y-2">
+          {/* Reaction count row */}
+          {reactions > 0 && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <div className="flex items-center justify-center size-4 rounded-full bg-blue-500 text-white">
+                <IconThumbUp className="size-2.5" />
+              </div>
+              <span className="tabular-nums">{formatMetricNumber(reactions)}</span>
+            </div>
+          )}
+
+          {/* Detailed stats row */}
+          <div className="flex items-center justify-between border-t border-border/50 pt-2">
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
+                <IconHeart className="size-3.5" />
+                {formatMetricNumber(reactions)}
+              </span>
+              <span className="flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
+                <IconMessageCircle className="size-3.5" />
+                {formatMetricNumber(comments)}
+              </span>
+              <span className="flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
+                <IconRepeat className="size-3.5" />
+                {formatMetricNumber(reposts)}
+              </span>
+            </div>
+            {impressions > 0 && (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
+                <IconEye className="size-3.5" />
+                {formatMetricNumber(impressions)} impressions
+              </span>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/**
+ * My Recent Posts section with grid layout and LinkedIn-style popup
  * @param props.posts - Array of recent posts
  * @param props.isLoading - Loading state
  * @param props.authorName - Display name for the current user
@@ -226,6 +350,14 @@ function MyRecentPostsSection({
   authorName: string
   authorAvatar?: string
 }) {
+  const [selectedPost, setSelectedPost] = useState<MyRecentPost | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+
+  const handleCardClick = (post: MyRecentPost) => {
+    setSelectedPost(post)
+    setDialogOpen(true)
+  }
+
   if (isLoading) {
     return (
       <Card className="border-border/50">
@@ -233,65 +365,76 @@ function MyRecentPostsSection({
           <Skeleton className="h-5 w-36" />
           <Skeleton className="h-4 w-56" />
         </CardHeader>
-        <CardContent className="space-y-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="flex items-start gap-3 rounded-lg border border-border/50 p-3">
-              <Skeleton className="size-9 rounded-full shrink-0" />
-              <div className="flex-1 space-y-1.5">
-                <Skeleton className="h-4 w-40" />
-                <Skeleton className="h-3 w-full" />
-                <Skeleton className="h-3 w-32" />
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="overflow-hidden rounded-lg border border-border/50">
+                <Skeleton className="aspect-square w-full" />
+                <div className="flex items-center justify-between px-2.5 py-2">
+                  <Skeleton className="h-3 w-12" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </CardContent>
       </Card>
     )
   }
 
   return (
-    <Card hover>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <IconArticle className="size-5" />
-          My Recent Posts
-        </CardTitle>
-        <CardDescription>
-          Your latest LinkedIn posts and their performance
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {posts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
-            <div className="rounded-full bg-muted p-4">
-              <IconMoodEmpty className="size-7 text-muted-foreground" />
+    <>
+      <Card hover>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <IconArticle className="size-5" />
+            My Recent Posts
+          </CardTitle>
+          <CardDescription>
+            Your latest LinkedIn posts and their performance
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {posts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+              <div className="rounded-full bg-muted p-4">
+                <IconMoodEmpty className="size-7 text-muted-foreground" />
+              </div>
+              <div>
+                <h4 className="text-sm font-medium mb-1">No posts yet</h4>
+                <p className="text-muted-foreground text-xs max-w-[260px]">
+                  Your LinkedIn posts will appear here once the ChainLinked extension captures them.
+                </p>
+              </div>
             </div>
-            <div>
-              <h4 className="text-sm font-medium mb-1">No posts yet</h4>
-              <p className="text-muted-foreground text-xs max-w-[260px]">
-                Your LinkedIn posts will appear here once the ChainLinked extension captures them.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <motion.div
-            className="space-y-2"
-            variants={staggerContainerVariants}
-            initial="initial"
-            animate="animate"
-          >
-            {posts.map((post) => (
-              <RecentPostRow
-                key={post.id}
-                post={post}
-                authorName={authorName}
-                authorAvatar={authorAvatar}
-              />
-            ))}
-          </motion.div>
-        )}
-      </CardContent>
-    </Card>
+          ) : (
+            <motion.div
+              className="grid grid-cols-2 sm:grid-cols-3 gap-3"
+              variants={staggerGridContainerVariants}
+              initial="initial"
+              animate="animate"
+            >
+              {posts.map((post) => (
+                <PostGridCard
+                  key={post.id}
+                  post={post}
+                  onClick={() => handleCardClick(post)}
+                />
+              ))}
+            </motion.div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* LinkedIn post popup */}
+      <LinkedInPostDialog
+        post={selectedPost}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        authorName={authorName}
+        authorAvatar={authorAvatar}
+      />
+    </>
   )
 }
 
@@ -306,9 +449,11 @@ function AnalyticsContent() {
     currentStreak,
     bestStreak,
     isLoading: goalsLoading,
-    updateGoalTarget
+    updateGoalTarget,
+    createGoal,
+    removeGoal,
   } = usePostingGoals(user?.id)
-  const { posts: recentPosts, isLoading: postsLoading } = useMyRecentPosts(user?.id, 5)
+  const { posts: recentPosts, isLoading: postsLoading } = useMyRecentPosts(user?.id, 9)
 
   /** Derive display name and avatar for the current user */
   const userInfo = useMemo(() => {
@@ -324,6 +469,42 @@ function AnalyticsContent() {
 
     return { name: name as string, avatarUrl: avatarUrl as string | undefined }
   }, [user, profile])
+
+  /**
+   * Wrapper for creating a goal with toast feedback
+   */
+  const handleCreateGoal = async (period: "daily" | "weekly" | "monthly", target: number) => {
+    try {
+      await createGoal(period, target)
+      toast.success(`${period.charAt(0).toUpperCase() + period.slice(1)} goal created`)
+    } catch {
+      toast.error("Failed to create goal")
+    }
+  }
+
+  /**
+   * Wrapper for removing a goal with toast feedback
+   */
+  const handleRemoveGoal = async (goalId: string) => {
+    try {
+      await removeGoal(goalId)
+      toast.success("Goal removed")
+    } catch {
+      toast.error("Failed to remove goal")
+    }
+  }
+
+  /**
+   * Wrapper for updating a goal target with toast feedback
+   */
+  const handleUpdateGoal = async (goalId: string, target: number) => {
+    try {
+      await updateGoalTarget(goalId, target)
+      toast.success("Goal updated")
+    } catch {
+      toast.error("Failed to update goal")
+    }
+  }
 
   /**
    * Exports analytics data to CSV format
@@ -464,7 +645,9 @@ function AnalyticsContent() {
             goals={goals}
             currentStreak={currentStreak}
             bestStreak={bestStreak}
-            onUpdateGoal={updateGoalTarget}
+            onUpdateGoal={handleUpdateGoal}
+            onRemoveGoal={handleRemoveGoal}
+            onCreateGoal={handleCreateGoal}
             isLoading={goalsLoading}
           />
         </motion.div>
@@ -485,25 +668,6 @@ function AnalyticsContent() {
           />
         </motion.div>
       </motion.div>
-
-      {/* Team Leaderboard - MOVED to Team Activity page (ticket #35) */}
-
-      {/* Post Performance - HIDDEN per ticket #36; to be re-enabled later */}
-      {/*
-      <motion.div
-        variants={staggerContainerVariants}
-        initial="initial"
-        animate="animate"
-      >
-        <motion.div variants={staggerItemVariants}>
-          <PostPerformance
-            post={selectedPost ?? undefined}
-            isLoading={postAnalyticsLoading}
-            onClose={() => selectPost(null)}
-          />
-        </motion.div>
-      </motion.div>
-      */}
 
     </PageContent>
   )
