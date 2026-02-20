@@ -168,6 +168,8 @@ export function useTeamLeaderboard(): UseTeamLeaderboardReturn {
         postsThisMonth: number
         totalEngagement: number
         totalImpressions: number
+        totalReactions: number
+        totalComments: number
       }>()
 
       // Initialize all users
@@ -177,6 +179,8 @@ export function useTeamLeaderboard(): UseTeamLeaderboardReturn {
           postsThisMonth: 0,
           totalEngagement: 0,
           totalImpressions: 0,
+          totalReactions: 0,
+          totalComments: 0,
         })
       })
 
@@ -201,9 +205,13 @@ export function useTeamLeaderboard(): UseTeamLeaderboardReturn {
           }
 
           // Calculate engagement
-          const engagement = (post.reactions || 0) + (post.comments || 0) + (post.reposts || 0)
-          stats.totalEngagement += engagement
+          const reactions = post.reactions || 0
+          const comments = post.comments || 0
+          const reposts = post.reposts || 0
+          stats.totalEngagement += reactions + comments + reposts
           stats.totalImpressions += post.impressions || 0
+          stats.totalReactions += reactions
+          stats.totalComments += comments
         })
       }
 
@@ -215,6 +223,8 @@ export function useTeamLeaderboard(): UseTeamLeaderboardReturn {
           postsThisMonth: 0,
           totalEngagement: 0,
           totalImpressions: 0,
+          totalReactions: 0,
+          totalComments: 0,
         }
 
         // Calculate engagement rate (engagement / impressions * 100)
@@ -233,14 +243,16 @@ export function useTeamLeaderboard(): UseTeamLeaderboardReturn {
           engagementRate: Math.round(engagementRate * 10) / 10,
           rank: 0, // Will be calculated below
           rankChange: 0, // Would need historical data to calculate
+          totalReactions: stats.totalReactions,
+          totalComments: stats.totalComments,
+          totalImpressions: stats.totalImpressions,
         }
       })
 
-      // Sort by engagement and assign ranks
+      // Sort by impressions (descending) and assign ranks
       const sortedEntries = [...leaderboardEntries].sort((a, b) => {
-        // Sort by engagement rate first, then by total engagement
-        if (b.engagementRate !== a.engagementRate) {
-          return b.engagementRate - a.engagementRate
+        if (b.totalImpressions !== a.totalImpressions) {
+          return b.totalImpressions - a.totalImpressions
         }
         return b.totalEngagement - a.totalEngagement
       })

@@ -4,9 +4,6 @@ import * as React from "react"
 import {
   IconTrophy,
   IconChartBar,
-  IconArrowUp,
-  IconArrowDown,
-  IconMinus,
 } from "@tabler/icons-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -14,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { cn } from "@/lib/utils"
+import { cn, formatMetricNumber } from "@/lib/utils"
 
 /**
  * Statistics for a team member on the leaderboard
@@ -40,6 +37,12 @@ export interface TeamMemberStats {
   rank: number
   /** Change in rank from previous period (positive = moved up, negative = moved down, 0 = no change) */
   rankChange: number
+  /** Total reactions (likes, celebrates, etc.) */
+  totalReactions: number
+  /** Total comments received */
+  totalComments: number
+  /** Total impressions / views */
+  totalImpressions: number
 }
 
 /**
@@ -98,33 +101,20 @@ function getRankStyle(rank: number): { bg: string; text: string } {
 }
 
 /**
- * Returns the rank change indicator with icon and color.
- * @param change - The rank change value
- * @returns Object with Icon component and color class
+ * Returns medal emoji for top 3 ranks.
+ * @param rank - The rank position
+ * @returns Medal emoji string or empty string
  */
-function getRankChangeIndicator(change: number): {
-  Icon: React.ElementType
-  color: string
-  label: string
-} {
-  if (change > 0) {
-    return {
-      Icon: IconArrowUp,
-      color: "text-green-600 dark:text-green-400",
-      label: `Up ${change}`,
-    }
-  }
-  if (change < 0) {
-    return {
-      Icon: IconArrowDown,
-      color: "text-red-600 dark:text-red-400",
-      label: `Down ${Math.abs(change)}`,
-    }
-  }
-  return {
-    Icon: IconMinus,
-    color: "text-muted-foreground",
-    label: "No change",
+function getMedalEmoji(rank: number): string {
+  switch (rank) {
+    case 1:
+      return "\u{1F947}"
+    case 2:
+      return "\u{1F948}"
+    case 3:
+      return "\u{1F949}"
+    default:
+      return ""
   }
 }
 
@@ -172,6 +162,8 @@ function LeaderboardSkeleton() {
 
 /**
  * Renders a single leaderboard row for a team member.
+ * Displays rank with medal emoji for top 3, avatar, name, and metrics columns:
+ * Posts, Reactions, Comments, Impressions.
  */
 function LeaderboardRow({
   member,
@@ -185,7 +177,7 @@ function LeaderboardRow({
   onClick?: () => void
 }) {
   const rankStyle = getRankStyle(member.rank)
-  const rankChangeIndicator = getRankChangeIndicator(member.rankChange)
+  const medal = getMedalEmoji(member.rank)
   const postsCount = timeRange === "week" ? member.postsThisWeek : member.postsThisMonth
 
   return (
@@ -198,24 +190,20 @@ function LeaderboardRow({
         isCurrentUser && "bg-primary/5 hover:bg-primary/10"
       )}
     >
-      {/* Rank Badge */}
+      {/* Rank Badge with Medal */}
       <div
         className={cn(
-          "flex items-center justify-center size-8 rounded-full font-bold text-sm",
+          "flex items-center justify-center size-8 rounded-full font-bold text-sm shrink-0",
           rankStyle.bg,
           rankStyle.text
         )}
         title={`Rank ${member.rank}`}
       >
-        {member.rank <= 3 ? (
-          <IconTrophy className="size-4" />
-        ) : (
-          member.rank
-        )}
+        {medal || member.rank}
       </div>
 
       {/* Avatar */}
-      <Avatar className="size-10">
+      <Avatar className="size-10 shrink-0">
         {member.avatarUrl && (
           <AvatarImage src={member.avatarUrl} alt={member.name} />
         )}
@@ -237,24 +225,25 @@ function LeaderboardRow({
         <p className="text-xs text-muted-foreground truncate">{member.role}</p>
       </div>
 
-      {/* Metrics */}
-      <div className="flex items-center gap-4 text-sm">
-        <div className="text-right min-w-[48px]" title="Posts">
-          <span className="font-medium tabular-nums">{postsCount}</span>
-          <span className="text-xs text-muted-foreground ml-1">posts</span>
+      {/* Metrics: Posts, Reactions, Comments, Impressions */}
+      <div className="hidden sm:flex items-center gap-4 text-sm">
+        <div className="text-right min-w-[44px]" title="Posts">
+          <span className="font-medium tabular-nums">{formatMetricNumber(postsCount)}</span>
         </div>
-        <div className="text-right min-w-[48px]" title="Engagement Rate">
-          <span className="font-medium tabular-nums">{member.engagementRate.toFixed(1)}%</span>
+        <div className="text-right min-w-[44px]" title="Reactions">
+          <span className="font-medium tabular-nums">{formatMetricNumber(member.totalReactions)}</span>
         </div>
-        <div
-          className={cn("flex items-center gap-0.5", rankChangeIndicator.color)}
-          title={rankChangeIndicator.label}
-        >
-          <rankChangeIndicator.Icon className="size-4" />
-          {member.rankChange !== 0 && (
-            <span className="text-xs tabular-nums">{Math.abs(member.rankChange)}</span>
-          )}
+        <div className="text-right min-w-[44px]" title="Comments">
+          <span className="font-medium tabular-nums">{formatMetricNumber(member.totalComments)}</span>
         </div>
+        <div className="text-right min-w-[52px]" title="Impressions">
+          <span className="font-medium tabular-nums">{formatMetricNumber(member.totalImpressions)}</span>
+        </div>
+      </div>
+      {/* Mobile: show only impressions */}
+      <div className="sm:hidden text-right min-w-[52px]" title="Impressions">
+        <span className="font-medium tabular-nums text-sm">{formatMetricNumber(member.totalImpressions)}</span>
+        <span className="text-[10px] text-muted-foreground ml-1">impr</span>
       </div>
     </button>
   )
@@ -284,15 +273,15 @@ function EmptyState() {
 }
 
 /**
- * TeamLeaderboard displays a ranked list of team members with their
- * LinkedIn posting and engagement metrics.
+ * TeamLeaderboard displays a ranked list of team members (Top Influencers)
+ * with their LinkedIn posting and engagement metrics.
  *
  * Features:
- * - Time range tabs (Week/Month/All Time)
- * - Ranked list with position badges (gold, silver, bronze for top 3)
+ * - Time range tabs (This Week / This Month)
+ * - Ranked list with medal emojis for top 3 (gold, silver, bronze)
  * - Avatar, name, and role for each member
- * - Metrics: posts count and engagement rate
- * - Rank change indicator (up/down arrows)
+ * - Metrics columns: Posts, Reactions, Comments, Impressions
+ * - Ranking based on total impressions
  * - Highlight current user row
  * - Loading skeleton state
  *
@@ -306,18 +295,6 @@ function EmptyState() {
  *   currentUserId="member-3"
  * />
  * ```
- *
- * @example
- * ```tsx
- * // With loading state
- * <TeamLeaderboard isLoading />
- * ```
- *
- * @example
- * ```tsx
- * // With data
- * <TeamLeaderboard members={teamMembers} />
- * ```
  */
 export function TeamLeaderboard({
   members,
@@ -328,7 +305,7 @@ export function TeamLeaderboard({
   currentUserId,
   className,
 }: TeamLeaderboardProps) {
-  // Sort members by rank - must be called before any early returns
+  // Sort members by rank (based on impressions) - must be called before any early returns
   const sortedMembers = React.useMemo(() => {
     if (!members) return []
     return [...members].sort((a, b) => a.rank - b.rank)
@@ -359,12 +336,11 @@ export function TeamLeaderboard({
             <div className="flex items-center justify-between flex-wrap gap-3">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <IconTrophy className="size-5 text-yellow-500" />
-                Team Leaderboard
+                Top Influencers
               </CardTitle>
               <TabsList>
-                <TabsTrigger value="week">Week</TabsTrigger>
-                <TabsTrigger value="month">Month</TabsTrigger>
-                <TabsTrigger value="all-time">All Time</TabsTrigger>
+                <TabsTrigger value="week">This Week</TabsTrigger>
+                <TabsTrigger value="month">This Month</TabsTrigger>
               </TabsList>
             </div>
           </CardHeader>
@@ -374,11 +350,13 @@ export function TeamLeaderboard({
               <div className="size-8" /> {/* Rank column */}
               <div className="size-10" /> {/* Avatar column */}
               <div className="flex-1">Member</div>
-              <div className="flex items-center gap-4">
-                <div className="text-right min-w-[48px]">Posts</div>
-                <div className="text-right min-w-[48px]">Eng. Rate</div>
-                <div className="w-8 text-center">Trend</div>
+              <div className="hidden sm:flex items-center gap-4">
+                <div className="text-right min-w-[44px]">Posts</div>
+                <div className="text-right min-w-[44px]">Reactions</div>
+                <div className="text-right min-w-[44px]">Comments</div>
+                <div className="text-right min-w-[52px]">Impressions</div>
               </div>
+              <div className="sm:hidden text-right min-w-[52px]">Impressions</div>
             </div>
 
             <TabsContent value="week" className="mt-0">
@@ -406,22 +384,6 @@ export function TeamLeaderboard({
                     key={member.id}
                     member={member}
                     timeRange="month"
-                    isCurrentUser={member.id === currentUserId}
-                    onClick={onMemberClick ? () => onMemberClick(member.id) : undefined}
-                  />
-                ))
-              )}
-            </TabsContent>
-
-            <TabsContent value="all-time" className="mt-0">
-              {sortedMembers.length === 0 ? (
-                <EmptyState />
-              ) : (
-                sortedMembers.map((member) => (
-                  <LeaderboardRow
-                    key={member.id}
-                    member={member}
-                    timeRange="all-time"
                     isCurrentUser={member.id === currentUserId}
                     onClick={onMemberClick ? () => onMemberClick(member.id) : undefined}
                   />

@@ -49,7 +49,7 @@ function TeamContent() {
   const { user, profile } = useAuthContext()
   const [activeTab, setActiveTab] = useState<TeamTab>("overview")
 
-  const { posts, isLoading: postsLoading } = useTeamPosts(20)
+  const { posts, isLoading: postsLoading } = useTeamPosts(10)
   const {
     members: leaderboardMembers,
     isLoading: leaderboardLoading,
@@ -231,7 +231,7 @@ function TeamContent() {
               <Card className="border-border/50">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base font-semibold">
-                      Recent Activity
+                      Recent Team Activity
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -280,9 +280,9 @@ function TeamContent() {
         <TabsContent value="activity" className="mt-0 p-4 md:p-6">
           <Card className="border-border/50">
             <CardHeader>
-              <CardTitle>Team Activity</CardTitle>
+              <CardTitle>Recent Team Activity</CardTitle>
               <CardDescription>
-                Recent LinkedIn posts and engagement from your team members
+                Posts created by team members in the last 7 days
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -378,7 +378,7 @@ function TeamContent() {
  * @returns Team page with tabs for overview, members, activity, and settings
  */
 export default function TeamPage() {
-  usePageMeta({ title: "Team" })
+  usePageMeta({ title: "Team Activity" })
 
   return (
     <ErrorBoundary>
