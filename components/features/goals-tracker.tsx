@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * Goals Tracker Component
+ * @description Tracks posting goals with progress indicators, kebab menus, and streak display
+ * @module components/features/goals-tracker
+ */
+
 import * as React from "react"
 import {
   IconFlame,
@@ -10,6 +16,8 @@ import {
   IconTrendingUp,
   IconTrendingDown,
   IconMinus,
+  IconDotsVertical,
+  IconTrash,
 } from "@tabler/icons-react"
 
 import { cn } from "@/lib/utils"
@@ -30,6 +38,22 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 /**
  * Represents a posting goal with period, target, and progress tracking
@@ -61,6 +85,8 @@ export interface GoalsTrackerProps {
   bestStreak?: number
   /** Callback when a goal target is updated */
   onUpdateGoal?: (goalId: string, target: number) => void
+  /** Callback when a goal is removed */
+  onRemoveGoal?: (goalId: string) => void
   /** Whether the component is in a loading state */
   isLoading?: boolean
 }
@@ -241,17 +267,23 @@ function ProgressRing({
 }
 
 /**
- * Individual goal card component with progress tracking and editing
+ * Individual goal card component with progress tracking, kebab menu, and editing
+ * @param props.goal - The goal data
+ * @param props.onUpdateGoal - Callback when goal target is updated
+ * @param props.onRemoveGoal - Callback when goal is removed
  */
 function GoalCard({
   goal,
   onUpdateGoal,
+  onRemoveGoal,
 }: {
   goal: Goal
   onUpdateGoal?: (goalId: string, target: number) => void
+  onRemoveGoal?: (goalId: string) => void
 }) {
   const [isEditing, setIsEditing] = React.useState(false)
   const [editValue, setEditValue] = React.useState(goal.target.toString())
+  const [showRemoveDialog, setShowRemoveDialog] = React.useState(false)
 
   const progress = calculateProgress(goal.current, goal.target)
   const status = getGoalStatus(goal)
@@ -286,119 +318,155 @@ function GoalCard({
   }
 
   return (
-    <div className="bg-muted/50 space-y-3 rounded-lg p-4 transition-colors duration-200 hover:bg-muted/70">
-      <div className="flex items-center justify-between">
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center gap-2 cursor-help">
-                <IconTarget className="text-muted-foreground size-4" />
-                <span className="text-sm font-medium">{getPeriodLabel(goal.period)}</span>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>{periodTooltips[goal.period]}</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        <Badge variant={status.variant} className="gap-1">
-          <status.Icon className="size-3" />
-          {status.message}
-        </Badge>
-      </div>
-
-      <div className="flex items-center gap-4">
-        {/* Progress Ring */}
-        <div className="relative flex-shrink-0">
-          <ProgressRing
-            value={progress}
-            size={48}
-            strokeWidth={4}
-            className={cn(
-              status.type === "reached" && "stroke-green-500",
-              status.type === "behind" && "stroke-destructive",
-              status.type === "at-risk" && "stroke-yellow-500"
-            )}
-          />
-          <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold tabular-nums">
-            {progress}%
-          </span>
-        </div>
-
-        {/* Progress Bar and Stats */}
-        <div className="flex-1 space-y-2">
-          <ProgressBar
-            value={progress}
-            className="h-2"
-            indicatorClassName={cn(
-              status.type === "reached" && "bg-green-500",
-              status.type === "behind" && "bg-destructive",
-              status.type === "at-risk" && "bg-yellow-500"
-            )}
-          />
-          <div className="flex items-center justify-between">
-            <div className="flex items-baseline gap-1">
-              <span className="text-lg font-semibold tabular-nums">{goal.current}</span>
-              <span className="text-muted-foreground text-sm">/</span>
-              {isEditing ? (
-                <div className="flex items-center gap-1">
-                  <Input
-                    type="number"
-                    min={1}
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    className="h-7 w-16 text-sm"
-                    autoFocus
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={handleSave}
-                    className="h-6 w-6"
-                  >
-                    <IconCheck className="size-3" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={handleCancel}
-                    className="h-6 w-6"
-                  >
-                    <IconX className="size-3" />
-                  </Button>
+    <>
+      <div className="bg-muted/50 space-y-3 rounded-lg p-4 transition-colors duration-200 hover:bg-muted/70">
+        <div className="flex items-center justify-between">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-2 cursor-help">
+                  <IconTarget className="text-muted-foreground size-4" />
+                  <span className="text-sm font-medium">{getPeriodLabel(goal.period)}</span>
                 </div>
-              ) : (
-                <>
-                  <span className="text-lg font-semibold tabular-nums">{goal.target}</span>
-                  <span className="text-muted-foreground text-sm">posts</span>
-                </>
-              )}
-            </div>
-
-            {!isEditing && onUpdateGoal && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => setIsEditing(true)}
-                      className="h-6 w-6"
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{periodTooltips[goal.period]}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <div className="flex items-center gap-1.5">
+            <Badge variant={status.variant} className="gap-1">
+              <status.Icon className="size-3" />
+              {status.message}
+            </Badge>
+            {/* Kebab menu */}
+            {(onUpdateGoal || onRemoveGoal) && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-7 w-7">
+                    <IconDotsVertical className="size-4" />
+                    <span className="sr-only">Goal actions</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {onUpdateGoal && (
+                    <DropdownMenuItem onClick={() => setIsEditing(true)}>
+                      <IconPencil className="size-4 mr-2" />
+                      Edit Goals
+                    </DropdownMenuItem>
+                  )}
+                  {onRemoveGoal && (
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => setShowRemoveDialog(true)}
                     >
-                      <IconPencil className="size-3" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Adjust your posting goal target</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+                      <IconTrash className="size-4 mr-2" />
+                      Remove Goals
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
         </div>
+
+        <div className="flex items-center gap-4">
+          {/* Progress Ring */}
+          <div className="relative flex-shrink-0">
+            <ProgressRing
+              value={progress}
+              size={48}
+              strokeWidth={4}
+              className={cn(
+                status.type === "reached" && "stroke-green-500",
+                status.type === "behind" && "stroke-destructive",
+                status.type === "at-risk" && "stroke-yellow-500"
+              )}
+            />
+            <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold tabular-nums">
+              {progress}%
+            </span>
+          </div>
+
+          {/* Progress Bar and Stats */}
+          <div className="flex-1 space-y-2">
+            <ProgressBar
+              value={progress}
+              className="h-2"
+              indicatorClassName={cn(
+                status.type === "reached" && "bg-green-500",
+                status.type === "behind" && "bg-destructive",
+                status.type === "at-risk" && "bg-yellow-500"
+              )}
+            />
+            <div className="flex items-center justify-between">
+              <div className="flex items-baseline gap-1">
+                <span className="text-lg font-semibold tabular-nums">{goal.current}</span>
+                <span className="text-muted-foreground text-sm">/</span>
+                {isEditing ? (
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type="number"
+                      min={1}
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      className="h-7 w-16 text-sm"
+                      autoFocus
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={handleSave}
+                      className="h-6 w-6"
+                    >
+                      <IconCheck className="size-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={handleCancel}
+                      className="h-6 w-6"
+                    >
+                      <IconX className="size-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <span className="text-lg font-semibold tabular-nums">{goal.target}</span>
+                    <span className="text-muted-foreground text-sm">posts</span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
+
+      {/* Remove Goals Confirmation Dialog */}
+      <AlertDialog open={showRemoveDialog} onOpenChange={setShowRemoveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Goal</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove your {goal.period} posting goal? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                onRemoveGoal?.(goal.id)
+                setShowRemoveDialog(false)
+              }}
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }
 
@@ -442,7 +510,7 @@ function StreakSection({
             </div>
           </TooltipTrigger>
           <TooltipContent className="max-w-xs">
-            <p>Your posting streak shows consecutive days you've posted at least once. Keep posting daily to maintain your streak!</p>
+            <p>Your posting streak shows consecutive days you&apos;ve posted at least once. Keep posting daily to maintain your streak!</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -510,26 +578,19 @@ function GoalsTrackerSkeleton() {
  * Displays posting goals for different time periods (daily, weekly, monthly) with:
  * - Progress bars showing completion percentage
  * - Status badges indicating if user is on track, behind, or has reached their goal
- * - Editable target values for customizing goals
+ * - Kebab menu on each goal card with Edit Goals and Remove Goals actions
  * - Streak tracking with current and best streak display
+ * - "Create your goals to view" placeholder when no goals are set
  *
  * @example
  * ```tsx
- * // With default sample data
- * <GoalsTracker />
- *
- * // With custom goals and handlers
  * <GoalsTracker
- *   goals={[
- *     { id: "1", period: "weekly", target: 5, current: 3, startDate: "...", endDate: "..." }
- *   ]}
+ *   goals={goals}
  *   currentStreak={10}
  *   bestStreak={15}
- *   onUpdateGoal={(id, target) => console.log(`Goal ${id} updated to ${target}`)}
+ *   onUpdateGoal={(id, target) => updateGoal(id, target)}
+ *   onRemoveGoal={(id) => removeGoal(id)}
  * />
- *
- * // Loading state
- * <GoalsTracker isLoading />
  * ```
  */
 export function GoalsTracker({
@@ -537,6 +598,7 @@ export function GoalsTracker({
   currentStreak = 0,
   bestStreak = 0,
   onUpdateGoal,
+  onRemoveGoal,
   isLoading = false,
 }: GoalsTrackerProps) {
   if (isLoading) {
@@ -583,7 +645,12 @@ export function GoalsTracker({
 
         {/* Individual goal cards */}
         {sortedGoals.map((goal) => (
-          <GoalCard key={goal.id} goal={goal} onUpdateGoal={onUpdateGoal} />
+          <GoalCard
+            key={goal.id}
+            goal={goal}
+            onUpdateGoal={onUpdateGoal}
+            onRemoveGoal={onRemoveGoal}
+          />
         ))}
 
         {/* Empty state for goals */}
@@ -593,7 +660,7 @@ export function GoalsTracker({
               <IconTarget className="size-7 text-primary" />
             </div>
             <div>
-              <h4 className="text-sm font-medium mb-1">No goals set yet</h4>
+              <h4 className="text-sm font-medium mb-1">Create your goals to view</h4>
               <p className="text-muted-foreground text-xs max-w-[220px]">
                 Set a posting goal to start tracking your content creation progress.
               </p>

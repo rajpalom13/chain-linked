@@ -2,7 +2,7 @@
 
 /**
  * Analytics Chart Component
- * @description Enhanced performance chart with animations and beautiful gradients
+ * @description Performance Trend chart with single-metric selection and time range filters
  * @module components/features/analytics-chart
  */
 
@@ -54,17 +54,35 @@ export interface AnalyticsChartProps {
 
 type TimeRange = "7d" | "30d" | "90d"
 
-const chartConfig = {
-  impressions: {
-    label: "Impressions",
-    color: "oklch(0.55 0.15 230)",
-  },
-  engagements: {
-    label: "Engagements",
-    color: "oklch(0.65 0.18 250)",
-  },
-} satisfies ChartConfig
+/** Available metrics the user can select for the chart */
+type MetricKey = "impressions" | "engagements"
 
+/** Metric option for the selector dropdown */
+interface MetricOption {
+  value: MetricKey
+  label: string
+  color: string
+}
+
+const METRIC_OPTIONS: MetricOption[] = [
+  { value: "impressions", label: "Impressions", color: "oklch(0.55 0.15 230)" },
+  { value: "engagements", label: "Engagements", color: "oklch(0.65 0.18 250)" },
+]
+
+/**
+ * Build chart config for the currently selected metric
+ * @param metric - The selected metric key
+ * @returns ChartConfig for the recharts container
+ */
+function buildChartConfig(metric: MetricKey): ChartConfig {
+  const opt = METRIC_OPTIONS.find(o => o.value === metric)!
+  return {
+    [metric]: {
+      label: opt.label,
+      color: opt.color,
+    },
+  } satisfies ChartConfig
+}
 
 /**
  * Loading skeleton for chart
@@ -124,44 +142,32 @@ function EmptyState() {
 }
 
 /**
- * Summary stats displayed above the chart
+ * Summary stats displayed above the chart showing the selected metric total and average
+ * @param props.data - Filtered chart data points
+ * @param props.metric - Currently selected metric key
  */
-function ChartSummary({ data, timeRange }: { data: AnalyticsDataPoint[], timeRange: TimeRange }) {
-  const totalImpressions = data.reduce((sum, d) => sum + d.impressions, 0)
-  const totalEngagements = data.reduce((sum, d) => sum + d.engagements, 0)
-  const avgEngagementRate = totalImpressions > 0
-    ? ((totalEngagements / totalImpressions) * 100).toFixed(2)
-    : '0.00'
-
-  const rangeLabels = {
-    '7d': 'Last 7 days',
-    '30d': 'Last 30 days',
-    '90d': 'Last 90 days',
-  }
+function ChartSummary({ data, metric }: { data: AnalyticsDataPoint[], metric: MetricKey }) {
+  const metricLabel = METRIC_OPTIONS.find(o => o.value === metric)!.label
+  const total = data.reduce((sum, d) => sum + (d[metric] ?? 0), 0)
+  const average = data.length > 0 ? total / data.length : 0
 
   return (
     <motion.div
-      className="grid grid-cols-3 gap-4 border-b border-border/50 px-6 py-4"
+      className="grid grid-cols-2 gap-4 border-b border-border/50 px-6 py-4"
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.1, duration: 0.4 }}
     >
       <div>
-        <p className="text-xs font-medium text-muted-foreground">Total Impressions</p>
+        <p className="text-xs font-medium text-muted-foreground">{metricLabel}</p>
         <p className="text-lg font-bold tabular-nums text-primary">
-          {totalImpressions.toLocaleString()}
+          {total.toLocaleString()}
         </p>
       </div>
       <div>
-        <p className="text-xs font-medium text-muted-foreground">Total Engagements</p>
-        <p className="text-lg font-bold tabular-nums text-secondary">
-          {totalEngagements.toLocaleString()}
-        </p>
-      </div>
-      <div>
-        <p className="text-xs font-medium text-muted-foreground">Avg. Rate</p>
+        <p className="text-xs font-medium text-muted-foreground">Average</p>
         <p className="text-lg font-bold tabular-nums">
-          {avgEngagementRate}%
+          {average.toLocaleString(undefined, { maximumFractionDigits: 1 })}
         </p>
       </div>
     </motion.div>
@@ -194,11 +200,12 @@ function formatAxisDate(dateString: string, timeRange: TimeRange): string {
 }
 
 /**
- * LinkedIn Analytics Chart Component
- * @description Displays LinkedIn performance metrics with beautiful animations
+ * LinkedIn Analytics Chart Component - Performance Trend
+ * @description Displays a single LinkedIn metric over time with metric and time range selectors
  */
 export function AnalyticsChart({ data, isLoading = false }: AnalyticsChartProps) {
   const [timeRange, setTimeRange] = React.useState<TimeRange>("30d")
+  const [selectedMetric, setSelectedMetric] = React.useState<MetricKey>("impressions")
 
   const chartData = React.useMemo(() => {
     if (!data || data.length === 0) return []
@@ -206,6 +213,13 @@ export function AnalyticsChart({ data, isLoading = false }: AnalyticsChartProps)
   }, [data, timeRange])
 
   const hasData = data && data.length > 0
+
+  const currentChartConfig = React.useMemo(
+    () => buildChartConfig(selectedMetric),
+    [selectedMetric]
+  )
+
+  const currentColor = METRIC_OPTIONS.find(o => o.value === selectedMetric)!.color
 
   const tickInterval = React.useMemo(() => {
     switch (timeRange) {
@@ -244,13 +258,30 @@ export function AnalyticsChart({ data, isLoading = false }: AnalyticsChartProps)
               <div className="rounded-lg bg-primary/10 p-1.5">
                 <IconTrendingUp className="size-4 text-primary" />
               </div>
-              Performance Overview
+              Performance Trend
             </CardTitle>
             <CardDescription>
-              Track your LinkedIn impressions and engagement metrics
+              Track your metrics over time. Choose metric on the right.
             </CardDescription>
           </div>
-          <div className="flex items-center px-6 py-4">
+          <div className="flex items-center gap-2 px-6 py-4">
+            {/* Metric Selector */}
+            <Select
+              value={selectedMetric}
+              onValueChange={(value) => setSelectedMetric(value as MetricKey)}
+            >
+              <SelectTrigger className="w-[140px]" aria-label="Select metric">
+                <SelectValue placeholder="Metric" />
+              </SelectTrigger>
+              <SelectContent>
+                {METRIC_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             {/* Desktop: Toggle Group */}
             <ToggleGroup
               type="single"
@@ -284,7 +315,7 @@ export function AnalyticsChart({ data, isLoading = false }: AnalyticsChartProps)
               </ToggleGroupItem>
             </ToggleGroup>
 
-            {/* Mobile: Select Dropdown */}
+            {/* Mobile: Select Dropdown for time range */}
             <Select
               value={timeRange}
               onValueChange={(value) => setTimeRange(value as TimeRange)}
@@ -301,20 +332,21 @@ export function AnalyticsChart({ data, isLoading = false }: AnalyticsChartProps)
           </div>
         </CardHeader>
 
-        {/* Summary Stats */}
-        {hasData && <ChartSummary data={chartData} timeRange={timeRange} />}
+        {/* Summary Stats - shows selected metric total + average */}
+        {hasData && <ChartSummary data={chartData} metric={selectedMetric} />}
 
         <CardContent className="relative px-2 pt-4 sm:px-6 sm:pt-6">
           {!hasData ? (
             <EmptyState />
           ) : (
             <motion.div
+              key={selectedMetric}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.2, duration: 0.6 }}
+              transition={{ delay: 0.1, duration: 0.5 }}
             >
               <ChartContainer
-                config={chartConfig}
+                config={currentChartConfig}
                 className="aspect-auto h-[250px] w-full"
               >
                 <AreaChart
@@ -327,43 +359,23 @@ export function AnalyticsChart({ data, isLoading = false }: AnalyticsChartProps)
                   }}
                 >
                   <defs>
-                    {/* Enhanced gradient for Impressions */}
-                    <linearGradient id="fillImpressions" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id={`fill-${selectedMetric}`} x1="0" y1="0" x2="0" y2="1">
                       <stop
                         offset="0%"
-                        stopColor="var(--color-impressions)"
+                        stopColor={currentColor}
                         stopOpacity={0.5}
                       />
                       <stop
                         offset="50%"
-                        stopColor="var(--color-impressions)"
+                        stopColor={currentColor}
                         stopOpacity={0.2}
                       />
                       <stop
                         offset="100%"
-                        stopColor="var(--color-impressions)"
+                        stopColor={currentColor}
                         stopOpacity={0.05}
                       />
                     </linearGradient>
-                    {/* Enhanced gradient for Engagements */}
-                    <linearGradient id="fillEngagements" x1="0" y1="0" x2="0" y2="1">
-                      <stop
-                        offset="0%"
-                        stopColor="var(--color-engagements)"
-                        stopOpacity={0.5}
-                      />
-                      <stop
-                        offset="50%"
-                        stopColor="var(--color-engagements)"
-                        stopOpacity={0.2}
-                      />
-                      <stop
-                        offset="100%"
-                        stopColor="var(--color-engagements)"
-                        stopOpacity={0.05}
-                      />
-                    </linearGradient>
-                    {/* Glow filter for lines */}
                     <filter id="glow">
                       <feGaussianBlur stdDeviation="2" result="coloredBlur" />
                       <feMerge>
@@ -413,22 +425,11 @@ export function AnalyticsChart({ data, isLoading = false }: AnalyticsChartProps)
                     }
                   />
                   <Area
-                    dataKey="impressions"
+                    dataKey={selectedMetric}
                     type="monotone"
-                    fill="url(#fillImpressions)"
-                    stroke="var(--color-impressions)"
+                    fill={`url(#fill-${selectedMetric})`}
+                    stroke={currentColor}
                     strokeWidth={2.5}
-                    stackId="a"
-                    animationDuration={1200}
-                    animationEasing="ease-out"
-                  />
-                  <Area
-                    dataKey="engagements"
-                    type="monotone"
-                    fill="url(#fillEngagements)"
-                    stroke="var(--color-engagements)"
-                    strokeWidth={2.5}
-                    stackId="b"
                     animationDuration={1200}
                     animationEasing="ease-out"
                   />
