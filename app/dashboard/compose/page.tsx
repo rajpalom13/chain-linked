@@ -158,6 +158,48 @@ function ComposeContent() {
   }, [draft.content])
 
   /**
+   * Periodic auto-save every 30 seconds as a safety net.
+   * Uses fetch (more reliable than sendBeacon) since the page is still active.
+   */
+  React.useEffect(() => {
+    /** Track the last content we successfully saved to avoid redundant saves */
+    let lastSavedContent = ""
+
+    const interval = setInterval(async () => {
+      const currentContent = contentRef.current.trim()
+      if (
+        !currentContent ||
+        draftSavedRef.current ||
+        !user ||
+        currentContent === lastSavedContent
+      ) return
+
+      const ctx = generationContextRef.current
+      try {
+        const res = await fetch("/api/drafts/auto-save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            content: currentContent,
+            postType: ctx?.postType || "general",
+            topic: ctx?.topic || null,
+            tone: ctx?.tone || null,
+            context: ctx?.context || null,
+            wordCount: currentContent.split(/\s+/).filter(Boolean).length,
+          }),
+        })
+        if (res.ok) {
+          lastSavedContent = currentContent
+        }
+      } catch {
+        // Silently fail — will retry on next interval
+      }
+    }, 30_000)
+
+    return () => clearInterval(interval)
+  }, [user])
+
+  /**
    * Extract user profile data for the post composer preview
    * Prioritizes LinkedIn profile data, falls back to profiles table, then user metadata
    */
