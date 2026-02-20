@@ -8,9 +8,8 @@
  */
 
 import * as React from "react"
-import { useState, useMemo, useEffect, useCallback } from "react"
+import { useMemo, useCallback } from "react"
 import { motion } from "framer-motion"
-import dynamic from "next/dynamic"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
@@ -68,13 +67,6 @@ import {
 } from "@/components/ui/chart"
 import { cn } from "@/lib/utils"
 import { pageVariants, staggerContainerVariants, staggerItemVariants } from "@/lib/animations"
-
-/** Dynamically import Lottie so it doesn't block SSR */
-const Lottie = dynamic(() => import("lottie-react"), { ssr: false })
-
-/** Lottie reaction animation URL */
-const LOTTIE_REACTION_URL =
-  "https://lottie.host/4f86270c-2dad-4dc0-afd9-2f93058330fa/d2KU6m2R6p.json"
 
 /** Daily tips for the right sidebar */
 const DAILY_TIPS = [
@@ -393,14 +385,6 @@ function CreatePostCard({ className }: { className?: string }) {
 function AnalyticsOverviewCard({ className }: { className?: string }) {
   const { user } = useAuthContext()
   const { metrics, chartData, isLoading } = useAnalytics(user?.id)
-  const [lottieData, setLottieData] = useState<Record<string, unknown> | null>(null)
-
-  useEffect(() => {
-    fetch(LOTTIE_REACTION_URL)
-      .then(res => res.json())
-      .then(data => setLottieData(data))
-      .catch(() => {})
-  }, [])
 
   if (isLoading) {
     return (
@@ -464,11 +448,6 @@ function AnalyticsOverviewCard({ className }: { className?: string }) {
 
           {/* Engagement */}
           <div className="text-center py-2.5 px-2 relative">
-            {lottieData && (
-              <div className="absolute -top-1 -right-0.5 size-5">
-                <Lottie animationData={lottieData} loop autoplay className="size-5" />
-              </div>
-            )}
             <p className="text-lg font-bold tabular-nums leading-tight">{engagement.toFixed(1)}%</p>
             <p className="text-[10px] text-muted-foreground mt-0.5">Engagement</p>
             <div className={cn(
