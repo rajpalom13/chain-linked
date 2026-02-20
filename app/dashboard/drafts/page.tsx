@@ -2,8 +2,8 @@
 
 /**
  * Saved Drafts Page
- * @description Compact, clean drafts manager. Shows auto-saved and manually saved
- * drafts in a tight grid with quick actions, search, and source filtering.
+ * @description Clean drafts manager using the ChainLinked design system.
+ * Fixed-height cards in a responsive grid with search, source filtering, and sorting.
  * @module app/dashboard/drafts/page
  */
 
@@ -17,7 +17,6 @@ import {
   IconClock,
   IconFileText,
   IconSearch,
-  IconSparkles,
   IconTrash,
   IconAlertCircle,
   IconRefresh,
@@ -33,7 +32,6 @@ import { useDraft } from "@/lib/store/draft-context"
 import { useDrafts, type SavedDraft, type DraftSource, type DraftSortBy } from "@/hooks/use-drafts"
 import { useConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -56,15 +54,6 @@ const SOURCE_LABELS: Record<DraftSource, string> = {
   discover: "Discover",
   inspiration: "Inspiration",
   research: "Research",
-}
-
-/** Source pill colors — subtle, muted tones */
-const SOURCE_COLORS: Record<DraftSource, string> = {
-  compose: "bg-blue-500/8 text-blue-600 dark:text-blue-400",
-  swipe: "bg-purple-500/8 text-purple-600 dark:text-purple-400",
-  discover: "bg-emerald-500/8 text-emerald-600 dark:text-emerald-400",
-  inspiration: "bg-amber-500/8 text-amber-600 dark:text-amber-400",
-  research: "bg-rose-500/8 text-rose-600 dark:text-rose-400",
 }
 
 /** Sort options */
@@ -131,7 +120,8 @@ function formatPostType(postType: string): string {
 // ============================================================================
 
 /**
- * Compact draft card — borderless, tight layout, quick actions via kebab menu
+ * Draft card with fixed height, theme colors, and clean layout.
+ * Uses only design system tokens — no arbitrary color classes.
  * @param props - Component props
  * @returns Draft card UI
  */
@@ -146,92 +136,37 @@ function DraftCard({
   onDelete: (d: SavedDraft) => void
   onCopy: (d: SavedDraft) => void
 }) {
-  /** First ~120 chars of content for tight preview */
-  const snippet =
-    draft.content.length > 120
-      ? draft.content.slice(0, 120).trimEnd() + "..."
-      : draft.content
-
   return (
     <motion.button
       type="button"
       onClick={() => onEdit(draft)}
-      className="text-left rounded-xl bg-card overflow-hidden transition-all hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group"
+      className="text-left h-[220px] flex flex-col rounded-xl bg-card border border-border/40 overflow-hidden transition-all hover:shadow-md hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group"
       whileHover={{ y: -2 }}
       transition={{ type: "spring", stiffness: 400, damping: 17 }}
       layout
     >
-      {/* Color accent gradient based on source */}
-      <div
-        className={cn(
-          "w-full h-28 flex items-end p-3",
-          draft.source === "compose"
-            ? "bg-gradient-to-br from-blue-500/15 via-blue-400/5 to-transparent"
-            : draft.source === "swipe"
-              ? "bg-gradient-to-br from-purple-500/15 via-purple-400/5 to-transparent"
-              : draft.source === "discover"
-                ? "bg-gradient-to-br from-emerald-500/15 via-emerald-400/5 to-transparent"
-                : draft.source === "inspiration"
-                  ? "bg-gradient-to-br from-amber-500/15 via-amber-400/5 to-transparent"
-                  : "bg-gradient-to-br from-rose-500/15 via-rose-400/5 to-transparent"
-        )}
-      >
-        {/* Topic overlay if available */}
-        {draft.topic ? (
-          <p className="text-xs font-medium text-foreground/70 line-clamp-2 leading-snug">
-            {draft.topic}
-          </p>
-        ) : (
-          <div className="text-3xl opacity-20">
-            {draft.source === "compose"
-              ? "\u270F\uFE0F"
-              : draft.source === "swipe"
-                ? "\u2728"
-                : "\u{1F4AC}"}
-          </div>
-        )}
-      </div>
-
-      {/* Content area */}
-      <div className="p-3 space-y-2">
-        {/* Badges row */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span
-            className={cn(
-              "inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-md",
-              SOURCE_COLORS[draft.source]
-            )}
-          >
-            {SOURCE_LABELS[draft.source]}
-          </span>
-          {draft.postType && draft.postType !== "general" && (
-            <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground">
-              {formatPostType(draft.postType)}
+      {/* Card body */}
+      <div className="flex-1 p-4 flex flex-col gap-2.5 min-h-0">
+        {/* Top row: source + post type + kebab */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="shrink-0 inline-flex items-center text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md bg-accent text-accent-foreground">
+              {SOURCE_LABELS[draft.source]}
             </span>
-          )}
-        </div>
+            {draft.postType && draft.postType !== "general" && (
+              <span className="truncate text-[10px] font-medium px-2 py-0.5 rounded-md bg-muted text-muted-foreground">
+                {formatPostType(draft.postType)}
+              </span>
+            )}
+          </div>
 
-        {/* Text snippet */}
-        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
-          {snippet}
-        </p>
-
-        {/* Footer: time + actions */}
-        <div className="flex items-center justify-between pt-0.5">
-          <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-            <IconClock className="size-2.5" />
-            {formatDate(draft.updatedAt)}
-            <span className="mx-0.5">&middot;</span>
-            {draft.wordCount}w
-          </span>
-
-          {/* Kebab menu — stop propagation so card click doesn't fire */}
+          {/* Kebab menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
                 onClick={(e) => e.stopPropagation()}
-                className="p-1 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-muted transition-all"
+                className="shrink-0 p-1 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-muted transition-all"
               >
                 <IconDots className="size-3.5" />
               </button>
@@ -260,6 +195,33 @@ function DraftCard({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+
+        {/* Topic line (if available) */}
+        {draft.topic && (
+          <p className="text-xs font-medium text-foreground/80 line-clamp-1 leading-snug">
+            {draft.topic}
+          </p>
+        )}
+
+        {/* Content preview — fills remaining space */}
+        <p className="flex-1 text-[13px] text-muted-foreground leading-relaxed whitespace-pre-line line-clamp-4 overflow-hidden">
+          {draft.content}
+        </p>
+      </div>
+
+      {/* Footer — pinned to bottom */}
+      <div className="px-4 py-2.5 border-t border-border/30 flex items-center justify-between bg-muted/20">
+        <span className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+          <IconClock className="size-3" />
+          {formatDate(draft.updatedAt)}
+          <span className="text-border">&middot;</span>
+          <IconFileText className="size-3" />
+          {draft.wordCount}w
+        </span>
+        <span className="text-[11px] text-primary font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+          Edit
+          <IconArrowRight className="size-3" />
+        </span>
       </div>
     </motion.button>
   )
@@ -270,12 +232,12 @@ function DraftCard({
 // ============================================================================
 
 /**
- * Loading skeleton matching the compact card grid
+ * Loading skeleton matching the card grid layout
  * @returns Skeleton placeholder UI
  */
 function DraftsSkeleton() {
   return (
-    <div className="flex flex-col gap-4 p-4 md:gap-6 md:p-6 animate-in fade-in duration-300">
+    <div className="flex flex-col gap-5 p-4 md:gap-6 md:p-6 animate-in fade-in duration-300">
       <div className="flex items-center justify-between">
         <div>
           <Skeleton className="h-7 w-32 mb-1.5" />
@@ -291,15 +253,23 @@ function DraftsSkeleton() {
         ))}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="rounded-xl overflow-hidden bg-card">
-            <Skeleton className="h-28 w-full" />
-            <div className="p-3 space-y-2">
-              <Skeleton className="h-4 w-16 rounded-md" />
-              <Skeleton className="h-3 w-full" />
-              <Skeleton className="h-3 w-3/4" />
-              <Skeleton className="h-3 w-20" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="h-[220px] rounded-xl border border-border/40 bg-card overflow-hidden">
+            <div className="p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-4 w-16 rounded-md" />
+                <Skeleton className="h-4 w-24 rounded-md" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-3.5 w-full" />
+                <Skeleton className="h-3.5 w-full" />
+                <Skeleton className="h-3.5 w-3/4" />
+                <Skeleton className="h-3.5 w-1/2" />
+              </div>
+            </div>
+            <div className="mt-auto px-4 py-2.5 border-t border-border/30">
+              <Skeleton className="h-3 w-28" />
             </div>
           </div>
         ))}
@@ -370,9 +340,7 @@ function DraftsContent() {
   const [sourceFilter, setSourceFilter] = React.useState<DraftSource | "all">("all")
   const [sortBy, setSortBy] = React.useState<DraftSortBy>("newest")
 
-  /**
-   * Filtered and sorted drafts
-   */
+  /** Filtered and sorted drafts */
   const filteredDrafts = React.useMemo(() => {
     let result = [...drafts]
 
@@ -418,6 +386,7 @@ function DraftsContent() {
 
   const hasFilters = searchQuery.trim() !== "" || sourceFilter !== "all"
 
+  /** Load draft into composer */
   const handleEdit = React.useCallback(
     (draft: SavedDraft) => {
       loadForRemix(draft.id, draft.content, "Draft")
@@ -427,6 +396,7 @@ function DraftsContent() {
     [loadForRemix, router]
   )
 
+  /** Copy draft content */
   const handleCopy = React.useCallback(async (draft: SavedDraft) => {
     try {
       await navigator.clipboard.writeText(draft.content)
@@ -436,6 +406,7 @@ function DraftsContent() {
     }
   }, [])
 
+  /** Delete draft with confirmation */
   const handleDelete = React.useCallback(
     async (draft: SavedDraft) => {
       const confirmed = await confirm({
@@ -521,7 +492,7 @@ function DraftsContent() {
                   "text-[11px] font-medium px-2.5 py-1 rounded-full transition-colors",
                   sourceFilter === option.value
                     ? "bg-primary text-primary-foreground"
-                    : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
                 )}
               >
                 {option.label}
@@ -536,7 +507,7 @@ function DraftsContent() {
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors ml-1"
+                  className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-muted text-muted-foreground hover:text-foreground transition-colors ml-1"
                 >
                   {SORT_OPTIONS.find((o) => o.value === sortBy)?.label} ↓
                 </button>
@@ -565,7 +536,7 @@ function DraftsContent() {
         <EmptyState hasFilters={hasFilters} />
       ) : (
         <motion.div
-          className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
           initial="initial"
           animate="animate"
           variants={{
@@ -611,7 +582,7 @@ function DraftsContent() {
 
 /**
  * Saved Drafts page
- * @returns Drafts page with compact card grid, search, and filtering
+ * @returns Drafts page with fixed-height card grid, search, and filtering
  */
 export default function DraftsPage() {
   usePageMeta({ title: "Drafts" })
