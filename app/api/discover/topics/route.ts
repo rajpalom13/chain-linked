@@ -82,10 +82,10 @@ export async function POST(request: Request) {
       )
     }
 
-    // Validate item count: 3-10 topics required
-    if (topics.length < 3 || topics.length > 10) {
+    // Validate item count: at least 1 topic required
+    if (topics.length < 1 || topics.length > 20) {
       return NextResponse.json(
-        { error: "You must select between 3 and 10 topics" },
+        { error: "You must have between 1 and 20 topics" },
         { status: 400 }
       )
     }

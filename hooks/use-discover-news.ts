@@ -223,6 +223,33 @@ export function useDiscoverNews() {
   })
 
   /**
+   * Ref to track whether topics have been modified by user actions
+   * (as opposed to being loaded from the DB on mount)
+   */
+  const topicsDirty = React.useRef(false)
+
+  /**
+   * Persist topics to database whenever they are modified by user actions
+   */
+  React.useEffect(() => {
+    if (!topicsDirty.current) return
+    if (state.isLoadingTopics) return
+
+    const slugs = state.topics.map((t) => t.slug).filter((s) => s !== "all")
+    if (slugs.length < 1) return
+
+    topicsDirty.current = false
+
+    fetch("/api/discover/topics", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ topics: slugs }),
+    }).catch((err) => {
+      console.warn("[DiscoverNews] Error persisting topics:", err)
+    })
+  }, [state.topics, state.isLoadingTopics])
+
+  /**
    * Load topics from DB (via API), fallback to localStorage
    */
   React.useEffect(() => {
@@ -551,6 +578,7 @@ export function useDiscoverNews() {
       .replace(/[^a-z0-9-]/g, "")
     const id = `topic-${Date.now()}`
 
+    topicsDirty.current = true
     setState((prev) => {
       if (prev.topics.some((t) => t.slug === slug)) {
         return prev
@@ -567,6 +595,7 @@ export function useDiscoverNews() {
    * @param topicId - Topic ID to remove
    */
   const removeTopic = React.useCallback((topicId: string) => {
+    topicsDirty.current = true
     setState((prev) => {
       const topicToRemove = prev.topics.find((t) => t.id === topicId)
       if (topicToRemove?.slug === "all") return prev
@@ -591,6 +620,7 @@ export function useDiscoverNews() {
    */
   const updateTopics = React.useCallback((topics: Topic[]) => {
     localStorage.setItem(TOPICS_STORAGE_KEY, JSON.stringify(topics))
+    topicsDirty.current = true
     setState((prev) => ({ ...prev, topics }))
   }, [])
 
@@ -609,6 +639,7 @@ export function useDiscoverNews() {
     ]
 
     localStorage.setItem(TOPICS_STORAGE_KEY, JSON.stringify(newTopics))
+    topicsDirty.current = true
 
     setState((prev) => ({
       ...prev,

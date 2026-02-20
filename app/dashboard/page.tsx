@@ -3,25 +3,22 @@
 /**
  * Dashboard Page
  * @description LinkedIn-style dashboard with 3-column layout:
- * Left: Profile card with metrics | Center: Create post + feed | Right: Tips, streaks, getting started
+ * Left: Profile card with metrics | Center: Create post + analytics + recent posts feed | Right: Tips, streak, schedule
  * @module app/dashboard/page
  */
 
 import * as React from "react"
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import { motion } from "framer-motion"
 import dynamic from "next/dynamic"
 import Link from "next/link"
-import Image from "next/image"
 import {
   IconPencil,
   IconPhoto,
-  IconCalendarEvent,
   IconSparkles,
   IconEye,
   IconUserPlus,
   IconUsers,
-  IconUser,
   IconTrendingUp,
   IconBulb,
   IconFlame,
@@ -31,7 +28,18 @@ import {
   IconArticle,
   IconPresentation,
   IconTemplate,
+  IconThumbUp,
+  IconMessage,
+  IconRepeat,
+  IconCalendarEvent,
+  IconClock,
+  IconChartLine,
+  IconArrowRight,
+  IconPointFilled,
+  IconTarget,
 } from "@tabler/icons-react"
+import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
+import { formatDistanceToNow } from "date-fns"
 
 import {
   ExtensionInstallBanner,
@@ -41,14 +49,24 @@ import {
 import { isPromptDismissed } from "@/lib/extension/detect"
 import { DashboardSkeleton } from "@/components/skeletons/page-skeletons"
 import { useAnalytics } from "@/hooks/use-analytics"
+import { usePostAnalytics } from "@/hooks/use-post-analytics"
+import { useScheduledPosts } from "@/hooks/use-scheduled-posts"
+import { usePostingGoals } from "@/hooks/use-posting-goals"
 import { useAuthContext } from "@/lib/auth/auth-provider"
 import { usePageMeta } from "@/lib/dashboard-context"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import {
+  ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart"
 import { cn } from "@/lib/utils"
-import { pageVariants } from "@/lib/animations"
+import { pageVariants, staggerContainerVariants, staggerItemVariants } from "@/lib/animations"
 
 /** Dynamically import Lottie so it doesn't block SSR */
 const Lottie = dynamic(() => import("lottie-react"), { ssr: false })
@@ -79,6 +97,14 @@ const GETTING_STARTED_ITEMS = [
   { key: "template", label: "Browse templates", href: "/dashboard/templates" },
 ]
 
+/** Chart config for the mini analytics chart */
+const miniChartConfig = {
+  impressions: {
+    label: "Impressions",
+    color: "oklch(0.55 0.15 230)",
+  },
+} satisfies ChartConfig
+
 /**
  * Format large numbers to compact form
  * @param num - Number to format
@@ -100,6 +126,17 @@ function getTodaysTip(): string {
   const diff = now.getTime() - start.getTime()
   const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24))
   return DAILY_TIPS[dayOfYear % DAILY_TIPS.length]
+}
+
+/**
+ * Truncate text to a maximum length, adding ellipsis if needed
+ * @param text - Text to truncate
+ * @param maxLength - Maximum character count
+ * @returns Truncated string
+ */
+function truncateText(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text
+  return text.slice(0, maxLength).trimEnd() + "..."
 }
 
 // ============================================================================
@@ -231,12 +268,11 @@ function ProfileCard({ className }: { className?: string }) {
 }
 
 // ============================================================================
-// Center Column: Create Post + Recent Activity
+// Center Column: Create Post + Analytics + Feed
 // ============================================================================
 
 /**
  * LinkedIn-style "Start a post" prompt card
- * Clicking opens the compose page
  */
 function CreatePostCard({ className }: { className?: string }) {
   const { profile, user } = useAuthContext()
@@ -323,13 +359,13 @@ function CreatePostCard({ className }: { className?: string }) {
 }
 
 /**
- * Quick analytics snapshot shown below the create post card
- * Shows impressions, engagement rate, and trend
+ * Compact analytics overview with mini chart
+ * Shows key metrics inline with a small area chart
  */
-function QuickAnalyticsCard({ className }: { className?: string }) {
+function AnalyticsOverviewCard({ className }: { className?: string }) {
   const { user } = useAuthContext()
-  const { metrics, isLoading } = useAnalytics(user?.id)
-  const [lottieData, setLottieData] = useState<unknown>(null)
+  const { metrics, chartData, isLoading } = useAnalytics(user?.id)
+  const [lottieData, setLottieData] = useState<Record<string, unknown> | null>(null)
 
   useEffect(() => {
     fetch(LOTTIE_REACTION_URL)
@@ -345,10 +381,11 @@ function QuickAnalyticsCard({ className }: { className?: string }) {
           <div className="animate-pulse space-y-3">
             <div className="h-4 bg-muted rounded w-32" />
             <div className="grid grid-cols-3 gap-4">
-              <div className="h-12 bg-muted rounded" />
-              <div className="h-12 bg-muted rounded" />
-              <div className="h-12 bg-muted rounded" />
+              <div className="h-14 bg-muted rounded" />
+              <div className="h-14 bg-muted rounded" />
+              <div className="h-14 bg-muted rounded" />
             </div>
+            <div className="h-20 bg-muted rounded" />
           </div>
         </CardContent>
       </Card>
@@ -362,13 +399,17 @@ function QuickAnalyticsCard({ className }: { className?: string }) {
   const followers = metrics?.followers.value ?? 0
   const followersChange = metrics?.followers.change ?? 0
 
+  // Use last 14 days of chart data for the mini chart
+  const miniChartData = chartData.slice(-14)
+
   return (
-    <Card className={cn("border-border/50", className)}>
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between mb-3">
+    <Card className={cn("border-border/50 overflow-hidden", className)}>
+      <CardContent className="p-0">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <h4 className="text-sm font-medium flex items-center gap-1.5">
-            <IconTrendingUp className="size-4 text-primary" />
-            Your Performance
+            <IconChartLine className="size-4 text-primary" />
+            Analytics
           </h4>
           <Link
             href="/dashboard/analytics"
@@ -379,13 +420,14 @@ function QuickAnalyticsCard({ className }: { className?: string }) {
           </Link>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        {/* Metrics row */}
+        <div className="grid grid-cols-3 gap-px bg-border/30 mx-4">
           {/* Impressions */}
-          <div className="text-center p-2 rounded-lg bg-muted/30">
-            <p className="text-lg font-bold tabular-nums">{formatCompact(impressions)}</p>
-            <p className="text-[10px] text-muted-foreground">Impressions</p>
+          <div className="bg-background text-center py-2.5 px-2">
+            <p className="text-lg font-bold tabular-nums leading-tight">{formatCompact(impressions)}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Impressions</p>
             <div className={cn(
-              "text-[10px] font-medium mt-0.5",
+              "text-[10px] font-medium",
               impressionsChange >= 0 ? "text-emerald-500" : "text-red-500"
             )}>
               {impressionsChange >= 0 ? "+" : ""}{impressionsChange.toFixed(1)}%
@@ -393,16 +435,16 @@ function QuickAnalyticsCard({ className }: { className?: string }) {
           </div>
 
           {/* Engagement */}
-          <div className="text-center p-2 rounded-lg bg-muted/30 relative">
+          <div className="bg-background text-center py-2.5 px-2 relative">
             {lottieData && (
-              <div className="absolute -top-2 -right-1 size-6">
-                <Lottie animationData={lottieData} loop autoplay className="size-6" />
+              <div className="absolute -top-1 -right-0.5 size-5">
+                <Lottie animationData={lottieData} loop autoplay className="size-5" />
               </div>
             )}
-            <p className="text-lg font-bold tabular-nums">{engagement.toFixed(1)}%</p>
-            <p className="text-[10px] text-muted-foreground">Engagement</p>
+            <p className="text-lg font-bold tabular-nums leading-tight">{engagement.toFixed(1)}%</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Engagement</p>
             <div className={cn(
-              "text-[10px] font-medium mt-0.5",
+              "text-[10px] font-medium",
               engagementChange >= 0 ? "text-emerald-500" : "text-red-500"
             )}>
               {engagementChange >= 0 ? "+" : ""}{engagementChange.toFixed(1)}%
@@ -410,92 +452,297 @@ function QuickAnalyticsCard({ className }: { className?: string }) {
           </div>
 
           {/* Followers */}
-          <div className="text-center p-2 rounded-lg bg-muted/30">
-            <p className="text-lg font-bold tabular-nums">{formatCompact(followers)}</p>
-            <p className="text-[10px] text-muted-foreground">Followers</p>
+          <div className="bg-background text-center py-2.5 px-2">
+            <p className="text-lg font-bold tabular-nums leading-tight">{formatCompact(followers)}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Followers</p>
             <div className={cn(
-              "text-[10px] font-medium mt-0.5",
+              "text-[10px] font-medium",
               followersChange >= 0 ? "text-emerald-500" : "text-red-500"
             )}>
               {followersChange >= 0 ? "+" : ""}{followersChange.toFixed(1)}%
             </div>
           </div>
         </div>
+
+        {/* Mini area chart */}
+        {miniChartData.length > 1 ? (
+          <div className="px-2 pt-2 pb-1">
+            <ChartContainer config={miniChartConfig} className="h-[72px] w-full">
+              <AreaChart data={miniChartData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="dashboardFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="oklch(0.55 0.15 230)" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="oklch(0.55 0.15 230)" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" strokeOpacity={0.3} />
+                <XAxis dataKey="date" hide />
+                <ChartTooltip
+                  cursor={{ stroke: 'var(--primary)', strokeWidth: 1, strokeDasharray: '3 3' }}
+                  content={<ChartTooltipContent labelFormatter={(v) => {
+                    const d = new Date(v as string)
+                    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                  }} indicator="dot" />}
+                />
+                <Area
+                  dataKey="impressions"
+                  type="monotone"
+                  fill="url(#dashboardFill)"
+                  stroke="oklch(0.55 0.15 230)"
+                  strokeWidth={1.5}
+                  animationDuration={800}
+                />
+              </AreaChart>
+            </ChartContainer>
+          </div>
+        ) : (
+          <div className="px-4 py-4 text-center">
+            <p className="text-[11px] text-muted-foreground">
+              Chart data will appear once your LinkedIn activity is synced.
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
 }
 
 /**
- * Quick actions grid for common tasks
+ * Single post item in the recent posts feed
+ * Shows post content preview with engagement metrics
  */
-function QuickActionsCard({ className }: { className?: string }) {
-  const actions = [
-    { label: "Write Post", icon: IconPencil, href: "/dashboard/compose", color: "text-blue-500" },
-    { label: "Inspiration", icon: IconBulb, href: "/dashboard/inspiration", color: "text-amber-500" },
-    { label: "Carousel", icon: IconPresentation, href: "/dashboard/carousels", color: "text-emerald-500" },
-    { label: "Templates", icon: IconTemplate, href: "/dashboard/templates", color: "text-purple-500" },
-  ]
+function RecentPostItem({
+  content,
+  publishedAt,
+  impressions,
+  engagements,
+  engagementRate,
+  reactions,
+  comments,
+  reposts,
+}: {
+  content: string
+  publishedAt: string
+  impressions: number
+  engagements: number
+  engagementRate: number
+  reactions: number
+  comments: number
+  reposts: number
+}) {
+  const timeAgo = useMemo(() => {
+    try {
+      return formatDistanceToNow(new Date(publishedAt), { addSuffix: true })
+    } catch {
+      return ""
+    }
+  }, [publishedAt])
+
+  return (
+    <div className="px-4 py-3 hover:bg-muted/30 transition-colors border-b border-border/30 last:border-b-0">
+      {/* Post content preview */}
+      <p className="text-sm leading-relaxed text-foreground/90 line-clamp-3">
+        {truncateText(content, 200)}
+      </p>
+
+      {/* Meta row */}
+      <div className="flex items-center justify-between mt-2.5">
+        <span className="text-[11px] text-muted-foreground">{timeAgo}</span>
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <IconEye className="size-3" />
+            {formatCompact(impressions)}
+          </span>
+          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <IconThumbUp className="size-3" />
+            {formatCompact(reactions)}
+          </span>
+          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <IconMessage className="size-3" />
+            {comments}
+          </span>
+          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <IconRepeat className="size-3" />
+            {reposts}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Recent posts feed card showing the user's latest LinkedIn posts
+ * with engagement metrics inline
+ */
+function RecentPostsFeed({ className }: { className?: string }) {
+  const { user } = useAuthContext()
+  const { posts, isLoading } = usePostAnalytics(user?.id, 5)
+
+  if (isLoading) {
+    return (
+      <Card className={cn("border-border/50", className)}>
+        <CardContent className="p-0">
+          <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+            <div className="h-4 bg-muted rounded w-28 animate-pulse" />
+            <div className="h-3 bg-muted rounded w-16 animate-pulse" />
+          </div>
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="px-4 py-3 border-b border-border/30 animate-pulse">
+              <div className="h-4 bg-muted rounded w-full mb-1.5" />
+              <div className="h-4 bg-muted rounded w-3/4 mb-2.5" />
+              <div className="flex justify-between">
+                <div className="h-3 bg-muted rounded w-16" />
+                <div className="h-3 bg-muted rounded w-32" />
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (!posts || posts.length === 0) {
+    return (
+      <Card className={cn("border-border/50", className)}>
+        <CardContent className="p-0">
+          <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+            <h4 className="text-sm font-medium flex items-center gap-1.5">
+              <IconArticle className="size-4 text-primary" />
+              Recent Posts
+            </h4>
+          </div>
+          <div className="flex flex-col items-center justify-center py-8 text-center px-4">
+            <div className="rounded-full bg-muted/50 p-3 mb-3">
+              <IconPencil className="size-5 text-muted-foreground" />
+            </div>
+            <p className="text-sm font-medium mb-1">No posts yet</p>
+            <p className="text-xs text-muted-foreground max-w-[240px] mb-3">
+              Your recent LinkedIn posts and their performance will show up here.
+            </p>
+            <Button variant="default" size="sm" asChild>
+              <Link href="/dashboard/compose" className="gap-1.5">
+                <IconPencil className="size-3.5" />
+                Write your first post
+              </Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card className={cn("border-border/50", className)}>
+      <CardContent className="p-0">
+        <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+          <h4 className="text-sm font-medium flex items-center gap-1.5">
+            <IconArticle className="size-4 text-primary" />
+            Recent Posts
+          </h4>
+          <Link
+            href="/dashboard/analytics"
+            className="text-xs text-primary hover:underline flex items-center gap-0.5"
+          >
+            See all
+            <IconChevronRight className="size-3" />
+          </Link>
+        </div>
+
+        {posts.slice(0, 5).map((post) => {
+          // Calculate reactions/comments/reposts from metrics
+          const totalReactions = post.metrics.reduce((sum, m) => sum + m.likes, 0)
+          const totalComments = post.metrics.reduce((sum, m) => sum + m.comments, 0)
+          const totalReposts = post.metrics.reduce((sum, m) => sum + m.shares, 0)
+
+          return (
+            <RecentPostItem
+              key={post.id}
+              content={post.content}
+              publishedAt={post.publishedAt}
+              impressions={post.totalImpressions}
+              engagements={post.totalEngagements}
+              engagementRate={post.engagementRate}
+              reactions={totalReactions}
+              comments={totalComments}
+              reposts={totalReposts}
+            />
+          )
+        })}
+      </CardContent>
+    </Card>
+  )
+}
+
+// ============================================================================
+// Right Column: Tips, Streak, Schedule, Goals
+// ============================================================================
+
+/**
+ * Greeting card with time-based greeting and date
+ */
+function GreetingCard({ className }: { className?: string }) {
+  const now = new Date()
+  const greeting = now.getHours() < 12
+    ? "Good morning"
+    : now.getHours() < 18
+      ? "Good afternoon"
+      : "Good evening"
+
+  const { profile, user } = useAuthContext()
+  const firstName = profile?.full_name?.split(" ")[0]
+    || profile?.linkedin_profile?.first_name
+    || profile?.name?.split(" ")[0]
+    || user?.user_metadata?.full_name?.split(" ")[0]
+    || user?.email?.split("@")[0]
+    || ""
 
   return (
     <Card className={cn("border-border/50", className)}>
       <CardContent className="p-4">
-        <h4 className="text-sm font-medium mb-3">Quick Actions</h4>
-        <div className="grid grid-cols-2 gap-2">
-          {actions.map((action) => (
-            <Link
-              key={action.label}
-              href={action.href}
-              className="flex items-center gap-2.5 p-2.5 rounded-lg border border-border/40 hover:bg-muted/50 hover:border-primary/20 transition-all group"
-            >
-              <div className="rounded-lg bg-muted/50 p-1.5 group-hover:bg-primary/10 transition-colors">
-                <action.icon className={cn("size-4", action.color)} />
-              </div>
-              <span className="text-xs font-medium">{action.label}</span>
-            </Link>
-          ))}
+        <div className="flex items-center gap-2 mb-1">
+          <IconCalendarEvent className="size-4 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">
+            {now.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+          </span>
         </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-// ============================================================================
-// Right Column: Tips, Streaks, Getting Started
-// ============================================================================
-
-/**
- * Daily tip card with rotating tips
- */
-function DailyTipCard({ className }: { className?: string }) {
-  const tip = useMemo(() => getTodaysTip(), [])
-
-  return (
-    <Card className={cn("border-border/50 bg-gradient-to-br from-amber-500/5 to-transparent", className)}>
-      <CardContent className="p-4">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="rounded-lg bg-amber-500/10 p-1.5">
-            <IconBulb className="size-4 text-amber-500" />
-          </div>
-          <h4 className="text-sm font-medium">Daily Tip</h4>
-        </div>
-        <p className="text-xs text-muted-foreground leading-relaxed">{tip}</p>
+        <p className="text-sm font-medium">
+          {greeting}{firstName ? `, ${firstName}` : ""}!
+        </p>
       </CardContent>
     </Card>
   )
 }
 
 /**
- * Posting streak tracker
- * Tracks consecutive days of posting
+ * Posting streak tracker card
+ * Tracks consecutive days of posting with weekly visualization
  */
 function StreakCard({ className }: { className?: string }) {
-  // Streak would come from the backend — for now show encouraging default
-  const streak = 0
+  const { currentStreak, bestStreak, isLoading } = usePostingGoals()
   const weekDays = ["M", "T", "W", "T", "F", "S", "S"]
   const today = new Date().getDay()
-  // Convert Sunday=0 to Monday=0 indexing
   const adjustedToday = today === 0 ? 6 : today - 1
+
+  if (isLoading) {
+    return (
+      <Card className={cn("border-border/50", className)}>
+        <CardContent className="p-4">
+          <div className="animate-pulse space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="h-4 w-4 bg-muted rounded" />
+              <div className="h-4 w-24 bg-muted rounded" />
+            </div>
+            <div className="flex gap-1.5">
+              {weekDays.map((_, i) => (
+                <div key={i} className="flex-1 h-7 bg-muted rounded-full" />
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <Card className={cn("border-border/50", className)}>
@@ -505,9 +752,9 @@ function StreakCard({ className }: { className?: string }) {
             <IconFlame className="size-4 text-orange-500" />
           </div>
           <h4 className="text-sm font-medium">Posting Streak</h4>
-          {streak > 0 && (
+          {currentStreak > 0 && (
             <span className="ml-auto text-xs font-bold text-orange-500 tabular-nums">
-              {streak} day{streak !== 1 ? "s" : ""}
+              {currentStreak} day{currentStreak !== 1 ? "s" : ""}
             </span>
           )}
         </div>
@@ -532,11 +779,239 @@ function StreakCard({ className }: { className?: string }) {
           ))}
         </div>
 
-        {streak === 0 && (
+        {currentStreak === 0 ? (
           <p className="text-[11px] text-muted-foreground mt-2.5 text-center">
             Post today to start your streak!
           </p>
+        ) : bestStreak > 0 && (
+          <p className="text-[10px] text-muted-foreground mt-2 text-center">
+            Best: <span className="font-medium">{bestStreak}</span> days
+          </p>
         )}
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
+ * Upcoming scheduled posts preview
+ * Shows next 3 upcoming scheduled posts
+ */
+function UpcomingScheduleCard({ className }: { className?: string }) {
+  const { posts, isLoading } = useScheduledPosts(30)
+
+  // Filter to only show future pending posts
+  const upcomingPosts = useMemo(() => {
+    const now = new Date()
+    return posts
+      .filter(p => p.status === "pending" && p.scheduledFor > now)
+      .sort((a, b) => a.scheduledFor.getTime() - b.scheduledFor.getTime())
+      .slice(0, 3)
+  }, [posts])
+
+  if (isLoading) {
+    return (
+      <Card className={cn("border-border/50", className)}>
+        <CardContent className="p-4">
+          <div className="animate-pulse space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="h-4 w-4 bg-muted rounded" />
+              <div className="h-4 w-24 bg-muted rounded" />
+            </div>
+            <div className="h-12 bg-muted rounded" />
+            <div className="h-12 bg-muted rounded" />
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card className={cn("border-border/50", className)}>
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-sm font-medium flex items-center gap-1.5">
+            <IconClock className="size-4 text-primary" />
+            Upcoming
+          </h4>
+          {posts.length > 0 && (
+            <Link
+              href="/dashboard/schedule"
+              className="text-xs text-primary hover:underline flex items-center gap-0.5"
+            >
+              Schedule
+              <IconChevronRight className="size-3" />
+            </Link>
+          )}
+        </div>
+
+        {upcomingPosts.length === 0 ? (
+          <div className="text-center py-3">
+            <p className="text-xs text-muted-foreground mb-2">No upcoming posts scheduled</p>
+            <Button variant="outline" size="sm" asChild className="h-7 text-xs">
+              <Link href="/dashboard/compose">
+                Schedule a post
+              </Link>
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {upcomingPosts.map((post) => (
+              <div
+                key={post.id}
+                className="p-2 rounded-md bg-muted/30 border border-border/30"
+              >
+                <p className="text-xs line-clamp-2 text-foreground/80">
+                  {truncateText(post.content, 80)}
+                </p>
+                <div className="flex items-center gap-1 mt-1.5">
+                  <IconCalendarEvent className="size-3 text-muted-foreground" />
+                  <span className="text-[10px] text-muted-foreground">
+                    {post.scheduledFor.toLocaleDateString("en-US", {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                    })} at {post.scheduledFor.toLocaleTimeString("en-US", {
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
+ * Posting goals summary widget for the sidebar
+ * Shows a compact view of active goals
+ */
+function GoalsSummaryCard({ className }: { className?: string }) {
+  const { goals, isLoading } = usePostingGoals()
+
+  if (isLoading) {
+    return (
+      <Card className={cn("border-border/50", className)}>
+        <CardContent className="p-4">
+          <div className="animate-pulse space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="h-4 w-4 bg-muted rounded" />
+              <div className="h-4 w-20 bg-muted rounded" />
+            </div>
+            <div className="h-2 bg-muted rounded-full" />
+            <div className="h-2 bg-muted rounded-full" />
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (goals.length === 0) {
+    return (
+      <Card className={cn("border-border/50", className)}>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-sm font-medium flex items-center gap-1.5">
+              <IconTarget className="size-4 text-primary" />
+              Goals
+            </h4>
+            <Link
+              href="/dashboard/analytics"
+              className="text-xs text-primary hover:underline flex items-center gap-0.5"
+            >
+              Set up
+              <IconChevronRight className="size-3" />
+            </Link>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Set posting goals to track your content creation progress.
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const periodLabels: Record<string, string> = {
+    daily: "Today",
+    weekly: "This week",
+    monthly: "This month",
+  }
+
+  return (
+    <Card className={cn("border-border/50", className)}>
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-sm font-medium flex items-center gap-1.5">
+            <IconTarget className="size-4 text-primary" />
+            Goals
+          </h4>
+          <Link
+            href="/dashboard/analytics"
+            className="text-xs text-primary hover:underline flex items-center gap-0.5"
+          >
+            Details
+            <IconChevronRight className="size-3" />
+          </Link>
+        </div>
+
+        <div className="space-y-2.5">
+          {goals.slice(0, 3).map((goal) => {
+            const progress = goal.target > 0
+              ? Math.min(Math.round((goal.current / goal.target) * 100), 100)
+              : 0
+            const isComplete = goal.current >= goal.target
+
+            return (
+              <div key={goal.id}>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="text-muted-foreground">
+                    {periodLabels[goal.period] || goal.period}
+                  </span>
+                  <span className={cn(
+                    "font-medium tabular-nums",
+                    isComplete ? "text-emerald-500" : "text-foreground"
+                  )}>
+                    {goal.current}/{goal.target}
+                  </span>
+                </div>
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className={cn(
+                      "h-full rounded-full transition-all duration-500",
+                      isComplete ? "bg-emerald-500" : "bg-primary"
+                    )}
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
+ * Daily tip card with rotating tips
+ */
+function DailyTipCard({ className }: { className?: string }) {
+  const tip = useMemo(() => getTodaysTip(), [])
+
+  return (
+    <Card className={cn("border-border/50 bg-gradient-to-br from-amber-500/5 to-transparent", className)}>
+      <CardContent className="p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="rounded-lg bg-amber-500/10 p-1.5">
+            <IconBulb className="size-4 text-amber-500" />
+          </div>
+          <h4 className="text-sm font-medium">Daily Tip</h4>
+        </div>
+        <p className="text-xs text-muted-foreground leading-relaxed">{tip}</p>
       </CardContent>
     </Card>
   )
@@ -548,7 +1023,6 @@ function StreakCard({ className }: { className?: string }) {
 function GettingStartedCard({ className }: { className?: string }) {
   const { profile, extensionInstalled } = useAuthContext()
 
-  // Determine completed items
   const completedItems = useMemo(() => {
     const completed = new Set<string>()
     if (extensionInstalled) completed.add("extension")
@@ -620,42 +1094,6 @@ function GettingStartedCard({ className }: { className?: string }) {
   )
 }
 
-/**
- * Today's date display card
- */
-function TodayCard({ className }: { className?: string }) {
-  const now = new Date()
-  const greeting = now.getHours() < 12
-    ? "Good morning"
-    : now.getHours() < 18
-      ? "Good afternoon"
-      : "Good evening"
-
-  const { profile, user } = useAuthContext()
-  const firstName = profile?.full_name?.split(" ")[0]
-    || profile?.linkedin_profile?.first_name
-    || profile?.name?.split(" ")[0]
-    || user?.user_metadata?.full_name?.split(" ")[0]
-    || user?.email?.split("@")[0]
-    || ""
-
-  return (
-    <Card className={cn("border-border/50", className)}>
-      <CardContent className="p-4">
-        <div className="flex items-center gap-2 mb-1">
-          <IconCalendarEvent className="size-4 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground">
-            {now.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
-          </span>
-        </div>
-        <p className="text-sm font-medium">
-          {greeting}{firstName ? `, ${firstName}` : ""}!
-        </p>
-      </CardContent>
-    </Card>
-  )
-}
-
 // ============================================================================
 // Main Dashboard Content
 // ============================================================================
@@ -711,18 +1149,20 @@ function DashboardContent() {
             <ProfileCard />
           </div>
 
-          {/* CENTER COLUMN: Create post + analytics + quick actions */}
+          {/* CENTER COLUMN: Create post + analytics + recent posts feed */}
           <div className="space-y-4" data-tour="create-post">
             <CreatePostCard />
-            <QuickAnalyticsCard />
-            <QuickActionsCard />
+            <AnalyticsOverviewCard />
+            <RecentPostsFeed />
           </div>
 
-          {/* RIGHT COLUMN: Today, tips, streak, getting started */}
+          {/* RIGHT COLUMN: Greeting, streak, schedule, goals, tip, getting started */}
           <div className="space-y-4" data-tour="sidebar-widgets">
-            <TodayCard />
-            <DailyTipCard />
+            <GreetingCard />
             <StreakCard />
+            <UpcomingScheduleCard />
+            <GoalsSummaryCard />
+            <DailyTipCard />
             <GettingStartedCard />
           </div>
         </div>
@@ -733,7 +1173,7 @@ function DashboardContent() {
 
 /**
  * Dashboard page component
- * @returns LinkedIn-style dashboard with profile, create post, and tips/streaks
+ * @returns LinkedIn-style dashboard with profile, create post, analytics feed, and sidebar widgets
  */
 export default function DashboardPage() {
   usePageMeta({

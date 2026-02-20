@@ -10,7 +10,6 @@ import { useMemo } from 'react'
 import { IconCheck, IconLayoutGrid } from '@tabler/icons-react'
 
 import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
@@ -147,7 +146,7 @@ export function TemplateSelectionStep({
       </div>
 
       {/* Template grid */}
-      <ScrollArea className="h-[400px] pr-4">
+      <div className="max-h-[400px] overflow-y-auto pr-4">
         <div className="space-y-6">
           {categories.map(category => (
             <div key={category}>
@@ -167,7 +166,7 @@ export function TemplateSelectionStep({
             </div>
           ))}
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Selected template info */}
       {selectedTemplate && (
