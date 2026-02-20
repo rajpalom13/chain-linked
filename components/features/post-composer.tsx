@@ -57,7 +57,7 @@ import { EmojiPicker } from "./emoji-picker"
 import { type MediaFile } from "./media-upload"
 import { ScheduleModal } from "./schedule-modal"
 import { AIGenerationDialog } from "./ai-generation-dialog"
-import { AIInlinePanel } from "./ai-inline-panel"
+import { AIInlinePanel, type GenerationContext } from "./ai-inline-panel"
 import { PostActionsMenu } from "./post-actions-menu"
 import { PostGoalSelector } from "./post-goal-selector"
 import { FontPicker } from "./font-picker"
@@ -84,6 +84,8 @@ export interface PostComposerProps {
     headline: string
     avatarUrl?: string
   }
+  /** Callback fired when AI generates a post, providing the generation context */
+  onGenerationContext?: (ctx: GenerationContext) => void
 }
 
 /** Default LinkedIn character limit */
@@ -206,6 +208,7 @@ export function PostComposer({
   onScheduleConfirm,
   maxLength = DEFAULT_MAX_LENGTH,
   userProfile = DEFAULT_USER_PROFILE,
+  onGenerationContext,
 }: PostComposerProps) {
   const router = useRouter()
   const { isPostingEnabled, disabledMessage } = usePostingConfig()
@@ -226,6 +229,7 @@ export function PostComposer({
   const [activeFontStyle, setActiveFontStyle] = React.useState<UnicodeFontStyle>('normal')
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
   const editingZoneRef = React.useRef<HTMLDivElement>(null)
+  const cursorPositionRef = React.useRef({ start: 0, end: 0 })
 
   // Auto-save status indicator
   const { isSaving, lastSaved } = useAutoSave(content, 1500)
@@ -236,15 +240,26 @@ export function PostComposer({
 
     function handleClickOutside(e: MouseEvent) {
       const target = e.target as HTMLElement
-      // Don't exit if clicking a Radix popover (FontPicker, EmojiPicker)
-      if (target.closest('[data-radix-popper-content-wrapper]')) return
+      // Don't exit if clicking inside any Radix popover/portal (FontPicker, EmojiPicker)
+      if (
+        target.closest('[data-radix-popper-content-wrapper]') ||
+        target.closest('[data-radix-menu-content]') ||
+        target.closest('[role="dialog"]')
+      ) return
       if (editingZoneRef.current && !editingZoneRef.current.contains(target)) {
         setIsEditing(false)
       }
     }
 
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') setIsEditing(false)
+      // Don't close edit mode if a popover/dialog is open — let it handle Escape first
+      if (e.key === 'Escape') {
+        const hasOpenPopover = document.querySelector(
+          '[data-radix-popper-content-wrapper], [data-radix-menu-content], [role="dialog"][data-state="open"]'
+        )
+        if (hasOpenPopover) return
+        setIsEditing(false)
+      }
     }
 
     document.addEventListener('mousedown', handleClickOutside)
@@ -313,6 +328,21 @@ export function PostComposer({
     return () => { cancelled = true }
   }, [])
 
+  /**
+   * Saves the current textarea cursor position to cursorPositionRef.
+   * Called on select/click/keyup so we always have the latest position,
+   * even after focus moves to a popover.
+   */
+  const saveCursorPosition = () => {
+    const textarea = textareaRef.current
+    if (textarea) {
+      cursorPositionRef.current = {
+        start: textarea.selectionStart,
+        end: textarea.selectionEnd,
+      }
+    }
+  }
+
   // Update draft when content changes
   const handleContentChange = (newContent: string) => {
     setContent(newContent)
@@ -326,13 +356,11 @@ export function PostComposer({
   const characterPercentage = Math.min((characterCount / maxLength) * 100, 100)
 
   /**
-   * Applies a Unicode font style to the selected text, or sets it for future typing
+   * Applies a Unicode font style to the selected text, or sets it for future typing.
+   * Uses cursorPositionRef so it works reliably even if focus has shifted.
    */
   const applyUnicodeFont = (style: UnicodeFontStyle) => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-
-    const { selectionStart: start, selectionEnd: end } = textarea
+    const { start, end } = cursorPositionRef.current
     if (start === end) {
       // No selection — set for future typing
       setActiveFontStyle(style)
@@ -342,10 +370,14 @@ export function PostComposer({
     const result = transformSelection(content, start, end, style)
     handleContentChange(result.text)
     setActiveFontStyle(style)
+    cursorPositionRef.current = { start, end: result.newEnd }
 
     setTimeout(() => {
-      textarea.focus()
-      textarea.setSelectionRange(start, result.newEnd)
+      const textarea = textareaRef.current
+      if (textarea) {
+        textarea.focus()
+        textarea.setSelectionRange(start, result.newEnd)
+      }
     }, 0)
   }
 
@@ -450,49 +482,59 @@ export function PostComposer({
   }
 
   /**
-   * Inserts formatting syntax at the current cursor position
+   * Inserts formatting syntax at the saved cursor position.
+   * Uses cursorPositionRef so it works even when focus has moved to a popover.
    * @param prefix - The prefix to insert (e.g., "**" for bold)
    * @param suffix - The suffix to insert (e.g., "**" for bold)
    */
   const insertFormatting = (prefix: string, suffix: string = prefix) => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    const selectedText = content.slice(start, end)
+    const { start, end } = cursorPositionRef.current
+    const clampedStart = Math.min(start, content.length)
+    const clampedEnd = Math.min(end, content.length)
+    const selectedText = content.slice(clampedStart, clampedEnd)
 
     const newContent =
-      content.slice(0, start) + prefix + selectedText + suffix + content.slice(end)
+      content.slice(0, clampedStart) + prefix + selectedText + suffix + content.slice(clampedEnd)
     handleContentChange(newContent)
 
+    const newPosition = selectedText
+      ? clampedStart + prefix.length + selectedText.length + suffix.length
+      : clampedStart + prefix.length
+    cursorPositionRef.current = { start: newPosition, end: newPosition }
+
     setTimeout(() => {
-      textarea.focus()
-      const newPosition = selectedText
-        ? start + prefix.length + selectedText.length + suffix.length
-        : start + prefix.length
-      textarea.setSelectionRange(newPosition, newPosition)
+      const textarea = textareaRef.current
+      if (textarea) {
+        textarea.focus()
+        textarea.setSelectionRange(newPosition, newPosition)
+      }
     }, 0)
   }
 
   /**
-   * Inserts an emoji at the current cursor position
+   * Inserts an emoji at the saved cursor position.
+   * Uses cursorPositionRef so it works even when focus has moved to the emoji popover.
    * @param emoji - The emoji to insert
    */
   const insertEmoji = (emoji: string) => {
-    const textarea = textareaRef.current
-    if (!textarea) return
+    const { start, end } = cursorPositionRef.current
+    const clampedStart = Math.min(start, content.length)
+    const clampedEnd = Math.min(end, content.length)
 
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-
-    const newContent = content.slice(0, start) + emoji + content.slice(end)
+    const newContent = content.slice(0, clampedStart) + emoji + content.slice(clampedEnd)
     handleContentChange(newContent)
 
+    const newPosition = clampedStart + emoji.length
+    cursorPositionRef.current = { start: newPosition, end: newPosition }
+
+    // Ensure we're in edit mode so the textarea is mounted, then focus and set cursor
+    if (!isEditing) setIsEditing(true)
     setTimeout(() => {
-      textarea.focus()
-      const newPosition = start + emoji.length
-      textarea.setSelectionRange(newPosition, newPosition)
+      const textarea = textareaRef.current
+      if (textarea) {
+        textarea.focus()
+        textarea.setSelectionRange(newPosition, newPosition)
+      }
     }, 0)
   }
 
@@ -611,6 +653,8 @@ export function PostComposer({
                 onAdvancedClick={() => {
                   setShowAIDialog(true)
                 }}
+                onGenerationContext={onGenerationContext}
+                persistFields={true}
               />
             </CardContent>
           </Card>
@@ -677,7 +721,13 @@ export function PostComposer({
                       <textarea
                         ref={textareaRef}
                         value={content}
-                        onChange={(e) => handleContentChange(e.target.value)}
+                        onChange={(e) => {
+                          handleContentChange(e.target.value)
+                          saveCursorPosition()
+                        }}
+                        onSelect={saveCursorPosition}
+                        onKeyUp={saveCursorPosition}
+                        onClick={saveCursorPosition}
                         placeholder="What do you want to talk about?"
                         className={cn(
                           "w-full resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:text-muted-foreground",

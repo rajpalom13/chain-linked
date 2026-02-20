@@ -1,7 +1,8 @@
 /**
  * Saved Drafts Hook
  * @description Fetches and manages saved drafts from multiple sources:
- * generated_posts (status=draft) and swipe_wishlist (status=saved)
+ * generated_posts (status=draft) and swipe_wishlist (status=saved).
+ * Includes generation context (topic, tone, additional context) for compose-originated drafts.
  * @module hooks/use-drafts
  */
 
@@ -34,6 +35,12 @@ export interface SavedDraft {
   category: string | null
   /** Word count of the content */
   wordCount: number
+  /** The topic used for AI generation (from hook field) */
+  topic: string | null
+  /** The tone used for AI generation (from cta field) */
+  tone: string | null
+  /** Additional context provided during generation (from source_snippet field) */
+  additionalContext: string | null
   /** When the draft was created */
   createdAt: string
   /** When the draft was last updated */
@@ -90,7 +97,7 @@ function inferGeneratedPostSource(
 /**
  * Hook to fetch and manage saved drafts from multiple Supabase tables.
  * Combines generated_posts (status=draft) and swipe_wishlist (status=saved)
- * into a unified list.
+ * into a unified list. Includes generation context for compose-originated drafts.
  *
  * @returns Draft data, loading states, and management functions
  *
@@ -131,7 +138,7 @@ export function useDrafts(): UseDraftsReturn {
       const [generatedRes, wishlistRes] = await Promise.all([
         supabase
           .from('generated_posts')
-          .select('id, content, post_type, discover_post_id, research_session_id, created_at, updated_at')
+          .select('id, content, post_type, discover_post_id, research_session_id, hook, cta, source_snippet, created_at, updated_at')
           .eq('user_id', user.id)
           .eq('status', 'draft')
           .order('updated_at', { ascending: false }),
@@ -163,6 +170,9 @@ export function useDrafts(): UseDraftsReturn {
             postType: row.post_type,
             category: null,
             wordCount: countWords(row.content),
+            topic: row.hook || null,
+            tone: row.cta || null,
+            additionalContext: row.source_snippet || null,
             createdAt: row.created_at,
             updatedAt: row.updated_at,
           })
@@ -180,6 +190,9 @@ export function useDrafts(): UseDraftsReturn {
             postType: row.post_type,
             category: row.category,
             wordCount: countWords(row.content),
+            topic: null,
+            tone: null,
+            additionalContext: null,
             createdAt: row.created_at,
             updatedAt: row.updated_at,
           })

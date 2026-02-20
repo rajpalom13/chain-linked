@@ -27,6 +27,22 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { scalePopVariants } from "@/lib/animations"
 
 /**
+ * Data structure for generation context captured from the AI inline panel
+ */
+export interface GenerationContext {
+  /** The topic used for generation */
+  topic: string
+  /** The tone selected for generation */
+  tone: string
+  /** The length selected for generation */
+  length: string
+  /** Additional context provided by the user */
+  context: string
+  /** The post type used for generation */
+  postType?: string
+}
+
+/**
  * Props for AIInlinePanel component
  */
 export interface AIInlinePanelProps {
@@ -44,6 +60,10 @@ export interface AIInlinePanelProps {
   selectedGoal?: string
   /** Callback to open the full advanced dialog */
   onAdvancedClick?: () => void
+  /** Callback to expose generation context (topic, tone, etc.) when a post is generated */
+  onGenerationContext?: (ctx: GenerationContext) => void
+  /** Whether to persist topic/context fields after generation (default: false) */
+  persistFields?: boolean
 }
 
 /**
@@ -92,6 +112,8 @@ export function AIInlinePanel({
   defaultPostType,
   selectedGoal,
   onAdvancedClick,
+  onGenerationContext,
+  persistFields = false,
 }: AIInlinePanelProps) {
   const [topic, setTopic] = React.useState('')
   const [tone, setTone] = React.useState('professional')
@@ -101,17 +123,17 @@ export function AIInlinePanel({
   const [error, setError] = React.useState<string | null>(null)
 
   /**
-   * Reset form when panel collapses
+   * Reset form when panel collapses (unless persistFields is enabled)
    */
   React.useEffect(() => {
-    if (!isExpanded) {
+    if (!isExpanded && !persistFields) {
       setTimeout(() => {
         setTopic('')
         setContext('')
         setError(null)
       }, 300)
     }
-  }, [isExpanded])
+  }, [isExpanded, persistFields])
 
   /**
    * Handles the generate button click
@@ -150,6 +172,17 @@ export function AIInlinePanel({
       }
 
       onGenerated(data.content)
+
+      // Expose generation context to parent component
+      if (onGenerationContext) {
+        onGenerationContext({
+          topic: topic.trim(),
+          tone,
+          length,
+          context: context.trim(),
+          postType: defaultPostType || undefined,
+        })
+      }
     } catch (err) {
       console.error('Generation error:', err)
       setError(err instanceof Error ? err.message : 'Failed to generate. Please try again.')
