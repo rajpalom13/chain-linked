@@ -13,7 +13,7 @@ import {
   IconChartBar,
   IconFlame,
   IconTrendingUp,
-  IconThumbUp,
+  IconCircleCheck,
   IconX,
   IconWand,
 } from "@tabler/icons-react"
@@ -155,7 +155,7 @@ function getCategoryStyle(category: string): string {
  *
  * Features:
  * - Framer Motion for smooth, physics-based animations
- * - Visual feedback for swipe direction (POST IT / SKIP overlays)
+ * - Visual feedback for swipe direction (SAVED / SKIP overlays)
  * - Engagement score indicator with appropriate icon
  * - Category badge with color coding
  * - Support for stacked appearance (scale, offset, opacity)
@@ -273,8 +273,8 @@ export function SwipeCard({
                   animate={{ scale: 1, rotate: 0 }}
                   transition={{ type: "spring", stiffness: 400, damping: 20 }}
                 >
-                  <IconThumbUp className="size-6" />
-                  POST IT
+                  <IconCircleCheck className="size-6" />
+                  SAVED
                 </motion.div>
               </motion.div>
             )}
