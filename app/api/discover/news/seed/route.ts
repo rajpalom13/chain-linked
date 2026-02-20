@@ -1,24 +1,26 @@
 /**
  * Discover News Seed API Route
- * @description Checks if the discover_news_articles table is empty and runs
- * the ingest pipeline directly to populate it with fresh Perplexity content.
- * Works without the Inngest dev server running.
+ * @description Triggers the Inngest on-demand ingest pipeline to populate
+ * discover_news_articles with fresh Perplexity content. Falls back to
+ * running the pipeline directly if Inngest is unavailable.
  *
  * Returns a `reason` field on every response so the frontend can act
  * intelligently without parsing free-text messages:
  * - `no_api_key`      -- PERPLEXITY_API_KEY is not configured
  * - `already_exists`  -- articles already exist for the requested topics
- * - `no_results`      -- Perplexity returned zero usable articles
- * - `success`         -- articles were ingested and saved
+ * - `no_results`      -- Perplexity returned zero usable articles (fallback only)
+ * - `success`         -- articles were ingested and saved (fallback only)
+ * - `triggered`       -- ingest dispatched via Inngest (async)
  * @module app/api/discover/news/seed
  */
 
 import { createClient } from "@/lib/supabase/server"
+import { inngest } from "@/lib/inngest/client"
 import { runIngestPipeline } from "@/lib/inngest/functions/ingest-articles"
 import { NextResponse } from "next/server"
 
 /** Possible reason codes returned by the seed endpoint */
-type SeedReason = "no_api_key" | "already_exists" | "no_results" | "success"
+type SeedReason = "no_api_key" | "already_exists" | "no_results" | "success" | "triggered"
 
 /**
  * Shape shared by every successful (non-error) JSON response from this route.
@@ -107,17 +109,43 @@ export async function POST(request: Request) {
       }
     }
 
-    // ---- Run the ingest pipeline directly (no Inngest event dispatch) ----
-    const result = await runIngestPipeline(
-      validTopics.length > 0 ? validTopics : topics,
-      {
-        maxResultsPerTopic: 5,
-        logPrefix: "[Seed]",
-      },
-    )
+    // ---- Dispatch via Inngest (primary) with direct fallback ----
+    const ingestTopics = validTopics.length > 0 ? validTopics : topics
+    const batchId = crypto.randomUUID()
+
+    try {
+      await inngest.send({
+        name: "discover/ingest",
+        data: {
+          batchId,
+          topics: ingestTopics,
+          maxResultsPerTopic: 5,
+        },
+      })
+
+      console.log(
+        `[Seed] Inngest event dispatched -- batchId: ${batchId}, topics: ${ingestTopics.join(", ")}`,
+      )
+
+      return NextResponse.json<SeedResponse>({
+        seeded: true,
+        reason: "triggered",
+        message: "Ingest dispatched via Inngest. Articles will appear shortly.",
+        batchId,
+      })
+    } catch (inngestError) {
+      console.warn("[Seed] Inngest dispatch failed, falling back to direct pipeline:", inngestError)
+    }
+
+    // ---- Fallback: run the ingest pipeline directly ----
+    const result = await runIngestPipeline(ingestTopics, {
+      batchId,
+      maxResultsPerTopic: 5,
+      logPrefix: "[Seed-Fallback]",
+    })
 
     console.log(
-      `[Seed] Ingest complete -- batchId: ${result.batchId}, ` +
+      `[Seed-Fallback] Ingest complete -- batchId: ${result.batchId}, ` +
         `topics: ${result.topicsSearched}, articles: ${result.articlesIngested}`,
     )
 

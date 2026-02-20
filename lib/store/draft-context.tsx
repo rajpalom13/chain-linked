@@ -21,6 +21,18 @@ export interface MediaFile {
 }
 
 /**
+ * AI suggestion context passed from templates to the compose page
+ */
+export interface AISuggestion {
+  /** Suggested topic for AI generation */
+  topic: string
+  /** Suggested tone for AI generation */
+  tone: string
+  /** Additional context for AI generation */
+  context: string
+}
+
+/**
  * Represents the state of a post draft
  */
 export interface DraftState {
@@ -36,6 +48,8 @@ export interface DraftState {
   sourcePostId?: string
   /** Author name for remixed posts */
   sourceAuthor?: string
+  /** AI suggestion context from template selection */
+  aiSuggestion?: AISuggestion
   /** Last modified timestamp */
   lastModified: number
 }
@@ -58,8 +72,8 @@ interface DraftContextValue {
   clearMediaFiles: () => void
   /** Set scheduled date */
   setScheduledFor: (date: Date | undefined) => void
-  /** Load a template into the draft */
-  loadTemplate: (templateId: string, content: string) => void
+  /** Load a template into the draft, optionally with AI suggestion context */
+  loadTemplate: (templateId: string, content: string, aiSuggestion?: AISuggestion) => void
   /** Load content for remixing */
   loadForRemix: (postId: string, content: string, authorName?: string) => void
   /** Clear the entire draft */
@@ -82,6 +96,7 @@ const initialDraftState: DraftState = {
   templateId: undefined,
   sourcePostId: undefined,
   sourceAuthor: undefined,
+  aiSuggestion: undefined,
   lastModified: Date.now(),
 }
 
@@ -195,7 +210,7 @@ export function DraftProvider({ children }: { children: React.ReactNode }) {
     }))
   }, [])
 
-  const loadTemplate = React.useCallback((templateId: string, content: string) => {
+  const loadTemplate = React.useCallback((templateId: string, content: string, aiSuggestion?: AISuggestion) => {
     setDraft({
       content,
       mediaFiles: [],
@@ -203,6 +218,7 @@ export function DraftProvider({ children }: { children: React.ReactNode }) {
       templateId,
       sourcePostId: undefined,
       sourceAuthor: undefined,
+      aiSuggestion,
       lastModified: Date.now(),
     })
   }, [])

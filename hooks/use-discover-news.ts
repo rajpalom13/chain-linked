@@ -445,8 +445,36 @@ export function useDiscoverNews() {
           return
         }
 
+        if (data.reason === "triggered") {
+          // Inngest async path — poll for articles every 3s (up to 30s)
+          for (let attempt = 0; attempt < 10; attempt++) {
+            await new Promise((r) => setTimeout(r, 3000))
+            if (cancelled) return
+
+            const result = await fetchNewsArticles(state.activeTopic, 1, state.sort, "")
+            if (cancelled) return
+
+            if (result.articles.length > 0) {
+              const articles = result.articles.map(dbToNewsArticle)
+              setState((prev) => ({
+                ...prev,
+                articles,
+                isSeeding: false,
+                page: 1,
+                hasMore: result.pagination.hasMore,
+              }))
+              return
+            }
+          }
+          // Polling timed out — articles may still arrive later
+          if (!cancelled) {
+            setState((prev) => ({ ...prev, isSeeding: false }))
+          }
+          return
+        }
+
         if (data.seeded && data.articlesIngested > 0) {
-          // Articles were inserted — re-fetch the feed
+          // Fallback sync path — articles were inserted directly
           const result = await fetchNewsArticles(
             state.activeTopic,
             1,
@@ -685,6 +713,33 @@ export function useDiscoverNews() {
         return
       }
 
+      if (data.reason === "triggered") {
+        // Inngest async path — poll for new articles every 3s (up to 30s)
+        toast.info("Fetching new articles...")
+        for (let attempt = 0; attempt < 10; attempt++) {
+          await new Promise((r) => setTimeout(r, 3000))
+
+          const result = await fetchNewsArticles(state.activeTopic, 1, state.sort, "")
+          if (result.articles.length > 0) {
+            toast.success("New articles loaded")
+            const articles = result.articles.map(dbToNewsArticle)
+            setState((prev) => ({
+              ...prev,
+              articles,
+              isSeeding: false,
+              page: 1,
+              hasMore: result.pagination.hasMore,
+              searchQuery: "",
+            }))
+            return
+          }
+        }
+        toast.info("Articles are being fetched. Check back in a moment.")
+        setState((prev) => ({ ...prev, isSeeding: false }))
+        return
+      }
+
+      // Fallback sync path
       if (data.articlesIngested > 0) {
         toast.success(`Fetched ${data.articlesIngested} new articles`)
       } else {

@@ -212,7 +212,7 @@ export function PostComposer({
 }: PostComposerProps) {
   const router = useRouter()
   const { isPostingEnabled, disabledMessage } = usePostingConfig()
-  const { draft, setContent: setDraftContent, setScheduledFor, clearDraft } = useDraft()
+  const { draft, setContent: setDraftContent, setScheduledFor, clearDraft, updateDraft } = useDraft()
 
   // Initialize content from draft context if available, otherwise use initialContent
   const [content, setContent] = React.useState(() => draft.content || initialContent)
@@ -230,6 +230,16 @@ export function PostComposer({
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
   const editingZoneRef = React.useRef<HTMLDivElement>(null)
   const cursorPositionRef = React.useRef({ start: 0, end: 0 })
+
+  // Capture AI suggestion from draft (set by template library) and clear after consuming
+  const [aiSuggestion] = React.useState(() => draft.aiSuggestion)
+  React.useEffect(() => {
+    if (draft.aiSuggestion) {
+      updateDraft({ aiSuggestion: undefined })
+    }
+    // Only run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Auto-save status indicator
   const { isSaving, lastSaved } = useAutoSave(content, 1500)
@@ -655,6 +665,9 @@ export function PostComposer({
                 }}
                 onGenerationContext={onGenerationContext}
                 persistFields={true}
+                initialTopic={aiSuggestion?.topic}
+                initialTone={aiSuggestion?.tone}
+                initialContext={aiSuggestion?.context}
               />
             </CardContent>
           </Card>

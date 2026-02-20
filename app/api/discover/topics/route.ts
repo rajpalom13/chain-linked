@@ -5,6 +5,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server"
+import { inngest } from "@/lib/inngest/client"
 import { NextResponse } from "next/server"
 
 /**
@@ -108,6 +109,21 @@ export async function POST(request: Request) {
 
     if (updateError) {
       throw updateError
+    }
+
+    // Trigger content ingest for the saved topics (fire-and-forget)
+    try {
+      await inngest.send({
+        name: "discover/ingest",
+        data: {
+          batchId: crypto.randomUUID(),
+          topics,
+          maxResultsPerTopic: 5,
+        },
+      })
+      console.log("[Topics] Inngest ingest event dispatched for topics:", topics.join(", "))
+    } catch (inngestError) {
+      console.warn("[Topics] Failed to dispatch ingest event (non-blocking):", inngestError)
     }
 
     return NextResponse.json({ success: true, topics })

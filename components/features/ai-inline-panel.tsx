@@ -64,6 +64,12 @@ export interface AIInlinePanelProps {
   onGenerationContext?: (ctx: GenerationContext) => void
   /** Whether to persist topic/context fields after generation (default: false) */
   persistFields?: boolean
+  /** Initial topic value (e.g. from template AI suggestion) */
+  initialTopic?: string
+  /** Initial tone value (e.g. from template AI suggestion) */
+  initialTone?: string
+  /** Initial context value (e.g. from template AI suggestion) */
+  initialContext?: string
 }
 
 /**
@@ -114,13 +120,31 @@ export function AIInlinePanel({
   onAdvancedClick,
   onGenerationContext,
   persistFields = false,
+  initialTopic,
+  initialTone,
+  initialContext,
 }: AIInlinePanelProps) {
-  const [topic, setTopic] = React.useState('')
-  const [tone, setTone] = React.useState('professional')
+  const [topic, setTopic] = React.useState(initialTopic ?? '')
+  const [tone, setTone] = React.useState(initialTone ?? 'professional')
   const [length, setLength] = React.useState('medium')
-  const [context, setContext] = React.useState('')
+  const [context, setContext] = React.useState(initialContext ?? '')
   const [isGenerating, setIsGenerating] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+
+  /**
+   * Sync initial values when they change (e.g. template loaded)
+   */
+  React.useEffect(() => {
+    if (initialTopic) setTopic(initialTopic)
+  }, [initialTopic])
+
+  React.useEffect(() => {
+    if (initialTone) setTone(initialTone)
+  }, [initialTone])
+
+  React.useEffect(() => {
+    if (initialContext) setContext(initialContext)
+  }, [initialContext])
 
   /**
    * Reset form when panel collapses (unless persistFields is enabled)

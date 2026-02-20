@@ -227,6 +227,8 @@ export const inngest = new Inngest({
   name: 'ChainLinked',
   // Explicitly set event key for reliable event sending
   eventKey: config.eventKey,
+  // Route events to local dev server in development
+  isDev: config.isDev,
 })
 
 /**
