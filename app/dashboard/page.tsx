@@ -268,8 +268,35 @@ function ProfileCard({ className }: { className?: string }) {
 }
 
 // ============================================================================
-// Center Column: Create Post + Analytics + Feed
+// Center Column: Greeting + Create Post + Widgets
 // ============================================================================
+
+/**
+ * Inline greeting displayed above the create post card.
+ * Shows time-based greeting with user's first name — no wrapping card.
+ */
+function InlineGreeting() {
+  const { profile, user } = useAuthContext()
+  const now = new Date()
+  const greeting = now.getHours() < 12
+    ? "Good morning"
+    : now.getHours() < 18
+      ? "Good afternoon"
+      : "Good evening"
+
+  const firstName = profile?.full_name?.split(" ")[0]
+    || profile?.linkedin_profile?.first_name
+    || profile?.name?.split(" ")[0]
+    || user?.user_metadata?.full_name?.split(" ")[0]
+    || user?.email?.split("@")[0]
+    || ""
+
+  return (
+    <h2 className="text-lg font-semibold tracking-tight">
+      {greeting}{firstName ? `, ${firstName}` : ""}
+    </h2>
+  )
+}
 
 /**
  * LinkedIn-style "Start a post" prompt card
@@ -794,6 +821,118 @@ function StreakCard({ className }: { className?: string }) {
 }
 
 /**
+ * Mini calendar widget showing the current month with dots on days that have scheduled posts
+ * @param props.className - Additional CSS classes
+ */
+function ScheduleCalendarCard({ className }: { className?: string }) {
+  const { posts, isLoading } = useScheduledPosts(30)
+
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = now.getMonth()
+  const today = now.getDate()
+
+  /** Days in the current month */
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  /** Day of week the month starts on (0=Sun) */
+  const startDay = new Date(year, month, 1).getDay()
+
+  /** Set of dates (1-31) that have scheduled posts */
+  const scheduledDates = useMemo(() => {
+    const dates = new Set<number>()
+    for (const p of posts) {
+      if (
+        p.status === "pending" &&
+        p.scheduledFor.getFullYear() === year &&
+        p.scheduledFor.getMonth() === month
+      ) {
+        dates.add(p.scheduledFor.getDate())
+      }
+    }
+    return dates
+  }, [posts, year, month])
+
+  const monthLabel = now.toLocaleDateString("en-US", { month: "long", year: "numeric" })
+  const weekDayHeaders = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+
+  /** Build calendar grid cells */
+  const cells: (number | null)[] = []
+  for (let i = 0; i < startDay; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+
+  if (isLoading) {
+    return (
+      <Card className={cn("border-border/50", className)}>
+        <CardContent className="p-4">
+          <div className="animate-pulse space-y-3">
+            <div className="h-4 w-32 bg-muted rounded" />
+            <div className="grid grid-cols-7 gap-1">
+              {Array.from({ length: 35 }).map((_, i) => (
+                <div key={i} className="h-7 bg-muted rounded" />
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card className={cn("border-border/50", className)}>
+      <CardContent className="p-4">
+        <h4 className="text-sm font-medium mb-3 flex items-center gap-1.5">
+          <IconCalendarEvent className="size-4 text-primary" />
+          {monthLabel}
+        </h4>
+
+        {/* Week day headers */}
+        <div className="grid grid-cols-7 gap-0.5 mb-1">
+          {weekDayHeaders.map((d) => (
+            <div key={d} className="text-center text-[10px] font-medium text-muted-foreground py-0.5">
+              {d}
+            </div>
+          ))}
+        </div>
+
+        {/* Calendar grid */}
+        <div className="grid grid-cols-7 gap-0.5">
+          {cells.map((day, i) => {
+            if (day === null) {
+              return <div key={`empty-${i}`} className="h-7" />
+            }
+            const isToday = day === today
+            const hasPost = scheduledDates.has(day)
+            const isPast = day < today
+
+            return (
+              <div
+                key={day}
+                className={cn(
+                  "h-7 flex flex-col items-center justify-center rounded-md text-[11px] relative",
+                  isToday
+                    ? "bg-primary text-primary-foreground font-semibold"
+                    : isPast
+                      ? "text-muted-foreground/50"
+                      : "text-foreground"
+                )}
+              >
+                {day}
+                {hasPost && (
+                  <div className={cn(
+                    "absolute bottom-0.5 size-1 rounded-full",
+                    isToday ? "bg-primary-foreground" : "bg-primary"
+                  )} />
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
  * Upcoming scheduled posts preview
  * Shows next 3 upcoming scheduled posts
  */
@@ -1149,20 +1288,19 @@ function DashboardContent() {
             <ProfileCard />
           </div>
 
-          {/* CENTER COLUMN: Create post + analytics + recent posts feed */}
+          {/* CENTER COLUMN: Greeting + Create post + Getting started + Streak + Tip */}
           <div className="space-y-4" data-tour="create-post">
+            <InlineGreeting />
             <CreatePostCard />
-            <AnalyticsOverviewCard />
-            <RecentPostsFeed />
+            <GettingStartedCard />
+            <StreakCard />
+            <DailyTipCard />
           </div>
 
-          {/* RIGHT COLUMN: Greeting, streak, schedule, tip, getting started */}
+          {/* RIGHT COLUMN: Scheduled posts with calendar */}
           <div className="space-y-4" data-tour="sidebar-widgets">
-            <GreetingCard />
-            <StreakCard />
+            <ScheduleCalendarCard />
             <UpcomingScheduleCard />
-            <DailyTipCard />
-            <GettingStartedCard />
           </div>
         </div>
       </div>
