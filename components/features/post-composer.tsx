@@ -86,6 +86,8 @@ export interface PostComposerProps {
   }
   /** Callback fired when AI generates a post, providing the generation context */
   onGenerationContext?: (ctx: GenerationContext) => void
+  /** Initial date to pre-fill in the schedule modal (e.g. from calendar click) */
+  initialScheduleDate?: Date
 }
 
 /** Default LinkedIn character limit */
@@ -209,6 +211,7 @@ export function PostComposer({
   maxLength = DEFAULT_MAX_LENGTH,
   userProfile = DEFAULT_USER_PROFILE,
   onGenerationContext,
+  initialScheduleDate,
 }: PostComposerProps) {
   const router = useRouter()
   const { isPostingEnabled, disabledMessage } = usePostingConfig()
@@ -1166,6 +1169,7 @@ export function PostComposer({
           content,
           mediaCount: mediaFiles.length,
         }}
+        defaultDate={initialScheduleDate}
         isSubmitting={isScheduling}
       />
 

@@ -7,11 +7,11 @@
  */
 
 import { useState, useEffect } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import {
-  IconLink,
   IconMenu2,
   IconX,
 } from '@tabler/icons-react'
@@ -58,9 +58,7 @@ export function Navbar() {
         <nav className="container mx-auto flex h-16 items-center justify-between px-4">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
-            <div className="rounded-lg bg-primary p-1.5">
-              <IconLink className="size-5 text-primary-foreground" />
-            </div>
+            <Image src="/logo.png" alt="ChainLinked" width={32} height={32} className="size-8" />
             <span className="text-xl font-bold">ChainLinked</span>
           </Link>
 

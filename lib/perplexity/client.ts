@@ -30,7 +30,7 @@ export interface PerplexityRequest {
   search_domain_filter?: string[]
   return_images?: boolean
   return_related_questions?: boolean
-  search_recency_filter?: 'month' | 'week' | 'day' | 'hour'
+  search_recency_filter?: 'month' | 'week' | 'day' | 'year'
   top_k?: number
   stream?: boolean
   presence_penalty?: number

@@ -213,7 +213,22 @@ Return ONLY the JSON array. No markdown, no explanation, no wrapping text.`
 }
 
 /**
- * Deduplicate articles against existing DB rows and insert new ones
+ * Safely parse a date string into an ISO timestamp.
+ * Returns null if the input is missing or not a valid date.
+ * @param dateStr - Raw date string from Perplexity
+ * @returns Valid ISO string or null
+ */
+function sanitizePublishedDate(dateStr: string | null | undefined): string | null {
+  if (!dateStr) return null
+  const parsed = new Date(dateStr)
+  if (isNaN(parsed.getTime())) return null
+  return parsed.toISOString()
+}
+
+/**
+ * Deduplicate articles against existing DB rows and insert new ones.
+ * Uses upsert with ON CONFLICT DO NOTHING to gracefully handle
+ * duplicates (both intra-batch and against existing rows).
  * @param articles - Articles from Perplexity search
  * @param batchId - Batch UUID for grouping
  * @param logPrefix - Log prefix for tracing
@@ -228,47 +243,47 @@ export async function deduplicateAndSave(
 
   const supabase = getSupabaseAdmin()
 
-  const urls = articles.map((r) => r.source_url)
-  const { data: existing } = await supabase
-    .from('discover_news_articles')
-    .select('source_url, topic')
-    .in('source_url', urls)
+  // In-batch dedup: keep only the first occurrence of each (source_url, topic) pair
+  const seenKeys = new Set<string>()
+  const uniqueArticles = articles.filter((r) => {
+    const key = `${r.source_url}::${r.topic}`
+    if (seenKeys.has(key)) return false
+    seenKeys.add(key)
+    return true
+  })
 
-  const existingKeys = new Set(
-    (existing || []).map((e: { source_url: string; topic: string }) => `${e.source_url}::${e.topic}`)
-  )
+  const rows = uniqueArticles.map((result) => ({
+    headline: result.headline,
+    summary: result.summary,
+    source_url: result.source_url,
+    source_name: result.source_name,
+    published_date: sanitizePublishedDate(result.published_date),
+    relevance_tags: result.relevance_tags,
+    topic: result.topic,
+    ingest_batch_id: batchId,
+    freshness: 'new',
+    perplexity_citations: result.perplexity_citations,
+  }))
 
-  const newArticles = articles
-    .filter((r) => !existingKeys.has(`${r.source_url}::${r.topic}`))
-    .map((result) => ({
-      headline: result.headline,
-      summary: result.summary,
-      source_url: result.source_url,
-      source_name: result.source_name,
-      published_date: result.published_date || null,
-      relevance_tags: result.relevance_tags,
-      topic: result.topic,
-      ingest_batch_id: batchId,
-      freshness: 'new',
-      perplexity_citations: result.perplexity_citations,
-    }))
-
-  if (newArticles.length === 0) {
-    console.log(`${logPrefix} No new articles to insert (all duplicates)`)
+  if (rows.length === 0) {
+    console.log(`${logPrefix} No articles to insert after dedup`)
     return 0
   }
 
-  const { error } = await supabase
+  // Use upsert with ignoreDuplicates to skip rows that already exist
+  const { data, error } = await supabase
     .from('discover_news_articles')
-    .insert(newArticles)
+    .upsert(rows, { onConflict: 'source_url,topic', ignoreDuplicates: true })
+    .select('id')
 
   if (error) {
-    console.error(`${logPrefix} Failed to insert articles:`, error)
+    console.error(`${logPrefix} Failed to upsert articles:`, error)
     return 0
   }
 
-  console.log(`${logPrefix} Inserted ${newArticles.length} new articles`)
-  return newArticles.length
+  const insertedCount = data?.length ?? 0
+  console.log(`${logPrefix} Upserted ${insertedCount} new articles (${rows.length - insertedCount} duplicates skipped)`)
+  return insertedCount
 }
 
 /**

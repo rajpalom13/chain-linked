@@ -194,57 +194,67 @@ export const dailyContentIngest = inngest.createFunction(
     const savedCount = await step.run('deduplicate-and-save', async () => {
       if (searchResults.length === 0) return 0
 
-      // Check existing URLs per topic
-      const urlTopicPairs = searchResults.map((r: { source_url: string; topic: string }) => r.source_url)
-      const { data: existing } = await supabase
-        .from('discover_news_articles')
-        .select('source_url, topic')
-        .in('source_url', urlTopicPairs)
+      // In-batch dedup: keep only the first occurrence of each (source_url, topic) pair
+      const seenKeys = new Set<string>()
+      const uniqueArticles = searchResults.filter((r: { source_url: string; topic: string }) => {
+        const key = `${r.source_url}::${r.topic}`
+        if (seenKeys.has(key)) return false
+        seenKeys.add(key)
+        return true
+      })
 
-      const existingKeys = new Set(
-        (existing || []).map((e: { source_url: string; topic: string }) => `${e.source_url}::${e.topic}`)
-      )
+      const rows = uniqueArticles.map((result: {
+        headline: string
+        summary: string
+        source_url: string
+        source_name: string
+        published_date?: string | null
+        relevance_tags: string[]
+        topic: string
+        perplexity_citations: string[]
+      }) => {
+        // Safely parse published_date to avoid TIMESTAMPTZ cast errors
+        let publishedDate: string | null = null
+        if (result.published_date) {
+          const parsed = new Date(result.published_date)
+          if (!isNaN(parsed.getTime())) {
+            publishedDate = parsed.toISOString()
+          }
+        }
 
-      const newArticles = searchResults
-        .filter((r: { source_url: string; topic: string }) => !existingKeys.has(`${r.source_url}::${r.topic}`))
-        .map((result: {
-          headline: string
-          summary: string
-          source_url: string
-          source_name: string
-          published_date?: string | null
-          relevance_tags: string[]
-          topic: string
-          perplexity_citations: string[]
-        }) => ({
+        return {
           headline: result.headline,
           summary: result.summary,
           source_url: result.source_url,
           source_name: result.source_name,
-          published_date: result.published_date || null,
+          published_date: publishedDate,
           relevance_tags: result.relevance_tags,
           topic: result.topic,
           ingest_batch_id: batchId,
           freshness: 'new',
           perplexity_citations: result.perplexity_citations,
-        }))
+        }
+      })
 
-      if (newArticles.length === 0) {
-        console.log('[DailyIngest] No new articles to insert (all duplicates)')
+      if (rows.length === 0) {
+        console.log('[DailyIngest] No articles to insert after dedup')
         return 0
       }
 
-      const { error } = await supabase
+      // Use upsert with ignoreDuplicates to skip existing rows gracefully
+      const { data, error } = await supabase
         .from('discover_news_articles')
-        .insert(newArticles)
+        .upsert(rows, { onConflict: 'source_url,topic', ignoreDuplicates: true })
+        .select('id')
 
       if (error) {
-        console.error('[DailyIngest] Failed to insert articles:', error)
+        console.error('[DailyIngest] Failed to upsert articles:', error)
         return 0
       }
 
-      console.log(`[DailyIngest] Inserted ${newArticles.length} new articles`)
-      return newArticles.length
+      const insertedCount = data?.length ?? 0
+      console.log(`[DailyIngest] Upserted ${insertedCount} new articles (${rows.length - insertedCount} duplicates skipped)`)
+      return insertedCount
     })
 
     // Step 4: Update freshness for aging articles

@@ -4,19 +4,17 @@
  * Template Library
  * @description A comprehensive template management interface with AI-generated
  * suggestions, category filtering, search, and CRUD operations for LinkedIn
- * post templates.
+ * post templates. Features polished card designs and AI context pre-filling
+ * for the compose page.
  * @module components/features/template-library
  */
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { motion, AnimatePresence } from "framer-motion"
 import {
   IconBulb,
   IconEdit,
   IconEye,
-  IconLayoutGrid,
-  IconList,
   IconListNumbers,
   IconLoader2,
   IconLock,
@@ -32,13 +30,9 @@ import {
 } from "@tabler/icons-react"
 
 import { trackTemplateAction } from "@/lib/analytics"
-import {
-  staggerContainerVariants,
-  staggerItemVariants,
-  fadeSlideUpVariants,
-} from "@/lib/animations"
 import { cn } from "@/lib/utils"
 import { useDraft } from "@/lib/store/draft-context"
+import { type AISuggestion } from "@/lib/store/draft-context"
 import { templateToast, showError } from "@/lib/toast-utils"
 import { useConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
@@ -69,7 +63,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 /**
  * Template categories available in the library
@@ -147,6 +140,33 @@ const INITIAL_FORM_DATA: TemplateFormData = {
 }
 
 /**
+ * Default AI suggestion context mapped by template category.
+ * Used to pre-fill the AI generation panel when a template is used.
+ */
+const CATEGORY_AI_DEFAULTS: Record<string, { topic: string; tone: string }> = {
+  "Thought Leadership": {
+    topic: "Share an expert insight about [your field]",
+    tone: "thought-provoking",
+  },
+  "Personal Story": {
+    topic: "Tell a personal story about [your experience]",
+    tone: "inspiring",
+  },
+  "How-To": {
+    topic: "Teach your audience how to [achieve a specific result]",
+    tone: "educational",
+  },
+  "Engagement": {
+    topic: "Start a conversation about [a trending topic in your industry]",
+    tone: "casual",
+  },
+  "Sales": {
+    topic: "Highlight the value of [your product/service]",
+    tone: "professional",
+  },
+}
+
+/**
  * AI template category definition
  */
 interface AITemplateCategory {
@@ -158,6 +178,8 @@ interface AITemplateCategory {
   icon: React.ReactNode
   /** Color class for the icon background */
   color: string
+  /** Border accent color class */
+  borderColor: string
   /** Templates in this category */
   templates: AITemplate[]
 }
@@ -187,6 +209,7 @@ const AI_TEMPLATE_CATEGORIES: AITemplateCategory[] = [
     name: "Hook Templates",
     icon: <IconBulb className="size-4" />,
     color: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    borderColor: "border-t-amber-500/50",
     templates: [
       {
         id: "ai-hook-1",
@@ -216,6 +239,7 @@ const AI_TEMPLATE_CATEGORIES: AITemplateCategory[] = [
     name: "Storytelling",
     icon: <IconRoute className="size-4" />,
     color: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+    borderColor: "border-t-violet-500/50",
     templates: [
       {
         id: "ai-story-1",
@@ -238,6 +262,7 @@ const AI_TEMPLATE_CATEGORIES: AITemplateCategory[] = [
     name: "How-To Guides",
     icon: <IconMessageChatbot className="size-4" />,
     color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    borderColor: "border-t-emerald-500/50",
     templates: [
       {
         id: "ai-howto-1",
@@ -260,6 +285,7 @@ const AI_TEMPLATE_CATEGORIES: AITemplateCategory[] = [
     name: "List Posts",
     icon: <IconListNumbers className="size-4" />,
     color: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+    borderColor: "border-t-sky-500/50",
     templates: [
       {
         id: "ai-list-1",
@@ -279,6 +305,10 @@ const AI_TEMPLATE_CATEGORIES: AITemplateCategory[] = [
   },
 ]
 
+/* =============================================================================
+   SKELETON & EMPTY STATE
+   ============================================================================= */
+
 /**
  * Loading skeleton for the template grid
  * @returns Skeleton placeholder cards for loading state
@@ -287,23 +317,19 @@ function TemplateGridSkeleton() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="rounded-xl border border-border/50 p-4 space-y-3">
+        <div key={i} className="rounded-xl border border-border/50 p-5 space-y-3">
           <div className="flex items-start justify-between">
             <Skeleton className="h-5 w-32" />
             <Skeleton className="h-5 w-20 rounded-full" />
           </div>
-          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-20 w-full" />
           <div className="flex gap-1.5">
             <Skeleton className="h-5 w-14 rounded-full" />
             <Skeleton className="h-5 w-14 rounded-full" />
-            <Skeleton className="h-5 w-14 rounded-full" />
           </div>
-          <Skeleton className="h-4 w-20" />
-          <div className="flex gap-1 pt-2 border-t">
-            <Skeleton className="h-8 flex-1" />
-            <Skeleton className="h-8 w-8" />
-            <Skeleton className="h-8 w-8" />
-            <Skeleton className="h-8 w-8" />
+          <div className="flex items-center justify-between pt-2">
+            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-8 w-24 rounded-lg" />
           </div>
         </div>
       ))}
@@ -312,7 +338,7 @@ function TemplateGridSkeleton() {
 }
 
 /**
- * Empty state illustration for when no templates exist
+ * Empty state for when no templates exist
  * @param props - Component props
  * @param props.searchQuery - Current search query
  * @param props.categoryFilter - Current category filter
@@ -331,12 +357,7 @@ function TemplateEmptyState({
   const isFiltered = searchQuery || categoryFilter !== "all"
 
   return (
-    <motion.div
-      className="flex flex-col items-center justify-center gap-4 py-16 text-center"
-      variants={fadeSlideUpVariants}
-      initial="initial"
-      animate="animate"
-    >
+    <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
       <div className="relative">
         <div className="rounded-full bg-gradient-to-br from-primary/15 via-primary/10 to-secondary/5 p-6">
           <IconTemplate className="text-primary/60 size-10" />
@@ -349,80 +370,87 @@ function TemplateEmptyState({
         <h3 className="text-lg font-semibold">
           {isFiltered ? "No templates found" : "Start your template library"}
         </h3>
-        <p className="text-muted-foreground mt-1 text-sm">
+        <p className="text-muted-foreground mt-1.5 text-sm leading-relaxed">
           {isFiltered
             ? "Try adjusting your search or filter criteria"
             : "Templates help you create consistent, high-quality posts faster. Create your first one or browse AI suggestions below."}
         </p>
       </div>
       {!isFiltered && (
-        <Button
-          onClick={onCreateNew}
-          className="gap-2"
-        >
+        <Button onClick={onCreateNew} className="gap-2">
           <IconPlus className="size-4" />
           Create Template
         </Button>
       )}
-    </motion.div>
+    </div>
   )
 }
 
+/* =============================================================================
+   AI TEMPLATE CARD
+   ============================================================================= */
+
 /**
- * A single AI template suggestion card
+ * A single AI template suggestion card with color-accented top border
  * @param props - Component props
  * @param props.template - The AI template data
+ * @param props.borderColor - Top border accent color class
  * @param props.onUse - Callback when using this template
  * @param props.onSave - Callback when saving this template to library
- * @returns A compact template preview card
+ * @returns A polished template preview card
  */
 function AITemplateCard({
   template,
+  borderColor,
   onUse,
   onSave,
 }: {
   template: AITemplate
+  borderColor: string
   onUse: (template: AITemplate) => void
   onSave: (template: AITemplate) => void
 }) {
   return (
-    <motion.div
-      variants={staggerItemVariants}
-      whileHover={{ y: -2, scale: 1.01 }}
-      transition={{ duration: 0.15 }}
-      className="group relative rounded-xl border border-border/50 bg-card p-4 transition-all duration-200 hover:shadow-md hover:border-primary/30"
+    <div
+      className={cn(
+        "group relative rounded-xl border border-border/50 border-t-2 bg-gradient-to-br from-card to-primary/[0.02] p-4 transition-colors hover:border-border",
+        borderColor
+      )}
     >
-      <div className="mb-2 flex items-start justify-between gap-2">
-        <h4 className="font-medium text-sm">{template.name}</h4>
+      <div className="mb-1.5 flex items-start justify-between gap-2">
+        <h4 className="text-sm font-medium leading-snug">{template.name}</h4>
         <Badge variant="outline" className="text-xs shrink-0">
           {template.category}
         </Badge>
       </div>
-      <p className="text-muted-foreground mb-3 text-xs leading-relaxed line-clamp-3">
+      <p className="text-muted-foreground mb-4 text-sm leading-relaxed line-clamp-4">
         {template.content}
       </p>
       <div className="flex gap-1.5">
         <Button
-          variant="default"
           size="sm"
-          className="flex-1 h-7 text-xs"
+          className="flex-1 gap-1.5"
           onClick={() => onUse(template)}
         >
+          <IconSparkles className="size-3.5" />
           Create Post
         </Button>
         <Button
           variant="outline"
           size="sm"
-          className="h-7 text-xs"
           onClick={() => onSave(template)}
         >
-          <IconPlus className="size-3" />
+          <IconPlus className="size-3.5" />
           Save
         </Button>
       </div>
-    </motion.div>
+    </div>
   )
 }
+
+/* =============================================================================
+   AI TEMPLATES SECTION
+   ============================================================================= */
 
 /**
  * AI Templates section with categorized suggestions
@@ -445,112 +473,96 @@ function AITemplatesSection({
     return AI_TEMPLATE_CATEGORIES.filter((c) => c.id === activeCategory)
   }, [activeCategory])
 
+  const allTabs = React.useMemo(
+    () => [{ id: "all", label: "All" }, ...AI_TEMPLATE_CATEGORIES.map((c) => ({ id: c.id, label: c.name, icon: c.icon, color: c.color }))],
+    []
+  )
+
   return (
-    <motion.div
-      variants={fadeSlideUpVariants}
-      initial="initial"
-      animate="animate"
-    >
-      <Card hover className="overflow-hidden">
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
-            <div className="rounded-lg bg-gradient-to-br from-violet-500/10 to-purple-500/10 p-2">
-              <IconSparkles className="size-4 text-violet-600 dark:text-violet-400" />
-            </div>
-            <div>
-              <CardTitle className="text-base">AI Templates</CardTitle>
-              <CardDescription className="text-xs">
-                Pre-made templates to jumpstart your content
-              </CardDescription>
-            </div>
+    <Card hover className="overflow-hidden">
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <div className="rounded-lg bg-gradient-to-br from-violet-500/15 to-purple-500/15 p-2.5">
+            <IconSparkles className="size-5 text-violet-600 dark:text-violet-400" />
           </div>
-        </CardHeader>
+          <div>
+            <CardTitle>AI Templates</CardTitle>
+            <CardDescription>
+              Pre-made templates to jumpstart your content
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
 
-        <CardContent className="flex flex-col gap-4">
-          {/* Category filter pills */}
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant={activeCategory === "all" ? "default" : "outline"}
-              size="sm"
-              className="h-7 text-xs rounded-full"
-              onClick={() => setActiveCategory("all")}
+      <CardContent className="flex flex-col gap-5">
+        {/* Category filter pills */}
+        <div className="flex flex-wrap gap-1.5">
+          {allTabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveCategory(tab.id)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                activeCategory === tab.id
+                  ? "border-primary/30 bg-primary/10 text-primary"
+                  : "border-border bg-background text-muted-foreground hover:text-foreground hover:border-border/80"
+              )}
             >
-              All
-            </Button>
-            {AI_TEMPLATE_CATEGORIES.map((cat) => (
-              <Button
-                key={cat.id}
-                variant={activeCategory === cat.id ? "default" : "outline"}
-                size="sm"
-                className="h-7 text-xs rounded-full gap-1.5"
-                onClick={() => setActiveCategory(cat.id)}
-              >
-                <span className={cn("rounded-md p-0.5", cat.color)}>
-                  {cat.icon}
+              {"icon" in tab && tab.icon && (
+                <span className={cn("rounded p-0.5", "color" in tab ? tab.color : "")}>
+                  {tab.icon}
                 </span>
-                {cat.name}
-              </Button>
-            ))}
-          </div>
+              )}
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-          {/* Template grid by category */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeCategory}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-              className="space-y-6"
-            >
-              {filteredCategories.map((category) => (
-                <div key={category.id}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className={cn("rounded-lg p-1.5", category.color)}>
-                      {category.icon}
-                    </span>
-                    <h4 className="font-medium text-sm">{category.name}</h4>
-                    <Badge variant="secondary" className="text-xs">
-                      {category.templates.length}
-                    </Badge>
-                  </div>
-                  <motion.div
-                    className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
-                    variants={staggerContainerVariants}
-                    initial="initial"
-                    animate="animate"
-                  >
-                    {category.templates.map((template) => (
-                      <AITemplateCard
-                        key={template.id}
-                        template={template}
-                        onUse={onUseAITemplate}
-                        onSave={onSaveAITemplate}
-                      />
-                    ))}
-                  </motion.div>
-                </div>
-              ))}
-            </motion.div>
-          </AnimatePresence>
-        </CardContent>
-      </Card>
-    </motion.div>
+        {/* Template grid by category */}
+        <div className="space-y-8">
+          {filteredCategories.map((category) => (
+            <div key={category.id}>
+              <div className="flex items-center gap-2 mb-3">
+                <span className={cn("rounded-lg p-1.5", category.color)}>
+                  {category.icon}
+                </span>
+                <h3 className="text-sm font-semibold">{category.name}</h3>
+                <Badge variant="secondary" className="text-xs">
+                  {category.templates.length}
+                </Badge>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {category.templates.map((template) => (
+                  <AITemplateCard
+                    key={template.id}
+                    template={template}
+                    borderColor={category.borderColor}
+                    onUse={onUseAITemplate}
+                    onSave={onSaveAITemplate}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   )
 }
+
+/* =============================================================================
+   MAIN TEMPLATE LIBRARY
+   ============================================================================= */
 
 /**
  * A CRUD interface for managing post templates with AI suggestions.
  *
  * Features:
- * - Grid/list view toggle for template display
- * - Category filter tabs and search bar
- * - Create new templates via centered dialog modal
- * - Template cards with preview, category, usage count
- * - AI-generated template suggestions by category
- * - Hover effects with full preview
+ * - Category filter pills and search bar
+ * - Gradient card designs
+ * - "Create Post" loads template + pre-fills AI generation panel
+ * - AI template suggestions with color-accented cards
  * - Loading skeletons and empty state
- * - Framer-motion animations throughout
  *
  * @param props - Component props
  * @param props.templates - Array of templates to display
@@ -583,7 +595,6 @@ export function TemplateLibrary({
   const { loadTemplate } = useDraft()
   const { confirm, ConfirmDialogComponent } = useConfirmDialog()
 
-  const [viewMode, setViewMode] = React.useState<"grid" | "list">("grid")
   const [searchQuery, setSearchQuery] = React.useState("")
   const [categoryFilter, setCategoryFilter] = React.useState<string>("all")
   const [isDialogOpen, setIsDialogOpen] = React.useState(false)
@@ -684,21 +695,38 @@ export function TemplateLibrary({
   }
 
   /**
-   * Handles using a template - loads it into the composer and navigates
+   * Builds an AI suggestion from a category string and template name
+   */
+  const buildAISuggestion = (category: string, templateName: string): AISuggestion => {
+    const defaults = CATEGORY_AI_DEFAULTS[category] ?? {
+      topic: "Write a LinkedIn post about [your topic]",
+      tone: "professional",
+    }
+    return {
+      topic: defaults.topic,
+      tone: defaults.tone,
+      context: `Using the "${templateName}" template as a starting point. Fill in the bracketed placeholders with your own content.`,
+    }
+  }
+
+  /**
+   * Handles using a template - loads it into the composer with AI context and navigates
    */
   const handleUseTemplate = (template: Template) => {
     trackTemplateAction("used", template.id)
-    loadTemplate(template.id, template.content)
+    const aiSuggestion = buildAISuggestion(template.category, template.name)
+    loadTemplate(template.id, template.content, aiSuggestion)
     onUseTemplate?.(template.id)
     templateToast.applied(template.name)
     router.push("/dashboard/compose")
   }
 
   /**
-   * Handles using an AI template - loads content and navigates to compose
+   * Handles using an AI template - loads content with AI context and navigates to compose
    */
   const handleUseAITemplate = (template: AITemplate) => {
-    loadTemplate(template.id, template.content)
+    const aiSuggestion = buildAISuggestion(template.category, template.name)
+    loadTemplate(template.id, template.content, aiSuggestion)
     templateToast.applied(template.name)
     router.push("/dashboard/compose")
   }
@@ -745,14 +773,6 @@ export function TemplateLibrary({
   }
 
   /**
-   * Truncates text to a specified length
-   */
-  const truncateText = (text: string, maxLength: number) => {
-    if (text.length <= maxLength) return text
-    return text.slice(0, maxLength).trim() + "..."
-  }
-
-  /**
    * Gets the badge variant based on category
    */
   const getCategoryVariant = (category: string): "default" | "secondary" | "outline" => {
@@ -768,88 +788,76 @@ export function TemplateLibrary({
     }
   }
 
+  /** All category filter options */
+  const categoryOptions = React.useMemo(
+    () => [{ id: "all", label: "All Categories" }, ...TEMPLATE_CATEGORIES.map((c) => ({ id: c, label: c }))],
+    []
+  )
+
   return (
     <div className="flex flex-col gap-6">
       {/* My Templates Section */}
       <Card hover className="flex flex-col">
-        <CardHeader className="pb-4">
+        <CardHeader>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <IconTemplate className="size-5" />
-                Template Library
-              </CardTitle>
-              <CardDescription>
-                Manage and share your post templates
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              {/* View Toggle */}
-              <div className="flex items-center rounded-md border p-1">
-                <Button
-                  variant={viewMode === "grid" ? "secondary" : "ghost"}
-                  size="icon-sm"
-                  onClick={() => setViewMode("grid")}
-                  aria-label="Grid view"
-                >
-                  <IconLayoutGrid className="size-4" />
-                </Button>
-                <Button
-                  variant={viewMode === "list" ? "secondary" : "ghost"}
-                  size="icon-sm"
-                  onClick={() => setViewMode("list")}
-                  aria-label="List view"
-                >
-                  <IconList className="size-4" />
-                </Button>
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 p-2.5">
+                <IconTemplate className="size-5 text-primary" />
               </div>
-              {/* Create Button */}
-              <Button onClick={handleCreateNew} className="gap-1.5">
-                <IconPlus className="size-4" />
-                Create Template
-              </Button>
+              <div>
+                <CardTitle>Template Library</CardTitle>
+                <CardDescription>
+                  Manage and share your post templates
+                </CardDescription>
+              </div>
             </div>
+            <Button onClick={handleCreateNew} className="gap-1.5">
+              <IconPlus className="size-4" />
+              Create Template
+            </Button>
           </div>
         </CardHeader>
 
         <CardContent className="flex flex-col gap-4">
-          {/* Search and Category Tabs */}
-          <div className="flex flex-col gap-3">
-            <div className="relative">
-              <IconSearch className="text-muted-foreground absolute left-3 top-1/2 size-4 -translate-y-1/2" />
-              <Input
-                placeholder="Search templates by name, content, or tag..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-                aria-label="Search templates"
-              />
-              {searchQuery && (
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="absolute right-2 top-1/2 -translate-y-1/2"
-                  onClick={() => setSearchQuery("")}
-                  aria-label="Clear search"
-                >
-                  <IconX className="size-3.5" />
-                </Button>
-              )}
-            </div>
+          {/* Search */}
+          <div className="relative">
+            <IconSearch className="text-muted-foreground absolute left-3 top-1/2 size-4 -translate-y-1/2" />
+            <Input
+              placeholder="Search templates by name, content, or tag..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+              aria-label="Search templates"
+            />
+            {searchQuery && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="absolute right-2 top-1/2 -translate-y-1/2"
+                onClick={() => setSearchQuery("")}
+                aria-label="Clear search"
+              >
+                <IconX className="size-3.5" />
+              </Button>
+            )}
+          </div>
 
-            {/* Category filter tabs */}
-            <Tabs value={categoryFilter} onValueChange={setCategoryFilter}>
-              <TabsList className="w-full flex-wrap h-auto gap-1 p-1">
-                <TabsTrigger value="all" className="text-xs">
-                  All Categories
-                </TabsTrigger>
-                {TEMPLATE_CATEGORIES.map((category) => (
-                  <TabsTrigger key={category} value={category} className="text-xs">
-                    {category}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
+          {/* Category filter pills */}
+          <div className="flex flex-wrap gap-1.5">
+            {categoryOptions.map((opt) => (
+              <button
+                key={opt.id}
+                onClick={() => setCategoryFilter(opt.id)}
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                  categoryFilter === opt.id
+                    ? "border-primary/30 bg-primary/10 text-primary"
+                    : "border-border bg-background text-muted-foreground hover:text-foreground hover:border-border/80"
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
 
           {/* Loading State */}
@@ -864,127 +872,109 @@ export function TemplateLibrary({
             />
           )}
 
-          {/* Template Grid/List */}
+          {/* Template Grid */}
           {!isLoading && filteredTemplates.length > 0 && (
-            <motion.div
-              className={cn(
-                viewMode === "grid"
-                  ? "grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
-                  : "flex flex-col gap-3"
-              )}
-              variants={staggerContainerVariants}
-              initial="initial"
-              animate="animate"
-            >
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {filteredTemplates.map((template) => (
-                <motion.div
+                <div
                   key={template.id}
-                  variants={staggerItemVariants}
-                  whileHover={{ y: -2 }}
-                  transition={{ duration: 0.15 }}
-                  className={cn(
-                    "group rounded-xl border border-border/50 bg-card p-4 transition-all duration-200 hover:shadow-md hover:border-border dark:hover:border-primary/30",
-                    viewMode === "list" && "flex items-start gap-4"
-                  )}
+                  className="group relative flex flex-col rounded-xl border border-border/50 bg-gradient-to-br from-card to-primary/[0.03] p-5 transition-colors hover:border-border"
                 >
-                  {/* Template Info */}
-                  <div className={cn("flex-1", viewMode === "list" && "min-w-0")}>
-                    {/* Header */}
-                    <div className="mb-2 flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <h4 className="truncate font-medium">{template.name}</h4>
-                        <div className="mt-1 flex flex-wrap items-center gap-2">
-                          <Badge variant={getCategoryVariant(template.category)}>
-                            {template.category}
-                          </Badge>
-                          {template.isPublic ? (
-                            <span className="text-muted-foreground flex items-center gap-1 text-xs">
-                              <IconUsers className="size-3" />
-                              Public
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground flex items-center gap-1 text-xs">
-                              <IconLock className="size-3" />
-                              Private
-                            </span>
-                          )}
-                        </div>
-                      </div>
+                  {/* Header: name + edit/delete */}
+                  <div className="mb-1 flex items-start justify-between gap-2">
+                    <h3 className="truncate text-sm font-semibold leading-snug">
+                      {template.name}
+                    </h3>
+                    <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => handleEdit(template)}
+                        aria-label={`Edit ${template.name}`}
+                        className="size-7"
+                      >
+                        <IconEdit className="size-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => handleDelete(template.id)}
+                        aria-label={`Delete ${template.name}`}
+                        className="size-7 text-destructive hover:text-destructive"
+                      >
+                        <IconTrash className="size-3.5" />
+                      </Button>
                     </div>
+                  </div>
 
-                    {/* Content Preview */}
-                    <p className="text-muted-foreground mb-3 text-sm leading-relaxed">
-                      {truncateText(template.content, viewMode === "grid" ? 100 : 150)}
-                    </p>
-
-                    {/* Tags */}
-                    {template.tags.length > 0 && (
-                      <div className="mb-3 flex flex-wrap gap-1">
-                        {template.tags.slice(0, 3).map((tag) => (
-                          <Badge key={tag} variant="outline" className="text-xs">
-                            {tag}
-                          </Badge>
-                        ))}
-                        {template.tags.length > 3 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{template.tags.length - 3}
-                          </Badge>
-                        )}
-                      </div>
+                  {/* Category + visibility */}
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <Badge variant={getCategoryVariant(template.category)} className="text-xs">
+                      {template.category}
+                    </Badge>
+                    {template.isPublic ? (
+                      <span className="text-muted-foreground flex items-center gap-1 text-xs">
+                        <IconUsers className="size-3" />
+                        Public
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground flex items-center gap-1 text-xs">
+                        <IconLock className="size-3" />
+                        Private
+                      </span>
                     )}
+                  </div>
 
-                    {/* Usage Count */}
-                    <p className="text-muted-foreground text-xs">
+                  {/* Content preview */}
+                  <p className="text-muted-foreground mb-3 flex-1 text-sm leading-relaxed line-clamp-4">
+                    {template.content}
+                  </p>
+
+                  {/* Tags */}
+                  {template.tags.length > 0 && (
+                    <div className="mb-3 flex flex-wrap gap-1">
+                      {template.tags.slice(0, 3).map((tag) => (
+                        <Badge key={tag} variant="outline" className="text-xs font-normal">
+                          {tag}
+                        </Badge>
+                      ))}
+                      {template.tags.length > 3 && (
+                        <Badge variant="outline" className="text-xs font-normal">
+                          +{template.tags.length - 3}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Footer: usage + actions */}
+                  <div className="flex items-center justify-between border-t border-border/40 pt-3 mt-auto">
+                    <span className="text-muted-foreground text-xs tabular-nums">
                       Used {template.usageCount} time{template.usageCount !== 1 ? "s" : ""}
-                    </p>
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handlePreview(template)}
+                        aria-label={`Preview ${template.name}`}
+                        className="h-7 px-2 text-xs text-muted-foreground"
+                      >
+                        <IconEye className="size-3.5 mr-1" />
+                        Preview
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => handleUseTemplate(template)}
+                        className="h-7 gap-1.5"
+                      >
+                        <IconSparkles className="size-3.5" />
+                        Create Post
+                      </Button>
+                    </div>
                   </div>
-
-                  {/* Actions */}
-                  <div
-                    className={cn(
-                      "flex gap-1",
-                      viewMode === "grid"
-                        ? "mt-4 border-t pt-3"
-                        : "flex-col items-end justify-start"
-                    )}
-                  >
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => handleUseTemplate(template)}
-                      className={cn(viewMode === "grid" && "flex-1")}
-                    >
-                      Create Post
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => handlePreview(template)}
-                      aria-label={`Preview ${template.name}`}
-                    >
-                      <IconEye className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => handleEdit(template)}
-                      aria-label={`Edit ${template.name}`}
-                    >
-                      <IconEdit className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => handleDelete(template.id)}
-                      aria-label={`Delete ${template.name}`}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <IconTrash className="size-4" />
-                    </Button>
-                  </div>
-                </motion.div>
+                </div>
               ))}
-            </motion.div>
+            </div>
           )}
         </CardContent>
 
@@ -1000,18 +990,29 @@ export function TemplateLibrary({
         onSaveAITemplate={handleSaveAITemplate}
       />
 
-      {/* Create/Edit Dialog (Centered Popup Modal) */}
+      {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>
-              {editingTemplate ? "Edit Template" : "Create Template"}
-            </DialogTitle>
-            <DialogDescription>
-              {editingTemplate
-                ? "Update your template details below"
-                : "Fill in the details to create a new template"}
-            </DialogDescription>
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 p-2">
+                {editingTemplate ? (
+                  <IconEdit className="size-4 text-primary" />
+                ) : (
+                  <IconPlus className="size-4 text-primary" />
+                )}
+              </div>
+              <div>
+                <DialogTitle>
+                  {editingTemplate ? "Edit Template" : "Create Template"}
+                </DialogTitle>
+                <DialogDescription>
+                  {editingTemplate
+                    ? "Update your template details below"
+                    : "Fill in the details to create a new template"}
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
 
           <div className="flex flex-col gap-4 overflow-y-auto flex-1 py-2">
@@ -1129,35 +1130,42 @@ export function TemplateLibrary({
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {previewTemplate?.name}
-              <Badge variant={previewTemplate ? getCategoryVariant(previewTemplate.category) : "default"}>
-                {previewTemplate?.category}
-              </Badge>
-            </DialogTitle>
-            <DialogDescription className="flex items-center gap-4 text-sm">
-              {previewTemplate?.isPublic ? (
-                <span className="flex items-center gap-1">
-                  <IconUsers className="size-3" />
-                  Public
-                </span>
-              ) : (
-                <span className="flex items-center gap-1">
-                  <IconLock className="size-3" />
-                  Private
-                </span>
-              )}
-              <span>
-                Used {previewTemplate?.usageCount} time{previewTemplate?.usageCount !== 1 ? "s" : ""}
-              </span>
-            </DialogDescription>
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 p-2">
+                <IconEye className="size-4 text-primary" />
+              </div>
+              <div>
+                <DialogTitle className="flex items-center gap-2">
+                  {previewTemplate?.name}
+                  <Badge variant={previewTemplate ? getCategoryVariant(previewTemplate.category) : "default"} className="text-xs">
+                    {previewTemplate?.category}
+                  </Badge>
+                </DialogTitle>
+                <DialogDescription className="flex items-center gap-4">
+                  {previewTemplate?.isPublic ? (
+                    <span className="flex items-center gap-1">
+                      <IconUsers className="size-3" />
+                      Public
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1">
+                      <IconLock className="size-3" />
+                      Private
+                    </span>
+                  )}
+                  <span className="tabular-nums">
+                    Used {previewTemplate?.usageCount} time{previewTemplate?.usageCount !== 1 ? "s" : ""}
+                  </span>
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
 
           {/* Full Template Content */}
           <div className="flex-1 overflow-y-auto -mx-6 px-6">
             <div className="space-y-4 py-4">
-              <div className="p-4 rounded-lg border bg-muted/30">
-                <p className="text-sm leading-relaxed whitespace-pre-wrap font-mono">
+              <div className="p-4 rounded-lg border bg-muted/20">
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">
                   {previewTemplate?.content}
                 </p>
               </div>
@@ -1166,9 +1174,9 @@ export function TemplateLibrary({
               {previewTemplate && previewTemplate.tags.length > 0 && (
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-2">Tags</p>
-                  <div className="flex flex-wrap gap-1">
+                  <div className="flex flex-wrap gap-1.5">
                     {previewTemplate.tags.map((tag) => (
-                      <Badge key={tag} variant="outline" className="text-xs">
+                      <Badge key={tag} variant="outline" className="text-xs font-normal">
                         {tag}
                       </Badge>
                     ))}
@@ -1181,16 +1189,16 @@ export function TemplateLibrary({
           {/* Actions */}
           <div className="flex gap-2 pt-4 border-t">
             <Button
-              variant="default"
               onClick={() => {
                 if (previewTemplate) {
                   handleUseTemplate(previewTemplate)
                   setIsPreviewOpen(false)
                 }
               }}
-              className="flex-1"
+              className="flex-1 gap-1.5"
             >
-              Create Post
+              <IconSparkles className="size-3.5" />
+              Create Post with AI
             </Button>
             <Button
               variant="outline"

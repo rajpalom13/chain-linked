@@ -42,6 +42,14 @@ function ComposeContent() {
   // State for editing an existing scheduled post
   const [editingPost, setEditingPost] = React.useState<EditingPost | null>(null)
 
+  // Parse schedule date from query params (from dashboard calendar click)
+  const initialScheduleDate = React.useMemo(() => {
+    const dateParam = searchParams.get('scheduleDate')
+    if (!dateParam) return undefined
+    const date = new Date(dateParam)
+    return isNaN(date.getTime()) ? undefined : date
+  }, [searchParams])
+
   // Track the latest generation context (topic, tone, context, etc.)
   const generationContextRef = React.useRef<GenerationContext | null>(null)
 
@@ -353,6 +361,7 @@ function ComposeContent() {
           onPost={handlePost}
           onScheduleConfirm={handleSchedule}
           onGenerationContext={handleGenerationContext}
+          initialScheduleDate={initialScheduleDate}
         />
       </ErrorBoundary>
     </PageContent>

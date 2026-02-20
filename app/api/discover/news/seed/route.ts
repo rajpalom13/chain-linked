@@ -83,34 +83,48 @@ export async function POST(request: Request) {
 
     const validTopics = topics.filter((t) => t !== "all")
 
-    // ---- Duplicate check (skip when force = true) ----
-    if (!force) {
-      let query = supabase
+    // ---- Per-topic duplicate check (skip when force = true) ----
+    // Only seed topics that are missing recent articles (< 24h old).
+    // Previously this checked ALL topics at once, so a single topic
+    // with existing articles would block every other topic from being seeded.
+    let topicsToSeed = validTopics.length > 0 ? validTopics : topics
+
+    if (!force && topicsToSeed.length > 0) {
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+
+      const { data: recentRows, error: countError } = await supabase
         .from("discover_news_articles")
-        .select("id", { count: "exact", head: true })
-
-      if (validTopics.length > 0) {
-        query = query.in("topic", validTopics)
-      }
-
-      const { count, error: countError } = await query
+        .select("topic")
+        .in("topic", topicsToSeed)
+        .gte("created_at", oneDayAgo)
 
       if (countError) {
-        console.warn("[Seed] Error checking article count:", countError)
-      }
+        console.warn("[Seed] Error checking recent articles:", countError)
+      } else {
+        const topicsWithRecentArticles = new Set(
+          (recentRows || []).map((r: { topic: string }) => r.topic)
+        )
+        topicsToSeed = topicsToSeed.filter(
+          (t) => !topicsWithRecentArticles.has(t)
+        )
 
-      if (count && count > 0) {
-        return NextResponse.json<SeedResponse>({
-          seeded: false,
-          reason: "already_exists",
-          message: "Articles already exist for the requested topics",
-          count,
-        })
+        if (topicsToSeed.length === 0) {
+          return NextResponse.json<SeedResponse>({
+            seeded: false,
+            reason: "already_exists",
+            message:
+              "All requested topics already have recent articles (< 24h old)",
+          })
+        }
+
+        console.log(
+          `[Seed] ${topicsWithRecentArticles.size} topics already have recent articles, seeding ${topicsToSeed.length} remaining topics`
+        )
       }
     }
 
     // ---- Dispatch via Inngest (primary) with direct fallback ----
-    const ingestTopics = validTopics.length > 0 ? validTopics : topics
+    const ingestTopics = topicsToSeed
     const batchId = crypto.randomUUID()
 
     try {

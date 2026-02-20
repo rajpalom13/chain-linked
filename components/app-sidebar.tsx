@@ -9,6 +9,7 @@
 
 import * as React from "react"
 import { useState, useEffect, useMemo } from "react"
+import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
@@ -18,7 +19,6 @@ import {
   IconChartBar,
   IconChevronRight,
   IconDashboard,
-  IconLink,
   IconPresentation,
   IconTemplate,
   IconUsers,
@@ -298,7 +298,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
               <Link href="/dashboard">
-                <IconLink className="!size-5" />
+                <Image src="/logo.png" alt="ChainLinked" width={20} height={20} className="size-5" />
                 <span className="text-base font-semibold">ChainLinked</span>
               </Link>
             </SidebarMenuButton>

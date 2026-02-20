@@ -18,6 +18,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "ChainLinked - LinkedIn Content Management",
   description: "Create, schedule, and analyze your LinkedIn content with AI-powered tools",
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/logo-icon.png",
+  },
 };
 
 export default function RootLayout({

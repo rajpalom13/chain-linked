@@ -12,6 +12,7 @@ import { useState, useMemo, useEffect, useCallback } from "react"
 import { motion } from "framer-motion"
 import dynamic from "next/dynamic"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   IconPencil,
   IconPhoto,
@@ -826,6 +827,7 @@ function StreakCard({ className }: { className?: string }) {
  */
 function ScheduleCalendarCard({ className }: { className?: string }) {
   const { posts, isLoading } = useScheduledPosts(30)
+  const router = useRouter()
 
   const now = new Date()
   const year = now.getFullYear()
@@ -851,6 +853,17 @@ function ScheduleCalendarCard({ className }: { className?: string }) {
     }
     return dates
   }, [posts, year, month])
+
+  /**
+   * Handle clicking a calendar day.
+   * For today or future dates, navigates to compose with the date pre-filled for scheduling.
+   */
+  const handleDayClick = useCallback((day: number) => {
+    if (day < today) return // Can't schedule in the past
+    const date = new Date(year, month, day, 9, 0, 0) // Default to 9:00 AM
+    const isoDate = date.toISOString()
+    router.push(`/dashboard/compose?scheduleDate=${encodeURIComponent(isoDate)}`)
+  }, [year, month, today, router])
 
   const monthLabel = now.toLocaleDateString("en-US", { month: "long", year: "numeric" })
   const weekDayHeaders = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
@@ -880,10 +893,13 @@ function ScheduleCalendarCard({ className }: { className?: string }) {
   return (
     <Card className={cn("border-border/50", className)}>
       <CardContent className="p-4">
-        <h4 className="text-sm font-medium mb-3 flex items-center gap-1.5">
-          <IconCalendarEvent className="size-4 text-primary" />
-          {monthLabel}
-        </h4>
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-sm font-medium flex items-center gap-1.5">
+            <IconCalendarEvent className="size-4 text-primary" />
+            Schedule Post
+          </h4>
+          <span className="text-[10px] text-muted-foreground">{monthLabel}</span>
+        </div>
 
         {/* Week day headers */}
         <div className="grid grid-cols-7 gap-0.5 mb-1">
@@ -903,17 +919,22 @@ function ScheduleCalendarCard({ className }: { className?: string }) {
             const isToday = day === today
             const hasPost = scheduledDates.has(day)
             const isPast = day < today
+            const isClickable = !isPast
 
             return (
-              <div
+              <button
                 key={day}
+                type="button"
+                disabled={isPast}
+                onClick={() => handleDayClick(day)}
+                title={isClickable ? `Schedule a post for ${month + 1}/${day}` : undefined}
                 className={cn(
-                  "h-7 flex flex-col items-center justify-center rounded-md text-[11px] relative",
+                  "h-7 flex flex-col items-center justify-center rounded-md text-[11px] relative transition-colors",
                   isToday
-                    ? "bg-primary text-primary-foreground font-semibold"
+                    ? "bg-primary text-primary-foreground font-semibold hover:bg-primary/90"
                     : isPast
-                      ? "text-muted-foreground/50"
-                      : "text-foreground"
+                      ? "text-muted-foreground/50 cursor-default"
+                      : "text-foreground hover:bg-primary/10 cursor-pointer"
                 )}
               >
                 {day}
@@ -923,10 +944,15 @@ function ScheduleCalendarCard({ className }: { className?: string }) {
                     isToday ? "bg-primary-foreground" : "bg-primary"
                   )} />
                 )}
-              </div>
+              </button>
             )
           })}
         </div>
+
+        {/* Hint text */}
+        <p className="text-[10px] text-muted-foreground mt-2 text-center">
+          Click a date to schedule a post
+        </p>
       </CardContent>
     </Card>
   )
@@ -1288,13 +1314,16 @@ function DashboardContent() {
             <ProfileCard />
           </div>
 
-          {/* CENTER COLUMN: Greeting + Create post + Getting started + Streak + Tip */}
+          {/* CENTER COLUMN: Greeting + Create post + Streak + Getting started & Daily tip */}
           <div className="space-y-4" data-tour="create-post">
             <InlineGreeting />
             <CreatePostCard />
-            <GettingStartedCard />
             <StreakCard />
-            <DailyTipCard />
+            {/* Get Started + Daily Tip side by side */}
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_200px] gap-4">
+              <GettingStartedCard />
+              <DailyTipCard />
+            </div>
           </div>
 
           {/* RIGHT COLUMN: Scheduled posts with calendar */}
