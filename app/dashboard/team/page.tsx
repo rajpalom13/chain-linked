@@ -25,7 +25,7 @@ import {
 import { formatDistanceToNow } from "date-fns"
 
 import { ErrorBoundary } from "@/components/error-boundary"
-import { TeamActivityFeed, type TeamActivityItem } from "@/components/features/team-activity-feed"
+import { type TeamActivityItem } from "@/components/features/team-activity-feed"
 import { TeamLeaderboard } from "@/components/features/team-leaderboard"
 import { TeamHeader } from "@/components/features/team-header"
 import { TeamMembersPreview } from "@/components/features/team-members-preview"
@@ -165,87 +165,101 @@ function AnimatedTabBar({
 // ============================================================================
 
 /**
- * Grid card for a single post - shows image/thumbnail + text snippet
- * Clicking opens the detail popup
+ * Grid card for a single post - professional card with author info,
+ * content preview, engagement metrics, and posted date
+ * @param props.post - The team activity item to display
+ * @param props.onClick - Callback when the card is clicked to open detail popup
+ * @param props.index - Card index used for stagger animation delay
  */
 function PostGridCard({
   post,
   onClick,
+  index = 0,
 }: {
   post: TeamActivityItem
   onClick: () => void
+  index?: number
 }) {
-  const hasMedia = post.mediaUrls && post.mediaUrls.length > 0
-  const relativeTime = formatDistanceToNow(new Date(post.postedAt), { addSuffix: false })
-  const snippet = post.content.length > 80
-    ? `${post.content.slice(0, 80)}...`
+  const relativeTime = formatDistanceToNow(new Date(post.postedAt), { addSuffix: true })
+  const snippet = post.content.length > 120
+    ? `${post.content.slice(0, 120)}...`
     : post.content
 
   return (
     <motion.button
       type="button"
       onClick={onClick}
-      className="text-left bg-card rounded-xl border border-border/50 overflow-hidden transition-all hover:shadow-md hover:border-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      whileHover={{ y: -2 }}
-      transition={{ type: "spring", stiffness: 400, damping: 17 }}
+      className="text-left bg-card rounded-xl border border-border/40 overflow-hidden transition-all hover:shadow-md hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group"
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: 0.35,
+        delay: index * 0.06,
+        ease: [0.16, 1, 0.3, 1],
+      }}
+      whileHover={{ y: -3 }}
     >
-      {/* Image or gradient placeholder */}
-      {hasMedia ? (
-        /* eslint-disable-next-line @next/next/no-img-element */
-        <img
-          src={post.mediaUrls![0]}
-          alt="Post media"
-          className="w-full h-40 object-cover"
-          loading="lazy"
-        />
-      ) : (
-        <div className="w-full h-40 bg-gradient-to-br from-primary/10 via-primary/5 to-secondary/10 flex items-center justify-center">
-          <div className="text-4xl opacity-30">
-            {post.postType === "article" ? "\u{1F4DD}" : "\u{1F4AC}"}
-          </div>
+      {/* Author section */}
+      <div className="flex items-start gap-3 p-4 pb-0">
+        <Avatar className="size-10 shrink-0 ring-1 ring-border/30">
+          {post.author.avatar && (
+            <AvatarImage src={post.author.avatar} alt={post.author.name} />
+          )}
+          <AvatarFallback className="text-xs font-semibold bg-gradient-to-br from-primary/20 to-primary/10 text-primary">
+            {getInitials(post.author.name)}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <span className="text-sm font-semibold leading-tight truncate block">
+            {post.author.name}
+          </span>
+          <p className="text-xs text-muted-foreground truncate leading-snug mt-0.5">
+            {post.author.headline}
+          </p>
         </div>
-      )}
+      </div>
 
-      {/* Content area */}
-      <div className="p-3">
-        {/* Author mini row */}
-        <div className="flex items-center gap-2 mb-1.5">
-          <Avatar className="size-6">
-            {post.author.avatar && (
-              <AvatarImage src={post.author.avatar} alt={post.author.name} />
-            )}
-            <AvatarFallback className="text-[9px]">
-              {getInitials(post.author.name)}
-            </AvatarFallback>
-          </Avatar>
-          <span className="text-xs font-medium truncate flex-1">{post.author.name}</span>
-          <span className="text-[10px] text-muted-foreground shrink-0">{relativeTime}</span>
-        </div>
+      {/* Content preview */}
+      <div className="px-4 pt-3 pb-3">
+        <p className="text-[13px] text-muted-foreground leading-relaxed line-clamp-3">
+          {snippet}
+        </p>
+      </div>
 
-        {/* Text snippet */}
-        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{snippet}</p>
+      {/* Divider */}
+      <div className="mx-4 border-t border-border/30" />
 
-        {/* Mini metrics */}
-        <div className="flex items-center gap-2.5 mt-2 text-[10px] text-muted-foreground">
+      {/* Engagement metrics + date */}
+      <div className="px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
           {post.metrics.impressions > 0 && (
-            <span className="flex items-center gap-0.5">
-              <IconEye className="size-3" />
+            <span className="flex items-center gap-1" title="Impressions">
+              <IconEye className="size-3.5" />
               {formatMetricNumber(post.metrics.impressions)}
             </span>
           )}
           {post.metrics.reactions > 0 && (
-            <span className="flex items-center gap-0.5">
-              <IconThumbUp className="size-3" />
+            <span className="flex items-center gap-1" title="Reactions">
+              <IconThumbUp className="size-3.5" />
               {formatMetricNumber(post.metrics.reactions)}
             </span>
           )}
           {post.metrics.comments > 0 && (
-            <span className="flex items-center gap-0.5">
-              <IconMessageCircle className="size-3" />
+            <span className="flex items-center gap-1" title="Comments">
+              <IconMessageCircle className="size-3.5" />
               {formatMetricNumber(post.metrics.comments)}
             </span>
           )}
+          {post.metrics.reposts > 0 && (
+            <span className="flex items-center gap-1" title="Reposts">
+              <IconShare className="size-3.5" />
+              {formatMetricNumber(post.metrics.reposts)}
+            </span>
+          )}
         </div>
+        <span className="text-[11px] text-muted-foreground/70 shrink-0">
+          {relativeTime}
+        </span>
       </div>
     </motion.button>
   )
@@ -388,7 +402,10 @@ function PostDetailPopup({
 
 /**
  * Post grid with popup detail view
- * Shows posts as image+text cards in a responsive grid
+ * Displays posts in a responsive 3-column card grid with stagger animations
+ * @param props.posts - Array of team activity items to render
+ * @param props.isLoading - Whether the data is still loading
+ * @param props.className - Additional CSS classes for the container
  */
 function PostGrid({
   posts,
@@ -403,17 +420,29 @@ function PostGrid({
 
   if (isLoading) {
     return (
-      <div className={cn("grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3", className)}>
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="bg-card rounded-xl border border-border/50 overflow-hidden">
-            <Skeleton className="w-full h-40" />
-            <div className="p-3 space-y-2">
-              <div className="flex items-center gap-2">
-                <Skeleton className="size-6 rounded-full" />
-                <Skeleton className="h-3 w-20" />
+      <div className={cn("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4", className)}>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="bg-card rounded-xl border border-border/40 overflow-hidden">
+            <div className="flex items-start gap-3 p-4 pb-0">
+              <Skeleton className="size-10 rounded-full shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-3 w-40" />
               </div>
+            </div>
+            <div className="px-4 pt-3 pb-3 space-y-2">
+              <Skeleton className="h-3 w-full" />
               <Skeleton className="h-3 w-full" />
               <Skeleton className="h-3 w-2/3" />
+            </div>
+            <div className="mx-4 border-t border-border/30" />
+            <div className="px-4 py-3 flex items-center justify-between">
+              <div className="flex gap-3">
+                <Skeleton className="h-3 w-10" />
+                <Skeleton className="h-3 w-10" />
+                <Skeleton className="h-3 w-10" />
+              </div>
+              <Skeleton className="h-3 w-16" />
             </div>
           </div>
         ))}
@@ -437,11 +466,12 @@ function PostGrid({
 
   return (
     <>
-      <div className={cn("grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3", className)}>
-        {posts.map((post) => (
+      <div className={cn("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4", className)}>
+        {posts.map((post, index) => (
           <PostGridCard
             key={post.id}
             post={post}
+            index={index}
             onClick={() => setSelectedPost(post)}
           />
         ))}
@@ -663,18 +693,14 @@ function TeamContent() {
 
           {/* Activity Tab */}
           {activeTab === "activity" && (
-            <div className="p-4 md:p-6">
-              <Card className="border-border/50">
-                <CardHeader>
-                  <CardTitle>Recent Team Activity</CardTitle>
-                  <CardDescription>
-                    Posts created by team members in the last 7 days
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <TeamActivityFeed posts={posts} isLoading={postsLoading} />
-                </CardContent>
-              </Card>
+            <div className="p-4 md:p-6 space-y-4">
+              <div>
+                <h3 className="text-base font-semibold">Recent Team Activity</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Posts created by team members in the last 7 days
+                </p>
+              </div>
+              <PostGrid posts={posts} isLoading={postsLoading} />
             </div>
           )}
 
