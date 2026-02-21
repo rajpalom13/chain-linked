@@ -141,10 +141,24 @@ export interface LinkedInAuthor {
 }
 
 /**
- * LinkedIn share commentary (text content)
+ * UGC mention attribute for tagging people in posts
+ */
+export interface LinkedInMentionAttribute {
+  start: number
+  length: number
+  value: {
+    'com.linkedin.common.MemberAttributedEntity': {
+      member: string
+    }
+  }
+}
+
+/**
+ * LinkedIn share commentary (text content with optional mention attributes)
  */
 export interface LinkedInShareCommentary {
   text: string
+  attributes?: LinkedInMentionAttribute[]
 }
 
 /**

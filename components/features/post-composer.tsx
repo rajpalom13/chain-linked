@@ -62,7 +62,9 @@ import { PostActionsMenu } from "./post-actions-menu"
 import { PostGoalSelector } from "./post-goal-selector"
 import { FontPicker } from "./font-picker"
 import { LinkedInStatusBadge } from "./linkedin-status-badge"
+import { MentionPopover, type MentionSuggestion } from "./mention-popover"
 import { usePostingConfig } from "@/hooks/use-posting-config"
+import { buildMentionToken, countCharactersWithMentions } from "@/lib/linkedin/mentions"
 
 /**
  * Props for the PostComposer component
@@ -103,7 +105,7 @@ const DEFAULT_USER_PROFILE = {
 /**
  * Parses text for preview rendering.
  * Since bold/italic are now Unicode characters (rendered natively),
- * this only handles: - list items, #hashtags, and line breaks.
+ * this handles: @mentions, - list items, #hashtags, and line breaks.
  * @param text - The raw text content to parse
  * @returns Parsed text with HTML elements
  */
@@ -114,34 +116,54 @@ function parseMarkdownLikeSyntax(text: string): React.ReactNode[] {
   const elements: React.ReactNode[] = []
 
   lines.forEach((line, lineIndex) => {
-    // Parse hashtags within a line
+    // Parse mentions and hashtags within a line
     const parseInlineFormatting = (content: string): React.ReactNode[] => {
       const parts: React.ReactNode[] = []
       let remaining = content
       let keyIndex = 0
 
       while (remaining.length > 0) {
+        // Find the next mention or hashtag (whichever comes first)
+        const mentionMatch = remaining.match(/@\[([^\]]+)\]\((urn:li:(?:person|organization):[^)]+)\)/)
         const hashtagMatch = remaining.match(/#(\w+)/)
 
-        if (!hashtagMatch) {
+        const mentionIdx = mentionMatch?.index ?? Infinity
+        const hashtagIdx = hashtagMatch?.index ?? Infinity
+
+        if (mentionIdx === Infinity && hashtagIdx === Infinity) {
           if (remaining) parts.push(remaining)
           break
         }
 
-        const index = hashtagMatch.index!
-        if (index > 0) {
-          parts.push(remaining.slice(0, index))
+        if (mentionIdx <= hashtagIdx && mentionMatch) {
+          // Mention comes first
+          if (mentionIdx > 0) {
+            parts.push(remaining.slice(0, mentionIdx))
+          }
+          parts.push(
+            <span
+              key={`mention-${lineIndex}-${keyIndex++}`}
+              className="text-[#0A66C2] font-semibold"
+            >
+              {mentionMatch[1]}
+            </span>
+          )
+          remaining = remaining.slice(mentionIdx + mentionMatch[0].length)
+        } else if (hashtagMatch) {
+          // Hashtag comes first
+          if (hashtagIdx > 0) {
+            parts.push(remaining.slice(0, hashtagIdx))
+          }
+          parts.push(
+            <span
+              key={`hashtag-${lineIndex}-${keyIndex++}`}
+              className="text-primary font-medium"
+            >
+              #{hashtagMatch[1]}
+            </span>
+          )
+          remaining = remaining.slice(hashtagIdx + hashtagMatch[0].length)
         }
-
-        parts.push(
-          <span
-            key={`hashtag-${lineIndex}-${keyIndex++}`}
-            className="text-primary font-medium"
-          >
-            #{hashtagMatch[1]}
-          </span>
-        )
-        remaining = remaining.slice(index + hashtagMatch[0].length)
       }
 
       return parts
@@ -230,6 +252,10 @@ export function PostComposer({
   const [selectedGoal, setSelectedGoal] = React.useState<GoalCategory | undefined>(undefined)
   const [selectedFormat, setSelectedFormat] = React.useState<PostTypeId | undefined>(undefined)
   const [activeFontStyle, setActiveFontStyle] = React.useState<UnicodeFontStyle>('normal')
+  const [mentionOpen, setMentionOpen] = React.useState(false)
+  const [mentionQuery, setMentionQuery] = React.useState("")
+  const [mentionPosition, setMentionPosition] = React.useState({ top: 0, left: 0 })
+  const mentionStartRef = React.useRef<number>(-1)
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
   const editingZoneRef = React.useRef<HTMLDivElement>(null)
   const cursorPositionRef = React.useRef({ start: 0, end: 0 })
@@ -254,12 +280,14 @@ export function PostComposer({
     function handleClickOutside(e: MouseEvent) {
       const target = e.target as HTMLElement
       // Don't exit if clicking inside any Radix popover/portal (FontPicker, EmojiPicker)
+      // or inside the mention popover
       if (
         target.closest('[data-radix-popper-content-wrapper]') ||
         target.closest('[data-radix-menu-content]') ||
         target.closest('[role="dialog"]')
       ) return
       if (editingZoneRef.current && !editingZoneRef.current.contains(target)) {
+        setMentionOpen(false)
         setIsEditing(false)
       }
     }
@@ -356,14 +384,115 @@ export function PostComposer({
     }
   }
 
+  /**
+   * Detect @mention trigger in the textarea.
+   * Called on every content change and cursor move while editing.
+   * Opens the mention popover when "@" is typed, closes when the trigger disappears.
+   */
+  const detectMention = React.useCallback(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+
+    const cursorPos = textarea.selectionStart
+    const textBefore = textarea.value.slice(0, cursorPos)
+
+    // Find the last @ that isn't part of an existing mention token
+    const lastAt = textBefore.lastIndexOf('@')
+    if (lastAt === -1) {
+      setMentionOpen(false)
+      return
+    }
+
+    // Check that this @ is not inside an existing @[Name](urn) token
+    const afterAt = textarea.value.slice(lastAt)
+    const existingMentionCheck = /^@\[[^\]]*\]\([^)]*\)/.test(afterAt)
+    if (existingMentionCheck) {
+      setMentionOpen(false)
+      return
+    }
+
+    // The character before @ should be start of text, whitespace, or newline
+    const charBefore = lastAt > 0 ? textBefore[lastAt - 1] : ' '
+    if (!/[\s\n]/.test(charBefore) && lastAt !== 0) {
+      setMentionOpen(false)
+      return
+    }
+
+    // Extract the query (text between @ and cursor)
+    const query = textBefore.slice(lastAt + 1)
+
+    // If query contains whitespace beyond one word split (allow "John Sm" but not newlines)
+    if (query.includes('\n')) {
+      setMentionOpen(false)
+      return
+    }
+
+    mentionStartRef.current = lastAt
+
+    // Calculate popover position relative to textarea
+    const lineHeight = 24
+    const charWidth = 8
+    const textBeforeAt = textBefore.slice(0, lastAt)
+    const lines = textBeforeAt.split('\n')
+    const currentLine = lines.length - 1
+    const col = lines[lines.length - 1].length
+
+    setMentionPosition({
+      top: (currentLine + 1) * lineHeight + 4,
+      left: Math.min(col * charWidth, 250),
+    })
+    setMentionQuery(query)
+    setMentionOpen(true)
+  }, [])
+
+  /**
+   * Handle selecting a mention suggestion.
+   * Replaces the @query text with a mention token.
+   */
+  const handleMentionSelect = React.useCallback(
+    (suggestion: MentionSuggestion) => {
+      const textarea = textareaRef.current
+      if (!textarea) return
+
+      const start = mentionStartRef.current
+      if (start === -1) return
+
+      const cursorPos = textarea.selectionStart
+      const token = buildMentionToken(suggestion.name, suggestion.urn)
+
+      // Replace @query with the mention token
+      const before = content.slice(0, start)
+      const after = content.slice(cursorPos)
+      const newContent = before + token + ' ' + after
+      setContent(newContent)
+      setDraftContent(newContent)
+
+      // Close popover
+      setMentionOpen(false)
+      mentionStartRef.current = -1
+
+      // Set cursor after the inserted token
+      const newCursorPos = start + token.length + 1
+      cursorPositionRef.current = { start: newCursorPos, end: newCursorPos }
+
+      setTimeout(() => {
+        if (textarea) {
+          textarea.focus()
+          textarea.setSelectionRange(newCursorPos, newCursorPos)
+        }
+      }, 0)
+    },
+    [content, setDraftContent]
+  )
+
   // Update draft when content changes
   const handleContentChange = (newContent: string) => {
     setContent(newContent)
     setDraftContent(newContent)
   }
 
-  // Code-point-aware character counting for accurate LinkedIn limits
-  const characterCount = [...content].length
+  // Code-point-aware character counting (mention tokens count as display name only)
+  const characterCount = countCharactersWithMentions(content)
   const isOverLimit = characterCount > maxLength
   const hashtags = extractHashtags(content)
   const characterPercentage = Math.min((characterCount / maxLength) * 100, 100)
@@ -734,25 +863,45 @@ export function PostComposer({
                   <div className="px-4 pb-3">
                     {isEditing ? (
                       /* Edit mode: borderless textarea styled to match preview */
-                      <textarea
-                        ref={textareaRef}
-                        value={content}
-                        onChange={(e) => {
-                          handleContentChange(e.target.value)
-                          saveCursorPosition()
-                        }}
-                        onSelect={saveCursorPosition}
-                        onKeyUp={saveCursorPosition}
-                        onClick={saveCursorPosition}
-                        placeholder="What do you want to talk about?"
-                        className={cn(
-                          "w-full resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:text-muted-foreground",
-                          "min-h-[120px]",
-                          isOverLimit && "text-destructive"
-                        )}
-                        aria-label="Post content"
-                        aria-describedby="character-count"
-                      />
+                      <div className="relative">
+                        <textarea
+                          ref={textareaRef}
+                          value={content}
+                          onChange={(e) => {
+                            handleContentChange(e.target.value)
+                            saveCursorPosition()
+                            // Defer mention detection to after state update
+                            setTimeout(detectMention, 0)
+                          }}
+                          onSelect={() => {
+                            saveCursorPosition()
+                            detectMention()
+                          }}
+                          onKeyUp={(e) => {
+                            saveCursorPosition()
+                            // Close mention on space after @-only trigger
+                            if (e.key === 'Escape' && mentionOpen) {
+                              setMentionOpen(false)
+                            }
+                          }}
+                          onClick={saveCursorPosition}
+                          placeholder="What do you want to talk about?"
+                          className={cn(
+                            "w-full resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:text-muted-foreground",
+                            "min-h-[120px]",
+                            isOverLimit && "text-destructive"
+                          )}
+                          aria-label="Post content"
+                          aria-describedby="character-count"
+                        />
+                        <MentionPopover
+                          isOpen={mentionOpen}
+                          query={mentionQuery}
+                          position={mentionPosition}
+                          onSelect={handleMentionSelect}
+                          onClose={() => setMentionOpen(false)}
+                        />
+                      </div>
                     ) : (
                       /* Preview mode: rendered content with double-click to edit */
                       <div

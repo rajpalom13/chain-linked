@@ -12,10 +12,12 @@ import {
   type LinkedInRegisterUploadResponse,
   type LinkedInVisibility,
   type LinkedInShareMediaCategory,
+  type LinkedInMentionAttribute,
   type CreatePostRequest,
   type CreatePostResponse,
 } from './types'
 import { LinkedInApiClient } from './api-client'
+import { hasMentions, buildUgcMentionAttributes } from './mentions'
 
 /**
  * Maximum content length for LinkedIn posts
@@ -52,9 +54,29 @@ export function validatePostContent(content: string): void {
 }
 
 /**
+ * Process content that may contain mention tokens.
+ * Converts @[Name](URN) tokens to plain text + UGC attributes.
+ * @param content - Raw content possibly containing mention tokens
+ * @returns Object with plain text and optional attributes
+ */
+function processMentions(content: string): {
+  text: string
+  attributes?: LinkedInMentionAttribute[]
+} {
+  if (!hasMentions(content)) {
+    return { text: content }
+  }
+  const { plainText, attributes } = buildUgcMentionAttributes(content)
+  return {
+    text: plainText,
+    attributes: attributes.length > 0 ? attributes : undefined,
+  }
+}
+
+/**
  * Build ugcPost request body for text-only posts
  * @param linkedInUrn - Author's LinkedIn URN
- * @param content - Post content text
+ * @param content - Post content text (may contain mention tokens)
  * @param visibility - Post visibility setting
  * @returns UGC post request body
  */
@@ -63,13 +85,16 @@ function buildTextPostRequest(
   content: string,
   visibility: LinkedInVisibility = 'PUBLIC'
 ): LinkedInUgcPostRequest {
+  const { text, attributes } = processMentions(content)
+
   return {
     author: linkedInUrn,
     lifecycleState: 'PUBLISHED',
     specificContent: {
       'com.linkedin.ugc.ShareContent': {
         shareCommentary: {
-          text: content,
+          text,
+          ...(attributes && { attributes }),
         },
         shareMediaCategory: 'NONE',
       },
@@ -83,7 +108,7 @@ function buildTextPostRequest(
 /**
  * Build ugcPost request body for posts with media
  * @param linkedInUrn - Author's LinkedIn URN
- * @param content - Post content text
+ * @param content - Post content text (may contain mention tokens)
  * @param mediaAssets - Array of uploaded media asset URNs
  * @param visibility - Post visibility setting
  * @returns UGC post request body
@@ -94,6 +119,7 @@ function buildMediaPostRequest(
   mediaAssets: string[],
   visibility: LinkedInVisibility = 'PUBLIC'
 ): LinkedInUgcPostRequest {
+  const { text, attributes } = processMentions(content)
   const mediaCategory: LinkedInShareMediaCategory = mediaAssets.length > 0 ? 'IMAGE' : 'NONE'
 
   const media = mediaAssets.map((asset) => ({
@@ -107,7 +133,8 @@ function buildMediaPostRequest(
     specificContent: {
       'com.linkedin.ugc.ShareContent': {
         shareCommentary: {
-          text: content,
+          text,
+          ...(attributes && { attributes }),
         },
         shareMediaCategory: mediaCategory,
         media: media.length > 0 ? media : undefined,

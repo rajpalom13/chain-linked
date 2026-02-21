@@ -45,6 +45,18 @@ export {
   buildPostUrl,
 } from './post'
 
+// Export mention utilities
+export {
+  MENTION_REGEX,
+  parseMentions,
+  mentionsToPlainText,
+  buildUgcMentionAttributes,
+  hasMentions,
+  buildMentionToken,
+  countCharactersWithMentions,
+} from './mentions'
+export type { ParsedMention, MentionAttribute } from './mentions'
+
 // Export document post functions
 export {
   MAX_DOCUMENT_SIZE_BYTES,

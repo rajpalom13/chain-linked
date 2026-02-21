@@ -1200,16 +1200,156 @@ async function fetchLinkedInAPI(endpoint: string, options: RequestInit = {}): Pr
 }
 
 // ============================================
+// LINKEDIN MENTION SEARCH (for web app @mention)
+// ============================================
+
+/**
+ * MiniProfile shape from Voyager search/blended included array
+ */
+interface VoyagerMiniProfile {
+  $type?: string;
+  firstName?: string;
+  lastName?: string;
+  occupation?: string;
+  entityUrn?: string;
+  objectUrn?: string;
+  publicIdentifier?: string;
+  picture?: {
+    rootUrl?: string;
+    artifacts?: Array<{
+      width?: number;
+      height?: number;
+      fileIdentifyingUrlPathSegment?: string;
+    }>;
+  };
+}
+
+/**
+ * Search LinkedIn users via Voyager search/blended API.
+ * Cookies stay in the extension — only parsed results are returned.
+ * @param query - Search query string
+ * @returns Object with success flag and results array
+ */
+async function handleMentionSearch(query: string): Promise<{
+  success: boolean;
+  results: Array<{
+    name: string;
+    urn: string;
+    headline: string | null;
+    avatarUrl: string | null;
+    publicIdentifier: string | null;
+  }>;
+  error?: string;
+}> {
+  try {
+    // Read cookies directly — they never leave the extension
+    const liAt = await chrome.cookies.get({ url: 'https://www.linkedin.com', name: 'li_at' });
+    const jsessionid = await chrome.cookies.get({ url: 'https://www.linkedin.com', name: 'JSESSIONID' });
+
+    if (!liAt?.value || !jsessionid?.value) {
+      return { success: false, results: [], error: 'Not logged into LinkedIn' };
+    }
+
+    const csrfToken = jsessionid.value.replace(/"/g, '');
+    const encodedQuery = encodeURIComponent(query);
+
+    const endpoint =
+      'https://www.linkedin.com/voyager/api/search/blended' +
+      `?count=10&filters=List(resultType->PEOPLE)&keywords=${encodedQuery}` +
+      '&origin=TYPEAHEAD_ESCAPE_HATCH&q=all' +
+      '&queryContext=List(spellCorrectionEnabled->true,relatedSearchesEnabled->true)&start=0';
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      headers: {
+        'accept': 'application/vnd.linkedin.normalized+json+2.1',
+        'csrf-token': csrfToken,
+        'x-li-lang': 'en_US',
+        'x-restli-protocol-version': '2.0.0',
+        'cookie': `li_at=${liAt.value}; JSESSIONID=${jsessionid.value}`,
+      },
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      return { success: false, results: [], error: `LinkedIn API error (${response.status})` };
+    }
+
+    const data = await response.json();
+
+    // Extract MiniProfile objects from the included array
+    const included: VoyagerMiniProfile[] = data?.included || data?.data?.included || [];
+    const results: Array<{
+      name: string;
+      urn: string;
+      headline: string | null;
+      avatarUrl: string | null;
+      publicIdentifier: string | null;
+    }> = [];
+    const seen = new Set<string>();
+
+    for (const item of included) {
+      if (
+        item.$type === 'com.linkedin.voyager.identity.shared.MiniProfile' &&
+        item.entityUrn &&
+        item.firstName
+      ) {
+        const id = item.entityUrn.split(':').pop() || item.entityUrn;
+        const urn = `urn:li:person:${id}`;
+        if (seen.has(urn)) continue;
+        seen.add(urn);
+
+        // Build avatar URL from picture artifacts
+        let avatarUrl: string | null = null;
+        if (item.picture?.rootUrl && item.picture.artifacts?.length) {
+          const artifact =
+            item.picture.artifacts.find(a => a.width === 100 && a.height === 100) ||
+            item.picture.artifacts[0];
+          if (artifact?.fileIdentifyingUrlPathSegment) {
+            avatarUrl = `${item.picture.rootUrl}${artifact.fileIdentifyingUrlPathSegment}`;
+          }
+        }
+
+        results.push({
+          name: [item.firstName, item.lastName].filter(Boolean).join(' '),
+          urn,
+          headline: item.occupation || null,
+          avatarUrl,
+          publicIdentifier: item.publicIdentifier || null,
+        });
+      }
+    }
+
+    console.log(`[ServiceWorker] Mention search for "${query}": ${results.length} results`);
+    return { success: true, results };
+  } catch (error) {
+    console.error('[ServiceWorker] Mention search error:', error);
+    return { success: false, results: [], error: error instanceof Error ? error.message : 'Search failed' };
+  }
+}
+
+// ============================================
 // EXTERNAL MESSAGE HANDLING (from web app)
 // ============================================
 
 chrome.runtime.onMessageExternal.addListener(
-  (message: { type?: string }, _sender, sendResponse) => {
+  (message: { type?: string; query?: string }, _sender, sendResponse) => {
     if (message?.type === 'CHAINLINKED_PING') {
       sendResponse({
         installed: true,
         version: chrome.runtime.getManifest().version,
       })
+    } else if (message?.type === 'LINKEDIN_MENTION_SEARCH' && message.query) {
+      // Search LinkedIn users via Voyager API — cookies never leave the extension
+      handleMentionSearch(message.query).then(sendResponse).catch((err) => {
+        console.error('[ServiceWorker] Mention search error:', err);
+        sendResponse({ success: false, error: 'Search failed', results: [] });
+      });
     }
     return true
   }
