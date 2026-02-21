@@ -8,7 +8,7 @@
  * @module components/features/canvas-editor/template-selector-modal
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   IconCheck,
@@ -27,6 +27,8 @@ import {
   IconTrash,
   IconLoader2,
   IconPalette,
+  IconFolder,
+  IconPlus,
 } from '@tabler/icons-react';
 import {
   Dialog,
@@ -37,14 +39,16 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { canvasTemplates, getTemplatesByCategory } from '@/lib/canvas-templates';
 import { useCarouselTemplates } from '@/hooks/use-carousel-templates';
+import type { SavedCarouselTemplate } from '@/hooks/use-carousel-templates';
 import { useBrandKitTemplates } from '@/hooks/use-brand-kit-templates';
+import { useTemplateCategories } from '@/hooks/use-template-categories';
 import type { CanvasTemplate, TemplateCategory, CanvasSlide } from '@/types/canvas-editor';
 
-const FAVORITES_STORAGE_KEY = 'chainlinked-template-favorites';
 const RECENT_STORAGE_KEY = 'chainlinked-template-recent';
 const MAX_RECENT = 5;
 
@@ -85,61 +89,49 @@ const tabs: TabDefinition[] = [
 ];
 
 /**
- * Category configuration with icons
+ * Fetch favorite template IDs from the API
+ * @returns Promise resolving to array of favorite template IDs
  */
-const categoryConfig: Record<
-  TemplateCategory,
-  { label: string; icon: React.ReactNode; description: string }
-> = {
-  professional: {
-    label: 'Professional',
-    icon: <IconBriefcase className="h-4 w-4" />,
-    description: 'Clean, business-focused designs',
-  },
-  creative: {
-    label: 'Creative',
-    icon: <IconSparkles className="h-4 w-4" />,
-    description: 'Bold and colorful designs',
-  },
-  minimal: {
-    label: 'Minimal',
-    icon: <IconMinimize className="h-4 w-4" />,
-    description: 'Simple and elegant designs',
-  },
-  bold: {
-    label: 'Bold',
-    icon: <IconBolt className="h-4 w-4" />,
-    description: 'Modern high-impact designs',
-  },
-  brand: {
-    label: 'Your Brand',
-    icon: <IconPalette className="h-4 w-4" />,
-    description: 'Templates using your brand kit',
-  },
-};
-
-/**
- * Load favorite template IDs from localStorage
- * @returns Array of favorite template IDs
- */
-function loadFavorites(): string[] {
+async function fetchFavoritesFromApi(): Promise<string[]> {
   try {
-    const stored = localStorage.getItem(FAVORITES_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
+    const response = await fetch('/api/carousel-templates/favorites');
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.favoriteIds ?? [];
   } catch {
+    console.warn('Failed to fetch template favorites from API');
     return [];
   }
 }
 
 /**
- * Save favorite template IDs to localStorage
- * @param favorites - Array of favorite template IDs
+ * Add a template favorite via the API
+ * @param templateId - Template ID to add
  */
-function saveFavorites(favorites: string[]): void {
+async function addFavoriteApi(templateId: string): Promise<void> {
   try {
-    localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favorites));
+    await fetch('/api/carousel-templates/favorites', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ templateId }),
+    });
   } catch {
-    console.warn('Failed to save template favorites');
+    console.warn('Failed to add template favorite via API');
+  }
+}
+
+/**
+ * Remove a template favorite via the API
+ * @param templateId - Template ID to remove
+ */
+async function removeFavoriteApi(templateId: string): Promise<void> {
+  try {
+    await fetch(
+      `/api/carousel-templates/favorites?templateId=${encodeURIComponent(templateId)}`,
+      { method: 'DELETE' }
+    );
+  } catch {
+    console.warn('Failed to remove template favorite via API');
   }
 }
 
@@ -174,93 +166,128 @@ function saveRecentlyUsed(templateId: string): void {
 }
 
 /**
- * Mini slide preview component for templates
- * @param props - Component props
- * @param props.slide - The slide to preview
- * @returns JSX element rendering a miniature slide preview
+ * Get a display-friendly label for a template category
+ * @param category - Category string (built-in or custom)
+ * @returns Human-readable label
  */
-function TemplateSlidePreview({ slide }: { slide: CanvasSlide }) {
+function getCategoryLabel(category: string): string {
+  const labels: Record<string, string> = {
+    professional: 'Professional',
+    creative: 'Creative',
+    minimal: 'Minimal',
+    bold: 'Bold',
+    custom: 'Custom',
+    brand: 'Your Brand',
+  };
+  return labels[category] || category.charAt(0).toUpperCase() + category.slice(1);
+}
+
+/**
+ * Get an icon for a template category
+ * @param category - Category string
+ * @returns React icon element
+ */
+function getCategoryIcon(category: string): React.ReactNode {
+  const icons: Record<string, React.ReactNode> = {
+    professional: <IconBriefcase className="h-4 w-4 text-primary" />,
+    creative: <IconSparkles className="h-4 w-4 text-primary" />,
+    minimal: <IconMinimize className="h-4 w-4 text-primary" />,
+    bold: <IconBolt className="h-4 w-4 text-primary" />,
+    brand: <IconPalette className="h-4 w-4 text-primary" />,
+  };
+  return icons[category] || <IconFolder className="h-4 w-4 text-primary" />;
+}
+
+/**
+ * Renders slide elements at a given scale
+ * Shared rendering logic used by template card and preview panel
+ * @param props - Component props
+ * @param props.slide - The slide to render
+ * @param props.scale - Scale factor for the 1080x1080 canvas (defaults to 0.38)
+ * @returns JSX element rendering the slide elements
+ */
+function SlideRenderer({ slide, scale = 0.38 }: { slide: CanvasSlide; scale?: number }) {
   return (
     <div
-      className="aspect-square w-full overflow-hidden rounded"
-      style={{ backgroundColor: slide.backgroundColor }}
+      className="relative origin-top-left"
+      style={{
+        width: 1080,
+        height: 1080,
+        transform: `scale(${scale})`,
+      }}
     >
-      <div className="relative h-full w-full scale-[0.06] transform-gpu origin-top-left">
-        {slide.elements.map((element) => {
-          if (element.type === 'text') {
-            return (
-              <div
-                key={element.id}
-                className="absolute overflow-hidden whitespace-pre-wrap"
-                style={{
-                  left: element.x,
-                  top: element.y,
-                  width: element.width,
-                  height: element.height,
-                  color: element.fill,
-                  fontSize: element.fontSize,
-                  fontWeight: element.fontWeight,
-                  textAlign: element.align,
-                  transform: `rotate(${element.rotation}deg)`,
-                  lineHeight: element.lineHeight || 1.2,
-                }}
-              >
-                {element.text}
-              </div>
-            );
-          }
-          if (element.type === 'shape') {
-            return (
-              <div
-                key={element.id}
-                className="absolute"
-                style={{
-                  left: element.x,
-                  top: element.y,
-                  width: element.width,
-                  height: element.height,
-                  backgroundColor: element.fill === 'transparent' ? 'transparent' : element.fill,
-                  borderRadius:
-                    element.shapeType === 'circle' ? '50%' : element.cornerRadius || 0,
-                  transform: `rotate(${element.rotation}deg)`,
-                  border: element.stroke ? `${element.strokeWidth || 1}px solid ${element.stroke}` : undefined,
-                  boxSizing: 'border-box',
-                }}
-              />
-            );
-          }
-          return null;
-        })}
-      </div>
+      {slide.elements.map((element) => {
+        if (element.type === 'text') {
+          return (
+            <div
+              key={element.id}
+              className="absolute overflow-hidden whitespace-pre-wrap"
+              style={{
+                left: element.x,
+                top: element.y,
+                width: element.width,
+                height: element.height,
+                color: element.fill,
+                fontSize: element.fontSize,
+                fontWeight: element.fontWeight,
+                fontStyle: element.fontStyle || 'normal',
+                textAlign: element.align,
+                transform: `rotate(${element.rotation}deg)`,
+                lineHeight: element.lineHeight || 1.2,
+                letterSpacing: element.letterSpacing || 0,
+              }}
+            >
+              {element.text}
+            </div>
+          );
+        }
+        if (element.type === 'shape') {
+          return (
+            <div
+              key={element.id}
+              className="absolute"
+              style={{
+                left: element.x,
+                top: element.y,
+                width: element.width,
+                height: element.height,
+                backgroundColor: element.fill === 'transparent' ? 'transparent' : element.fill,
+                borderRadius:
+                  element.shapeType === 'circle' ? '50%' : element.cornerRadius || 0,
+                transform: `rotate(${element.rotation}deg)`,
+                border: element.stroke ? `${element.strokeWidth || 1}px solid ${element.stroke}` : undefined,
+                boxSizing: 'border-box',
+              }}
+            />
+          );
+        }
+        if (element.type === 'image') {
+          return (
+            <div
+              key={element.id}
+              className="absolute overflow-hidden"
+              style={{
+                left: element.x,
+                top: element.y,
+                width: element.width,
+                height: element.height,
+                transform: `rotate(${element.rotation}deg)`,
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={element.src} alt={element.alt || ''} className="h-full w-full object-cover" />
+            </div>
+          );
+        }
+        return null;
+      })}
     </div>
   );
 }
 
 /**
- * Color thumbnail for a template, showing its brand colors
- * @param props - Component props
- * @param props.template - Template to show colors for
- * @returns JSX element with color swatch
- */
-function TemplateColorThumbnail({ template }: { template: CanvasTemplate }) {
-  const colors = template.brandColors.slice(0, 4);
-  return (
-    <div className="relative flex h-20 w-full overflow-hidden rounded-lg group/thumb">
-      {colors.map((color, i) => (
-        <div
-          key={i}
-          className="flex-1"
-          style={{ backgroundColor: color }}
-        />
-      ))}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 transition-opacity duration-200 group-hover/thumb:opacity-100" />
-    </div>
-  );
-}
-
-/**
- * Template card component with favorite toggle and preview button
- * Uses Framer Motion for hover animations
+ * Template card component with clean single-slide preview
+ * Shows first slide as a full-width thumbnail with overlay actions on hover
  * @param props - Component props
  * @param props.template - The template to display
  * @param props.isSelected - Whether this template is currently selected
@@ -268,6 +295,7 @@ function TemplateColorThumbnail({ template }: { template: CanvasTemplate }) {
  * @param props.onSelect - Callback for selecting the template
  * @param props.onToggleFavorite - Callback for toggling favorite status
  * @param props.onPreview - Callback for previewing the template
+ * @param props.onQuickApply - Callback for immediately applying the template
  * @returns JSX element rendering a template card
  */
 function TemplateCard({
@@ -277,6 +305,7 @@ function TemplateCard({
   onSelect,
   onToggleFavorite,
   onPreview,
+  onQuickApply,
 }: {
   template: CanvasTemplate;
   isSelected: boolean;
@@ -284,25 +313,21 @@ function TemplateCard({
   onSelect: () => void;
   onToggleFavorite: () => void;
   onPreview: () => void;
+  onQuickApply: () => void;
 }) {
+  const firstSlide = template.defaultSlides[0];
+
   return (
     <motion.div
-      whileHover={{ y: -2 }}
+      whileHover={{ y: -3 }}
       transition={{ duration: 0.2 }}
       className={cn(
-        'group relative flex flex-col overflow-hidden rounded-lg border-2 bg-card transition-all duration-200',
-        'hover:shadow-xl',
-        isSelected ? 'border-primary ring-2 ring-primary/20' : 'border-border'
+        'group relative overflow-hidden rounded-xl border-2 bg-card transition-all duration-200',
+        'hover:shadow-lg',
+        isSelected ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/30'
       )}
     >
-      {/* Selected indicator */}
-      {isSelected && (
-        <div className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
-          <IconCheck className="h-4 w-4" />
-        </div>
-      )}
-
-      {/* Favorite button */}
+      {/* Favorite button - always visible when favorited, on hover otherwise */}
       <button
         type="button"
         onClick={(e) => {
@@ -310,10 +335,10 @@ function TemplateCard({
           onToggleFavorite();
         }}
         className={cn(
-          'absolute left-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full transition-colors',
+          'absolute left-2.5 top-2.5 z-20 flex h-7 w-7 items-center justify-center rounded-full transition-all duration-200',
           isFavorite
             ? 'bg-yellow-100 text-yellow-500 dark:bg-yellow-900/30'
-            : 'bg-background/80 text-muted-foreground hover:text-yellow-500'
+            : 'bg-background/80 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-yellow-500 backdrop-blur-sm'
         )}
         aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
       >
@@ -324,64 +349,60 @@ function TemplateCard({
         )}
       </button>
 
-      {/* Clickable area for selection */}
-      <button
-        type="button"
-        onClick={onSelect}
-        className="flex flex-col"
-      >
-        {/* Color thumbnail */}
-        <div className="p-2 pb-0">
-          <TemplateColorThumbnail template={template} />
+      {/* Selected indicator */}
+      {isSelected && (
+        <div className="absolute right-2.5 top-2.5 z-20 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
+          <IconCheck className="h-4 w-4" />
         </div>
+      )}
 
-        {/* Slide previews */}
-        <div className="grid grid-cols-3 gap-1 p-2">
-          {template.defaultSlides.slice(0, 3).map((slide, index) => (
-            <TemplateSlidePreview key={index} slide={slide} />
-          ))}
+      {/* Slide count badge - visible when not selected */}
+      {!isSelected && (
+        <div className="absolute right-2.5 top-2.5 z-20">
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-background/80 backdrop-blur-sm shadow-sm">
+            {template.defaultSlides.length} slides
+          </Badge>
         </div>
+      )}
 
-        {/* Template info */}
-        <div className="flex flex-col gap-1 border-t p-3">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-medium text-left">{template.name}</h4>
-            <Badge variant="secondary" className="text-xs">
-              {template.defaultSlides.length} slides
-            </Badge>
+      {/* First slide preview - click opens preview popup */}
+      <button type="button" onClick={onPreview} className="block w-full text-left">
+        <div
+          className="relative aspect-square w-full overflow-hidden"
+          style={{ backgroundColor: firstSlide?.backgroundColor || '#f5f5f5' }}
+        >
+          {firstSlide && <SlideRenderer slide={firstSlide} scale={0.38} />}
+
+          {/* Bottom gradient for name readability */}
+          <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/70 via-black/35 to-transparent" />
+
+          {/* Template name overlay */}
+          <div className="absolute inset-x-0 bottom-0 px-3.5 pb-3">
+            <p className="text-sm font-semibold text-white drop-shadow-sm truncate">
+              {template.name}
+            </p>
+            {template.description && (
+              <p className="text-[11px] text-white/70 truncate mt-0.5 drop-shadow-sm">
+                {template.description}
+              </p>
+            )}
           </div>
-          <p className="text-xs text-muted-foreground text-left line-clamp-2">
-            {template.description}
-          </p>
 
-          {/* Color palette preview */}
-          <div className="mt-2 flex gap-1">
-            {template.brandColors.slice(0, 5).map((color, index) => (
-              <div
-                key={index}
-                className="h-4 w-4 rounded-full border border-border/50"
-                style={{ backgroundColor: color }}
-              />
-            ))}
+          {/* Hover overlay with Create Post shortcut */}
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+            <Button
+              size="sm"
+              className="text-xs shadow-lg"
+              onClick={(e) => {
+                e.stopPropagation();
+                onQuickApply();
+              }}
+            >
+              Create Post
+            </Button>
           </div>
         </div>
       </button>
-
-      {/* Preview button */}
-      <div className="border-t px-3 py-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full text-xs"
-          onClick={(e) => {
-            e.stopPropagation();
-            onPreview();
-          }}
-        >
-          <IconEye className="mr-1.5 h-3.5 w-3.5" />
-          Preview
-        </Button>
-      </div>
     </motion.div>
   );
 }
@@ -443,55 +464,7 @@ function TemplatePreviewPanel({
           className="h-full w-full"
           style={{ backgroundColor: currentSlide.backgroundColor }}
         >
-          <div className="relative h-full w-full scale-[0.46] transform-gpu origin-top-left">
-            {currentSlide.elements.map((element) => {
-              if (element.type === 'text') {
-                return (
-                  <div
-                    key={element.id}
-                    className="absolute overflow-hidden whitespace-pre-wrap"
-                    style={{
-                      left: element.x,
-                      top: element.y,
-                      width: element.width,
-                      height: element.height,
-                      color: element.fill,
-                      fontSize: element.fontSize,
-                      fontWeight: element.fontWeight,
-                      fontStyle: element.fontStyle || 'normal',
-                      textAlign: element.align,
-                      transform: `rotate(${element.rotation}deg)`,
-                      lineHeight: element.lineHeight || 1.2,
-                      letterSpacing: element.letterSpacing || 0,
-                    }}
-                  >
-                    {element.text}
-                  </div>
-                );
-              }
-              if (element.type === 'shape') {
-                return (
-                  <div
-                    key={element.id}
-                    className="absolute"
-                    style={{
-                      left: element.x,
-                      top: element.y,
-                      width: element.width,
-                      height: element.height,
-                      backgroundColor: element.fill === 'transparent' ? 'transparent' : element.fill,
-                      borderRadius:
-                        element.shapeType === 'circle' ? '50%' : element.cornerRadius || 0,
-                      transform: `rotate(${element.rotation}deg)`,
-                      border: element.stroke ? `${element.strokeWidth || 1}px solid ${element.stroke}` : undefined,
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                );
-              }
-              return null;
-            })}
-          </div>
+          <SlideRenderer slide={currentSlide} scale={0.46} />
         </div>
 
         {/* Navigation arrows */}
@@ -530,7 +503,7 @@ function TemplatePreviewPanel({
 
       {/* Apply button */}
       <Button onClick={onApply} className="w-full">
-        Use This Template
+        Create Post
       </Button>
     </div>
   );
@@ -568,13 +541,13 @@ function SectionHeader({
 
 /**
  * Saved template card with delete button
- * Uses Framer Motion for hover animations
- * Displays a user-saved template with a delete action overlay
+ * Clean single-slide preview design with delete action
  * @param props - Component props
  * @param props.template - The CanvasTemplate to display
  * @param props.isSelected - Whether this card is currently selected
  * @param props.onSelect - Callback when the card is clicked
  * @param props.onPreview - Callback for the preview action
+ * @param props.onQuickApply - Callback for immediately applying the template
  * @param props.onDelete - Callback to delete this saved template
  * @param props.isDeleting - Whether a delete operation is in progress
  * @returns JSX element rendering a saved template card
@@ -584,6 +557,7 @@ function SavedTemplateCard({
   isSelected,
   onSelect,
   onPreview,
+  onQuickApply,
   onDelete,
   isDeleting,
 }: {
@@ -591,26 +565,22 @@ function SavedTemplateCard({
   isSelected: boolean;
   onSelect: () => void;
   onPreview: () => void;
+  onQuickApply: () => void;
   onDelete: () => void;
   isDeleting: boolean;
 }) {
+  const firstSlide = template.defaultSlides[0];
+
   return (
     <motion.div
-      whileHover={{ y: -2 }}
+      whileHover={{ y: -3 }}
       transition={{ duration: 0.2 }}
       className={cn(
-        'group relative flex flex-col overflow-hidden rounded-lg border-2 bg-card transition-all duration-200',
-        'hover:shadow-xl',
-        isSelected ? 'border-primary ring-2 ring-primary/20' : 'border-border'
+        'group relative overflow-hidden rounded-xl border-2 bg-card transition-all duration-200',
+        'hover:shadow-lg',
+        isSelected ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/30'
       )}
     >
-      {/* Selected indicator */}
-      {isSelected && (
-        <div className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
-          <IconCheck className="h-4 w-4" />
-        </div>
-      )}
-
       {/* Delete button */}
       <button
         type="button"
@@ -620,8 +590,8 @@ function SavedTemplateCard({
         }}
         disabled={isDeleting}
         className={cn(
-          'absolute left-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full transition-colors',
-          'bg-background/80 text-muted-foreground hover:bg-destructive hover:text-destructive-foreground'
+          'absolute left-2.5 top-2.5 z-20 flex h-7 w-7 items-center justify-center rounded-full transition-all duration-200',
+          'bg-background/80 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-destructive hover:text-destructive-foreground backdrop-blur-sm'
         )}
         aria-label="Delete saved template"
       >
@@ -632,68 +602,60 @@ function SavedTemplateCard({
         )}
       </button>
 
-      {/* Clickable area for selection */}
-      <button
-        type="button"
-        onClick={onSelect}
-        className="flex flex-col"
-      >
-        {/* Color thumbnail */}
-        <div className="p-2 pb-0">
-          <TemplateColorThumbnail template={template} />
+      {/* Selected indicator */}
+      {isSelected && (
+        <div className="absolute right-2.5 top-2.5 z-20 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
+          <IconCheck className="h-4 w-4" />
         </div>
+      )}
 
-        {/* Slide previews */}
-        <div className="grid grid-cols-3 gap-1 p-2">
-          {template.defaultSlides.slice(0, 3).map((slide, index) => (
-            <TemplateSlidePreview key={index} slide={slide} />
-          ))}
+      {/* Slide count badge */}
+      {!isSelected && (
+        <div className="absolute right-2.5 top-2.5 z-20">
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-background/80 backdrop-blur-sm shadow-sm">
+            {template.defaultSlides.length} slides
+          </Badge>
         </div>
+      )}
 
-        {/* Template info */}
-        <div className="flex flex-col gap-1 border-t p-3">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-medium text-left">{template.name}</h4>
-            <Badge variant="secondary" className="text-xs">
-              {template.defaultSlides.length} slides
-            </Badge>
-          </div>
-          {template.description && (
-            <p className="text-xs text-muted-foreground text-left line-clamp-2">
-              {template.description}
+      {/* First slide preview - click opens preview popup */}
+      <button type="button" onClick={onPreview} className="block w-full text-left">
+        <div
+          className="relative aspect-square w-full overflow-hidden"
+          style={{ backgroundColor: firstSlide?.backgroundColor || '#f5f5f5' }}
+        >
+          {firstSlide && <SlideRenderer slide={firstSlide} scale={0.38} />}
+
+          {/* Bottom gradient */}
+          <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/70 via-black/35 to-transparent" />
+
+          {/* Template name */}
+          <div className="absolute inset-x-0 bottom-0 px-3.5 pb-3">
+            <p className="text-sm font-semibold text-white drop-shadow-sm truncate">
+              {template.name}
             </p>
-          )}
+            {template.description && (
+              <p className="text-[11px] text-white/70 truncate mt-0.5 drop-shadow-sm">
+                {template.description}
+              </p>
+            )}
+          </div>
 
-          {/* Color palette preview */}
-          {template.brandColors.length > 0 && (
-            <div className="mt-2 flex gap-1">
-              {template.brandColors.slice(0, 5).map((color, index) => (
-                <div
-                  key={index}
-                  className="h-4 w-4 rounded-full border border-border/50"
-                  style={{ backgroundColor: color }}
-                />
-              ))}
-            </div>
-          )}
+          {/* Hover overlay with Create Post shortcut */}
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+            <Button
+              size="sm"
+              className="text-xs shadow-lg"
+              onClick={(e) => {
+                e.stopPropagation();
+                onQuickApply();
+              }}
+            >
+              Create Post
+            </Button>
+          </div>
         </div>
       </button>
-
-      {/* Preview button */}
-      <div className="border-t px-3 py-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full text-xs"
-          onClick={(e) => {
-            e.stopPropagation();
-            onPreview();
-          }}
-        >
-          <IconEye className="mr-1.5 h-3.5 w-3.5" />
-          Preview
-        </Button>
-      </div>
     </motion.div>
   );
 }
@@ -701,7 +663,7 @@ function SavedTemplateCard({
 /**
  * Template Selector Modal
  * Displays available templates organized by category with favorites and recently used sections
- * Includes a "My Templates" tab for user-saved templates
+ * Includes a "My Templates" tab for user-saved templates grouped by custom category
  * Features animated tab bar with Framer Motion sliding indicator and content transitions
  * @param props - Component props
  * @param props.open - Whether the modal is open
@@ -721,9 +683,22 @@ export function TemplateSelectorModal({
   const [recentlyUsed, setRecentlyUsed] = useState<string[]>([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [deletingTemplateId, setDeletingTemplateId] = useState<string | null>(null);
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+
+  /** Ref to track whether favorites have been fetched for the current open session */
+  const favoritesFetchedRef = useRef(false);
 
   // Brand kit templates hook
   const { brandTemplates, isLoading: isLoadingBrand, hasBrandKit } = useBrandKitTemplates();
+
+  // Template categories hook
+  const {
+    categories: userCategories,
+    fetchCategories,
+    createCategory,
+    isSaving: isSavingCategory,
+  } = useTemplateCategories();
 
   // Saved templates hook
   const {
@@ -736,28 +711,52 @@ export function TemplateSelectorModal({
   } = useCarouselTemplates();
 
   /**
-   * Load favorites, recently used, and saved templates when modal opens
+   * Load favorites from Supabase, recently used from localStorage,
+   * and saved templates when modal opens
    */
   useEffect(() => {
     if (open) {
-      setFavorites(loadFavorites());
+      favoritesFetchedRef.current = false;
       setRecentlyUsed(loadRecentlyUsed());
       setShowFavoritesOnly(false);
+      setIsCreatingCategory(false);
+      setNewCategoryName('');
       fetchTemplates();
+      fetchCategories();
+
+      fetchFavoritesFromApi().then((ids) => {
+        setFavorites(ids);
+        favoritesFetchedRef.current = true;
+      });
     }
   }, [open, fetchTemplates]);
 
   /**
-   * Toggle a template's favorite status
+   * Toggle a template's favorite status with optimistic UI update
+   * Syncs the change to Supabase in the background
    * @param templateId - ID of template to toggle
    */
   const toggleFavorite = useCallback(
     (templateId: string) => {
       setFavorites((prev) => {
-        const updated = prev.includes(templateId)
+        const isFav = prev.includes(templateId);
+        const updated = isFav
           ? prev.filter((id) => id !== templateId)
           : [...prev, templateId];
-        saveFavorites(updated);
+
+        // Sync to API in the background (optimistic update)
+        if (isFav) {
+          removeFavoriteApi(templateId).catch(() => {
+            setFavorites((current) => [...current, templateId]);
+            toast.error('Failed to remove favorite');
+          });
+        } else {
+          addFavoriteApi(templateId).catch(() => {
+            setFavorites((current) => current.filter((id) => id !== templateId));
+            toast.error('Failed to add favorite');
+          });
+        }
+
         return updated;
       });
     },
@@ -788,6 +787,19 @@ export function TemplateSelectorModal({
   const recentTemplates = resolveTemplates(recentlyUsed);
 
   /**
+   * Group saved templates by their category for the My Templates tab
+   */
+  const groupedSavedTemplates = useMemo(() => {
+    const groups: Record<string, SavedCarouselTemplate[]> = {};
+    for (const saved of savedTemplates) {
+      const cat = saved.category || 'custom';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(saved);
+    }
+    return groups;
+  }, [savedTemplates]);
+
+  /**
    * Handle template selection
    * @param template - Template that was selected
    */
@@ -796,20 +808,30 @@ export function TemplateSelectorModal({
   };
 
   /**
+   * Apply a template immediately (quick apply from card hover)
+   * @param template - Template to apply
+   */
+  const handleQuickApply = useCallback(
+    (template: CanvasTemplate) => {
+      saveRecentlyUsed(template.id);
+      const savedMatch = savedTemplates.find((s) => s.id === template.id);
+      if (savedMatch) {
+        incrementUsage(savedMatch.id);
+      }
+      onSelectTemplate(template);
+      onOpenChange(false);
+      setSelectedTemplate(null);
+      setPreviewTemplate(null);
+    },
+    [savedTemplates, incrementUsage, onSelectTemplate, onOpenChange]
+  );
+
+  /**
    * Handle applying the selected template
    */
   const handleApplyTemplate = () => {
     if (selectedTemplate) {
-      saveRecentlyUsed(selectedTemplate.id);
-      // Increment usage if it is a saved template
-      const savedMatch = savedTemplates.find((s) => s.id === selectedTemplate.id);
-      if (savedMatch) {
-        incrementUsage(savedMatch.id);
-      }
-      onSelectTemplate(selectedTemplate);
-      onOpenChange(false);
-      setSelectedTemplate(null);
-      setPreviewTemplate(null);
+      handleQuickApply(selectedTemplate);
     }
   };
 
@@ -818,16 +840,7 @@ export function TemplateSelectorModal({
    */
   const handleApplyFromPreview = () => {
     if (previewTemplate) {
-      saveRecentlyUsed(previewTemplate.id);
-      // Increment usage if it is a saved template
-      const savedMatch = savedTemplates.find((s) => s.id === previewTemplate.id);
-      if (savedMatch) {
-        incrementUsage(savedMatch.id);
-      }
-      onSelectTemplate(previewTemplate);
-      onOpenChange(false);
-      setSelectedTemplate(null);
-      setPreviewTemplate(null);
+      handleQuickApply(previewTemplate);
     }
   };
 
@@ -842,7 +855,6 @@ export function TemplateSelectorModal({
 
     if (success) {
       toast.success('Template deleted');
-      // Clear selection if the deleted template was selected
       if (selectedTemplate?.id === id) {
         setSelectedTemplate(null);
       }
@@ -860,16 +872,17 @@ export function TemplateSelectorModal({
    * @returns JSX element with template grid
    */
   const renderTemplateGrid = (templates: CanvasTemplate[]) => (
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-2 gap-3">
       {templates.map((template) => (
         <TemplateCard
           key={template.id}
           template={template}
           isSelected={selectedTemplate?.id === template.id}
           isFavorite={favorites.includes(template.id)}
-          onSelect={() => handleSelectTemplate(template)}
+          onSelect={() => setPreviewTemplate(template)}
           onToggleFavorite={() => toggleFavorite(template.id)}
           onPreview={() => setPreviewTemplate(template)}
+          onQuickApply={() => handleQuickApply(template)}
         />
       ))}
     </div>
@@ -909,8 +922,35 @@ export function TemplateSelectorModal({
   );
 
   /**
-   * Render content for the my-templates tab
-   * @returns JSX element with saved template content
+   * Handle creating a new template category
+   */
+  const handleCreateCategory = async () => {
+    const trimmed = newCategoryName.trim();
+    if (!trimmed) return;
+
+    const result = await createCategory(trimmed);
+    if (result) {
+      toast.success(`Category "${result.name}" created`);
+      setNewCategoryName('');
+      setIsCreatingCategory(false);
+    } else {
+      toast.error('Failed to create category');
+    }
+  };
+
+  /**
+   * Merge user-defined categories (from Supabase) with categories derived from saved templates
+   * This ensures empty categories appear even with no templates assigned
+   */
+  const allMyCategories = useMemo(() => {
+    const fromTemplates = new Set(Object.keys(groupedSavedTemplates));
+    const fromDb = new Set(userCategories.map((c) => c.name));
+    return Array.from(new Set([...fromDb, ...fromTemplates]));
+  }, [groupedSavedTemplates, userCategories]);
+
+  /**
+   * Render content for the my-templates tab, grouped by category
+   * @returns JSX element with saved template content grouped by category
    */
   const renderMyTemplatesContent = () => (
     <div className="space-y-6 pb-4">
@@ -919,37 +959,124 @@ export function TemplateSelectorModal({
           <IconLoader2 className="h-8 w-8 animate-spin text-muted-foreground mb-3" />
           <p className="text-muted-foreground">Loading your templates...</p>
         </div>
-      ) : savedTemplates.length > 0 ? (
-        <div>
-          <SectionHeader
-            icon={<IconUser className="h-4 w-4 text-muted-foreground" />}
-            title="My Saved Templates"
-            count={savedTemplates.length}
-          />
-          <div className="grid grid-cols-2 gap-4">
-            {savedTemplates.map((saved) => {
-              const converted = toCanvasTemplate(saved);
-              return (
-                <SavedTemplateCard
-                  key={saved.id}
-                  template={converted}
-                  isSelected={selectedTemplate?.id === saved.id}
-                  onSelect={() => handleSelectTemplate(converted)}
-                  onPreview={() => setPreviewTemplate(converted)}
-                  onDelete={() => handleDeleteSavedTemplate(saved.id)}
-                  isDeleting={deletingTemplateId === saved.id}
-                />
-              );
-            })}
-          </div>
-        </div>
       ) : (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <p className="text-muted-foreground">
-            No saved templates yet. Use the &quot;Save Template&quot; button in the
-            toolbar to save your carousel designs for reuse.
-          </p>
-        </div>
+        <>
+          {/* Category sections */}
+          {allMyCategories.length > 0 && allMyCategories.map((category) => {
+            const templates = groupedSavedTemplates[category] || [];
+            return (
+              <div key={category}>
+                <SectionHeader
+                  icon={getCategoryIcon(category)}
+                  title={getCategoryLabel(category)}
+                  count={templates.length}
+                />
+                {templates.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    {templates.map((saved) => {
+                      const converted = toCanvasTemplate(saved);
+                      return (
+                        <SavedTemplateCard
+                          key={saved.id}
+                          template={converted}
+                          isSelected={selectedTemplate?.id === saved.id}
+                          onSelect={() => handleSelectTemplate(converted)}
+                          onPreview={() => setPreviewTemplate(converted)}
+                          onQuickApply={() => handleQuickApply(converted)}
+                          onDelete={() => handleDeleteSavedTemplate(saved.id)}
+                          isDeleting={deletingTemplateId === saved.id}
+                        />
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-border/60 px-4 py-6 text-center">
+                    <p className="text-xs text-muted-foreground">
+                      No templates in this category yet. Save a template with this category from the editor.
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Create Category card — always visible at the bottom */}
+          <div className="rounded-xl border-2 border-dashed border-border/60 bg-muted/20 p-5">
+            {isCreatingCategory ? (
+              <div className="space-y-3">
+                <p className="text-sm font-medium">New Category Name</p>
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="e.g., Tips, Tutorials, Case Studies..."
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    maxLength={50}
+                    disabled={isSavingCategory}
+                    autoFocus
+                    className="flex-1 h-9 text-sm"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleCreateCategory();
+                      if (e.key === 'Escape') {
+                        setIsCreatingCategory(false);
+                        setNewCategoryName('');
+                      }
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleCreateCategory}
+                    disabled={!newCategoryName.trim() || isSavingCategory}
+                  >
+                    {isSavingCategory ? (
+                      <IconLoader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      'Create'
+                    )}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setIsCreatingCategory(false);
+                      setNewCategoryName('');
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsCreatingCategory(true)}
+                className="flex w-full items-center gap-3 text-left group"
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors">
+                  <IconPlus className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium group-hover:text-primary transition-colors">
+                    Create a New Category
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Organize your saved templates into custom folders
+                  </p>
+                </div>
+              </button>
+            )}
+          </div>
+
+          {/* Empty state hint when there are no categories at all */}
+          {allMyCategories.length === 0 && !isCreatingCategory && (
+            <div className="flex flex-col items-center justify-center py-6 text-center">
+              <IconUser className="h-10 w-10 text-muted-foreground/30 mb-3" />
+              <p className="text-sm text-muted-foreground">
+                No saved templates yet. Create a category above, then use
+                &quot;Save Template&quot; in the editor to save your designs.
+              </p>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -1051,13 +1178,16 @@ export function TemplateSelectorModal({
         ) : (
           <>
             {/* Animated tab bar */}
-            <div className="relative flex items-center gap-1 rounded-xl bg-muted/50 p-1 overflow-x-auto">
+            <div
+              className="relative flex items-center gap-1 rounded-xl bg-muted/50 p-1.5 shrink-0 overflow-x-auto scrollbar-hide"
+              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            >
               {tabs.map((tab) => (
                 <button
                   key={tab.value}
                   onClick={() => setActiveCategory(tab.value)}
                   className={cn(
-                    'relative z-10 flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors',
+                    'relative z-10 flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium whitespace-nowrap transition-colors shrink-0',
                     activeCategory === tab.value
                       ? 'text-foreground'
                       : 'text-muted-foreground hover:text-foreground'
@@ -1107,31 +1237,20 @@ export function TemplateSelectorModal({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.2 }}
-                className="flex-1 overflow-y-auto mt-4"
+                className="flex-1 overflow-y-auto mt-4 min-h-[400px]"
               >
                 {renderActiveContent()}
               </motion.div>
             </AnimatePresence>
 
-            {/* Footer actions */}
-            <div className="flex items-center justify-between border-t bg-muted/30 -mx-6 -mb-6 px-6 py-4 rounded-b-lg">
-              <div className="text-sm text-muted-foreground">
-                {selectedTemplate ? (
-                  <span>
-                    Selected: <strong>{selectedTemplate.name}</strong>
-                  </span>
-                ) : (
-                  <span>Select a template to continue</span>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => onOpenChange(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleApplyTemplate} disabled={!selectedTemplate}>
-                  Use Template
-                </Button>
-              </div>
+            {/* Footer */}
+            <div className="flex items-center justify-between border-t bg-muted/30 -mx-6 -mb-6 px-6 py-3.5 rounded-b-lg">
+              <p className="text-xs text-muted-foreground">
+                Click a template to preview, or hover for quick actions
+              </p>
+              <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
             </div>
           </>
         )}

@@ -7,7 +7,7 @@
  */
 
 import { inngest } from '../client'
-import { createPerplexityClient } from '@/lib/perplexity/client'
+import { createPerplexityClient, PerplexityClient } from '@/lib/perplexity/client'
 import { createClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 
@@ -30,18 +30,22 @@ const TOPIC_DISPLAY_NAMES: Record<string, string> = {
   'saas': 'SaaS & Cloud Software',
   'leadership': 'Leadership & Management',
   'marketing': 'Digital Marketing & Content Strategy',
+  'marketing-automation': 'Marketing Automation & Growth',
   'product-management': 'Product Management',
   'startups': 'Startups & Entrepreneurship',
+  'startup-funding': 'Startup Funding & Venture Capital',
   'customer-success': 'Customer Success & Retention',
   'data-analytics': 'Data Analytics & Business Intelligence',
   'personal-branding': 'Personal Branding & Thought Leadership',
   'content-creation': 'Content Creation & Social Media',
+  'content-strategy': 'Content Strategy & Distribution',
   'digital-transformation': 'Digital Transformation',
   'hiring-talent': 'Hiring, Talent & Recruitment',
   'fintech': 'FinTech & Financial Technology',
   'sustainability': 'Sustainability & ESG',
   'cybersecurity': 'Cybersecurity & Data Privacy',
   'productivity': 'Productivity & Workflow Automation',
+  'growth-hacking': 'Growth Hacking & Experimentation',
 }
 
 /**
@@ -142,14 +146,14 @@ export const dailyContentIngest = inngest.createFunction(
               { role: 'user', content: userPrompt },
             ],
             {
-              search_recency_filter: 'day',
+              search_mode: 'web',
               temperature: 0.2,
             }
           )
 
           const rawContent = response.choices[0]?.message?.content || '[]'
           const cleanedContent = stripMarkdownFences(rawContent)
-          const citations = response.citations || []
+          const citations = PerplexityClient.extractCitations(response)
 
           let parsed: unknown
           try {
@@ -176,7 +180,7 @@ export const dailyContentIngest = inngest.createFunction(
           console.log(`[DailyIngest] Topic "${topicSlug}": ${validArticles.length} valid articles`)
           return validArticles
         } catch (error) {
-          console.error(`[DailyIngest] Search failed for topic "${topicSlug}":`, error)
+          console.error(`[DailyIngest] Search failed for topic "${topicSlug}":`, error instanceof Error ? error.message : error)
           return []
         }
       })

@@ -19,6 +19,7 @@ import {
   IconChartBar,
   IconChevronRight,
   IconDashboard,
+  IconPencil,
   IconPresentation,
   IconTemplate,
   IconUsers,
@@ -27,6 +28,7 @@ import {
 import { cn } from "@/lib/utils"
 
 import { NavUser } from "@/components/nav-user"
+import { Button } from "@/components/ui/button"
 import {
   Sidebar,
   SidebarContent,
@@ -307,6 +309,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
 
       <SidebarSeparator />
+
+      {/* Create Post Button */}
+      <div className="px-3 pt-2 pb-1" data-tour="quick-create">
+        <Button asChild className="w-full gap-2" size="sm">
+          <Link href="/dashboard/compose">
+            <IconPencil className="size-4" />
+            Create Post
+          </Link>
+        </Button>
+      </div>
 
       {/* Sidebar Content - Navigation Groups */}
       <SidebarContent className="px-2 py-2">

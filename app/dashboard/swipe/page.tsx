@@ -8,7 +8,6 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   IconX,
@@ -23,18 +22,14 @@ import {
   IconSparkles,
   IconWand,
   IconLoader2,
-  IconBookmark,
 } from "@tabler/icons-react"
 
 import { ErrorBoundary } from "@/components/error-boundary"
 import { SwipeCard, SwipeCardStack, SwipeCardEmpty, type SwipeCardData } from "@/components/features/swipe-card"
 import { SwipeSkeleton } from "@/components/skeletons/page-skeletons"
 import { RemixDialog } from "@/components/features/remix-dialog"
-import { SaveToCollectionDialog } from "@/components/features/save-to-collection-dialog"
-import { useWishlistCollections } from "@/hooks/use-wishlist-collections"
 import { GenerationProgress } from "@/components/features/generation-progress"
 import { useGeneratedSuggestions } from "@/hooks/use-generated-suggestions"
-import { useSwipeWishlist } from "@/hooks/use-swipe-wishlist"
 import { useSwipeActions } from "@/hooks/use-swipe-actions"
 import { useApiKeys } from "@/hooks/use-api-keys"
 import { useAuthContext } from "@/lib/auth/auth-provider"
@@ -312,12 +307,6 @@ function SwipeContent() {
     generationError,
   } = useGeneratedSuggestions()
 
-  // Wishlist management
-  const {
-    addToWishlist,
-    totalItems: wishlistCount,
-  } = useSwipeWishlist()
-
   // Swipe action recording
   const {
     recordSwipe,
@@ -326,13 +315,6 @@ function SwipeContent() {
     suggestionsShown,
     incrementShown,
   } = useSwipeActions()
-
-  // Wishlist collections for save picker
-  const {
-    collections,
-    isLoading: collectionsLoading,
-    createCollection,
-  } = useWishlistCollections()
 
   // API Keys for remix
   const { status: apiKeyStatus } = useApiKeys()
@@ -344,14 +326,10 @@ function SwipeContent() {
   const [showRemixDialog, setShowRemixDialog] = React.useState(false)
   const [remixContent, setRemixContent] = React.useState("")
 
-  // Collection picker state for save flow
-  const [showCollectionPicker, setShowCollectionPicker] = React.useState(false)
-  const [pendingSaveCard, setPendingSaveCard] = React.useState<GeneratedSuggestion | null>(null)
-
   // Local UI state
   const [swipeOffset, setSwipeOffset] = React.useState(0)
   const [isDragging, setIsDragging] = React.useState(false)
-  const [isAnimatingOut, setIsAnimatingOut] = React.useState(false)
+  const [exitingCardId, setExitingCardId] = React.useState<string | null>(null)
   const [exitDirection, setExitDirection] = React.useState<"left" | "right" | null>(null)
 
   // Refs for drag handling
@@ -375,97 +353,74 @@ function SwipeContent() {
 
   // Track when a new card is shown
   React.useEffect(() => {
-    if (currentCard && !isAnimatingOut) {
+    if (currentCard && !exitingCardId) {
       incrementShown()
     }
   }, [currentCard?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
-   * Handles the swipe action
+   * Handles the swipe action.
+   * Uses `exitingCardId` (not a boolean) so the exit animation is scoped
+   * to one specific card. When that card is removed from the list, the
+   * next card in the stack won't inherit the exiting state.
    */
   const handleSwipe = React.useCallback(
     async (direction: "left" | "right") => {
-      if (!currentCard || isAnimatingOut || swipeInProgress.current) return
+      if (!currentCard || exitingCardId || swipeInProgress.current) return
       swipeInProgress.current = true
 
-      try {
-        // Trigger exit animation
-        setIsAnimatingOut(true)
-        setExitDirection(direction)
+      // Capture the card before any state changes
+      const swipedCard = currentCard
 
-        // Record the swipe
-        const action = direction === "right" ? "like" : "dislike"
-        await recordSwipe(currentCard.id, action, currentCard.content)
+      // Trigger exit animation on THIS specific card
+      setExitingCardId(swipedCard.id)
+      setExitDirection(direction)
 
-        // Handle right swipe (like) - show collection picker
+      // Record the swipe (doesn't remove the card from the list)
+      const action = direction === "right" ? "like" : "dislike"
+      recordSwipe(swipedCard.id, action, swipedCard.content)
+
+      // Fire-and-forget draft save for right swipe
+      if (direction === "right") {
+        fetch("/api/drafts/auto-save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            content: swipedCard.content,
+            postType: swipedCard.post_type || "general",
+            source: "swipe",
+          }),
+        })
+          .then((res) => {
+            if (res.ok) {
+              toast.success("Saved as draft!", {
+                description: "Find it in your Saved Drafts",
+              })
+            } else {
+              toast.error("Failed to save draft")
+            }
+          })
+          .catch(() => toast.error("Failed to save draft"))
+      }
+
+      // Wait for exit animation to finish, then remove the card
+      setTimeout(async () => {
+        // Remove card from list first (await ensures state updates before reset)
         if (direction === "right") {
-          setPendingSaveCard(currentCard)
-          setShowCollectionPicker(true)
+          await markAsUsed(swipedCard.id)
         } else {
-          // Left swipe (skip) - dismiss suggestion
-          await dismissSuggestion(currentCard.id)
+          await dismissSuggestion(swipedCard.id)
+          swipeToast.skipped()
         }
 
-        // Mark as seen after animation
-        setTimeout(() => {
-          setSwipeOffset(0)
-          setIsAnimatingOut(false)
-          setExitDirection(null)
-
-          // Show toast for skip only (save toast shown after collection pick)
-          if (direction !== "right") {
-            swipeToast.skipped()
-          }
-        }, 300)
-      } finally {
+        // Card is now gone from the list — safe to clear animation state
+        setSwipeOffset(0)
+        setExitingCardId(null)
+        setExitDirection(null)
         swipeInProgress.current = false
-      }
+      }, 350)
     },
-    [currentCard, isAnimatingOut, recordSwipe, dismissSuggestion]
-  )
-
-  /**
-   * Handles collection selection from the picker dialog
-   * @param collectionId - Selected collection ID (null for default)
-   */
-  const handleCollectionSelect = React.useCallback(
-    async (collectionId: string | null) => {
-      if (!pendingSaveCard) return
-      setShowCollectionPicker(false)
-
-      await addToWishlist(pendingSaveCard, collectionId)
-      await markAsUsed(pendingSaveCard.id)
-
-      const collectionName = collectionId
-        ? collections.find(c => c.id === collectionId)?.name
-        : null
-      toast.success("Added to wishlist!", {
-        description: collectionName
-          ? `Saved to "${collectionName}"`
-          : "View your saved suggestions in the Wishlist",
-      })
-      setPendingSaveCard(null)
-    },
-    [pendingSaveCard, addToWishlist, markAsUsed, collections]
-  )
-
-  /**
-   * Handles cancelling the collection picker (dismiss without saving)
-   */
-  const handleCollectionPickerClose = React.useCallback(
-    (open: boolean) => {
-      if (!open && pendingSaveCard) {
-        // User dismissed without picking — save to default
-        addToWishlist(pendingSaveCard, null)
-        markAsUsed(pendingSaveCard.id)
-        toast.success("Added to wishlist!", {
-          description: "Saved to default collection",
-        })
-        setPendingSaveCard(null)
-      }
-      setShowCollectionPicker(open)
-    },
-    [pendingSaveCard, addToWishlist, markAsUsed]
+    [currentCard, exitingCardId, recordSwipe, dismissSuggestion, markAsUsed]
   )
 
   /**
@@ -517,11 +472,11 @@ function SwipeContent() {
   // Drag handlers
   const handleDragStart = React.useCallback(
     (clientX: number) => {
-      if (isAnimatingOut) return
+      if (exitingCardId) return
       setIsDragging(true)
       startXRef.current = clientX
     },
-    [isAnimatingOut]
+    [exitingCardId]
   )
 
   const handleDragMove = React.useCallback(
@@ -672,7 +627,7 @@ function SwipeContent() {
           </Select>
         </div>
 
-        {/* Right: Stats, Generate, and Wishlist */}
+        {/* Right: Stats and Generate */}
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="shrink-0 border-primary/30">
             <IconSparkles className="size-3 mr-1 text-primary" />
@@ -697,23 +652,6 @@ function SwipeContent() {
               <span className="hidden sm:inline">{Math.round(generationProgress)}%</span>
             </div>
           )}
-
-          <Button
-            variant="outline"
-            size="sm"
-            asChild
-            className="gap-1.5"
-          >
-            <Link href="/dashboard/swipe/wishlist">
-              <IconBookmark className="size-4" />
-              <span className="hidden sm:inline">Wishlist</span>
-              {wishlistCount > 0 && (
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                  {wishlistCount}
-                </Badge>
-              )}
-            </Link>
-          </Button>
         </div>
       </motion.div>
 
@@ -734,7 +672,7 @@ function SwipeContent() {
             cards={cardData}
             topCardOffset={swipeOffset}
             isDragging={isDragging}
-            isExiting={isAnimatingOut}
+            exitingCardId={exitingCardId}
             exitDirection={exitDirection}
           />
         </div>
@@ -760,7 +698,7 @@ function SwipeContent() {
             size="icon-lg"
             className="rounded-full border-red-200 text-red-500 hover:border-red-300 hover:bg-red-50 hover:text-red-600 dark:border-red-800 dark:hover:border-red-700 dark:hover:bg-red-950 shadow-sm transition-all duration-200"
             onClick={() => handleSwipe("left")}
-            disabled={isAnimatingOut || !currentCard}
+            disabled={!!exitingCardId || !currentCard}
             aria-label="Skip suggestion"
           >
             <IconX className="size-6" />
@@ -773,8 +711,8 @@ function SwipeContent() {
             size="icon-lg"
             className="rounded-full border-green-200 text-green-500 hover:border-green-300 hover:bg-green-50 hover:text-green-600 dark:border-green-800 dark:hover:border-green-700 dark:hover:bg-green-950 shadow-sm transition-all duration-200"
             onClick={() => handleSwipe("right")}
-            disabled={isAnimatingOut || !currentCard}
-            aria-label="Save to wishlist"
+            disabled={!!exitingCardId || !currentCard}
+            aria-label="Save as draft"
           >
             <IconHeart className="size-6" />
           </Button>
@@ -785,7 +723,7 @@ function SwipeContent() {
             variant="outline"
             className="rounded-full gap-2 border-primary/30 text-primary hover:border-primary hover:bg-primary/10 shadow-sm"
             onClick={handleOpenRemix}
-            disabled={isAnimatingOut || !currentCard}
+            disabled={!!exitingCardId || !currentCard}
             aria-label="Remix with AI"
           >
             <IconWand className="size-4" />
@@ -798,7 +736,7 @@ function SwipeContent() {
             variant="default"
             className="rounded-full gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-md"
             onClick={handleEditAndPost}
-            disabled={isAnimatingOut || !currentCard}
+            disabled={!!exitingCardId || !currentCard}
           >
             <IconPencil className="size-4" />
             Edit & Post
@@ -835,15 +773,6 @@ function SwipeContent() {
         hasApiKey={apiKeyStatus?.hasKey ?? false}
       />
 
-      {/* Save to Collection Dialog */}
-      <SaveToCollectionDialog
-        open={showCollectionPicker}
-        onOpenChange={handleCollectionPickerClose}
-        collections={collections}
-        isLoading={collectionsLoading}
-        onSelect={handleCollectionSelect}
-        onCreateCollection={async (name) => createCollection({ name })}
-      />
     </motion.div>
   )
 }

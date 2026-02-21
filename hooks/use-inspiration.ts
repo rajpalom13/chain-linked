@@ -498,6 +498,8 @@ export function useInspiration(initialLimit = PAGE_SIZE): UseInspirationReturn {
 
   /**
    * Save/bookmark a post
+   * Creates a draft in generated_posts AND bookmarks in saved_inspirations.
+   * Draft save fires independently so it succeeds even if bookmark fails.
    */
   const savePost = useCallback(async (postId: string) => {
     if (!user) {
@@ -505,6 +507,23 @@ export function useInspiration(initialLimit = PAGE_SIZE): UseInspirationReturn {
       return
     }
 
+    // 1. Fire-and-forget: create a draft via auto-save API (independent of bookmark)
+    const post = posts.find(p => p.id === postId)
+    if (post?.content) {
+      fetch('/api/drafts/auto-save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: post.content,
+          postType: post.category || 'general',
+          source: 'inspiration',
+        }),
+      }).catch(err => {
+        console.warn('Auto-save draft from inspiration failed:', err)
+      })
+    }
+
+    // 2. Bookmark in saved_inspirations for the "Saved Only" filter
     try {
       const { error: insertError } = await supabase
         .from('saved_inspirations')
@@ -516,18 +535,19 @@ export function useInspiration(initialLimit = PAGE_SIZE): UseInspirationReturn {
       if (insertError) {
         if (insertError.code === '23505') {
           console.warn('Post already saved')
-          return
+        } else {
+          console.error('Error saving post:', insertError)
         }
-        console.error('Error saving post:', insertError)
-        return
       }
 
-      // Update local state
+      // Update local state regardless (optimistic)
       setSavedPostIds(prev => new Set(prev).add(postId))
     } catch (err) {
       console.error('Save post error:', err)
+      // Still update local state so UI shows saved state
+      setSavedPostIds(prev => new Set(prev).add(postId))
     }
-  }, [supabase, user])
+  }, [supabase, user, posts])
 
   /**
    * Unsave/remove bookmark from a post

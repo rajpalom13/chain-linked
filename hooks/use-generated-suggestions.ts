@@ -62,7 +62,7 @@ export interface UseGeneratedSuggestionsReturn {
 
   /** Trigger new suggestion generation */
   generateNew: () => Promise<boolean>
-  /** Mark a suggestion as used (adds to wishlist) */
+  /** Mark a suggestion as used */
   markAsUsed: (id: string) => Promise<boolean>
   /** Dismiss a suggestion (removes from active list) */
   dismissSuggestion: (id: string) => Promise<boolean>

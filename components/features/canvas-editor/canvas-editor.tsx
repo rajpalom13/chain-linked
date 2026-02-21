@@ -7,11 +7,12 @@
  * and top actions instead of the old full-width toolbar
  */
 
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
 import { useCanvasEditor } from '@/hooks/use-canvas-editor';
 import { useCarouselTemplates } from '@/hooks/use-carousel-templates';
+import { useTemplateCategories } from '@/hooks/use-template-categories';
 import { EditorLeftPanel } from './editor-left-panel';
 import { EditorFloatingToolbar } from './editor-floating-toolbar';
 import { EditorTopActions } from './editor-top-actions';
@@ -20,6 +21,7 @@ import { TemplateSelectorModal } from './template-selector-modal';
 import { ExportDialog } from './export-dialog';
 import { AiContentGenerator } from './ai-content-generator';
 import { SaveTemplateDialog } from './save-template-dialog';
+import { PostToLinkedInDialog } from './post-to-linkedin-dialog';
 import {
   exportCarouselToPDF,
   exportSlideToDataUrl,
@@ -76,10 +78,50 @@ export function CanvasEditor({
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [showAiGenerator, setShowAiGenerator] = useState(false);
   const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
+  const [showPostDialog, setShowPostDialog] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
 
   // Carousel template persistence
-  const { saveTemplate, isSaving: isSavingTemplate } = useCarouselTemplates();
+  const {
+    saveTemplate,
+    isSaving: isSavingTemplate,
+    savedTemplates: savedCarouselTemplates,
+    fetchTemplates: fetchCarouselTemplates,
+  } = useCarouselTemplates();
+
+  // Template categories (user-defined)
+  const { categories: dbCategories, fetchCategories: fetchDbCategories, createCategory: createDbCategory } = useTemplateCategories();
+
+  /**
+   * Fetch saved templates and categories when the save dialog opens
+   * so that existing custom categories are available in the dropdown
+   */
+  useEffect(() => {
+    if (showSaveTemplateDialog) {
+      fetchCarouselTemplates();
+      fetchDbCategories();
+    }
+  }, [showSaveTemplateDialog, fetchCarouselTemplates, fetchDbCategories]);
+
+  /**
+   * Merge categories from the template_categories table and from saved templates
+   * Excludes built-in categories to only show user-created ones
+   */
+  const existingCustomCategories = useMemo(() => {
+    const builtIn = new Set(['professional', 'creative', 'minimal', 'bold', 'custom', 'brand']);
+    const customs = new Set<string>();
+    for (const c of dbCategories) {
+      if (!builtIn.has(c.name.toLowerCase())) {
+        customs.add(c.name);
+      }
+    }
+    for (const t of savedCarouselTemplates) {
+      if (t.category && !builtIn.has(t.category.toLowerCase())) {
+        customs.add(t.category);
+      }
+    }
+    return Array.from(customs);
+  }, [dbCategories, savedCarouselTemplates]);
 
   // Canvas editor state
   const {
@@ -241,6 +283,34 @@ export function CanvasEditor({
         }
 
         setShowExportDialog(false);
+
+        // Save carousel text content as a draft (fire-and-forget)
+        const combinedTextContent = slides
+          .flatMap((slide) => slide.elements)
+          .filter((el): el is import('@/types/canvas-editor').CanvasTextElement => el.type === 'text')
+          .map((el) => el.text)
+          .filter(Boolean)
+          .join('\n');
+
+        if (combinedTextContent.length > 10) {
+          fetch('/api/drafts/auto-save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              content: combinedTextContent,
+              postType: 'carousel',
+              source: 'carousel',
+            }),
+          })
+            .then((res) => {
+              if (res.ok) {
+                toast.info('Carousel text saved as draft');
+              }
+            })
+            .catch(() => {
+              // Silently ignore draft save failures
+            });
+        }
       } catch (error) {
         console.error('Export failed:', error);
         toast.error('Export failed. Please try again.');
@@ -342,13 +412,21 @@ export function CanvasEditor({
       });
 
       if (result) {
+        // Persist custom category to template_categories table so it appears in the category list
+        const builtIn = new Set(['professional', 'creative', 'minimal', 'bold', 'custom', 'brand']);
+        if (!builtIn.has(data.category.toLowerCase())) {
+          createDbCategory(data.category).catch(() => {
+            // Silently ignore — category may already exist (upsert)
+          });
+        }
+
         toast.success('Template saved successfully');
         setShowSaveTemplateDialog(false);
       } else {
         toast.error('Failed to save template');
       }
     },
-    [slides, template, saveTemplate]
+    [slides, template, saveTemplate, createDbCategory]
   );
 
   // Get template colors for color picker
@@ -413,6 +491,7 @@ export function CanvasEditor({
           onReset={handleReset}
           onSaveTemplate={() => setShowSaveTemplateDialog(true)}
           onExport={() => setShowExportDialog(true)}
+          onPostToLinkedIn={() => setShowPostDialog(true)}
         />
       </div>
 
@@ -462,6 +541,17 @@ export function CanvasEditor({
         onSave={handleSaveTemplate}
         isSaving={isSavingTemplate}
         brandColors={templateColors}
+        existingCategories={existingCustomCategories}
+      />
+
+      {/* Post to LinkedIn dialog */}
+      <PostToLinkedInDialog
+        open={showPostDialog}
+        onOpenChange={setShowPostDialog}
+        slides={slides}
+        stageRef={stageRef}
+        currentSlideIndex={currentSlideIndex}
+        setCurrentSlide={setCurrentSlide}
       />
     </div>
   );

@@ -6,8 +6,9 @@
 
 'use client'
 
+import { useState, useCallback } from 'react'
 import { IconUsers, IconSettings, IconUserPlus, IconCalendar } from '@tabler/icons-react'
-import { getLogoDevUrl } from '@/lib/logo-dev'
+import { getLogoUrlsWithFallback } from '@/lib/logo-dev'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -16,7 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { InviteTeamDialog } from './invite-team-dialog'
 import type { TeamWithMeta } from '@/hooks/use-team'
 import type { TeamMemberRole } from '@/types/database'
@@ -68,22 +69,46 @@ export function TeamHeader({
   const canInvite = userRole === 'owner' || userRole === 'admin'
   const canManage = userRole === 'owner' || userRole === 'admin'
 
-  // Determine logo URL: team logo → company logo → logo.dev fallback
-  const logoUrl = team.logo_url
-    || team.company?.logo_url
-    || getLogoDevUrl({ website: companyWebsite, companyName: team.company?.name || team.name })
+  // Build ordered fallback list: team logo → company logo → Google favicon → logo.dev → direct favicon
+  const fallbackUrls = getLogoUrlsWithFallback({
+    website: companyWebsite,
+    companyName: team.company?.name || team.name,
+  })
+
+  // Direct DB logos have highest priority
+  const allLogoUrls = [
+    team.logo_url,
+    team.company?.logo_url,
+    ...fallbackUrls,
+  ].filter(Boolean) as string[]
+
+  // Track which URL index we're currently trying
+  const [logoIndex, setLogoIndex] = useState(0)
+  const currentLogoUrl = allLogoUrls[logoIndex] || null
+
+  /** When current logo fails, try next fallback */
+  const handleLogoError = useCallback(() => {
+    setLogoIndex(prev => prev + 1)
+  }, [])
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between p-4 md:p-6 border-b bg-card">
       <div className="flex items-center gap-4">
-        {/* Team Avatar/Logo */}
+        {/* Team Avatar/Logo with fallback chain */}
         <Avatar className="h-14 w-14 border-2 border-primary/10">
-          {logoUrl ? (
-            <AvatarImage src={logoUrl} alt={team.name} />
-          ) : null}
-          <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
-            {team.name.substring(0, 2).toUpperCase()}
-          </AvatarFallback>
+          {currentLogoUrl ? (
+            <img
+              src={currentLogoUrl}
+              alt={team.name}
+              onError={handleLogoError}
+              className="h-full w-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
+              {team.name.substring(0, 2).toUpperCase()}
+            </AvatarFallback>
+          )}
         </Avatar>
 
         {/* Team Info */}

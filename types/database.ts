@@ -1272,6 +1272,28 @@ export interface Database {
         }
         Relationships: []
       }
+      /** Template favorites for persisting user favorite template selections */
+      template_favorites: {
+        Row: {
+          id: string
+          user_id: string
+          template_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          template_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          template_id?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       /** LinkedIn Voyager API credentials (session cookies) */
       linkedin_credentials: {
         Row: {
@@ -1794,6 +1816,28 @@ export interface Database {
         }
         Relationships: []
       }
+      /** User-defined carousel template categories */
+      template_categories: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       /** AI-generated LinkedIn post drafts from research */
       generated_posts: {
         Row: {
@@ -1808,6 +1852,7 @@ export interface Database {
           word_count: number | null
           estimated_read_time: number | null
           status: string
+          source: string
           source_url: string | null
           source_title: string | null
           source_snippet: string | null
@@ -1826,6 +1871,7 @@ export interface Database {
           word_count?: number | null
           estimated_read_time?: number | null
           status?: string
+          source?: string
           source_url?: string | null
           source_title?: string | null
           source_snippet?: string | null
@@ -1844,6 +1890,7 @@ export interface Database {
           word_count?: number | null
           estimated_read_time?: number | null
           status?: string
+          source?: string
           source_url?: string | null
           source_title?: string | null
           source_snippet?: string | null

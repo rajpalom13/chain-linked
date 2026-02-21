@@ -233,7 +233,10 @@ export interface LinkedInRegisterUploadResponse {
 export interface CreatePostRequest {
   content: string
   visibility?: LinkedInVisibility
+  /** Image URLs to fetch, upload, and attach */
   mediaUrls?: string[]
+  /** Pre-uploaded media asset URNs (skip upload step) */
+  mediaAssets?: string[]
 }
 
 /**
@@ -295,6 +298,93 @@ export const LINKEDIN_API = {
 } as const
 
 /**
- * LinkedIn API version header
+ * LinkedIn REST API endpoints (versioned API)
+ * Used for document uploads and new-style post creation
  */
-export const LINKEDIN_API_VERSION = '202401'
+export const LINKEDIN_REST_API = {
+  /** Document upload initialization */
+  DOCUMENTS: 'https://api.linkedin.com/rest/documents',
+  /** Post creation (new versioned API) */
+  POSTS: 'https://api.linkedin.com/rest/posts',
+} as const
+
+/**
+ * LinkedIn API version header
+ * Must be updated periodically — LinkedIn sunset versions after ~1 year.
+ * See: https://learn.microsoft.com/en-us/linkedin/marketing/versioning
+ */
+export const LINKEDIN_API_VERSION = '202601'
+
+/**
+ * Request body for initializing a document upload on LinkedIn
+ */
+export interface LinkedInInitializeDocumentUploadRequest {
+  initializeUploadRequest: {
+    owner: string
+  }
+}
+
+/**
+ * Response from LinkedIn document upload initialization
+ */
+export interface LinkedInInitializeDocumentUploadResponse {
+  value: {
+    uploadUrl: string
+    document: string
+  }
+}
+
+/**
+ * Request body for creating a post via the LinkedIn REST API (/rest/posts)
+ */
+export interface LinkedInRestPostRequest {
+  author: string
+  commentary: string
+  visibility: 'PUBLIC' | 'CONNECTIONS'
+  distribution: {
+    feedDistribution: 'MAIN_FEED'
+    targetEntities: never[]
+    thirdPartyDistributionChannels: never[]
+  }
+  content?: {
+    media: {
+      title: string
+      id: string
+    }
+  }
+  lifecycleState: 'PUBLISHED'
+  isReshareDisabledByAuthor: boolean
+}
+
+/**
+ * Response from creating a post via the LinkedIn REST API
+ */
+export interface LinkedInRestPostResponse {
+  success: boolean
+  id?: string | null
+  status?: number
+}
+
+/**
+ * Request for creating a document post (client-facing)
+ */
+export interface CreateDocumentPostRequest {
+  /** Post caption text */
+  content: string
+  /** Post visibility */
+  visibility?: LinkedInVisibility
+  /** PDF binary data as Buffer */
+  pdfBuffer: Buffer
+  /** Display title for the document in the post */
+  documentTitle?: string
+}
+
+/**
+ * Progress stages for document posting flow
+ */
+export type DocumentPostStage =
+  | 'generating-pdf'
+  | 'uploading-document'
+  | 'creating-post'
+  | 'complete'
+  | 'error'

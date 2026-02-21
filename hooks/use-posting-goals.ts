@@ -245,12 +245,27 @@ export function usePostingGoals(userId?: string): UsePostingGoalsReturn {
         return
       }
 
-      // Transform to Goal format
-      const transformedGoals: Goal[] = goalsData.map((goal) => ({
+      // Dynamically count posts from my_posts for each goal's current period
+      const goalCounts = await Promise.all(
+        goalsData.map(async (goal) => {
+          const period = goal.period as 'daily' | 'weekly' | 'monthly'
+          const { start, end } = getGoalPeriodDates(period)
+          const { count } = await supabase
+            .from('my_posts')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', targetUserId)
+            .gte('posted_at', start)
+            .lte('posted_at', end)
+          return count ?? 0
+        })
+      )
+
+      // Transform to Goal format using live post counts
+      const transformedGoals: Goal[] = goalsData.map((goal, idx) => ({
         id: goal.id,
         period: goal.period as 'daily' | 'weekly' | 'monthly',
         target: goal.target_posts,
-        current: goal.current_posts,
+        current: goalCounts[idx],
         startDate: goal.start_date,
         endDate: goal.end_date,
       }))

@@ -13,6 +13,7 @@ import { toast } from "sonner"
 import { PageContent } from "@/components/shared/page-content"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { PostComposer } from "@/components/features/post-composer"
+import { type MediaFile } from "@/components/features/media-upload"
 import { type GenerationContext } from "@/components/features/ai-inline-panel"
 import { ComposeSkeleton } from "@/components/skeletons/page-skeletons"
 import { useAuthContext } from "@/lib/auth/auth-provider"
@@ -248,23 +249,59 @@ function ComposeContent() {
   }, [user, profile])
 
   /**
+   * Convert a File to a base64 data URL string
+   * @param file - File object to convert
+   * @returns Base64-encoded string (without data URL prefix)
+   */
+  const fileToBase64 = React.useCallback((file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result as string
+        // Remove the data URL prefix (e.g., "data:image/png;base64,")
+        const base64 = result.split(',')[1]
+        resolve(base64)
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  }, [])
+
+  /**
    * Handle posting to LinkedIn
    * Calls the /api/linkedin/post endpoint
    * Returns the API response data (may include draft: true when posting is disabled)
    */
-  const handlePost = React.useCallback(async (content: string) => {
+  const handlePost = React.useCallback(async (content: string, mediaFiles?: MediaFile[]) => {
     // Mark as saved to prevent auto-save on unmount after posting
     draftSavedRef.current = true
+
+    // Build request body
+    const body: Record<string, unknown> = {
+      content,
+      visibility: 'PUBLIC',
+    }
+
+    // If media files are provided, convert to base64 and include
+    if (mediaFiles && mediaFiles.length > 0) {
+      const imageFiles = mediaFiles.filter((f) => f.type === 'image')
+      if (imageFiles.length > 0) {
+        const mediaBase64 = await Promise.all(
+          imageFiles.map(async (mf) => ({
+            data: await fileToBase64(mf.file),
+            contentType: mf.file.type || 'image/jpeg',
+          }))
+        )
+        body.mediaBase64 = mediaBase64
+      }
+    }
 
     const response = await fetch('/api/linkedin/post', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        content,
-        visibility: 'PUBLIC',
-      }),
+      body: JSON.stringify(body),
     })
 
     const data = await response.json()
@@ -276,7 +313,7 @@ function ComposeContent() {
 
     // Return data so PostComposer can detect draft responses
     return data
-  }, [])
+  }, [fileToBase64])
 
   /**
    * Handle scheduling a post

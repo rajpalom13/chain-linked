@@ -7,7 +7,7 @@
  */
 
 import * as React from "react"
-import { motion, AnimatePresence, type PanInfo } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import {
   IconSparkles,
   IconChartBar,
@@ -65,6 +65,8 @@ export interface SwipeCardProps {
   scale?: number
   /** Vertical offset for stacked appearance */
   stackOffset?: number
+  /** Rotation for stacked appearance (degrees) */
+  stackRotation?: number
   /** Opacity for background cards */
   opacity?: number
   /** Additional CSS classes */
@@ -200,12 +202,13 @@ export function SwipeCard({
   zIndex = 1,
   scale = 1,
   stackOffset = 0,
+  stackRotation = 0,
   opacity = 1,
   className,
   counterText,
 }: SwipeCardProps) {
-  // Calculate rotation based on horizontal offset
-  const rotation = offsetX * 0.05
+  // Calculate rotation: drag-based for top card, stack-based for background cards
+  const rotation = offsetX * 0.05 + stackRotation
 
   // Determine swipe direction for visual feedback
   const swipeDirection: "left" | "right" | null =
@@ -235,18 +238,19 @@ export function SwipeCard({
       style={{ zIndex }}
       initial={false}
       animate={{
-        x: isExiting ? (exitDirection === "right" ? 500 : -500) : offsetX,
-        rotate: isExiting ? (exitDirection === "right" ? 20 : -20) : rotation,
-        scale,
+        x: isExiting ? (exitDirection === "right" ? 600 : -600) : offsetX,
+        rotate: isExiting ? (exitDirection === "right" ? 25 : -25) : rotation,
+        scale: isExiting ? 0.9 : scale,
         y: stackOffset,
         opacity: isExiting ? 0 : opacity,
       }}
-      transition={{
-        type: isExiting ? "spring" : isDragging ? "tween" : "spring",
-        stiffness: 300,
-        damping: 25,
-        duration: isDragging ? 0 : undefined,
-      }}
+      transition={
+        isExiting
+          ? { type: "spring", stiffness: 400, damping: 30, mass: 0.8 }
+          : isDragging
+            ? { type: "tween", duration: 0 }
+            : { type: "spring", stiffness: 250, damping: 22 }
+      }
     >
       <Card className={cn(
         "h-full overflow-hidden border-border/50",
@@ -274,7 +278,7 @@ export function SwipeCard({
                   transition={{ type: "spring", stiffness: 400, damping: 20 }}
                 >
                   <IconCircleCheck className="size-6" />
-                  SAVED
+                  DRAFT
                 </motion.div>
               </motion.div>
             )}
@@ -391,8 +395,15 @@ export function SwipeCard({
 }
 
 /**
- * SwipeCardStack renders multiple cards in a stacked appearance with smooth animations.
- * The first card in the array is the top card.
+ * SwipeCardStack renders multiple cards in a stacked deck appearance.
+ * Background cards are slightly scaled down, offset vertically, and tilted
+ * to create a natural "deck of cards" look. When the top card is swiped
+ * away, the next card smoothly animates into position via spring physics.
+ *
+ * Uses `exitingCardId` instead of a boolean `isExiting` so that exit
+ * animations are always scoped to a specific card. When that card is
+ * removed from the list, the next card won't accidentally inherit
+ * the exiting state.
  *
  * @example
  * ```tsx
@@ -400,6 +411,8 @@ export function SwipeCard({
  *   cards={suggestions.slice(0, 3)}
  *   topCardOffset={swipeOffset}
  *   isDragging={isDragging}
+ *   exitingCardId={exitingCardId}
+ *   exitDirection={exitDirection}
  * />
  * ```
  */
@@ -407,14 +420,15 @@ export function SwipeCardStack({
   cards,
   topCardOffset = 0,
   isDragging = false,
-  isExiting = false,
+  exitingCardId = null,
   exitDirection = null,
   className,
 }: {
   cards: SwipeCardData[]
   topCardOffset?: number
   isDragging?: boolean
-  isExiting?: boolean
+  /** ID of the card currently exiting (null if none) */
+  exitingCardId?: string | null
   exitDirection?: "left" | "right" | null
   className?: string
 }) {
@@ -431,43 +445,43 @@ export function SwipeCardStack({
       {/* Subtle shadow underneath stack */}
       <div className="absolute inset-x-4 bottom-0 h-4 rounded-full bg-black/5 blur-xl dark:bg-black/20" />
 
-      <AnimatePresence mode="popLayout">
-        {/* Background cards (rendered first, lower z-index) */}
-        {visibleCards
-          .slice(1)
-          .reverse()
-          .map((card, index) => {
-            const stackIndex = visibleCards.length - 2 - index
-            const cardScale = 1 - stackIndex * 0.03
-            const cardOffset = stackIndex * 8
-            const cardOpacity = Math.max(0.4, 1 - stackIndex * 0.2)
+      {/* Background cards (rendered first, lower z-index) */}
+      {visibleCards
+        .slice(1)
+        .reverse()
+        .map((card, index) => {
+          const stackIndex = visibleCards.length - 2 - index
+          const cardScale = 1 - (stackIndex + 1) * 0.04
+          const cardOffset = (stackIndex + 1) * 10
+          const cardRotation = (stackIndex + 1) * -1.5
+          const cardOpacity = Math.max(0.5, 1 - stackIndex * 0.15)
 
-            return (
-              <SwipeCard
-                key={card.id}
-                data={card}
-                scale={cardScale}
-                stackOffset={cardOffset}
-                opacity={cardOpacity}
-                zIndex={index}
-              />
-            )
-          })}
+          return (
+            <SwipeCard
+              key={card.id}
+              data={card}
+              scale={cardScale}
+              stackOffset={cardOffset}
+              stackRotation={cardRotation}
+              opacity={cardOpacity}
+              zIndex={index}
+            />
+          )
+        })}
 
-        {/* Top card */}
-        {visibleCards.length > 0 && (
-          <SwipeCard
-            key={visibleCards[0].id}
-            data={visibleCards[0]}
-            offsetX={topCardOffset}
-            isDragging={isDragging}
-            isExiting={isExiting}
-            exitDirection={exitDirection}
-            zIndex={visibleCards.length}
-            counterText={`${cards.length} suggestion${cards.length !== 1 ? 's' : ''} remaining`}
-          />
-        )}
-      </AnimatePresence>
+      {/* Top card — only apply exit animation if this specific card is exiting */}
+      {visibleCards.length > 0 && (
+        <SwipeCard
+          key={visibleCards[0].id}
+          data={visibleCards[0]}
+          offsetX={topCardOffset}
+          isDragging={isDragging}
+          isExiting={visibleCards[0].id === exitingCardId}
+          exitDirection={visibleCards[0].id === exitingCardId ? exitDirection : null}
+          zIndex={visibleCards.length}
+          counterText={`${cards.length} suggestion${cards.length !== 1 ? 's' : ''} remaining`}
+        />
+      )}
     </motion.div>
   )
 }

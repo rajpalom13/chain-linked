@@ -1,14 +1,14 @@
 /**
  * Discover News Seed API Route
- * @description Triggers the Inngest on-demand ingest pipeline to populate
- * discover_news_articles with fresh Perplexity content. Falls back to
- * running the pipeline directly if Inngest is unavailable.
+ * @description Triggers the ingest pipeline to populate discover_news_articles
+ * with fresh content. Tries Perplexity first, falls back to Tavily search.
+ * Uses Inngest for async processing when available, otherwise runs directly.
  *
  * Returns a `reason` field on every response so the frontend can act
  * intelligently without parsing free-text messages:
- * - `no_api_key`      -- PERPLEXITY_API_KEY is not configured
+ * - `no_api_key`      -- Neither PERPLEXITY_API_KEY nor TAVILY_API_KEY is configured
  * - `already_exists`  -- articles already exist for the requested topics
- * - `no_results`      -- Perplexity returned zero usable articles (fallback only)
+ * - `no_results`      -- search returned zero usable articles (fallback only)
  * - `success`         -- articles were ingested and saved (fallback only)
  * - `triggered`       -- ingest dispatched via Inngest (async)
  * @module app/api/discover/news/seed
@@ -58,14 +58,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    // ---- API key gate (cheap, must come before any Perplexity work) ----
-    if (!process.env.PERPLEXITY_API_KEY) {
-      console.warn("[Seed] PERPLEXITY_API_KEY is not configured -- skipping ingest")
+    // ---- API key gate (need at least one search provider) ----
+    if (!process.env.PERPLEXITY_API_KEY && !process.env.TAVILY_API_KEY) {
+      console.warn("[Seed] Neither PERPLEXITY_API_KEY nor TAVILY_API_KEY is configured")
       return NextResponse.json<SeedResponse>({
         seeded: false,
         reason: "no_api_key",
         message:
-          "PERPLEXITY_API_KEY is not configured. Set the environment variable to enable news ingestion.",
+          "No search API key configured. Set PERPLEXITY_API_KEY or TAVILY_API_KEY to enable news ingestion.",
       })
     }
 
@@ -168,7 +168,7 @@ export async function POST(request: Request) {
         seeded: false,
         reason: "no_results",
         message:
-          "Perplexity returned no usable articles for the requested topics",
+          "Search returned no usable articles for the requested topics. Check that your API keys are valid.",
         batchId: result.batchId,
         articlesIngested: 0,
       })

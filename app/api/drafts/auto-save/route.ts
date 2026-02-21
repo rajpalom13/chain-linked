@@ -16,6 +16,8 @@ interface AutoSaveDraftRequest {
   content: string
   /** The post type (e.g., 'thought-leadership', 'storytelling', 'general') */
   postType?: string
+  /** Where the draft originated from (compose, swipe, inspiration, carousel, discover, research) */
+  source?: string
   /** The topic used for AI generation */
   topic?: string | null
   /** The tone used for AI generation */
@@ -62,7 +64,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { content, postType, topic, tone, context, wordCount } = body
+    const { content, postType, source, topic, tone, context, wordCount } = body
 
     // Validate content
     if (!content || content.trim().length === 0) {
@@ -98,6 +100,7 @@ export async function POST(request: NextRequest) {
         user_id: user.id,
         content: content.trim(),
         post_type: postType || 'general',
+        source: source || 'compose',
         hook: topic || null,
         cta: tone || null,
         source_snippet: context || null,

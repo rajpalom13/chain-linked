@@ -23,8 +23,8 @@ export const DISMISS_PROMPT_TIMESTAMP_KEY = 'chainlinked_extension_prompt_dismis
 /** Session storage key for caching detection result */
 const SESSION_CACHE_KEY = 'chainlinked_extension_detected'
 
-/** Number of days before showing prompt again after dismissal */
-export const PROMPT_COOLDOWN_DAYS = 7
+/** Session storage key for per-session dismissal (resets on logout/tab close) */
+const SESSION_DISMISS_KEY = 'chainlinked_extension_prompt_session_dismissed'
 
 /**
  * Check if the ChainLinked extension is installed using multiple detection methods.
@@ -156,7 +156,9 @@ function checkExtensionViaExternalMessage(): Promise<boolean> {
 }
 
 /**
- * Check if the prompt has been dismissed and is still within cooldown period
+ * Check if the prompt has been dismissed
+ * Permanent dismissal uses localStorage (survives logout).
+ * Temporary dismissal ("Remind me later") uses sessionStorage (resets on logout/tab close).
  * @returns true if prompt should be hidden
  */
 export function isPromptDismissed(): boolean {
@@ -165,19 +167,19 @@ export function isPromptDismissed(): boolean {
   }
 
   try {
-    const dismissed = localStorage.getItem(DISMISS_PROMPT_KEY)
-    if (dismissed !== 'true') {
-      return false
-    }
-
-    const dismissedAt = localStorage.getItem(DISMISS_PROMPT_TIMESTAMP_KEY)
-    if (!dismissedAt) {
+    // Check permanent dismissal (localStorage)
+    const permanentlyDismissed = localStorage.getItem(DISMISS_PROMPT_KEY)
+    if (permanentlyDismissed === 'true') {
       return true
     }
 
-    const dismissedDate = new Date(dismissedAt)
-    const daysSinceDismissed = (Date.now() - dismissedDate.getTime()) / (1000 * 60 * 60 * 24)
-    return daysSinceDismissed < PROMPT_COOLDOWN_DAYS
+    // Check session dismissal (sessionStorage - resets on logout/tab close)
+    const sessionDismissed = sessionStorage.getItem(SESSION_DISMISS_KEY)
+    if (sessionDismissed === 'true') {
+      return true
+    }
+
+    return false
   } catch (error) {
     console.warn('[Extension Detection] Error checking prompt dismissed state:', error)
     return false
@@ -185,8 +187,8 @@ export function isPromptDismissed(): boolean {
 }
 
 /**
- * Dismiss the extension prompt for a cooldown period
- * @param permanent - If true, dismiss permanently
+ * Dismiss the extension prompt
+ * @param permanent - If true, dismiss permanently in localStorage. Otherwise dismiss for current session only.
  */
 export function dismissPrompt(permanent = false): void {
   if (typeof window === 'undefined') {
@@ -194,11 +196,12 @@ export function dismissPrompt(permanent = false): void {
   }
 
   try {
-    localStorage.setItem(DISMISS_PROMPT_KEY, 'true')
-    if (!permanent) {
-      localStorage.setItem(DISMISS_PROMPT_TIMESTAMP_KEY, new Date().toISOString())
+    if (permanent) {
+      // Permanent: store in localStorage (survives logout)
+      localStorage.setItem(DISMISS_PROMPT_KEY, 'true')
     } else {
-      localStorage.removeItem(DISMISS_PROMPT_TIMESTAMP_KEY)
+      // Temporary: store in sessionStorage (resets when user logs out or closes tab)
+      sessionStorage.setItem(SESSION_DISMISS_KEY, 'true')
     }
   } catch (error) {
     console.warn('[Extension Detection] Error dismissing prompt:', error)
@@ -206,7 +209,7 @@ export function dismissPrompt(permanent = false): void {
 }
 
 /**
- * Reset the prompt dismissal state
+ * Reset the prompt dismissal state (both permanent and session)
  */
 export function resetPromptDismissal(): void {
   if (typeof window === 'undefined') {
@@ -216,6 +219,7 @@ export function resetPromptDismissal(): void {
   try {
     localStorage.removeItem(DISMISS_PROMPT_KEY)
     localStorage.removeItem(DISMISS_PROMPT_TIMESTAMP_KEY)
+    sessionStorage.removeItem(SESSION_DISMISS_KEY)
   } catch (error) {
     console.warn('[Extension Detection] Error resetting prompt:', error)
   }

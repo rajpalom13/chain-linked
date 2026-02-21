@@ -1,0 +1,97 @@
+/**
+ * Template Library Types
+ * @description Shared type definitions for the template library feature
+ * @module components/features/template-library/types
+ */
+
+import type * as React from "react"
+
+/**
+ * Represents a post template in the library
+ */
+export interface Template {
+  /** Unique identifier for the template */
+  id: string
+  /** Display name of the template */
+  name: string
+  /** Template content with formatting */
+  content: string
+  /** Category classification */
+  category: string
+  /** Tags for organization and search */
+  tags: string[]
+  /** Number of times this template has been used */
+  usageCount: number
+  /** Whether the template is visible to team members */
+  isPublic: boolean
+  /** ISO date string of creation */
+  createdAt: string
+}
+
+/**
+ * Props for the TemplateLibrary component
+ */
+export interface TemplateLibraryProps {
+  /** Array of templates to display */
+  templates?: Template[]
+  /** Callback when creating a new template */
+  onCreateTemplate?: (template: Omit<Template, "id" | "usageCount" | "createdAt">) => void
+  /** Callback when editing an existing template */
+  onEditTemplate?: (id: string, template: Partial<Template>) => void
+  /** Callback when deleting a template */
+  onDeleteTemplate?: (id: string) => void
+  /** Callback when using a template */
+  onUseTemplate?: (id: string) => void
+  /** Loading state indicator */
+  isLoading?: boolean
+}
+
+/**
+ * Form data for creating or editing a template
+ */
+export interface TemplateFormData {
+  /** Template display name */
+  name: string
+  /** Template content */
+  content: string
+  /** Category classification */
+  category: string
+  /** Comma-separated tags string */
+  tags: string
+  /** Whether template is public to team */
+  isPublic: boolean
+}
+
+/**
+ * An AI-generated template suggestion
+ */
+export interface AITemplate {
+  /** Unique identifier */
+  id: string
+  /** Display name */
+  name: string
+  /** Template content */
+  content: string
+  /** Category label */
+  category: string
+  /** Tags */
+  tags: string[]
+}
+
+/**
+ * AI template category definition
+ */
+export interface AITemplateCategory {
+  /** Category identifier */
+  id: string
+  /** Display name */
+  name: string
+  /** Icon component */
+  icon: React.ReactNode
+  /** Color class for the icon background */
+  color: string
+  /** Border accent color class */
+  borderColor: string
+  /** Templates in this category */
+  templates: AITemplate[]
+}

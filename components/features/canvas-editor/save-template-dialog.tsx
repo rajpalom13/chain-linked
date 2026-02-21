@@ -3,11 +3,12 @@
 /**
  * Save Template Dialog Component
  * @description Modal for saving the current carousel as a reusable template
+ * Supports built-in categories and user-created custom categories
  * @module components/features/canvas-editor/save-template-dialog
  */
 
-import { useState } from 'react';
-import { IconLoader2 } from '@tabler/icons-react';
+import { useState, useMemo } from 'react';
+import { IconLoader2, IconPlus } from '@tabler/icons-react';
 import {
   Dialog,
   DialogContent,
@@ -29,15 +30,20 @@ import {
 } from '@/components/ui/select';
 
 /**
- * Template category options available for selection
+ * Built-in template category options
  */
-const CATEGORY_OPTIONS = [
+const BUILT_IN_CATEGORIES = [
   { value: 'professional', label: 'Professional' },
   { value: 'creative', label: 'Creative' },
   { value: 'minimal', label: 'Minimal' },
   { value: 'bold', label: 'Bold' },
-  { value: 'custom', label: 'Custom' },
 ] as const;
+
+/** Sentinel value for the "New Category" option in the dropdown */
+const NEW_CATEGORY_VALUE = '__new_category__';
+
+/** Built-in category values that should not appear in "existing custom" list */
+const BUILT_IN_VALUES = new Set(['professional', 'creative', 'minimal', 'bold', 'custom', 'brand']);
 
 /**
  * Data emitted when the user submits the save template form
@@ -65,18 +71,21 @@ interface SaveTemplateDialogProps {
   isSaving: boolean
   /** Optional brand colors from the current template for preview */
   brandColors?: string[]
+  /** Optional list of existing custom category names from previously saved templates */
+  existingCategories?: string[]
 }
 
 /**
  * Save Template Dialog
  * Provides a form for naming, describing, and categorizing a carousel template
- * before saving it for reuse
+ * before saving it for reuse. Supports creating new custom categories.
  * @param props - Component props
  * @param props.open - Whether the dialog is open
  * @param props.onOpenChange - Callback for open state changes
  * @param props.onSave - Callback with form data when submitted
  * @param props.isSaving - Whether save is in progress
  * @param props.brandColors - Optional brand colors for preview display
+ * @param props.existingCategories - Optional existing custom category names
  * @returns JSX element rendering the save template dialog
  */
 export function SaveTemplateDialog({
@@ -85,10 +94,30 @@ export function SaveTemplateDialog({
   onSave,
   isSaving,
   brandColors = [],
+  existingCategories = [],
 }: SaveTemplateDialogProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('custom');
+  const [category, setCategory] = useState('professional');
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+
+  /**
+   * Compute the full list of category options including user-created ones
+   */
+  const categoryOptions = useMemo(() => {
+    const customOptions = existingCategories
+      .filter((c) => !BUILT_IN_VALUES.has(c.toLowerCase()))
+      .map((c) => ({
+        value: c,
+        label: c.charAt(0).toUpperCase() + c.slice(1),
+      }));
+
+    return [
+      ...BUILT_IN_CATEGORIES,
+      ...customOptions,
+    ];
+  }, [existingCategories]);
 
   /**
    * Reset form fields to their default values
@@ -96,7 +125,25 @@ export function SaveTemplateDialog({
   const resetForm = () => {
     setName('');
     setDescription('');
-    setCategory('custom');
+    setCategory('professional');
+    setIsCreatingCategory(false);
+    setNewCategoryName('');
+  };
+
+  /**
+   * Handle category dropdown change
+   * Switches to text input mode when "New Category" is selected
+   * @param value - Selected dropdown value
+   */
+  const handleCategoryChange = (value: string) => {
+    if (value === NEW_CATEGORY_VALUE) {
+      setIsCreatingCategory(true);
+      setCategory('');
+    } else {
+      setIsCreatingCategory(false);
+      setNewCategoryName('');
+      setCategory(value);
+    }
   };
 
   /**
@@ -106,10 +153,14 @@ export function SaveTemplateDialog({
   const handleSubmit = () => {
     if (!name.trim()) return;
 
+    const finalCategory = isCreatingCategory
+      ? (newCategoryName.trim() || 'custom')
+      : category;
+
     onSave({
       name: name.trim(),
       description: description.trim() || undefined,
-      category,
+      category: finalCategory,
     });
   };
 
@@ -169,22 +220,57 @@ export function SaveTemplateDialog({
           {/* Category selection */}
           <div className="space-y-2">
             <Label htmlFor="template-category">Category</Label>
-            <Select
-              value={category}
-              onValueChange={setCategory}
-              disabled={isSaving}
-            >
-              <SelectTrigger id="template-category">
-                <SelectValue placeholder="Select a category" />
-              </SelectTrigger>
-              <SelectContent>
-                {CATEGORY_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
+            {isCreatingCategory ? (
+              <div className="flex gap-2">
+                <Input
+                  id="template-category-new"
+                  placeholder="e.g., Tips, Tutorials, Case Studies..."
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  maxLength={50}
+                  disabled={isSaving}
+                  autoFocus
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setIsCreatingCategory(false);
+                    setNewCategoryName('');
+                    setCategory('professional');
+                  }}
+                  disabled={isSaving}
+                  className="shrink-0 text-xs"
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <Select
+                value={category}
+                onValueChange={handleCategoryChange}
+                disabled={isSaving}
+              >
+                <SelectTrigger id="template-category">
+                  <SelectValue placeholder="Select a category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categoryOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={NEW_CATEGORY_VALUE}>
+                    <span className="flex items-center gap-1.5">
+                      <IconPlus className="h-3.5 w-3.5" />
+                      New Category
+                    </span>
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           {/* Brand colors preview */}
@@ -218,7 +304,7 @@ export function SaveTemplateDialog({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!name.trim() || isSaving}
+            disabled={!name.trim() || (isCreatingCategory && !newCategoryName.trim()) || isSaving}
           >
             {isSaving ? (
               <>

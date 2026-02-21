@@ -21,8 +21,10 @@ import {
   IconMessageCircle,
   IconShare,
   IconSparkles,
+  IconChevronRight,
 } from "@tabler/icons-react"
 import { formatDistanceToNow } from "date-fns"
+import Link from "next/link"
 
 import { ErrorBoundary } from "@/components/error-boundary"
 import { type TeamActivityItem } from "@/components/features/team-activity-feed"
@@ -50,7 +52,7 @@ import { cn, getInitials, formatMetricNumber } from "@/lib/utils"
 // ============================================================================
 
 /** Tab type for team page */
-type TeamTab = "overview" | "members" | "activity" | "settings"
+type TeamTab = "overview" | "members" | "settings"
 
 /** Tab configuration */
 interface TabConfig {
@@ -62,7 +64,6 @@ interface TabConfig {
 const TABS: TabConfig[] = [
   { value: "overview", label: "Overview", icon: IconLayoutDashboard },
   { value: "members", label: "Members", icon: IconUsers },
-  { value: "activity", label: "Activity", icon: IconActivity },
   { value: "settings", label: "Settings", icon: IconSettings },
 ]
 
@@ -184,6 +185,7 @@ function PostGridCard({
   const snippet = post.content.length > 120
     ? `${post.content.slice(0, 120)}...`
     : post.content
+  const imageUrl = post.mediaUrls?.[0] ?? null
 
   return (
     <motion.button
@@ -199,6 +201,19 @@ function PostGridCard({
       }}
       whileHover={{ y: -3 }}
     >
+      {/* Post image */}
+      {imageUrl && (
+        <div className="relative aspect-[16/9] w-full overflow-hidden bg-muted/50">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imageUrl}
+            alt="Post media"
+            loading="lazy"
+            className="absolute inset-0 w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+          />
+        </div>
+      )}
+
       {/* Author section */}
       <div className="flex items-start gap-3 p-4 pb-0">
         <Avatar className="size-10 shrink-0 ring-1 ring-border/30">
@@ -647,11 +662,22 @@ function TeamContent() {
                 onTimeRangeChange={setTimeRange}
                 currentUserId={currentUserId || undefined}
                 isLoading={leaderboardLoading}
+                onMemberClick={(memberId) => {
+                  router.push(`/dashboard/team/activity?member=${memberId}`)
+                }}
               />
 
               {/* Recent Team Posts Grid - Below the leaderboard */}
               <div>
-                <h3 className="text-base font-semibold mb-3">Recent Team Activity</h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-base font-semibold">Recent Team Activity</h3>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href="/dashboard/team/activity" className="gap-1.5">
+                      View All Activity
+                      <IconChevronRight className="size-3.5" />
+                    </Link>
+                  </Button>
+                </div>
                 <PostGrid posts={posts} isLoading={postsLoading} />
               </div>
             </div>
@@ -691,73 +717,147 @@ function TeamContent() {
             </div>
           )}
 
-          {/* Activity Tab */}
-          {activeTab === "activity" && (
-            <div className="p-4 md:p-6 space-y-4">
-              <div>
-                <h3 className="text-base font-semibold">Recent Team Activity</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Posts created by team members in the last 7 days
-                </p>
-              </div>
-              <PostGrid posts={posts} isLoading={postsLoading} />
-            </div>
-          )}
-
           {/* Settings Tab */}
           {activeTab === "settings" && (
             <div className="p-4 md:p-6">
-              <div className="max-w-2xl">
+              <div className="max-w-2xl space-y-6">
+                {/* General Settings Card */}
                 <Card className="border-border/50">
-                  <CardHeader>
-                    <CardTitle>Team Settings</CardTitle>
-                    <CardDescription>
-                      Manage your team configuration and preferences
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium">Team Name</h4>
-                      <p className="text-sm text-muted-foreground">{currentTeam.name}</p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium">Your Role</h4>
-                      <p className="text-sm text-muted-foreground capitalize">
-                        {currentUserRole || 'Member'}
-                      </p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium">Team Members</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {currentTeam.member_count} member{currentTeam.member_count !== 1 ? 's' : ''}
-                      </p>
-                    </div>
-
-                    {canManage && (
-                      <div className="pt-4">
-                        <Button variant="outline" onClick={handleSettingsClick}>
-                          <IconSettings className="h-4 w-4 mr-2" />
-                          Advanced Settings
-                        </Button>
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="rounded-lg bg-primary/10 p-2">
+                        <IconSettings className="size-4 text-primary" />
                       </div>
-                    )}
+                      <div>
+                        <CardTitle className="text-base">General</CardTitle>
+                        <CardDescription className="text-xs">
+                          Basic team information
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    <div className="flex items-center justify-between py-2 border-b border-border/30 last:border-0">
+                      <div className="space-y-0.5">
+                        <p className="text-sm font-medium">Team Name</p>
+                        <p className="text-xs text-muted-foreground">The display name for your team</p>
+                      </div>
+                      <span className="text-sm font-medium bg-muted/50 px-3 py-1.5 rounded-md">
+                        {currentTeam.name}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-2 border-b border-border/30 last:border-0">
+                      <div className="space-y-0.5">
+                        <p className="text-sm font-medium">Your Role</p>
+                        <p className="text-xs text-muted-foreground">Your permission level in this team</p>
+                      </div>
+                      <span className={cn(
+                        "text-sm font-medium px-3 py-1.5 rounded-md capitalize",
+                        currentUserRole === 'owner'
+                          ? "bg-primary/10 text-primary"
+                          : currentUserRole === 'admin'
+                            ? "bg-amber-500/10 text-amber-600"
+                            : "bg-muted/50 text-muted-foreground"
+                      )}>
+                        {currentUserRole || 'Member'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-2">
+                      <div className="space-y-0.5">
+                        <p className="text-sm font-medium">Team Size</p>
+                        <p className="text-xs text-muted-foreground">Total number of team members</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <IconUsers className="size-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">
+                          {currentTeam.member_count} member{currentTeam.member_count !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
 
-                {currentUserRole === 'owner' && (
-                  <Card className="mt-6 border-destructive/50">
-                    <CardHeader>
-                      <CardTitle className="text-destructive">Danger Zone</CardTitle>
-                      <CardDescription>
-                        Irreversible actions that affect your team
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="flex items-center justify-between">
+                {/* Company Info Card */}
+                {currentTeam.company && (
+                  <Card className="border-border/50">
+                    <CardHeader className="pb-4">
+                      <div className="flex items-center gap-2">
+                        <div className="rounded-lg bg-blue-500/10 p-2">
+                          <IconActivity className="size-4 text-blue-500" />
+                        </div>
                         <div>
-                          <h4 className="text-sm font-medium">Transfer Ownership</h4>
+                          <CardTitle className="text-base">Company</CardTitle>
+                          <CardDescription className="text-xs">
+                            Associated organization details
+                          </CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center justify-between py-2">
+                        <div className="space-y-0.5">
+                          <p className="text-sm font-medium">Company Name</p>
+                          <p className="text-xs text-muted-foreground">Linked organization</p>
+                        </div>
+                        <span className="text-sm font-medium bg-muted/50 px-3 py-1.5 rounded-md">
+                          {currentTeam.company.name}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Actions Card */}
+                {canManage && (
+                  <Card className="border-border/50">
+                    <CardHeader className="pb-4">
+                      <div className="flex items-center gap-2">
+                        <div className="rounded-lg bg-violet-500/10 p-2">
+                          <IconSparkles className="size-4 text-violet-500" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-base">Quick Actions</CardTitle>
+                          <CardDescription className="text-xs">
+                            Manage your team settings
+                          </CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" onClick={handleSettingsClick}>
+                          <IconSettings className="size-4 mr-1.5" />
+                          Advanced Settings
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={handleViewAllMembers}>
+                          <IconUsers className="size-4 mr-1.5" />
+                          Manage Members
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Danger Zone */}
+                {currentUserRole === 'owner' && (
+                  <Card className="border-destructive/30 bg-destructive/[0.02]">
+                    <CardHeader className="pb-4">
+                      <div className="flex items-center gap-2">
+                        <div className="rounded-lg bg-destructive/10 p-2">
+                          <IconX className="size-4 text-destructive" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-base text-destructive">Danger Zone</CardTitle>
+                          <CardDescription className="text-xs">
+                            Irreversible actions that affect your team
+                          </CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-background">
+                        <div>
+                          <p className="text-sm font-medium">Transfer Ownership</p>
                           <p className="text-xs text-muted-foreground">
                             Transfer team ownership to another member
                           </p>
@@ -766,9 +866,9 @@ function TeamContent() {
                           Transfer
                         </Button>
                       </div>
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between p-3 rounded-lg border border-destructive/20 bg-background">
                         <div>
-                          <h4 className="text-sm font-medium text-destructive">Delete Team</h4>
+                          <p className="text-sm font-medium text-destructive">Delete Team</p>
                           <p className="text-xs text-muted-foreground">
                             Permanently delete this team and all its data
                           </p>

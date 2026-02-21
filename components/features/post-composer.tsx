@@ -71,7 +71,7 @@ export interface PostComposerProps {
   /** Initial content to populate the editor with */
   initialContent?: string
   /** Callback fired when the "Post Now" button is clicked */
-  onPost?: (content: string) => Promise<unknown>
+  onPost?: (content: string, mediaFiles?: MediaFile[]) => Promise<unknown>
   /** Callback fired when the "Schedule" button is clicked (after modal confirms) */
   onSchedule?: (content: string) => void
   /** Callback fired when schedule is confirmed with date - used to save to database */
@@ -402,7 +402,7 @@ export function PostComposer({
 
     setIsPosting(true)
     try {
-      const result = await onPost(content)
+      const result = await onPost(content, mediaFiles.length > 0 ? mediaFiles : undefined)
       // Handle draft response when posting is disabled
       if (result && typeof result === 'object' && 'draft' in result && (result as { draft?: boolean }).draft) {
         toast.info("Saved as draft", {
@@ -878,23 +878,19 @@ export function PostComposer({
                               setShowEmojiPicker(false)
                             }}
                           >
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon-sm"
-                                  aria-label="Add emoji"
-                                  onClick={(e) => {
-                                    e.preventDefault()
-                                    saveCursorPosition()
-                                    setShowEmojiPicker(!showEmojiPicker)
-                                  }}
-                                >
-                                  <IconMoodSmile className="size-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Add emoji</TooltipContent>
-                            </Tooltip>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label="Add emoji"
+                              title="Add emoji"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                saveCursorPosition()
+                                setShowEmojiPicker(!showEmojiPicker)
+                              }}
+                            >
+                              <IconMoodSmile className="size-4" />
+                            </Button>
                           </EmojiPicker>
 
                           {/* Image Attachment */}

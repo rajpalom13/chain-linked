@@ -124,48 +124,36 @@ export function useTeamLeaderboard(): UseTeamLeaderboardReturn {
         console.info('Team members table unavailable, using solo mode')
       }
 
-      // Get user profiles for team members
+      // Get user profiles for team members (include linkedin_avatar_url)
       const { data: usersData } = await supabase
         .from('profiles')
-        .select('id, full_name, email, avatar_url')
+        .select('id, full_name, email, avatar_url, linkedin_avatar_url')
         .in('id', teamMemberIds)
 
       if (!usersData || usersData.length === 0) {
-        // No team members found - return empty state
         setMembers([])
         setIsLoading(false)
         return
       }
 
-      // Get LinkedIn profiles for role/headline info
+      // Get LinkedIn profiles for headline and profile picture
       const { data: profilesData } = await supabase
         .from('linkedin_profiles')
-        .select('user_id, headline')
+        .select('user_id, headline, profile_picture_url')
         .in('user_id', teamMemberIds)
 
-      // Get posts for the selected time range
-      const startDate = getStartDate(timeRange)
-      const weekStart = getStartDate('week')
-      const monthStart = getStartDate('month')
-
-      // Fetch all posts for team members
-      const { data: postsData } = await supabase
-        .from('my_posts')
-        .select('user_id, posted_at, reactions, comments, reposts, impressions')
-        .in('user_id', teamMemberIds)
-        .gte('posted_at', timeRange === 'all-time' ? new Date(0).toISOString() : startDate)
-        .order('posted_at', { ascending: false })
-
-      // Also fetch week and month posts for the respective counts
+      // Fetch ALL posts for team members, then filter client-side for each time range
       const { data: allPostsData } = await supabase
         .from('my_posts')
         .select('user_id, posted_at, reactions, comments, reposts, impressions')
         .in('user_id', teamMemberIds)
+        .not('posted_at', 'is', null)
 
-      // Aggregate stats per user
+      // Aggregate stats per user, filtered by selected time range
       const userStatsMap = new Map<string, {
         postsThisWeek: number
         postsThisMonth: number
+        postsAllTime: number
         totalEngagement: number
         totalImpressions: number
         totalReactions: number
@@ -177,6 +165,7 @@ export function useTeamLeaderboard(): UseTeamLeaderboardReturn {
         userStatsMap.set(id, {
           postsThisWeek: 0,
           postsThisMonth: 0,
+          postsAllTime: 0,
           totalEngagement: 0,
           totalImpressions: 0,
           totalReactions: 0,
@@ -184,7 +173,7 @@ export function useTeamLeaderboard(): UseTeamLeaderboardReturn {
         })
       })
 
-      // Calculate stats from posts
+      // Calculate stats from posts — engagement metrics scoped to same time range as post count
       if (allPostsData) {
         const now = new Date()
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
@@ -194,24 +183,35 @@ export function useTeamLeaderboard(): UseTeamLeaderboardReturn {
           const stats = userStatsMap.get(post.user_id)
           if (!stats) return
 
-          const postDate = post.posted_at ? new Date(post.posted_at) : null
-          if (postDate) {
-            if (postDate >= weekAgo) {
-              stats.postsThisWeek++
-            }
-            if (postDate >= monthAgo) {
-              stats.postsThisMonth++
-            }
-          }
-
-          // Calculate engagement
+          const postDate = new Date(post.posted_at!)
           const reactions = post.reactions || 0
           const comments = post.comments || 0
           const reposts = post.reposts || 0
-          stats.totalEngagement += reactions + comments + reposts
-          stats.totalImpressions += post.impressions || 0
-          stats.totalReactions += reactions
-          stats.totalComments += comments
+          const impressions = post.impressions || 0
+
+          // Always count all-time posts
+          stats.postsAllTime++
+
+          // Count posts per time range
+          if (postDate >= weekAgo) {
+            stats.postsThisWeek++
+          }
+          if (postDate >= monthAgo) {
+            stats.postsThisMonth++
+          }
+
+          // Engagement metrics scoped to the currently selected time range
+          const inRange = timeRange === 'week'
+            ? postDate >= weekAgo
+            : timeRange === 'month'
+              ? postDate >= monthAgo
+              : true
+          if (inRange) {
+            stats.totalEngagement += reactions + comments + reposts
+            stats.totalImpressions += impressions
+            stats.totalReactions += reactions
+            stats.totalComments += comments
+          }
         })
       }
 
@@ -221,11 +221,18 @@ export function useTeamLeaderboard(): UseTeamLeaderboardReturn {
         const stats = userStatsMap.get(userData.id) || {
           postsThisWeek: 0,
           postsThisMonth: 0,
+          postsAllTime: 0,
           totalEngagement: 0,
           totalImpressions: 0,
           totalReactions: 0,
           totalComments: 0,
         }
+
+        // Prefer LinkedIn avatar: linkedin_profiles.profile_picture_url → profiles.linkedin_avatar_url → profiles.avatar_url
+        const avatarUrl = profile?.profile_picture_url
+          || userData.linkedin_avatar_url
+          || userData.avatar_url
+          || undefined
 
         // Calculate engagement rate (engagement / impressions * 100)
         const engagementRate = stats.totalImpressions > 0
@@ -235,10 +242,11 @@ export function useTeamLeaderboard(): UseTeamLeaderboardReturn {
         return {
           id: userData.id,
           name: userData.full_name || userData.email?.split('@')[0] || 'Unknown User',
-          avatarUrl: userData.avatar_url || undefined,
+          avatarUrl,
           role: profile?.headline || 'Team Member',
           postsThisWeek: stats.postsThisWeek,
           postsThisMonth: stats.postsThisMonth,
+          postsAllTime: stats.postsAllTime,
           totalEngagement: stats.totalEngagement,
           engagementRate: Math.round(engagementRate * 10) / 10,
           rank: 0, // Will be calculated below

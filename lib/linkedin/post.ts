@@ -167,7 +167,7 @@ async function uploadMediaBinary(
     headers: {
       'Content-Type': contentType,
     },
-    body: mediaData,
+    body: new Blob([mediaData], { type: contentType }),
   })
 
   return response.ok
@@ -192,6 +192,46 @@ async function fetchImageFromUrl(imageUrl: string): Promise<{
   const buffer = await response.arrayBuffer()
 
   return { buffer, contentType }
+}
+
+/**
+ * Upload an image to LinkedIn from raw binary data (Buffer/ArrayBuffer)
+ * @param client - LinkedIn API client
+ * @param imageData - Raw image binary data
+ * @param contentType - MIME type of the image (e.g., 'image/jpeg')
+ * @returns Asset URN of the uploaded image
+ */
+export async function uploadImageFromBuffer(
+  client: LinkedInApiClient,
+  imageData: ArrayBuffer | Buffer,
+  contentType: string
+): Promise<string> {
+  const linkedInUrn = client.getLinkedInUrn()
+
+  // Step 1: Register the upload
+  const registration = await registerMediaUpload(client, linkedInUrn)
+
+  const uploadInfo = registration.value.uploadMechanism[
+    'com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'
+  ]
+
+  // Step 2: Upload the binary
+  // Convert Buffer to ArrayBuffer if needed
+  const arrayBuffer: ArrayBuffer = imageData instanceof ArrayBuffer
+    ? imageData
+    : imageData.buffer.slice(imageData.byteOffset, imageData.byteOffset + imageData.byteLength) as ArrayBuffer
+  const uploadSuccess = await uploadMediaBinary(
+    uploadInfo.uploadUrl,
+    arrayBuffer,
+    contentType
+  )
+
+  if (!uploadSuccess) {
+    throw new Error('Failed to upload image to LinkedIn')
+  }
+
+  // Return the asset URN for use in the post
+  return registration.value.asset
 }
 
 /**
@@ -328,11 +368,20 @@ export async function createPost(
   request: CreatePostRequest
 ): Promise<CreatePostResponse> {
   try {
-    const { content, visibility = 'PUBLIC', mediaUrls } = request
+    const { content, visibility = 'PUBLIC', mediaUrls, mediaAssets } = request
 
     let response: LinkedInUgcPostResponse
 
-    if (mediaUrls && mediaUrls.length > 0) {
+    if (mediaAssets && mediaAssets.length > 0) {
+      // Pre-uploaded assets: skip upload, go straight to post creation
+      validatePostContent(content)
+      const linkedInUrn = client.getLinkedInUrn()
+      const requestBody = buildMediaPostRequest(linkedInUrn, content, mediaAssets, visibility)
+      response = await client.post<LinkedInUgcPostResponse>(
+        LINKEDIN_API.UGC_POSTS,
+        requestBody
+      )
+    } else if (mediaUrls && mediaUrls.length > 0) {
       response = await createImagePost(client, content, mediaUrls, visibility)
     } else {
       response = await createTextPost(client, content, visibility)

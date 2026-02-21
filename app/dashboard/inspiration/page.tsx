@@ -79,12 +79,9 @@ import {
   SwipeCardStack,
   type SwipeCardData,
 } from "@/components/features/swipe-card"
-import { SaveToCollectionDialog } from "@/components/features/save-to-collection-dialog"
 import { GenerationProgress } from "@/components/features/generation-progress"
 import { useGeneratedSuggestions } from "@/hooks/use-generated-suggestions"
-import { useSwipeWishlist } from "@/hooks/use-swipe-wishlist"
 import { useSwipeActions } from "@/hooks/use-swipe-actions"
-import { useWishlistCollections } from "@/hooks/use-wishlist-collections"
 import { swipeToast } from "@/lib/toast-utils"
 import { toast } from "sonner"
 import {
@@ -439,7 +436,6 @@ function ViralPostsTab() {
 
   const handleSave = React.useCallback((postId: string) => {
     savePost(postId)
-    inspirationToast.saved()
   }, [savePost])
 
   if (error && posts.length === 0) {
@@ -1147,29 +1143,19 @@ function SwipeTab() {
     generationError,
   } = useGeneratedSuggestions()
 
-  const { addToWishlist } = useSwipeWishlist()
-
   const {
     recordSwipe,
     incrementShown,
   } = useSwipeActions()
-
-  const {
-    collections,
-    isLoading: collectionsLoading,
-    createCollection,
-  } = useWishlistCollections()
 
   const { status: apiKeyStatus } = useApiKeys()
 
   const [categoryFilter, setCategoryFilter] = React.useState<string>("all")
   const [showRemixDialog, setShowRemixDialog] = React.useState(false)
   const [remixContent, setRemixContent] = React.useState("")
-  const [showCollectionPicker, setShowCollectionPicker] = React.useState(false)
-  const [pendingSaveCard, setPendingSaveCard] = React.useState<GeneratedSuggestion | null>(null)
   const [swipeOffset, setSwipeOffset] = React.useState(0)
   const [isDragging, setIsDragging] = React.useState(false)
-  const [isAnimatingOut, setIsAnimatingOut] = React.useState(false)
+  const [exitingCardId, setExitingCardId] = React.useState<string | null>(null)
   const [exitDirection, setExitDirection] = React.useState<"left" | "right" | null>(null)
 
   const containerRef = React.useRef<HTMLDivElement>(null)
@@ -1188,80 +1174,61 @@ function SwipeTab() {
   const currentCard = filteredSuggestions.length > 0 ? filteredSuggestions[0] : null
 
   React.useEffect(() => {
-    if (currentCard && !isAnimatingOut) {
+    if (currentCard && !exitingCardId) {
       incrementShown()
     }
   }, [currentCard?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSwipe = React.useCallback(
     async (direction: "left" | "right") => {
-      if (!currentCard || isAnimatingOut || swipeInProgress.current) return
+      if (!currentCard || exitingCardId || swipeInProgress.current) return
       swipeInProgress.current = true
 
-      try {
-        setIsAnimatingOut(true)
-        setExitDirection(direction)
+      const swipedCard = currentCard
 
-        const action = direction === "right" ? "like" : "dislike"
-        await recordSwipe(currentCard.id, action, currentCard.content)
+      setExitingCardId(swipedCard.id)
+      setExitDirection(direction)
 
+      const action = direction === "right" ? "like" : "dislike"
+      recordSwipe(swipedCard.id, action, swipedCard.content)
+
+      if (direction === "right") {
+        fetch("/api/drafts/auto-save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            content: swipedCard.content,
+            postType: swipedCard.post_type || "general",
+            source: "swipe",
+          }),
+        })
+          .then((res) => {
+            if (res.ok) {
+              toast.success("Saved as draft!", {
+                description: "Find it in your Saved Drafts",
+              })
+            } else {
+              toast.error("Failed to save draft")
+            }
+          })
+          .catch(() => toast.error("Failed to save draft"))
+      }
+
+      setTimeout(async () => {
         if (direction === "right") {
-          setPendingSaveCard(currentCard)
-          setShowCollectionPicker(true)
+          await markAsUsed(swipedCard.id)
         } else {
-          await dismissSuggestion(currentCard.id)
+          await dismissSuggestion(swipedCard.id)
+          swipeToast.skipped()
         }
 
-        setTimeout(() => {
-          setSwipeOffset(0)
-          setIsAnimatingOut(false)
-          setExitDirection(null)
-
-          if (direction !== "right") {
-            swipeToast.skipped()
-          }
-        }, 300)
-      } finally {
+        setSwipeOffset(0)
+        setExitingCardId(null)
+        setExitDirection(null)
         swipeInProgress.current = false
-      }
+      }, 350)
     },
-    [currentCard, isAnimatingOut, recordSwipe, dismissSuggestion]
-  )
-
-  const handleCollectionSelect = React.useCallback(
-    async (collectionId: string | null) => {
-      if (!pendingSaveCard) return
-      setShowCollectionPicker(false)
-
-      await addToWishlist(pendingSaveCard, collectionId)
-      await markAsUsed(pendingSaveCard.id)
-
-      const collectionName = collectionId
-        ? collections.find(c => c.id === collectionId)?.name
-        : null
-      toast.success("Added to wishlist!", {
-        description: collectionName
-          ? `Saved to "${collectionName}"`
-          : "View your saved suggestions in the Wishlist",
-      })
-      setPendingSaveCard(null)
-    },
-    [pendingSaveCard, addToWishlist, markAsUsed, collections]
-  )
-
-  const handleCollectionPickerClose = React.useCallback(
-    (open: boolean) => {
-      if (!open && pendingSaveCard) {
-        addToWishlist(pendingSaveCard, null)
-        markAsUsed(pendingSaveCard.id)
-        toast.success("Added to wishlist!", {
-          description: "Saved to default collection",
-        })
-        setPendingSaveCard(null)
-      }
-      setShowCollectionPicker(open)
-    },
-    [pendingSaveCard, addToWishlist, markAsUsed]
+    [currentCard, exitingCardId, recordSwipe, dismissSuggestion, markAsUsed]
   )
 
   const handleEditAndPost = React.useCallback(() => {
@@ -1292,11 +1259,11 @@ function SwipeTab() {
   // Drag handlers
   const handleDragStart = React.useCallback(
     (clientX: number) => {
-      if (isAnimatingOut) return
+      if (exitingCardId) return
       setIsDragging(true)
       startXRef.current = clientX
     },
-    [isAnimatingOut]
+    [exitingCardId]
   )
 
   const handleDragMove = React.useCallback(
@@ -1497,7 +1464,7 @@ function SwipeTab() {
             cards={cardData}
             topCardOffset={swipeOffset}
             isDragging={isDragging}
-            isExiting={isAnimatingOut}
+            exitingCardId={exitingCardId}
             exitDirection={exitDirection}
           />
         </div>
@@ -1523,7 +1490,7 @@ function SwipeTab() {
             size="icon-lg"
             className="rounded-full border-red-200 text-red-500 hover:border-red-300 hover:bg-red-50 hover:text-red-600 dark:border-red-800 dark:hover:border-red-700 dark:hover:bg-red-950 shadow-sm transition-all duration-200"
             onClick={() => handleSwipe("left")}
-            disabled={isAnimatingOut || !currentCard}
+            disabled={!!exitingCardId || !currentCard}
             aria-label="Skip suggestion"
           >
             <IconX className="size-6" />
@@ -1536,8 +1503,8 @@ function SwipeTab() {
             size="icon-lg"
             className="rounded-full border-green-200 text-green-500 hover:border-green-300 hover:bg-green-50 hover:text-green-600 dark:border-green-800 dark:hover:border-green-700 dark:hover:bg-green-950 shadow-sm transition-all duration-200"
             onClick={() => handleSwipe("right")}
-            disabled={isAnimatingOut || !currentCard}
-            aria-label="Save to wishlist"
+            disabled={!!exitingCardId || !currentCard}
+            aria-label="Save as draft"
           >
             <IconHeart className="size-6" />
           </Button>
@@ -1548,7 +1515,7 @@ function SwipeTab() {
             variant="outline"
             className="rounded-full gap-2 border-primary/30 text-primary hover:border-primary hover:bg-primary/10 shadow-sm"
             onClick={handleOpenRemix}
-            disabled={isAnimatingOut || !currentCard}
+            disabled={!!exitingCardId || !currentCard}
             aria-label="Remix with AI"
           >
             <IconWand className="size-4" />
@@ -1561,7 +1528,7 @@ function SwipeTab() {
             variant="default"
             className="rounded-full gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-md"
             onClick={handleEditAndPost}
-            disabled={isAnimatingOut || !currentCard}
+            disabled={!!exitingCardId || !currentCard}
           >
             <IconPencil className="size-4" />
             Edit & Post
@@ -1591,15 +1558,6 @@ function SwipeTab() {
         hasApiKey={apiKeyStatus?.hasKey ?? false}
       />
 
-      {/* Save to Collection Dialog */}
-      <SaveToCollectionDialog
-        open={showCollectionPicker}
-        onOpenChange={handleCollectionPickerClose}
-        collections={collections}
-        isLoading={collectionsLoading}
-        onSelect={handleCollectionSelect}
-        onCreateCollection={async (name) => createCollection({ name })}
-      />
     </motion.div>
   )
 }

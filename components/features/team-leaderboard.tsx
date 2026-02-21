@@ -29,6 +29,8 @@ export interface TeamMemberStats {
   postsThisWeek: number
   /** Number of posts published this month */
   postsThisMonth: number
+  /** Total posts published all time */
+  postsAllTime: number
   /** Total engagement count (likes, comments, shares) */
   totalEngagement: number
   /** Engagement rate as a percentage */
@@ -160,10 +162,14 @@ function LeaderboardSkeleton() {
   )
 }
 
+/** CSS grid template for leaderboard columns */
+const GRID_COLS = "grid-cols-[2rem_2.5rem_1fr_3.5rem_3.5rem_3.5rem_4rem]"
+const GRID_COLS_MOBILE = "grid-cols-[2rem_2.5rem_1fr_4rem]"
+
 /**
  * Renders a single leaderboard row for a team member.
- * Displays rank with medal emoji for top 3, avatar, name, and metrics columns:
- * Posts, Reactions, Comments, Impressions.
+ * Uses CSS Grid for pixel-perfect column alignment with headers.
+ * Shows Posts, Reactions, Comments, Impressions.
  */
 function LeaderboardRow({
   member,
@@ -178,72 +184,94 @@ function LeaderboardRow({
 }) {
   const rankStyle = getRankStyle(member.rank)
   const medal = getMedalEmoji(member.rank)
-  const postsCount = timeRange === "week" ? member.postsThisWeek : member.postsThisMonth
+  const postsCount = timeRange === "week"
+    ? member.postsThisWeek
+    : timeRange === "month"
+      ? member.postsThisMonth
+      : member.postsAllTime
 
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "flex items-center gap-3 p-3 w-full text-left transition-colors border-b last:border-b-0",
+        "w-full text-left transition-colors border-b last:border-b-0",
         "hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
         isCurrentUser && "bg-primary/5 hover:bg-primary/10"
       )}
     >
-      {/* Rank Badge with Medal */}
-      <div
-        className={cn(
-          "flex items-center justify-center size-8 rounded-full font-bold text-sm shrink-0",
-          rankStyle.bg,
-          rankStyle.text
-        )}
-        title={`Rank ${member.rank}`}
-      >
-        {medal || member.rank}
-      </div>
-
-      {/* Avatar */}
-      <Avatar className="size-10 shrink-0">
-        {member.avatarUrl && (
-          <AvatarImage src={member.avatarUrl} alt={member.name} />
-        )}
-        <AvatarFallback className="text-sm font-medium">
-          {getInitials(member.name)}
-        </AvatarFallback>
-      </Avatar>
-
-      {/* Name and Role */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-sm truncate">{member.name}</span>
-          {isCurrentUser && (
-            <Badge variant="secondary" className="text-[10px]">
-              You
-            </Badge>
+      {/* Desktop layout */}
+      <div className={cn("hidden sm:grid items-center gap-3 px-3 py-3", GRID_COLS)}>
+        {/* Rank Badge */}
+        <div
+          className={cn(
+            "flex items-center justify-center size-8 rounded-full font-bold text-sm",
+            rankStyle.bg,
+            rankStyle.text
           )}
+          title={`Rank ${member.rank}`}
+        >
+          {medal || member.rank}
         </div>
-        <p className="text-xs text-muted-foreground truncate">{member.role}</p>
+
+        {/* Avatar */}
+        <Avatar className="size-10">
+          {member.avatarUrl && (
+            <AvatarImage src={member.avatarUrl} alt={member.name} />
+          )}
+          <AvatarFallback className="text-sm font-medium">
+            {getInitials(member.name)}
+          </AvatarFallback>
+        </Avatar>
+
+        {/* Name and Role */}
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-sm truncate">{member.name}</span>
+            {isCurrentUser && (
+              <Badge variant="secondary" className="text-[10px]">You</Badge>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground truncate">{member.role}</p>
+        </div>
+
+        {/* Posts */}
+        <span className="text-sm font-medium tabular-nums text-right">{formatMetricNumber(postsCount)}</span>
+        {/* Reactions */}
+        <span className="text-sm font-medium tabular-nums text-right">{formatMetricNumber(member.totalReactions)}</span>
+        {/* Comments */}
+        <span className="text-sm font-medium tabular-nums text-right">{formatMetricNumber(member.totalComments)}</span>
+        {/* Impressions */}
+        <span className="text-sm font-medium tabular-nums text-right">{formatMetricNumber(member.totalImpressions)}</span>
       </div>
 
-      {/* Metrics: Posts, Reactions, Comments, Impressions */}
-      <div className="hidden sm:flex items-center gap-4 text-sm">
-        <div className="text-right min-w-[44px]" title="Posts">
-          <span className="font-medium tabular-nums">{formatMetricNumber(postsCount)}</span>
+      {/* Mobile layout */}
+      <div className={cn("sm:hidden grid items-center gap-3 px-3 py-3", GRID_COLS_MOBILE)}>
+        <div
+          className={cn(
+            "flex items-center justify-center size-8 rounded-full font-bold text-sm",
+            rankStyle.bg,
+            rankStyle.text
+          )}
+        >
+          {medal || member.rank}
         </div>
-        <div className="text-right min-w-[44px]" title="Reactions">
-          <span className="font-medium tabular-nums">{formatMetricNumber(member.totalReactions)}</span>
+        <Avatar className="size-10">
+          {member.avatarUrl && (
+            <AvatarImage src={member.avatarUrl} alt={member.name} />
+          )}
+          <AvatarFallback className="text-sm font-medium">
+            {getInitials(member.name)}
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0">
+          <span className="font-medium text-sm truncate block">{member.name}</span>
+          <p className="text-xs text-muted-foreground truncate">{member.role}</p>
         </div>
-        <div className="text-right min-w-[44px]" title="Comments">
-          <span className="font-medium tabular-nums">{formatMetricNumber(member.totalComments)}</span>
+        <div className="text-right">
+          <span className="font-medium tabular-nums text-sm">{formatMetricNumber(member.totalImpressions)}</span>
+          <span className="text-[10px] text-muted-foreground block">views</span>
         </div>
-        <div className="text-right min-w-[52px]" title="Impressions">
-          <span className="font-medium tabular-nums">{formatMetricNumber(member.totalImpressions)}</span>
-        </div>
-      </div>
-      {/* Mobile: show only impressions */}
-      <div className="sm:hidden text-right min-w-[52px]" title="Impressions">
-        <span className="font-medium tabular-nums text-sm">{formatMetricNumber(member.totalImpressions)}</span>
-        <span className="text-[10px] text-muted-foreground ml-1">impr</span>
       </div>
     </button>
   )
@@ -341,55 +369,52 @@ export function TeamLeaderboard({
               <TabsList>
                 <TabsTrigger value="week">This Week</TabsTrigger>
                 <TabsTrigger value="month">This Month</TabsTrigger>
+                <TabsTrigger value="all-time">All Time</TabsTrigger>
               </TabsList>
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            {/* Column Headers */}
-            <div className="flex items-center gap-3 px-3 py-2 text-xs text-muted-foreground border-b bg-muted/30">
-              <div className="size-8" /> {/* Rank column */}
-              <div className="size-10" /> {/* Avatar column */}
-              <div className="flex-1">Member</div>
-              <div className="hidden sm:flex items-center gap-4">
-                <div className="text-right min-w-[44px]">Posts</div>
-                <div className="text-right min-w-[44px]">Reactions</div>
-                <div className="text-right min-w-[44px]">Comments</div>
-                <div className="text-right min-w-[52px]">Impressions</div>
-              </div>
-              <div className="sm:hidden text-right min-w-[52px]">Impressions</div>
+            {/* Column Headers - Desktop (same grid as rows) */}
+            <div className={cn(
+              "hidden sm:grid items-center gap-3 px-3 py-2 text-xs font-medium text-muted-foreground border-b bg-muted/30",
+              GRID_COLS
+            )}>
+              <div /> {/* Rank column */}
+              <div /> {/* Avatar column */}
+              <div>Member</div>
+              <div className="text-right">Posts</div>
+              <div className="text-right">Reactions</div>
+              <div className="text-right">Comments</div>
+              <div className="text-right">Impress.</div>
+            </div>
+            {/* Column Headers - Mobile */}
+            <div className={cn(
+              "sm:hidden grid items-center gap-3 px-3 py-2 text-xs font-medium text-muted-foreground border-b bg-muted/30",
+              GRID_COLS_MOBILE
+            )}>
+              <div /> {/* Rank */}
+              <div /> {/* Avatar */}
+              <div>Member</div>
+              <div className="text-right">Views</div>
             </div>
 
-            <TabsContent value="week" className="mt-0">
-              {sortedMembers.length === 0 ? (
-                <EmptyState />
-              ) : (
-                sortedMembers.map((member) => (
-                  <LeaderboardRow
-                    key={member.id}
-                    member={member}
-                    timeRange="week"
-                    isCurrentUser={member.id === currentUserId}
-                    onClick={onMemberClick ? () => onMemberClick(member.id) : undefined}
-                  />
-                ))
-              )}
-            </TabsContent>
-
-            <TabsContent value="month" className="mt-0">
-              {sortedMembers.length === 0 ? (
-                <EmptyState />
-              ) : (
-                sortedMembers.map((member) => (
-                  <LeaderboardRow
-                    key={member.id}
-                    member={member}
-                    timeRange="month"
-                    isCurrentUser={member.id === currentUserId}
-                    onClick={onMemberClick ? () => onMemberClick(member.id) : undefined}
-                  />
-                ))
-              )}
-            </TabsContent>
+            {(["week", "month", "all-time"] as const).map(tab => (
+              <TabsContent key={tab} value={tab} className="mt-0">
+                {sortedMembers.length === 0 ? (
+                  <EmptyState />
+                ) : (
+                  sortedMembers.map((member) => (
+                    <LeaderboardRow
+                      key={member.id}
+                      member={member}
+                      timeRange={tab}
+                      isCurrentUser={member.id === currentUserId}
+                      onClick={onMemberClick ? () => onMemberClick(member.id) : undefined}
+                    />
+                  ))
+                )}
+              </TabsContent>
+            ))}
           </CardContent>
         </Tabs>
       </Card>

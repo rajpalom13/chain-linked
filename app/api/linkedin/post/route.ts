@@ -9,11 +9,22 @@ import { NextResponse } from 'next/server'
 import {
   createLinkedInClient,
   createPost,
+  uploadImageFromBuffer,
   type LinkedInTokenData,
   type CreatePostRequest,
   type LinkedInVisibility,
 } from '@/lib/linkedin'
 import { isPostingEnabled, POSTING_DISABLED_MESSAGE, DISABLED_DRAFT_STATUS } from '@/lib/linkedin/posting-config'
+
+/**
+ * Base64-encoded media item from client-side file upload
+ */
+interface MediaBase64Item {
+  /** Base64-encoded image data */
+  data: string
+  /** MIME type (e.g., 'image/jpeg', 'image/png') */
+  contentType: string
+}
 
 /**
  * Request body for posting to LinkedIn
@@ -22,6 +33,8 @@ interface PostRequestBody {
   content: string
   visibility?: LinkedInVisibility
   mediaUrls?: string[]
+  /** Base64-encoded images from client-side file uploads */
+  mediaBase64?: MediaBase64Item[]
   scheduledPostId?: string
 }
 
@@ -54,7 +67,7 @@ export async function POST(request: Request) {
     )
   }
 
-  const { content, visibility = 'PUBLIC', mediaUrls, scheduledPostId } = body
+  const { content, visibility = 'PUBLIC', mediaUrls, mediaBase64, scheduledPostId } = body
 
   // Validate content
   if (!content || content.trim().length === 0) {
@@ -119,11 +132,36 @@ export async function POST(request: Request) {
     }
   )
 
+  // If base64 images are provided, upload them to LinkedIn and collect asset URNs
+  let uploadedAssets: string[] = []
+
+  if (mediaBase64 && mediaBase64.length > 0) {
+    try {
+      uploadedAssets = await Promise.all(
+        mediaBase64.map(async (item) => {
+          const buffer = Buffer.from(item.data, 'base64')
+          return uploadImageFromBuffer(
+            client,
+            buffer,
+            item.contentType || 'image/jpeg'
+          )
+        })
+      )
+    } catch (uploadError) {
+      console.error('Failed to upload images to LinkedIn:', uploadError)
+      return NextResponse.json(
+        { error: uploadError instanceof Error ? uploadError.message : 'Failed to upload images' },
+        { status: 500 }
+      )
+    }
+  }
+
   // Create the post request
   const postRequest: CreatePostRequest = {
     content,
     visibility,
     mediaUrls,
+    mediaAssets: uploadedAssets.length > 0 ? uploadedAssets : undefined,
   }
 
   // Post to LinkedIn

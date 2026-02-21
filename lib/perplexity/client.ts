@@ -20,6 +20,7 @@ export interface PerplexityMessage {
 
 /**
  * Perplexity chat completion request
+ * @see https://docs.perplexity.ai/api-reference/chat-completions-post
  */
 export interface PerplexityRequest {
   model: string
@@ -27,18 +28,25 @@ export interface PerplexityRequest {
   max_tokens?: number
   temperature?: number
   top_p?: number
-  search_domain_filter?: string[]
-  return_images?: boolean
-  return_related_questions?: boolean
-  search_recency_filter?: 'month' | 'week' | 'day' | 'year'
-  top_k?: number
+  /** Controls search behaviour: academic, sec, or web (default) */
+  search_mode?: 'academic' | 'sec' | 'web'
+  /** Only for sonar-deep-research model */
+  reasoning_effort?: 'low' | 'medium' | 'high'
   stream?: boolean
-  presence_penalty?: number
-  frequency_penalty?: number
+}
+
+/**
+ * Search result returned by the Perplexity API
+ */
+export interface PerplexitySearchResult {
+  title: string
+  url: string
+  date?: string
 }
 
 /**
  * Perplexity chat completion response
+ * @see https://docs.perplexity.ai/api-reference/chat-completions-post
  */
 export interface PerplexityResponse {
   id: string
@@ -48,8 +56,15 @@ export interface PerplexityResponse {
     prompt_tokens: number
     completion_tokens: number
     total_tokens: number
+    search_context_size?: string
+    citation_tokens?: number
+    num_search_queries?: number
+    reasoning_tokens?: number
   }
+  /** @deprecated Use search_results instead */
   citations?: string[]
+  /** Search results with title, url, and date */
+  search_results?: PerplexitySearchResult[]
   object: string
   choices: {
     index: number
@@ -159,11 +174,27 @@ export class PerplexityClient {
     messages.push({ role: 'user', content: query })
 
     const response = await this.chat(messages, {
-      search_recency_filter: 'week',
-      return_related_questions: false,
+      search_mode: 'web',
     })
 
     return response.choices[0]?.message?.content || ''
+  }
+
+  /**
+   * Extract citation URLs from the response, handling both old and new formats
+   * @param response - Perplexity API response
+   * @returns Array of citation URLs
+   */
+  static extractCitations(response: PerplexityResponse): string[] {
+    // New format: search_results array with url field
+    if (response.search_results?.length) {
+      return response.search_results.map((r) => r.url)
+    }
+    // Legacy format: citations string array
+    if (response.citations?.length) {
+      return response.citations
+    }
+    return []
   }
 
   /**
@@ -185,13 +216,12 @@ export class PerplexityClient {
     messages.push({ role: 'user', content: query })
 
     const response = await this.chat(messages, {
-      search_recency_filter: 'week',
-      return_related_questions: false,
+      search_mode: 'web',
     })
 
     return {
       content: response.choices[0]?.message?.content || '',
-      citations: response.citations || [],
+      citations: PerplexityClient.extractCitations(response),
     }
   }
 }

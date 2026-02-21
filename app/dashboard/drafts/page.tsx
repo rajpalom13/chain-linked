@@ -2,14 +2,14 @@
 
 /**
  * Saved Drafts Page
- * @description Clean drafts manager using the ChainLinked design system.
- * Fixed-height cards in a responsive grid with search, source filtering, and sorting.
+ * @description Drafts manager with card/list views, source-colored badges,
+ * search, filtering, sorting, and bulk select/delete.
  * @module app/dashboard/drafts/page
  */
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion } from "framer-motion"
 import { toast } from "sonner"
 import {
   IconArrowRight,
@@ -24,6 +24,11 @@ import {
   IconPencil,
   IconX,
   IconDots,
+  IconLayoutGrid,
+  IconList,
+  IconSquareCheck,
+  IconSquare,
+  IconSelectAll,
 } from "@tabler/icons-react"
 import { PageContent } from "@/components/shared/page-content"
 import { useAuthContext } from "@/lib/auth/auth-provider"
@@ -34,6 +39,8 @@ import { useConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,16 +51,61 @@ import {
 import { cn } from "@/lib/utils"
 
 // ============================================================================
-// Constants
+// Source Color System
 // ============================================================================
 
-/** Source display labels */
-const SOURCE_LABELS: Record<DraftSource, string> = {
-  compose: "Compose",
-  swipe: "Swipe",
-  discover: "Discover",
-  inspiration: "Inspiration",
-  research: "Research",
+/**
+ * Color configuration for each draft source
+ */
+const SOURCE_STYLES: Record<DraftSource, {
+  label: string
+  badge: string
+  gradient: string
+  dot: string
+  filterActive: string
+}> = {
+  compose: {
+    label: "Compose",
+    badge: "bg-blue-500/15 text-blue-700 dark:text-blue-400",
+    gradient: "from-blue-500/8 via-transparent to-transparent",
+    dot: "bg-blue-500",
+    filterActive: "bg-blue-500 text-white",
+  },
+  swipe: {
+    label: "Swipe",
+    badge: "bg-rose-500/15 text-rose-700 dark:text-rose-400",
+    gradient: "from-rose-500/8 via-transparent to-transparent",
+    dot: "bg-rose-500",
+    filterActive: "bg-rose-500 text-white",
+  },
+  discover: {
+    label: "Discover",
+    badge: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+    gradient: "from-amber-500/8 via-transparent to-transparent",
+    dot: "bg-amber-500",
+    filterActive: "bg-amber-500 text-white",
+  },
+  inspiration: {
+    label: "Inspiration",
+    badge: "bg-violet-500/15 text-violet-700 dark:text-violet-400",
+    gradient: "from-violet-500/8 via-transparent to-transparent",
+    dot: "bg-violet-500",
+    filterActive: "bg-violet-500 text-white",
+  },
+  research: {
+    label: "Research",
+    badge: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+    gradient: "from-emerald-500/8 via-transparent to-transparent",
+    dot: "bg-emerald-500",
+    filterActive: "bg-emerald-500 text-white",
+  },
+  carousel: {
+    label: "Carousel",
+    badge: "bg-teal-500/15 text-teal-700 dark:text-teal-400",
+    gradient: "from-teal-500/8 via-transparent to-transparent",
+    dot: "bg-teal-500",
+    filterActive: "bg-teal-500 text-white",
+  },
 }
 
 /** Sort options */
@@ -72,7 +124,11 @@ const FILTER_OPTIONS: { value: DraftSource | "all"; label: string }[] = [
   { value: "discover", label: "Discover" },
   { value: "inspiration", label: "Inspiration" },
   { value: "research", label: "Research" },
+  { value: "carousel", label: "Carousel" },
 ]
+
+/** View mode type */
+type ViewMode = "grid" | "list"
 
 // ============================================================================
 // Utilities
@@ -80,8 +136,6 @@ const FILTER_OPTIONS: { value: DraftSource | "all"; label: string }[] = [
 
 /**
  * Format date to relative or short absolute
- * @param dateString - ISO date string
- * @returns Formatted date label
  */
 function formatDate(dateString: string): string {
   const date = new Date(dateString)
@@ -105,8 +159,6 @@ function formatDate(dateString: string): string {
 
 /**
  * Format post type for display
- * @param postType - e.g. 'thought-leadership'
- * @returns e.g. 'Thought Leadership'
  */
 function formatPostType(postType: string): string {
   return postType
@@ -115,115 +167,471 @@ function formatPostType(postType: string): string {
     .join(" ")
 }
 
+/**
+ * Get the first meaningful line of content as a title
+ */
+function extractTitle(content: string): string {
+  const firstLine = content.split("\n").find((l) => l.trim().length > 0)?.trim() || ""
+  if (firstLine.length <= 80) return firstLine
+  return firstLine.slice(0, 77).trimEnd() + "..."
+}
+
 // ============================================================================
-// Draft Card
+// Source Badge
 // ============================================================================
 
 /**
- * Draft card with fixed height, theme colors, and clean layout.
- * Uses only design system tokens — no arbitrary color classes.
- * @param props - Component props
- * @returns Draft card UI
+ * Colored source badge component
+ */
+function SourceBadge({ source }: { source: DraftSource }) {
+  const style = SOURCE_STYLES[source]
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md",
+        style.badge
+      )}
+    >
+      <span className={cn("size-1.5 rounded-full", style.dot)} />
+      {style.label}
+    </span>
+  )
+}
+
+// ============================================================================
+// Kebab Menu
+// ============================================================================
+
+/**
+ * Action menu shared by card and list row
+ */
+function DraftActions({
+  draft,
+  onEdit,
+  onDelete,
+  onCopy,
+  triggerClassName,
+}: {
+  draft: SavedDraft
+  onEdit: (d: SavedDraft) => void
+  onDelete: (d: SavedDraft) => void
+  onCopy: (d: SavedDraft) => void
+  triggerClassName?: string
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          onClick={(e) => e.stopPropagation()}
+          className={cn(
+            "shrink-0 p-1 rounded-md text-muted-foreground hover:bg-muted transition-all",
+            triggerClassName
+          )}
+        >
+          <IconDots className="size-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="w-40"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <DropdownMenuItem onClick={() => onEdit(draft)}>
+          <IconArrowRight className="size-3.5 mr-2" />
+          Continue editing
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onCopy(draft)}>
+          <IconClipboardCopy className="size-3.5 mr-2" />
+          Copy text
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() => onDelete(draft)}
+          className="text-destructive focus:text-destructive"
+        >
+          <IconTrash className="size-3.5 mr-2" />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+// ============================================================================
+// Selection Checkbox
+// ============================================================================
+
+/**
+ * Selection checkbox overlay for cards and rows
+ */
+function SelectionCheckbox({
+  checked,
+  onToggle,
+  selectMode,
+  className,
+}: {
+  checked: boolean
+  onToggle: () => void
+  selectMode: boolean
+  className?: string
+}) {
+  if (!selectMode) return null
+
+  return (
+    <div
+      className={cn("z-10", className)}
+      onClick={(e) => {
+        e.stopPropagation()
+        onToggle()
+      }}
+    >
+      <Checkbox
+        checked={checked}
+        className="size-4 border-2"
+      />
+    </div>
+  )
+}
+
+// ============================================================================
+// Draft Card (Grid View)
+// ============================================================================
+
+/**
+ * Draft card with colored gradient, extracted title, and optional selection
  */
 function DraftCard({
   draft,
   onEdit,
   onDelete,
   onCopy,
+  selectMode,
+  selected,
+  onToggleSelect,
 }: {
   draft: SavedDraft
   onEdit: (d: SavedDraft) => void
   onDelete: (d: SavedDraft) => void
   onCopy: (d: SavedDraft) => void
+  selectMode: boolean
+  selected: boolean
+  onToggleSelect: () => void
 }) {
+  const style = SOURCE_STYLES[draft.source]
+  const title = draft.topic || extractTitle(draft.content)
+  const preview = draft.topic ? draft.content : draft.content.split("\n").slice(1).join("\n").trim() || draft.content
+
+  const handleClick = () => {
+    if (selectMode) {
+      onToggleSelect()
+    } else {
+      onEdit(draft)
+    }
+  }
+
   return (
     <motion.button
       type="button"
-      onClick={() => onEdit(draft)}
-      className="text-left h-[220px] flex flex-col rounded-xl bg-card border border-border/40 overflow-hidden transition-all hover:shadow-md hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group"
-      whileHover={{ y: -2 }}
-      transition={{ type: "spring", stiffness: 400, damping: 17 }}
-      layout
+      onClick={handleClick}
+      className={cn(
+        "text-left h-[210px] flex flex-col rounded-xl border overflow-hidden",
+        "bg-gradient-to-br",
+        style.gradient,
+        "transition-all hover:shadow-lg hover:-translate-y-0.5",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "group w-full relative",
+        selected
+          ? "border-primary ring-1 ring-primary/30"
+          : "border-border/40 hover:border-border/80"
+      )}
     >
+      {/* Selection checkbox */}
+      <SelectionCheckbox
+        checked={selected}
+        onToggle={onToggleSelect}
+        selectMode={selectMode}
+        className="absolute top-3 right-3"
+      />
+
       {/* Card body */}
-      <div className="flex-1 p-4 flex flex-col gap-2.5 min-h-0">
-        {/* Top row: source + post type + kebab */}
+      <div className="flex-1 p-4 flex flex-col gap-2 min-h-0">
+        {/* Top row: badges + kebab */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="shrink-0 inline-flex items-center text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md bg-accent text-accent-foreground">
-              {SOURCE_LABELS[draft.source]}
-            </span>
+            <SourceBadge source={draft.source} />
             {draft.postType && draft.postType !== "general" && (
               <span className="truncate text-[10px] font-medium px-2 py-0.5 rounded-md bg-muted text-muted-foreground">
                 {formatPostType(draft.postType)}
               </span>
             )}
           </div>
-
-          {/* Kebab menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                onClick={(e) => e.stopPropagation()}
-                className="shrink-0 p-1 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-muted transition-all"
-              >
-                <IconDots className="size-3.5" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="w-40"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <DropdownMenuItem onClick={() => onEdit(draft)}>
-                <IconArrowRight className="size-3.5 mr-2" />
-                Continue editing
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onCopy(draft)}>
-                <IconClipboardCopy className="size-3.5 mr-2" />
-                Copy text
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => onDelete(draft)}
-                className="text-destructive focus:text-destructive"
-              >
-                <IconTrash className="size-3.5 mr-2" />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {!selectMode && (
+            <DraftActions
+              draft={draft}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onCopy={onCopy}
+              triggerClassName="opacity-0 group-hover:opacity-100"
+            />
+          )}
         </div>
 
-        {/* Topic line (if available) */}
-        {draft.topic && (
-          <p className="text-xs font-medium text-foreground/80 line-clamp-1 leading-snug">
-            {draft.topic}
-          </p>
-        )}
+        {/* Title */}
+        <h3 className="text-sm font-semibold text-foreground line-clamp-1 leading-snug">
+          {title}
+        </h3>
 
-        {/* Content preview — fills remaining space */}
-        <p className="flex-1 text-[13px] text-muted-foreground leading-relaxed whitespace-pre-line line-clamp-4 overflow-hidden">
-          {draft.content}
+        {/* Content preview */}
+        <p className="flex-1 text-xs text-muted-foreground leading-relaxed whitespace-pre-line line-clamp-4 overflow-hidden">
+          {preview}
         </p>
       </div>
 
-      {/* Footer — pinned to bottom */}
-      <div className="px-4 py-2.5 border-t border-border/30 flex items-center justify-between bg-muted/20">
+      {/* Footer */}
+      <div className="px-4 py-2 border-t border-border/30 flex items-center justify-between bg-muted/30">
         <span className="text-[11px] text-muted-foreground flex items-center gap-1.5">
           <IconClock className="size-3" />
           {formatDate(draft.updatedAt)}
-          <span className="text-border">&middot;</span>
+          <span className="text-border/60">&middot;</span>
           <IconFileText className="size-3" />
           {draft.wordCount}w
         </span>
-        <span className="text-[11px] text-primary font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
-          Edit
-          <IconArrowRight className="size-3" />
-        </span>
+        {!selectMode && (
+          <span className="text-[11px] text-primary font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+            Edit
+            <IconArrowRight className="size-3" />
+          </span>
+        )}
       </div>
     </motion.button>
+  )
+}
+
+// ============================================================================
+// Draft Row (List/Table View)
+// ============================================================================
+
+/**
+ * Compact list row with optional selection
+ */
+function DraftRow({
+  draft,
+  onEdit,
+  onDelete,
+  onCopy,
+  selectMode,
+  selected,
+  onToggleSelect,
+}: {
+  draft: SavedDraft
+  onEdit: (d: SavedDraft) => void
+  onDelete: (d: SavedDraft) => void
+  onCopy: (d: SavedDraft) => void
+  selectMode: boolean
+  selected: boolean
+  onToggleSelect: () => void
+}) {
+  const style = SOURCE_STYLES[draft.source]
+  const title = draft.topic || extractTitle(draft.content)
+
+  const handleClick = () => {
+    if (selectMode) {
+      onToggleSelect()
+    } else {
+      onEdit(draft)
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      className={cn(
+        "w-full text-left flex items-center gap-3 px-4 py-3 rounded-lg border",
+        "bg-gradient-to-r",
+        style.gradient,
+        "hover:shadow-sm transition-all",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "group",
+        selected
+          ? "border-primary ring-1 ring-primary/30"
+          : "border-border/40 hover:border-border/80"
+      )}
+    >
+      {/* Selection checkbox */}
+      {selectMode && (
+        <div onClick={(e) => { e.stopPropagation(); onToggleSelect() }}>
+          <Checkbox checked={selected} className="size-4 border-2" />
+        </div>
+      )}
+
+      {/* Content area */}
+      <div className="flex-1 min-w-0">
+        <h3 className="text-sm font-medium text-foreground truncate">
+          {title}
+        </h3>
+        <p className="text-xs text-muted-foreground truncate max-w-2xl">
+          {draft.content.replace(/\n/g, " ").slice(0, 120)}
+        </p>
+      </div>
+
+      {/* Source badge */}
+      <div className="hidden sm:block shrink-0">
+        <SourceBadge source={draft.source} />
+      </div>
+
+      {/* Post type */}
+      {draft.postType && draft.postType !== "general" && (
+        <span className="hidden md:block shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-md bg-muted text-muted-foreground">
+          {formatPostType(draft.postType)}
+        </span>
+      )}
+
+      {/* Word count */}
+      <span className="hidden lg:flex shrink-0 text-[11px] text-muted-foreground items-center gap-1">
+        <IconFileText className="size-3" />
+        {draft.wordCount}w
+      </span>
+
+      {/* Date */}
+      <span className="shrink-0 text-[11px] text-muted-foreground flex items-center gap-1 w-16 justify-end">
+        <IconClock className="size-3" />
+        {formatDate(draft.updatedAt)}
+      </span>
+
+      {/* Actions */}
+      {!selectMode && (
+        <DraftActions
+          draft={draft}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onCopy={onCopy}
+          triggerClassName="opacity-0 group-hover:opacity-100"
+        />
+      )}
+    </button>
+  )
+}
+
+// ============================================================================
+// View Toggle
+// ============================================================================
+
+/**
+ * Animated toggle between grid and list views
+ */
+function ViewToggle({
+  view,
+  onChange,
+}: {
+  view: ViewMode
+  onChange: (v: ViewMode) => void
+}) {
+  return (
+    <div className="flex items-center rounded-lg border border-border/60 bg-muted/30 p-0.5">
+      {([
+        { value: "grid" as ViewMode, icon: IconLayoutGrid, label: "Grid view" },
+        { value: "list" as ViewMode, icon: IconList, label: "List view" },
+      ]).map(({ value, icon: Icon, label }) => (
+        <Tooltip key={value}>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => onChange(value)}
+              className={cn(
+                "relative p-1.5 rounded-md transition-colors",
+                view === value
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {view === value && (
+                <motion.div
+                  layoutId="view-toggle-bg"
+                  className="absolute inset-0 bg-background border border-border/60 rounded-md shadow-sm"
+                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                />
+              )}
+              <Icon className="size-3.5 relative z-10" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{label}</TooltipContent>
+        </Tooltip>
+      ))}
+    </div>
+  )
+}
+
+// ============================================================================
+// Bulk Actions Bar
+// ============================================================================
+
+/**
+ * Floating bar that appears when items are selected
+ */
+function BulkActionsBar({
+  selectedCount,
+  totalCount,
+  onSelectAll,
+  onDeselectAll,
+  onDelete,
+  isDeleting,
+}: {
+  selectedCount: number
+  totalCount: number
+  onSelectAll: () => void
+  onDeselectAll: () => void
+  onDelete: () => void
+  isDeleting: boolean
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 20 }}
+      className="sticky bottom-4 z-30 mx-auto w-fit"
+    >
+      <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-2.5 shadow-lg">
+        <span className="text-sm font-medium">
+          {selectedCount} selected
+        </span>
+
+        <div className="h-4 w-px bg-border" />
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs"
+          onClick={selectedCount === totalCount ? onDeselectAll : onSelectAll}
+        >
+          <IconSelectAll className="size-3.5 mr-1" />
+          {selectedCount === totalCount ? "Deselect all" : "Select all"}
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs"
+          onClick={onDeselectAll}
+        >
+          Clear
+        </Button>
+
+        <div className="h-4 w-px bg-border" />
+
+        <Button
+          variant="destructive"
+          size="sm"
+          className="h-7 text-xs gap-1"
+          onClick={onDelete}
+          disabled={isDeleting}
+        >
+          <IconTrash className="size-3.5" />
+          {isDeleting ? "Deleting..." : `Delete ${selectedCount}`}
+        </Button>
+      </div>
+    </motion.div>
   )
 }
 
@@ -232,8 +640,7 @@ function DraftCard({
 // ============================================================================
 
 /**
- * Loading skeleton matching the card grid layout
- * @returns Skeleton placeholder UI
+ * Loading skeleton matching the page layout
  */
 function DraftsSkeleton() {
   return (
@@ -243,7 +650,10 @@ function DraftsSkeleton() {
           <Skeleton className="h-7 w-32 mb-1.5" />
           <Skeleton className="h-4 w-56" />
         </div>
-        <Skeleton className="h-8 w-8 rounded-md" />
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-8 w-16 rounded-lg" />
+          <Skeleton className="h-8 w-8 rounded-md" />
+        </div>
       </div>
 
       <div className="flex items-center gap-2">
@@ -255,20 +665,20 @@ function DraftsSkeleton() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-[220px] rounded-xl border border-border/40 bg-card overflow-hidden">
+          <div key={i} className="h-[210px] rounded-xl border border-border/40 bg-card overflow-hidden">
             <div className="p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <Skeleton className="h-4 w-16 rounded-md" />
                 <Skeleton className="h-4 w-24 rounded-md" />
               </div>
+              <Skeleton className="h-4 w-3/4" />
               <div className="space-y-2">
                 <Skeleton className="h-3.5 w-full" />
                 <Skeleton className="h-3.5 w-full" />
-                <Skeleton className="h-3.5 w-3/4" />
-                <Skeleton className="h-3.5 w-1/2" />
+                <Skeleton className="h-3.5 w-2/3" />
               </div>
             </div>
-            <div className="mt-auto px-4 py-2.5 border-t border-border/30">
+            <div className="mt-auto px-4 py-2 border-t border-border/30">
               <Skeleton className="h-3 w-28" />
             </div>
           </div>
@@ -284,8 +694,6 @@ function DraftsSkeleton() {
 
 /**
  * Empty state with contextual messaging
- * @param props.hasFilters - Whether filters are active
- * @returns Empty state UI
  */
 function EmptyState({ hasFilters }: { hasFilters: boolean }) {
   const router = useRouter()
@@ -327,18 +735,38 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
 // ============================================================================
 
 /**
- * Drafts page content with filtering, sorting, and card grid
- * @returns Drafts content UI
+ * Drafts page content with filtering, sorting, card/list toggle, and bulk selection
  */
 function DraftsContent() {
   const router = useRouter()
   const { loadForRemix } = useDraft()
-  const { drafts, isLoading, error, deleteDraft, refetch } = useDrafts()
+  const { drafts, isLoading, error, deleteDraft, bulkDeleteDrafts, refetch } = useDrafts()
   const { confirm, ConfirmDialogComponent } = useConfirmDialog()
 
   const [searchQuery, setSearchQuery] = React.useState("")
   const [sourceFilter, setSourceFilter] = React.useState<DraftSource | "all">("all")
   const [sortBy, setSortBy] = React.useState<DraftSortBy>("newest")
+  const [selectMode, setSelectMode] = React.useState(false)
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
+  const [isDeleting, setIsDeleting] = React.useState(false)
+  const [viewMode, setViewMode] = React.useState<ViewMode>(() => {
+    if (typeof window === "undefined") return "grid"
+    try {
+      return (localStorage.getItem("chainlinked_drafts_view") as ViewMode) || "grid"
+    } catch {
+      return "grid"
+    }
+  })
+
+  /** Persist view preference */
+  const handleViewChange = React.useCallback((v: ViewMode) => {
+    setViewMode(v)
+    try {
+      localStorage.setItem("chainlinked_drafts_view", v)
+    } catch {
+      // noop
+    }
+  }, [])
 
   /** Filtered and sorted drafts */
   const filteredDrafts = React.useMemo(() => {
@@ -386,6 +814,64 @@ function DraftsContent() {
 
   const hasFilters = searchQuery.trim() !== "" || sourceFilter !== "all"
 
+  /** Toggle selection for a single draft */
+  const toggleSelect = React.useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }, [])
+
+  /** Select all currently visible drafts */
+  const selectAllVisible = React.useCallback(() => {
+    setSelectedIds(new Set(filteredDrafts.map((d) => d.id)))
+  }, [filteredDrafts])
+
+  /** Clear selection and exit select mode */
+  const clearSelection = React.useCallback(() => {
+    setSelectedIds(new Set())
+    setSelectMode(false)
+  }, [])
+
+  /** Toggle select mode */
+  const toggleSelectMode = React.useCallback(() => {
+    if (selectMode) {
+      clearSelection()
+    } else {
+      setSelectMode(true)
+    }
+  }, [selectMode, clearSelection])
+
+  /** Bulk delete selected drafts */
+  const handleBulkDelete = React.useCallback(async () => {
+    const count = selectedIds.size
+    const confirmed = await confirm({
+      title: `Delete ${count} draft${count !== 1 ? "s" : ""}?`,
+      description: "This cannot be undone.",
+      variant: "destructive",
+      confirmText: `Delete ${count}`,
+    })
+
+    if (!confirmed) return
+
+    setIsDeleting(true)
+    const items = filteredDrafts
+      .filter((d) => selectedIds.has(d.id))
+      .map((d) => ({ id: d.id, table: d.table }))
+
+    const success = await bulkDeleteDrafts(items)
+    setIsDeleting(false)
+
+    if (success) {
+      clearSelection()
+    }
+  }, [selectedIds, filteredDrafts, confirm, bulkDeleteDrafts, clearSelection])
+
   /** Load draft into composer */
   const handleEdit = React.useCallback(
     (draft: SavedDraft) => {
@@ -406,7 +892,7 @@ function DraftsContent() {
     }
   }, [])
 
-  /** Delete draft with confirmation */
+  /** Delete single draft with confirmation */
   const handleDelete = React.useCallback(
     async (draft: SavedDraft) => {
       const confirmed = await confirm({
@@ -451,9 +937,35 @@ function DraftsContent() {
               : "Auto-saved from compose and swipe"}
           </p>
         </div>
-        <Button variant="ghost" size="icon" onClick={refetch} className="text-muted-foreground">
-          <IconRefresh className="size-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Select mode toggle */}
+          {drafts.length > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={selectMode ? "default" : "ghost"}
+                  size="icon"
+                  onClick={toggleSelectMode}
+                  className={cn("h-8 w-8", !selectMode && "text-muted-foreground")}
+                >
+                  {selectMode ? <IconSquareCheck className="size-4" /> : <IconSquare className="size-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{selectMode ? "Cancel selection" : "Select drafts"}</TooltipContent>
+            </Tooltip>
+          )}
+
+          <ViewToggle view={viewMode} onChange={handleViewChange} />
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={refetch} className="text-muted-foreground h-8 w-8">
+                <IconRefresh className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Refresh drafts</TooltipContent>
+          </Tooltip>
+        </div>
       </div>
 
       {/* Search + filter pills */}
@@ -483,24 +995,31 @@ function DraftsContent() {
           <div className="flex items-center gap-1 flex-wrap">
             {FILTER_OPTIONS.filter(
               (o) => o.value === "all" || (sourceCounts[o.value] || 0) > 0
-            ).map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => setSourceFilter(option.value)}
-                className={cn(
-                  "text-[11px] font-medium px-2.5 py-1 rounded-full transition-colors",
-                  sourceFilter === option.value
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {option.label}
-                {sourceCounts[option.value] ? (
-                  <span className="ml-1 opacity-70">{sourceCounts[option.value]}</span>
-                ) : null}
-              </button>
-            ))}
+            ).map((option) => {
+              const isActive = sourceFilter === option.value
+              const sourceStyle = option.value !== "all" ? SOURCE_STYLES[option.value as DraftSource] : null
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setSourceFilter(option.value)}
+                  className={cn(
+                    "text-[11px] font-medium px-2.5 py-1 rounded-full transition-all",
+                    isActive && sourceStyle
+                      ? sourceStyle.filterActive
+                      : isActive
+                        ? "bg-foreground text-background"
+                        : "bg-muted text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {option.label}
+                  {sourceCounts[option.value] ? (
+                    <span className="ml-1 opacity-70">{sourceCounts[option.value]}</span>
+                  ) : null}
+                </button>
+              )
+            })}
 
             {/* Sort */}
             <DropdownMenu>
@@ -509,7 +1028,7 @@ function DraftsContent() {
                   type="button"
                   className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-muted text-muted-foreground hover:text-foreground transition-colors ml-1"
                 >
-                  {SORT_OPTIONS.find((o) => o.value === sortBy)?.label} ↓
+                  {SORT_OPTIONS.find((o) => o.value === sortBy)?.label} &#8595;
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-28">
@@ -531,44 +1050,75 @@ function DraftsContent() {
         </div>
       )}
 
-      {/* Grid or empty state */}
+      {/* Content: Grid, List, or Empty State */}
       {filteredDrafts.length === 0 ? (
         <EmptyState hasFilters={hasFilters} />
-      ) : (
-        <motion.div
+      ) : viewMode === "grid" ? (
+        <div
+          key={`grid-${sourceFilter}-${sortBy}`}
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
-          initial="initial"
-          animate="animate"
-          variants={{
-            initial: {},
-            animate: { transition: { staggerChildren: 0.04, delayChildren: 0.05 } },
-          }}
         >
-          <AnimatePresence mode="popLayout">
-            {filteredDrafts.map((draft) => (
-              <motion.div
-                key={draft.id}
-                variants={{
-                  initial: { opacity: 0, y: 12 },
-                  animate: {
-                    opacity: 1,
-                    y: 0,
-                    transition: { duration: 0.25, ease: [0.16, 1, 0.3, 1] },
-                  },
-                  exit: { opacity: 0, scale: 0.95, transition: { duration: 0.15 } },
-                }}
-                layout
-              >
-                <DraftCard
-                  draft={draft}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
-                  onCopy={handleCopy}
-                />
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </motion.div>
+          {filteredDrafts.map((draft, idx) => (
+            <motion.div
+              key={draft.id}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{
+                opacity: 1,
+                y: 0,
+                transition: { duration: 0.25, delay: idx * 0.03, ease: [0.16, 1, 0.3, 1] },
+              }}
+            >
+              <DraftCard
+                draft={draft}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onCopy={handleCopy}
+                selectMode={selectMode}
+                selected={selectedIds.has(draft.id)}
+                onToggleSelect={() => toggleSelect(draft.id)}
+              />
+            </motion.div>
+          ))}
+        </div>
+      ) : (
+        <div
+          key={`list-${sourceFilter}-${sortBy}`}
+          className="flex flex-col gap-2"
+        >
+          {filteredDrafts.map((draft, idx) => (
+            <motion.div
+              key={draft.id}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{
+                opacity: 1,
+                x: 0,
+                transition: { duration: 0.2, delay: idx * 0.02, ease: [0.16, 1, 0.3, 1] },
+              }}
+            >
+              <DraftRow
+                draft={draft}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onCopy={handleCopy}
+                selectMode={selectMode}
+                selected={selectedIds.has(draft.id)}
+                onToggleSelect={() => toggleSelect(draft.id)}
+              />
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      {/* Bulk actions bar */}
+      {selectMode && selectedIds.size > 0 && (
+        <BulkActionsBar
+          selectedCount={selectedIds.size}
+          totalCount={filteredDrafts.length}
+          onSelectAll={selectAllVisible}
+          onDeselectAll={clearSelection}
+          onDelete={handleBulkDelete}
+          isDeleting={isDeleting}
+        />
       )}
 
       <ConfirmDialogComponent />
@@ -582,7 +1132,7 @@ function DraftsContent() {
 
 /**
  * Saved Drafts page
- * @returns Drafts page with fixed-height card grid, search, and filtering
+ * @returns Drafts page with card/list views, bulk select, search, and filtering
  */
 export default function DraftsPage() {
   usePageMeta({ title: "Drafts" })

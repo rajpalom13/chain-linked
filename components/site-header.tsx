@@ -34,7 +34,6 @@ const SEGMENT_TITLES: Record<string, string> = {
   inspiration: "Inspiration",
   discover: "Discover",
   swipe: "Swipe",
-  wishlist: "Wishlist",
   carousels: "Carousels",
   settings: "Settings",
 }

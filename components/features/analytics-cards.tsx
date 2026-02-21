@@ -226,11 +226,11 @@ function MetricCard({
       variants={staggerItemVariants}
       {...cardHoverProps}
     >
-      <Card className="@container/card group relative overflow-hidden border-border/50 bg-gradient-to-br from-card via-card to-primary/5 transition-all duration-300 hover:border-primary/30 hover:shadow-lg dark:from-card dark:via-card dark:to-primary/10 card-glow">
+      <Card className="@container/card group relative overflow-hidden border-border/50 bg-gradient-to-br from-card via-card to-primary/5 transition-all duration-300 hover:border-primary/30 hover:shadow-lg dark:from-card dark:via-card dark:to-primary/10 card-glow h-full flex flex-col">
         {/* Subtle glow effect on hover */}
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 opacity-0 transition-opacity duration-300 group-hover:opacity-100 pointer-events-none" />
 
-        <CardHeader className="relative">
+        <CardHeader className="relative flex-1">
           <div className="flex items-start justify-between">
             <div>
               <TooltipProvider>

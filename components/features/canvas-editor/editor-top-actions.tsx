@@ -10,6 +10,7 @@ import {
   IconTrash,
   IconDeviceFloppy,
   IconDownload,
+  IconBrandLinkedin,
 } from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
 
@@ -20,10 +21,12 @@ interface EditorTopActionsProps {
   onReset: () => void;
   onSaveTemplate: () => void;
   onExport: () => void;
+  /** Callback to open the Post to LinkedIn dialog */
+  onPostToLinkedIn: () => void;
 }
 
 /**
- * Top-right floating action bar with Reset, Save Template, and Export buttons
+ * Top-right floating action bar with Reset, Save Template, Export, and Post buttons
  * @param props - Component props
  * @returns Floating action buttons JSX
  */
@@ -31,6 +34,7 @@ export function EditorTopActions({
   onReset,
   onSaveTemplate,
   onExport,
+  onPostToLinkedIn,
 }: EditorTopActionsProps) {
   return (
     <div className="absolute right-3 top-3 z-10 flex gap-2 rounded-lg border bg-background/80 px-2 py-1.5 shadow-sm backdrop-blur-sm">
@@ -50,6 +54,14 @@ export function EditorTopActions({
       <Button size="sm" className="h-8" onClick={onExport}>
         <IconDownload className="mr-1.5 h-4 w-4" />
         Export
+      </Button>
+      <Button
+        size="sm"
+        className="h-8 bg-[#0A66C2] text-white hover:bg-[#004182]"
+        onClick={onPostToLinkedIn}
+      >
+        <IconBrandLinkedin className="mr-1.5 h-4 w-4" />
+        Post
       </Button>
     </div>
   );

@@ -9,7 +9,8 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { motion } from 'framer-motion'
-import Image from 'next/image'
+// Using native <img> for LinkedIn CDN images — next/image optimization
+// causes broken images with media.licdn.com URLs
 import { AnalyticsCards } from "@/components/features/analytics-cards"
 import { AnalyticsChart } from "@/components/features/analytics-chart"
 import { GoalsTracker } from "@/components/features/goals-tracker"
@@ -167,14 +168,13 @@ function PostGridCard({
         className="group relative flex w-full flex-col overflow-hidden rounded-lg border border-border/50 bg-card text-left transition-colors hover:border-border hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {/* Image or text preview area */}
-        <div className="relative aspect-square w-full overflow-hidden bg-muted/50">
+        <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted/50">
           {imageUrl ? (
-            <Image
+            <img
               src={imageUrl}
               alt="Post media"
-              fill
-              className="object-cover transition-transform duration-200 group-hover:scale-105"
-              sizes="(max-width: 640px) 50vw, 33vw"
+              loading="lazy"
+              className="absolute inset-0 w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
             />
           ) : (
             <div className="flex h-full items-center p-3">
@@ -190,6 +190,15 @@ function PostGridCard({
             </div>
           )}
         </div>
+
+        {/* Text preview */}
+        {imageUrl && content && content !== "No content" && (
+          <div className="px-2.5 pt-2">
+            <p className="text-[11px] text-foreground/80 line-clamp-2 leading-relaxed">
+              {content}
+            </p>
+          </div>
+        )}
 
         {/* Bottom metrics bar */}
         <div className="flex items-center justify-between gap-2 px-2.5 py-2">
@@ -247,84 +256,85 @@ function LinkedInPostDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="p-0 gap-0 overflow-hidden sm:max-w-lg">
+      <DialogContent className="p-0 gap-0 sm:max-w-lg max-h-[85vh] flex flex-col">
         {/* Visually hidden title for accessibility */}
         <DialogHeader className="sr-only">
           <DialogTitle>Post Detail</DialogTitle>
           <DialogDescription>Full view of your LinkedIn post</DialogDescription>
         </DialogHeader>
 
-        {/* Author header */}
-        <div className="flex items-center gap-3 px-4 pt-4 pb-3">
-          <Avatar className="size-10 shrink-0">
-            {authorAvatar && <AvatarImage src={authorAvatar} alt={authorName} />}
-            <AvatarFallback className="text-sm font-semibold bg-primary/10 text-primary">
-              {getInitials(authorName)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold truncate">{authorName}</p>
-            <p className="text-xs text-muted-foreground">
-              {relativeTime(post.posted_at)}
+        {/* Scrollable content area */}
+        <div className="overflow-y-auto overscroll-contain">
+          {/* Author header */}
+          <div className="flex items-center gap-3 px-4 pt-4 pb-3">
+            <Avatar className="size-10 shrink-0">
+              {authorAvatar && <AvatarImage src={authorAvatar} alt={authorName} />}
+              <AvatarFallback className="text-sm font-semibold bg-primary/10 text-primary">
+                {getInitials(authorName)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold truncate">{authorName}</p>
+              <p className="text-xs text-muted-foreground">
+                {relativeTime(post.posted_at)}
+              </p>
+            </div>
+          </div>
+
+          {/* Post content */}
+          <div className="px-4 pb-3">
+            <p className="text-sm whitespace-pre-wrap leading-relaxed">
+              {post.content || "No content available"}
             </p>
           </div>
-        </div>
 
-        {/* Post content */}
-        <div className="px-4 pb-3">
-          <p className="text-sm whitespace-pre-wrap leading-relaxed">
-            {post.content || "No content available"}
-          </p>
-        </div>
-
-        {/* Full-width image */}
-        {imageUrl && (
-          <div className="relative w-full bg-muted">
-            <Image
-              src={imageUrl}
-              alt="Post media"
-              width={600}
-              height={400}
-              className="w-full object-contain"
-              sizes="(max-width: 640px) 100vw, 512px"
-            />
-          </div>
-        )}
-
-        {/* Engagement stats */}
-        <div className="px-4 py-3 space-y-2">
-          {/* Reaction count row */}
-          {reactions > 0 && (
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <div className="flex items-center justify-center size-4 rounded-full bg-blue-500 text-white">
-                <IconThumbUp className="size-2.5" />
-              </div>
-              <span className="tabular-nums">{formatMetricNumber(reactions)}</span>
+          {/* Full-width image */}
+          {imageUrl && (
+            <div className="relative w-full bg-muted">
+              <img
+                src={imageUrl}
+                alt="Post media"
+                loading="lazy"
+                className="w-full object-contain"
+              />
             </div>
           )}
 
-          {/* Detailed stats row */}
-          <div className="flex items-center justify-between border-t border-border/50 pt-2">
-            <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
-                <IconHeart className="size-3.5" />
-                {formatMetricNumber(reactions)}
-              </span>
-              <span className="flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
-                <IconMessageCircle className="size-3.5" />
-                {formatMetricNumber(comments)}
-              </span>
-              <span className="flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
-                <IconRepeat className="size-3.5" />
-                {formatMetricNumber(reposts)}
-              </span>
-            </div>
-            {impressions > 0 && (
-              <span className="flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
-                <IconEye className="size-3.5" />
-                {formatMetricNumber(impressions)} impressions
-              </span>
+          {/* Engagement stats */}
+          <div className="px-4 py-3 space-y-2">
+            {/* Reaction count row */}
+            {reactions > 0 && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <div className="flex items-center justify-center size-4 rounded-full bg-blue-500 text-white">
+                  <IconThumbUp className="size-2.5" />
+                </div>
+                <span className="tabular-nums">{formatMetricNumber(reactions)}</span>
+              </div>
             )}
+
+            {/* Detailed stats row */}
+            <div className="flex items-center justify-between border-t border-border/50 pt-2">
+              <div className="flex items-center gap-4">
+                <span className="flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
+                  <IconHeart className="size-3.5" />
+                  {formatMetricNumber(reactions)}
+                </span>
+                <span className="flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
+                  <IconMessageCircle className="size-3.5" />
+                  {formatMetricNumber(comments)}
+                </span>
+                <span className="flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
+                  <IconRepeat className="size-3.5" />
+                  {formatMetricNumber(reposts)}
+                </span>
+              </div>
+              {impressions > 0 && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
+                  <IconEye className="size-3.5" />
+                  {formatMetricNumber(impressions)} impressions
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </DialogContent>

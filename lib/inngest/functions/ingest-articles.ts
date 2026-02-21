@@ -5,7 +5,8 @@
  * @module lib/inngest/functions/ingest-articles
  */
 
-import { createPerplexityClient } from '@/lib/perplexity/client'
+import { createPerplexityClient, PerplexityClient } from '@/lib/perplexity/client'
+import { searchIndustryNews } from '@/lib/research/tavily-client'
 import { createClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 
@@ -19,18 +20,22 @@ const TOPIC_DISPLAY_NAMES: Record<string, string> = {
   'saas': 'SaaS & Cloud Software',
   'leadership': 'Leadership & Management',
   'marketing': 'Digital Marketing & Content Strategy',
+  'marketing-automation': 'Marketing Automation & Growth',
   'product-management': 'Product Management',
   'startups': 'Startups & Entrepreneurship',
+  'startup-funding': 'Startup Funding & Venture Capital',
   'customer-success': 'Customer Success & Retention',
   'data-analytics': 'Data Analytics & Business Intelligence',
   'personal-branding': 'Personal Branding & Thought Leadership',
   'content-creation': 'Content Creation & Social Media',
+  'content-strategy': 'Content Strategy & Distribution',
   'digital-transformation': 'Digital Transformation',
   'hiring-talent': 'Hiring, Talent & Recruitment',
   'fintech': 'FinTech & Financial Technology',
   'sustainability': 'Sustainability & ESG',
   'cybersecurity': 'Cybersecurity & Data Privacy',
   'productivity': 'Productivity & Workflow Automation',
+  'growth-hacking': 'Growth Hacking & Experimentation',
 }
 
 /**
@@ -93,7 +98,75 @@ function getSupabaseAdmin() {
 }
 
 /**
- * Search Perplexity for news articles across the given topics
+ * Get the display name for a topic slug
+ * @param topicSlug - Topic slug
+ * @returns Human-readable topic name
+ */
+function getTopicDisplayName(topicSlug: string): string {
+  return TOPIC_DISPLAY_NAMES[topicSlug] ||
+    topicSlug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+}
+
+/**
+ * Extract a clean source name from a URL
+ * @param url - Source URL
+ * @returns Domain-based source name (e.g. "techcrunch.com" → "TechCrunch")
+ */
+function extractSourceName(url: string): string {
+  try {
+    const hostname = new URL(url).hostname.replace(/^www\./, '')
+    return hostname
+  } catch {
+    return 'Unknown'
+  }
+}
+
+/**
+ * Search a single topic using Tavily as fallback
+ * @param topicSlug - Topic slug
+ * @param resultsPerTopic - Max results
+ * @param logPrefix - Log prefix
+ * @returns Array of ingested articles
+ */
+async function searchTopicWithTavily(
+  topicSlug: string,
+  resultsPerTopic: number,
+  logPrefix: string
+): Promise<IngestedArticle[]> {
+  const topicDisplayName = getTopicDisplayName(topicSlug)
+  const query = `latest ${topicDisplayName} news trending professional`
+
+  try {
+    const response = await searchIndustryNews(query, {
+      maxResults: resultsPerTopic,
+      searchDepth: 'advanced',
+      includeAnswer: false,
+    })
+
+    const articles: IngestedArticle[] = response.results
+      .filter(r => r.title && r.url && r.content)
+      .map(r => ({
+        headline: r.title,
+        summary: r.content.length > 500 ? r.content.slice(0, 497) + '...' : r.content,
+        source_url: r.url,
+        source_name: extractSourceName(r.url),
+        published_date: r.publishedDate || null,
+        relevance_tags: [topicDisplayName],
+        topic: topicSlug,
+        perplexity_citations: [],
+      }))
+
+    console.log(`${logPrefix} Tavily topic "${topicSlug}": ${articles.length} articles`)
+    return articles
+  } catch (error) {
+    console.error(`${logPrefix} Tavily fallback failed for "${topicSlug}":`, error instanceof Error ? error.message : error)
+    return []
+  }
+}
+
+/**
+ * Search Perplexity for news articles across the given topics.
+ * Falls back to Tavily search if Perplexity is unavailable or returns no results.
  * @param topics - Topic slugs to search
  * @param resultsPerTopic - Max articles per topic
  * @param logPrefix - Log prefix for tracing
@@ -104,19 +177,62 @@ export async function searchTopics(
   resultsPerTopic: number = 5,
   logPrefix: string = '[Ingest]'
 ): Promise<IngestedArticle[]> {
+  // Try Perplexity first
   const perplexity = createPerplexityClient()
-  if (!perplexity) {
-    console.warn(`${logPrefix} PERPLEXITY_API_KEY not configured, skipping search`)
+
+  if (perplexity) {
+    console.log(`${logPrefix} Searching ${topics.length} topics via Perplexity`)
+
+    const results = await searchTopicsWithPerplexity(perplexity, topics, resultsPerTopic, logPrefix)
+
+    if (results.length > 0) {
+      return results
+    }
+
+    console.warn(`${logPrefix} Perplexity returned 0 results across all topics, falling back to Tavily`)
+  } else {
+    console.warn(`${logPrefix} PERPLEXITY_API_KEY not configured, trying Tavily fallback`)
+  }
+
+  // Fallback: try Tavily
+  if (!process.env.TAVILY_API_KEY) {
+    console.error(`${logPrefix} Neither PERPLEXITY_API_KEY nor TAVILY_API_KEY is configured — cannot search`)
     return []
   }
 
-  console.log(`${logPrefix} Searching ${topics.length} topics via Perplexity`)
+  console.log(`${logPrefix} Searching ${topics.length} topics via Tavily (fallback)`)
 
+  const tavilyPromises = topics.map(topicSlug =>
+    searchTopicWithTavily(topicSlug, resultsPerTopic, logPrefix)
+  )
+
+  const settled = await Promise.allSettled(tavilyPromises)
+  const allResults = settled
+    .filter((r): r is PromiseFulfilledResult<IngestedArticle[]> => r.status === 'fulfilled')
+    .flatMap((r) => r.value)
+
+  console.log(`${logPrefix} Tavily total results: ${allResults.length}`)
+  return allResults
+}
+
+/**
+ * Search Perplexity for news articles across the given topics
+ * @param perplexity - Perplexity client instance
+ * @param topics - Topic slugs to search
+ * @param resultsPerTopic - Max articles per topic
+ * @param logPrefix - Log prefix for tracing
+ * @returns Array of validated articles
+ */
+async function searchTopicsWithPerplexity(
+  perplexity: PerplexityClient,
+  topics: string[],
+  resultsPerTopic: number,
+  logPrefix: string
+): Promise<IngestedArticle[]> {
   const systemPrompt = `You are a news research assistant for a LinkedIn content platform. Your job is to find the most recent, relevant, and noteworthy news stories for a given topic. Return structured data only — no commentary, no filler. Every story MUST include real, working source URLs. Prioritize stories that would spark professional discussion on LinkedIn.`
 
   const searchPromises = topics.map(async (topicSlug: string) => {
-    const topicDisplayName = TOPIC_DISPLAY_NAMES[topicSlug] ||
-      topicSlug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+    const topicDisplayName = getTopicDisplayName(topicSlug)
 
     const userPrompt = `Find the top ${resultsPerTopic} breaking or trending news stories about "${topicDisplayName}" from the last 14 days. Today's date is ${new Date().toISOString().split('T')[0]}
 For each story, return:
@@ -164,14 +280,14 @@ Return ONLY the JSON array. No markdown, no explanation, no wrapping text.`
           { role: 'user', content: userPrompt },
         ],
         {
-          search_recency_filter: 'week',
+          search_mode: 'web',
           temperature: 0.2,
         }
       )
 
       const rawContent = response.choices[0]?.message?.content || '[]'
       const cleanedContent = stripMarkdownFences(rawContent)
-      const citations = response.citations || []
+      const citations = PerplexityClient.extractCitations(response)
 
       let parsed: unknown
       try {
@@ -198,7 +314,7 @@ Return ONLY the JSON array. No markdown, no explanation, no wrapping text.`
       console.log(`${logPrefix} Topic "${topicSlug}": ${validArticles.length} valid articles`)
       return validArticles
     } catch (error) {
-      console.error(`${logPrefix} Search failed for topic "${topicSlug}":`, error)
+      console.error(`${logPrefix} Perplexity search failed for topic "${topicSlug}":`, error instanceof Error ? error.message : error)
       return []
     }
   })
@@ -208,7 +324,7 @@ Return ONLY the JSON array. No markdown, no explanation, no wrapping text.`
     .filter((r): r is PromiseFulfilledResult<IngestedArticle[]> => r.status === 'fulfilled')
     .flatMap((r) => r.value)
 
-  console.log(`${logPrefix} Total search results: ${allResults.length}`)
+  console.log(`${logPrefix} Perplexity total results: ${allResults.length}`)
   return allResults
 }
 

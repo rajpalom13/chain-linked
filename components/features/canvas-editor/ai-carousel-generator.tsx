@@ -4,14 +4,21 @@
  * AI Carousel Generator Component
  * Dialog for generating carousel slide content using AI
  * Supports topic input, slide count, tone selection, and optional template application
+ * Features polished UI with visual tone selector, animated progress, and modern styling
  * @module components/features/canvas-editor/ai-carousel-generator
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   IconSparkles,
   IconLoader2,
   IconAlertTriangle,
+  IconBriefcase,
+  IconMessageCircle,
+  IconSchool,
+  IconHeart,
+  IconWand,
+  IconCheck,
 } from '@tabler/icons-react';
 import {
   Dialog,
@@ -22,8 +29,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -32,6 +39,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { canvasTemplates } from '@/lib/canvas-templates';
 import type {
@@ -41,14 +50,34 @@ import type {
 } from '@/types/canvas-editor';
 
 /**
- * Available tone options for AI generation
+ * Available tone options with icons and descriptions for the visual selector
  */
 const TONE_OPTIONS = [
-  { value: 'professional', label: 'Professional' },
-  { value: 'casual', label: 'Casual' },
-  { value: 'educational', label: 'Educational' },
-  { value: 'inspirational', label: 'Inspirational' },
-] as const;
+  {
+    value: 'professional' as const,
+    label: 'Professional',
+    description: 'Formal & authoritative',
+    icon: <IconBriefcase className="h-4 w-4" />,
+  },
+  {
+    value: 'casual' as const,
+    label: 'Casual',
+    description: 'Friendly & relatable',
+    icon: <IconMessageCircle className="h-4 w-4" />,
+  },
+  {
+    value: 'educational' as const,
+    label: 'Educational',
+    description: 'Clear & instructive',
+    icon: <IconSchool className="h-4 w-4" />,
+  },
+  {
+    value: 'inspirational' as const,
+    label: 'Inspirational',
+    description: 'Motivating & uplifting',
+    icon: <IconHeart className="h-4 w-4" />,
+  },
+];
 
 /**
  * Tone type derived from the tone options
@@ -75,6 +104,17 @@ interface ParsedSlideContent {
   body: string;
   slideType: 'hook' | 'content' | 'cta';
 }
+
+/**
+ * Animated progress messages for the generation overlay
+ */
+const GENERATION_STEPS = [
+  { label: 'Understanding your topic', duration: 2000 },
+  { label: 'Crafting compelling headlines', duration: 2500 },
+  { label: 'Writing slide content', duration: 3000 },
+  { label: 'Polishing language & flow', duration: 2000 },
+  { label: 'Finalizing your carousel', duration: 1500 },
+];
 
 /**
  * Generate a unique ID for elements and slides
@@ -285,8 +325,105 @@ function contentToSlides(
 }
 
 /**
+ * Animated generation overlay with step-by-step progress
+ * @param props - Component props
+ * @param props.slideCount - Number of slides being generated
+ * @param props.topic - Topic being generated about
+ * @returns Animated progress overlay JSX
+ */
+function GenerationOverlay({
+  slideCount,
+  topic,
+}: {
+  slideCount: number;
+  topic: string;
+}) {
+  const [stepIndex, setStepIndex] = useState(0);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    const stepInterval = setInterval(() => {
+      setStepIndex((prev) =>
+        prev < GENERATION_STEPS.length - 1 ? prev + 1 : prev
+      );
+    }, 2200);
+
+    const progressInterval = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 92) return prev;
+        return prev + Math.random() * 6;
+      });
+    }, 350);
+
+    return () => {
+      clearInterval(stepInterval);
+      clearInterval(progressInterval);
+    };
+  }, []);
+
+  return (
+    <div className="flex flex-col items-center gap-5 py-8">
+      {/* Animated icon */}
+      <div className="relative">
+        <div className="absolute inset-0 animate-ping rounded-full bg-primary/20" />
+        <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/5">
+          <IconWand className="h-8 w-8 animate-pulse text-primary" />
+        </div>
+      </div>
+
+      {/* Main text */}
+      <div className="text-center">
+        <p className="font-semibold">Generating your carousel...</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Creating {slideCount} slides about &quot;{topic.substring(0, 40)}
+          {topic.length > 40 ? '...' : ''}&quot;
+        </p>
+      </div>
+
+      {/* Progress bar */}
+      <div className="w-full max-w-xs space-y-2">
+        <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-primary to-primary/60 transition-all duration-500 ease-out"
+            style={{ width: `${Math.min(progress, 95)}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Step indicators */}
+      <div className="w-full max-w-xs space-y-1.5">
+        {GENERATION_STEPS.map((step, i) => (
+          <div
+            key={step.label}
+            className={cn(
+              'flex items-center gap-2 text-xs transition-all duration-300',
+              i < stepIndex
+                ? 'text-muted-foreground'
+                : i === stepIndex
+                  ? 'font-medium text-primary'
+                  : 'text-muted-foreground/40'
+            )}
+          >
+            {i < stepIndex ? (
+              <IconCheck className="h-3.5 w-3.5 text-green-500" />
+            ) : i === stepIndex ? (
+              <IconLoader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <div className="h-3.5 w-3.5 rounded-full border border-muted-foreground/20" />
+            )}
+            {step.label}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
  * AI Carousel Generator Dialog
  * Provides a form for generating carousel content using AI
+ * Features visual tone selection, animated slide count stepper,
+ * and step-by-step generation progress
  * @param props - Component props
  * @param props.open - Whether the dialog is open
  * @param props.onOpenChange - Callback for open state changes
@@ -377,7 +514,9 @@ export function AiCarouselGenerator({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <IconSparkles className="h-5 w-5 text-primary" />
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
+              <IconSparkles className="h-4 w-4 text-primary" />
+            </div>
             AI Carousel Generator
           </DialogTitle>
           <DialogDescription>
@@ -386,15 +525,7 @@ export function AiCarouselGenerator({
         </DialogHeader>
 
         {isGenerating ? (
-          <div className="flex flex-col items-center gap-4 py-12">
-            <IconLoader2 className="h-12 w-12 animate-spin text-primary" />
-            <div className="text-center">
-              <p className="font-medium">Generating your carousel...</p>
-              <p className="text-sm text-muted-foreground">
-                Creating {slideCount} slides about &quot;{topic}&quot;
-              </p>
-            </div>
-          </div>
+          <GenerationOverlay slideCount={slideCount} topic={topic} />
         ) : (
           <div className="space-y-5 py-2">
             {/* Error message */}
@@ -405,29 +536,36 @@ export function AiCarouselGenerator({
               </div>
             )}
 
-            {/* Topic input */}
+            {/* Topic input - larger and more prominent */}
             <div className="space-y-2">
-              <Label htmlFor="ai-topic">Topic</Label>
-              <Input
+              <Label htmlFor="ai-topic" className="font-medium">
+                Topic
+              </Label>
+              <Textarea
                 id="ai-topic"
-                placeholder="e.g., 5 habits of successful leaders"
+                placeholder="e.g., 5 habits of successful leaders that set them apart from the rest..."
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !isGenerating) {
+                  if (e.key === 'Enter' && e.metaKey && !isGenerating) {
                     handleGenerate();
                   }
                 }}
+                className="min-h-[80px] resize-none text-sm transition-colors focus:border-primary/50"
+                rows={3}
               />
+              <p className="text-[11px] text-muted-foreground">
+                Be specific for better results. Press {'\u2318'}+Enter to generate.
+              </p>
             </div>
 
-            {/* Slide count */}
-            <div className="space-y-2">
+            {/* Slide count - visual stepper with preview */}
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label>Slides</Label>
-                <span className="text-sm font-medium text-muted-foreground">
-                  {slideCount}
-                </span>
+                <Label className="font-medium">Number of Slides</Label>
+                <Badge variant="secondary" className="font-mono text-xs tabular-nums">
+                  {slideCount} slides
+                </Badge>
               </div>
               <Slider
                 value={[slideCount]}
@@ -436,32 +574,79 @@ export function AiCarouselGenerator({
                 max={10}
                 step={1}
               />
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>3</span>
-                <span>10</span>
+              {/* Visual slide indicator dots */}
+              <div className="flex items-center justify-center gap-1.5">
+                {Array.from({ length: slideCount }, (_, i) => (
+                  <div
+                    key={i}
+                    className={cn(
+                      'h-2 rounded-full transition-all duration-300',
+                      i === 0
+                        ? 'w-4 bg-primary'
+                        : i === slideCount - 1
+                          ? 'w-4 bg-blue-400'
+                          : 'w-2.5 bg-muted-foreground/30'
+                    )}
+                  />
+                ))}
+              </div>
+              <div className="flex justify-between text-[11px] text-muted-foreground">
+                <span>3 min</span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-block h-1.5 w-3 rounded-full bg-primary" /> Hook
+                  <span className="ml-2 inline-block h-1.5 w-1.5 rounded-full bg-muted-foreground/30" /> Content
+                  <span className="ml-2 inline-block h-1.5 w-3 rounded-full bg-blue-400" /> CTA
+                </span>
+                <span>10 max</span>
               </div>
             </div>
 
-            {/* Tone */}
-            <div className="space-y-2">
-              <Label>Tone</Label>
-              <Select value={tone} onValueChange={(v) => setTone(v as ToneOption)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TONE_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* Tone - visual card selector */}
+            <div className="space-y-2.5">
+              <Label className="font-medium">Tone</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {TONE_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setTone(option.value)}
+                    className={cn(
+                      'flex items-center gap-2.5 rounded-lg border-2 p-3 text-left transition-all',
+                      'hover:border-primary/40',
+                      tone === option.value
+                        ? 'border-primary bg-primary/5 shadow-sm'
+                        : 'border-border'
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors',
+                        tone === option.value
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground'
+                      )}
+                    >
+                      {option.icon}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium">{option.label}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {option.description}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Template selection (optional) */}
             <div className="space-y-2">
-              <Label>Visual Template (optional)</Label>
+              <Label className="font-medium">
+                Visual Template
+                <Badge variant="outline" className="ml-2 text-[10px] px-1.5 py-0 font-normal">
+                  Optional
+                </Badge>
+              </Label>
               <Select
                 value={selectedTemplateId}
                 onValueChange={setSelectedTemplateId}
@@ -478,8 +663,8 @@ export function AiCarouselGenerator({
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
-                Optionally apply a template&apos;s color scheme to the generated content.
+              <p className="text-[11px] text-muted-foreground">
+                Apply a template&apos;s color scheme to the generated content.
               </p>
             </div>
           </div>
@@ -491,7 +676,11 @@ export function AiCarouselGenerator({
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleGenerate} disabled={!topic.trim()}>
+              <Button
+                onClick={handleGenerate}
+                disabled={!topic.trim()}
+                className="bg-gradient-to-r from-primary to-primary/80 shadow-sm"
+              >
                 <IconSparkles className="mr-2 h-4 w-4" />
                 Generate Carousel
               </Button>

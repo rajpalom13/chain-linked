@@ -49,6 +49,14 @@ export class LinkedInApiClient {
   }
 
   /**
+   * Get the current access token (refreshed if needed via ensureValidToken)
+   * @returns Current access token string
+   */
+  getAccessToken(): string {
+    return this.accessToken
+  }
+
+  /**
    * Ensure we have a valid access token, refreshing if needed
    */
   private async ensureValidToken(): Promise<void> {

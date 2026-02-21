@@ -1,33 +1,28 @@
 /**
  * Background Removal Utility
- * @description Client-side background removal using @imgly/background-removal (ONNX/WASM).
- * Runs entirely in the browser — no API key or server round-trip required.
- * External URLs are automatically proxied to avoid CORS issues.
+ * @description Removes image backgrounds via the server-side remove.bg API route.
+ * Sends the image to /api/image/remove-background and returns a transparent PNG data-URL.
  * @module lib/image/background-removal
  */
 
-import { removeBackground, type Config } from '@imgly/background-removal';
-
 /** Status updates emitted during processing */
 export type RemovalProgress = {
-  phase: 'downloading' | 'processing' | 'done';
+  phase: 'uploading' | 'processing' | 'done';
   progress: number; // 0-1
 };
 
 /**
- * Converts an image source to a Blob, proxying external URLs to avoid CORS.
- * Data-URLs and same-origin URLs are fetched directly.
+ * Converts an image source (URL or data-URL) to a Blob for upload.
+ * External URLs are proxied through /api/proxy-image to avoid CORS issues.
  * @param src - Image URL or data-URL
  * @returns Blob of the image
  */
 async function resolveImageToBlob(src: string): Promise<Blob> {
-  // Data-URLs can be fetched directly
   if (src.startsWith('data:')) {
     const res = await fetch(src);
     return res.blob();
   }
 
-  // Check if the URL is external (different host)
   const isExternal =
     src.startsWith('http') &&
     typeof window !== 'undefined' &&
@@ -45,49 +40,73 @@ async function resolveImageToBlob(src: string): Promise<Blob> {
 }
 
 /**
- * Removes the background from an image source.
+ * Removes the background from an image source using the remove.bg API.
  * Accepts a URL (including data-URLs), Blob, or File.
- * External URLs are automatically proxied through /api/proxy-image.
+ * External URLs are automatically proxied through /api/proxy-image before upload.
  *
  * @param source - Image URL, data-URL string, Blob, or File
- * @param onProgress - Optional progress callback
+ * @param onProgress - Optional progress callback with uploading/processing phases
  * @returns Data-URL of the resulting transparent PNG
+ * @example
+ * const result = await removeImageBackground(imageUrl, (p) => {
+ *   console.log(p.phase, p.progress);
+ * });
  */
 export async function removeImageBackground(
   source: string | Blob,
   onProgress?: (p: RemovalProgress) => void,
 ): Promise<string> {
-  // Resolve external URLs to Blobs to avoid CORS in the ONNX runtime
-  let resolvedSource: Blob | string = source;
-  if (typeof source === 'string' && !source.startsWith('data:')) {
-    resolvedSource = await resolveImageToBlob(source);
+  // Phase 1: Resolve to a Blob for upload
+  onProgress?.({ phase: 'uploading', progress: 0 });
+
+  let imageBlob: Blob;
+  if (typeof source === 'string') {
+    imageBlob = await resolveImageToBlob(source);
+  } else {
+    imageBlob = source;
   }
 
-  const config: Config = {
-    output: {
-      format: 'image/png',
-      quality: 0.9,
-    },
-    progress: (key: string, current: number, total: number) => {
-      if (!onProgress) return;
-      const pct = total > 0 ? current / total : 0;
-      if (key.includes('download')) {
-        onProgress({ phase: 'downloading', progress: pct });
-      } else {
-        onProgress({ phase: 'processing', progress: pct });
+  onProgress?.({ phase: 'uploading', progress: 0.3 });
+
+  // Phase 2: Upload to our API route
+  const formData = new FormData();
+  formData.append('image_file', imageBlob, 'image.png');
+
+  onProgress?.({ phase: 'uploading', progress: 0.5 });
+
+  const response = await fetch('/api/image/remove-background', {
+    method: 'POST',
+    body: formData,
+  });
+
+  onProgress?.({ phase: 'processing', progress: 0.7 });
+
+  if (!response.ok) {
+    let errorMessage = 'Background removal failed';
+    try {
+      const errorData = (await response.json()) as { error?: string };
+      if (errorData.error) {
+        errorMessage = errorData.error;
       }
-    },
-  };
+    } catch {
+      // Response wasn't JSON; use the default message
+    }
+    throw new Error(errorMessage);
+  }
 
-  const blob = await removeBackground(resolvedSource, config);
+  onProgress?.({ phase: 'processing', progress: 0.9 });
 
-  onProgress?.({ phase: 'done', progress: 1 });
+  // Phase 3: Convert the response PNG blob to a data-URL
+  const resultBlob = await response.blob();
 
-  // Convert Blob → data-URL so it can be used directly as an image src
-  return new Promise<string>((resolve, reject) => {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => resolve(reader.result as string);
     reader.onerror = reject;
-    reader.readAsDataURL(blob);
+    reader.readAsDataURL(resultBlob);
   });
+
+  onProgress?.({ phase: 'done', progress: 1 });
+
+  return dataUrl;
 }

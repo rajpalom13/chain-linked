@@ -35,6 +35,10 @@
   "externally_connectable": {
     "matches": [
       "http://localhost:3000/*",
+      "http://localhost:3001/*",
+      "http://localhost:3002/*",
+      "http://localhost:3003/*",
+      "http://localhost:3004/*",
       "https://chain-linked-theta.vercel.app/*"
     ]
   },
@@ -43,6 +47,10 @@
     {
       "matches": [
         "http://localhost:3000/*",
+        "http://localhost:3001/*",
+        "http://localhost:3002/*",
+        "http://localhost:3003/*",
+        "http://localhost:3004/*",
         "https://chain-linked-theta.vercel.app/*"
       ],
       "js": ["content/webapp-bridge.js"],
@@ -96,6 +104,10 @@
       "resources": ["content/webapp-bridge.js"],
       "matches": [
         "http://localhost:3000/*",
+        "http://localhost:3001/*",
+        "http://localhost:3002/*",
+        "http://localhost:3003/*",
+        "http://localhost:3004/*",
         "https://chain-linked-theta.vercel.app/*"
       ]
     }

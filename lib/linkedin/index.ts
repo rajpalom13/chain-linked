@@ -35,6 +35,7 @@ export {
   MAX_IMAGES_PER_POST,
   SUPPORTED_IMAGE_TYPES,
   validatePostContent,
+  uploadImageFromBuffer,
   uploadImage,
   uploadImages,
   createTextPost,
@@ -43,6 +44,15 @@ export {
   extractPostIdFromUrn,
   buildPostUrl,
 } from './post'
+
+// Export document post functions
+export {
+  MAX_DOCUMENT_SIZE_BYTES,
+  initializeDocumentUpload,
+  uploadDocumentBinary,
+  createRestPost,
+  postDocument,
+} from './document-post'
 
 // ==========================================
 // Voyager API (Fallback) Exports
