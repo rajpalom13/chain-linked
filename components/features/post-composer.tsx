@@ -872,6 +872,7 @@ export function PostComposer({
                           <EmojiPicker
                             isOpen={showEmojiPicker}
                             onClose={() => setShowEmojiPicker(false)}
+                            onOpenChange={setShowEmojiPicker}
                             onSelect={(emoji) => {
                               insertEmoji(emoji)
                               setShowEmojiPicker(false)
@@ -883,7 +884,11 @@ export function PostComposer({
                                   variant="ghost"
                                   size="icon-sm"
                                   aria-label="Add emoji"
-                                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    saveCursorPosition()
+                                    setShowEmojiPicker(!showEmojiPicker)
+                                  }}
                                 >
                                   <IconMoodSmile className="size-4" />
                                 </Button>

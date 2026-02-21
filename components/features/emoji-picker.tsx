@@ -45,6 +45,8 @@ export interface EmojiPickerProps {
   isOpen: boolean
   /** Callback fired when the popover should be closed */
   onClose: () => void
+  /** Callback fired when the popover open state changes */
+  onOpenChange?: (open: boolean) => void
   /** Reference to the trigger element for positioning, optional */
   triggerRef?: React.RefObject<HTMLElement>
   /** Additional CSS classes to apply to the popover content */
@@ -444,6 +446,7 @@ export function EmojiPicker({
   onSelect,
   isOpen,
   onClose,
+  onOpenChange,
   className,
   children,
 }: EmojiPickerProps) {
@@ -569,11 +572,14 @@ export function EmojiPicker({
    */
   const handleOpenChange = React.useCallback(
     (open: boolean) => {
+      if (onOpenChange) {
+        onOpenChange(open)
+      }
       if (!open) {
         onClose()
       }
     },
-    [onClose]
+    [onClose, onOpenChange]
   )
 
   return (
