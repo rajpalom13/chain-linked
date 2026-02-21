@@ -26,6 +26,7 @@ import {
   IconVideo,
   IconArticle,
   IconChartPie,
+  IconUsers,
 } from "@tabler/icons-react"
 import { formatDistanceToNow } from "date-fns"
 import Link from "next/link"
@@ -533,7 +534,51 @@ function PostDetailPopup({
 function TeamActivityContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { user } = useAuthContext()
   const { posts, authors, isLoading, error } = useAllTeamPosts(200)
+
+  // Brand kit logo + team name
+  const [brandKitLogoUrl, setBrandKitLogoUrl] = useState<string | null>(null)
+  const [teamName, setTeamName] = useState<string | null>(null)
+  const [teamMemberCount, setTeamMemberCount] = useState<number>(0)
+
+  // Fetch brand kit logo and team info
+  useEffect(() => {
+    if (!user) return
+    const supabase = createClient()
+
+    // Fetch brand kit logo
+    supabase
+      .from('brand_kits')
+      .select('logo_url')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.logo_url) setBrandKitLogoUrl(data.logo_url)
+      })
+
+    // Fetch team info
+    supabase
+      .from('team_members')
+      .select('team_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(async ({ data: membership }) => {
+        if (!membership?.team_id) return
+        const { data: team } = await supabase
+          .from('teams')
+          .select('name')
+          .eq('id', membership.team_id)
+          .single()
+        if (team?.name) setTeamName(team.name)
+        const { count } = await supabase
+          .from('team_members')
+          .select('*', { count: 'exact', head: true })
+          .eq('team_id', membership.team_id)
+        setTeamMemberCount(count || 0)
+      })
+  }, [user])
 
   // Pre-populate author filter from URL query param
   const initialMember = searchParams.get("member") || "all"
@@ -624,115 +669,168 @@ function TeamActivityContent() {
       transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
     >
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between p-4 md:p-6 border-b bg-card">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" asChild className="shrink-0">
-            <Link href="/dashboard/team">
-              <IconArrowLeft className="size-4" />
-            </Link>
-          </Button>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">All Team Activity</h1>
-            <p className="text-sm text-muted-foreground">
-              {posts.length} total post{posts.length !== 1 ? 's' : ''} from your team
-            </p>
+      <div className="px-4 md:px-6 pt-4 md:pt-6">
+        <div className="rounded-2xl border border-border/50 bg-card shadow-sm max-w-5xl mx-auto overflow-hidden">
+          {/* Gradient strip + content row */}
+          <div className="flex items-stretch">
+            {/* Left gradient accent strip */}
+            <div className="w-1.5 shrink-0 bg-gradient-to-b from-primary via-primary/80 to-secondary/60" />
+
+            {/* Content */}
+            <div className="flex-1 flex items-center gap-4 px-5 py-4">
+              {/* Back button */}
+              <Button variant="outline" size="icon" asChild className="shrink-0 rounded-xl h-9 w-9">
+                <Link href="/dashboard/team">
+                  <IconArrowLeft className="size-4" />
+                </Link>
+              </Button>
+
+              {/* Logo */}
+              {brandKitLogoUrl ? (
+                <div className="h-12 w-12 rounded-xl border border-border/60 bg-background shadow-sm overflow-hidden shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={brandKitLogoUrl}
+                    alt={teamName || "Team"}
+                    className="h-full w-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+              ) : (
+                <div className="h-12 w-12 rounded-xl border border-border/60 bg-gradient-to-br from-primary/10 to-primary/5 shadow-sm overflow-hidden shrink-0 flex items-center justify-center">
+                  <IconActivity className="size-5 text-primary" />
+                </div>
+              )}
+
+              {/* Text */}
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg font-bold tracking-tight truncate">
+                  {teamName ? `${teamName} Activity` : "All Team Activity"}
+                </h1>
+                <div className="flex items-center gap-2.5 mt-0.5 flex-wrap">
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <IconActivity className="size-3" />
+                    {posts.length} post{posts.length !== 1 ? 's' : ''}
+                  </span>
+                  {teamMemberCount > 0 && (
+                    <>
+                      <span className="text-border text-xs">·</span>
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        <IconUsers className="size-3" />
+                        {teamMemberCount} member{teamMemberCount !== 1 ? 's' : ''}
+                      </span>
+                    </>
+                  )}
+                  {authors.length > 0 && (
+                    <>
+                      <span className="text-border text-xs">·</span>
+                      <span className="text-xs text-muted-foreground">
+                        {authors.length} contributor{authors.length !== 1 ? 's' : ''}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Filters Bar */}
-      <div className="p-4 md:px-6 border-b bg-card/50 space-y-3">
-        {/* Search + Sort row */}
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <div className="relative flex-1">
-            <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <Input
-              placeholder="Search posts by content or author..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-9"
-            />
-            {searchQuery && (
+      {/* Filters Bar - floating card */}
+      <div className="px-4 md:px-6 pt-4 max-w-5xl mx-auto">
+        <div className="rounded-xl border border-border/50 bg-card shadow-sm p-4 space-y-3">
+          {/* Search + Sort row */}
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="relative flex-1">
+              <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <Input
+                placeholder="Search posts by content or author..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 h-9 rounded-lg"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <IconX className="size-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              {/* Author filter */}
+              <Select value={authorFilter} onValueChange={setAuthorFilter}>
+                <SelectTrigger className="w-[160px] h-9 rounded-lg">
+                  <IconFilter className="size-3.5 mr-1.5 shrink-0" />
+                  <SelectValue placeholder="All Members" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Members</SelectItem>
+                  {authors.map(author => (
+                    <SelectItem key={author.id} value={author.id}>
+                      {author.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Sort */}
+              <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+                <SelectTrigger className="w-[150px] h-9 rounded-lg">
+                  <IconSortDescending className="size-3.5 mr-1.5 shrink-0" />
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="recent">Most Recent</SelectItem>
+                  <SelectItem value="engagement">Most Engaging</SelectItem>
+                  <SelectItem value="impressions">Most Views</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Post type filter chips */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {(["all", "text", "image", "video", "article", "poll"] as const).map(type => {
+              const count = typeCounts[type] || 0
+              if (type !== "all" && count === 0) return null
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setTypeFilter(type)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border",
+                    typeFilter === type
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background text-muted-foreground border-border/50 hover:text-foreground hover:border-border"
+                  )}
+                >
+                  {type === "all" ? "All" : (
+                    <>
+                      <PostTypeIcon type={type as TeamActivityItem['postType']} />
+                      <span className="capitalize">{type}</span>
+                    </>
+                  )}
+                  <span className="text-[10px] opacity-70">({count})</span>
+                </button>
+              )
+            })}
+
+            {hasActiveFilters && (
               <button
                 type="button"
-                onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={clearFilters}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
               >
-                <IconX className="size-3.5" />
+                <IconX className="size-3" />
+                Clear Filters
               </button>
             )}
           </div>
-
-          <div className="flex items-center gap-2">
-            {/* Author filter */}
-            <Select value={authorFilter} onValueChange={setAuthorFilter}>
-              <SelectTrigger className="w-[160px] h-9">
-                <IconFilter className="size-3.5 mr-1.5 shrink-0" />
-                <SelectValue placeholder="All Members" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Members</SelectItem>
-                {authors.map(author => (
-                  <SelectItem key={author.id} value={author.id}>
-                    {author.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Sort */}
-            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-              <SelectTrigger className="w-[150px] h-9">
-                <IconSortDescending className="size-3.5 mr-1.5 shrink-0" />
-                <SelectValue placeholder="Sort by" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="recent">Most Recent</SelectItem>
-                <SelectItem value="engagement">Most Engaging</SelectItem>
-                <SelectItem value="impressions">Most Views</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {/* Post type filter chips */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {(["all", "text", "image", "video", "article", "poll"] as const).map(type => {
-            const count = typeCounts[type] || 0
-            if (type !== "all" && count === 0) return null
-            return (
-              <button
-                key={type}
-                type="button"
-                onClick={() => setTypeFilter(type)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border",
-                  typeFilter === type
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background text-muted-foreground border-border/50 hover:text-foreground hover:border-border"
-                )}
-              >
-                {type === "all" ? "All" : (
-                  <>
-                    <PostTypeIcon type={type as TeamActivityItem['postType']} />
-                    <span className="capitalize">{type}</span>
-                  </>
-                )}
-                <span className="text-[10px] opacity-70">({count})</span>
-              </button>
-            )
-          })}
-
-          {hasActiveFilters && (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
-            >
-              <IconX className="size-3" />
-              Clear Filters
-            </button>
-          )}
         </div>
       </div>
 

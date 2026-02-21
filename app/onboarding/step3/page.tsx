@@ -1,27 +1,29 @@
 "use client"
 
 /**
- * Onboarding Step 3 - Brand Kit Extraction
- * @description Extracts brand colors, fonts, and logo from the user's company
- * website using AI. Allows reviewing and editing before saving.
+ * Onboarding Step 3 - Brand Kit Display
+ * @description Automatically extracts brand kit using the company URL from Step 2
+ * (via Firecrawl + Brandfetch), then displays the results for review and editing.
+ * No URL input is shown — the URL is carried over from Step 2's company context.
  * @module app/onboarding/step3/page
  */
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import {
   IconPalette,
-  IconWorldWww,
   IconSparkles,
   IconLoader2,
   IconArrowLeft,
   IconArrowRight,
   IconAlertCircle,
+  IconWorldWww,
+  IconBrandFigma,
+  IconColorSwatch,
+  IconCheck,
 } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useBrandKit } from "@/hooks/use-brand-kit"
 import { BrandKitPreview } from "@/components/features/brand-kit-preview"
@@ -31,6 +33,7 @@ import { useAuthContext } from "@/lib/auth/auth-provider"
 import { trackOnboardingStep } from "@/lib/analytics"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 /** Current step number for this page */
 const CURRENT_STEP = 3
@@ -48,9 +51,30 @@ interface CompanyContextResponse {
 }
 
 /**
- * Step 3 - Brand Kit Extraction
- * Extracts brand identity (colors, fonts, logo) from the company website,
- * allows the user to review and edit, then saves to the database.
+ * Extraction progress stages shown during loading
+ */
+const EXTRACTION_STAGES = [
+  {
+    id: "scraping",
+    label: "Scraping website styles & assets",
+    icon: IconWorldWww,
+  },
+  {
+    id: "brandfetch",
+    label: "Fetching brand assets from registries",
+    icon: IconBrandFigma,
+  },
+  {
+    id: "analyzing",
+    label: "Analyzing colors, fonts & logo",
+    icon: IconColorSwatch,
+  },
+] as const
+
+/**
+ * Step 3 - Brand Kit Display
+ * Automatically extracts brand identity using the URL from Step 2,
+ * then displays results for review and editing before saving.
  * @returns Step 3 page JSX
  */
 export default function Step3() {
@@ -70,52 +94,130 @@ export default function Step3() {
   } = useBrandKit()
 
   const [websiteUrl, setWebsiteUrl] = useState("")
+  const [companyName, setCompanyName] = useState("")
   const [isLoadingContext, setIsLoadingContext] = useState(true)
   const [isSkipping, setIsSkipping] = useState(false)
   const [isSavingAndContinuing, setIsSavingAndContinuing] = useState(false)
+  const [extractionTriggered, setExtractionTriggered] = useState(false)
+  const [extractionStage, setExtractionStage] = useState(0)
+  const stageIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   /**
-   * Loads the company website URL from company context on mount.
-   * Pre-fills the URL input if company analysis has already been done.
+   * Starts cycling through extraction stage labels for the loading animation
+   */
+  const startStageAnimation = useCallback(() => {
+    setExtractionStage(0)
+    let stage = 0
+    stageIntervalRef.current = setInterval(() => {
+      stage += 1
+      if (stage < EXTRACTION_STAGES.length) {
+        setExtractionStage(stage)
+      }
+    }, 5000)
+  }, [])
+
+  /**
+   * Stops the stage animation interval
+   */
+  const stopStageAnimation = useCallback(() => {
+    if (stageIntervalRef.current) {
+      clearInterval(stageIntervalRef.current)
+      stageIntervalRef.current = null
+    }
+  }, [])
+
+  /**
+   * Loads company context and auto-triggers brand extraction
    */
   useEffect(() => {
     if (checking) return
 
-    async function loadCompanyUrl() {
+    let cancelled = false
+
+    async function loadAndExtract() {
       try {
         const response = await fetch("/api/company-context")
-        if (!response.ok) {
+        if (!response.ok || cancelled) {
           setIsLoadingContext(false)
           return
         }
 
         const data = (await response.json()) as CompanyContextResponse | null
+        if (cancelled) return
+
         if (data?.website_url) {
           setWebsiteUrl(data.website_url)
         }
+        if (data?.company_name) {
+          setCompanyName(data.company_name)
+        }
+
+        setIsLoadingContext(false)
+
+        // Auto-trigger extraction if we have a URL and haven't extracted yet
+        if (data?.website_url && !cancelled) {
+          setExtractionTriggered(true)
+        }
       } catch (err) {
         console.error("Failed to load company context for brand kit:", err)
-      } finally {
-        setIsLoadingContext(false)
+        if (!cancelled) {
+          setIsLoadingContext(false)
+        }
       }
     }
 
-    loadCompanyUrl()
+    loadAndExtract()
+
+    return () => {
+      cancelled = true
+    }
   }, [checking])
 
   /**
-   * Handles form submission to extract brand kit from URL
+   * Triggers brand extraction once URL is available
    */
-  const handleExtract = async () => {
-    if (!websiteUrl.trim()) {
-      toast.error("Please enter a website URL")
-      return
-    }
+  useEffect(() => {
+    if (!extractionTriggered || !websiteUrl || isExtracting || extractedKit) return
 
     clearError()
+    startStageAnimation()
+    extractBrandKit(websiteUrl).then((success) => {
+      stopStageAnimation()
+      if (success) {
+        toast.success("Brand kit extracted successfully")
+      }
+    })
+  }, [
+    extractionTriggered,
+    websiteUrl,
+    isExtracting,
+    extractedKit,
+    extractBrandKit,
+    clearError,
+    startStageAnimation,
+    stopStageAnimation,
+  ])
+
+  /**
+   * Cleanup on unmount
+   */
+  useEffect(() => {
+    return () => {
+      stopStageAnimation()
+    }
+  }, [stopStageAnimation])
+
+  /**
+   * Handles re-extraction when user clicks retry
+   */
+  const handleRetry = async () => {
+    if (!websiteUrl.trim()) return
+    clearError()
+    startStageAnimation()
     const success = await extractBrandKit(websiteUrl.trim())
+    stopStageAnimation()
     if (success) {
-      toast.success("Brand kit extracted successfully")
+      toast.success("Brand kit re-extracted successfully")
     }
   }
 
@@ -146,7 +248,7 @@ export default function Step3() {
   }
 
   /**
-   * Handles skipping the brand kit step with a confirmation warning
+   * Handles skipping the brand kit step
    */
   const handleSkip = async () => {
     const confirmed = window.confirm(
@@ -195,134 +297,77 @@ export default function Step3() {
             <IconPalette className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-xl font-semibold">Extract Your Brand Kit</h2>
+            <h2 className="text-xl font-semibold">Your Brand Kit</h2>
             <p className="text-sm text-muted-foreground">
-              We&apos;ll extract your brand colors, fonts, and logo from your
-              website to keep your LinkedIn content on-brand.
+              {isExtracting
+                ? `Extracting brand identity from ${websiteUrl || "your website"}...`
+                : extractedKit
+                  ? "Review your extracted brand colors, fonts, and logo. Click any element to edit it."
+                  : brandKitError
+                    ? "We had trouble extracting your brand kit."
+                    : "Setting up your brand identity..."
+              }
             </p>
           </div>
         </div>
       </div>
 
-      {/* URL Input Form - shown when no kit has been extracted yet */}
-      {!extractedKit && !isExtracting && (
-        <div className="flex flex-col lg:flex-row gap-6">
-          <div className="flex-1 space-y-5">
-            {/* Website URL Input */}
-            <div className="space-y-2">
-              <Label htmlFor="brand-url">
-                Company website URL{" "}
-                <span className="text-red-500 text-xs align-top">Required</span>
-              </Label>
-              <div className="relative">
-                <IconWorldWww className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="brand-url"
-                  type="url"
-                  placeholder="https://yourcompany.com"
-                  className="h-10 pl-9"
-                  value={websiteUrl}
-                  onChange={(e) => setWebsiteUrl(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      handleExtract()
-                    }
-                  }}
-                />
-              </div>
-            </div>
+      {/* Extracting State */}
+      {isExtracting && (
+        <ExtractingAnimation
+          websiteUrl={websiteUrl}
+          currentStage={extractionStage}
+        />
+      )}
 
-            {/* Error Message */}
-            {brandKitError && (
-              <Alert variant="destructive" className="rounded-xl">
-                <IconAlertCircle className="h-4 w-4" />
-                <AlertDescription className="text-sm">
-                  {brandKitError}
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* Info Box */}
-            <Alert className="border border-dashed border-border bg-muted/30 rounded-xl">
-              <IconSparkles className="h-4 w-4 text-primary" />
-              <AlertDescription className="text-sm text-muted-foreground">
-                Our AI will scan your website to extract brand colors, typography,
-                and logo. This ensures your LinkedIn content stays visually
-                consistent with your brand.
-              </AlertDescription>
-            </Alert>
-
-            {/* Extract Button */}
-            <Button
-              onClick={handleExtract}
-              disabled={!websiteUrl.trim()}
-              className="w-full gap-2"
-            >
-              <IconSparkles className="h-4 w-4" />
-              Extract Brand Kit
-            </Button>
+      {/* Error State */}
+      {!isExtracting && !extractedKit && brandKitError && (
+        <div className="flex flex-col items-center justify-center min-h-[300px] gap-6">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10">
+            <IconAlertCircle className="h-8 w-8 text-destructive" />
           </div>
-
-          {/* Right Sidebar - Info Card */}
-          <div className="lg:w-80">
-            <Alert className="border border-border bg-muted/30 rounded-xl h-full flex flex-col justify-between p-4">
-              <div>
-                <h3 className="font-medium text-base mb-1 flex items-center gap-2">
-                  <IconPalette className="h-4 w-4 text-primary" />
-                  Why set up a brand kit?
-                </h3>
-                <AlertDescription className="text-sm text-muted-foreground mb-4">
-                  A brand kit ensures visual consistency across all your LinkedIn
-                  content. Carousels, images, and templates will automatically
-                  use your brand identity.
-                </AlertDescription>
-
-                <h3 className="font-medium text-base mt-2">What we extract</h3>
-                <ul className="text-sm text-muted-foreground mt-1 space-y-1">
-                  <li className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
-                    Primary &amp; secondary colors
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    Accent &amp; background colors
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-violet-500" />
-                    Typography / fonts
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                    Brand logo
-                  </li>
-                </ul>
-              </div>
-            </Alert>
+          <div className="text-center space-y-2 max-w-md">
+            <h3 className="text-lg font-semibold">Extraction failed</h3>
+            <p className="text-sm text-muted-foreground">
+              {brandKitError}
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={handleRetry}>
+              <IconSparkles className="h-4 w-4 mr-2" />
+              Try Again
+            </Button>
+            <Button variant="ghost" onClick={handleSkip}>
+              Skip for now
+            </Button>
           </div>
         </div>
       )}
 
-      {/* Extracting State */}
-      {isExtracting && (
+      {/* No URL from Step 2 - edge case (user skipped Step 2) */}
+      {!isExtracting && !extractedKit && !brandKitError && !websiteUrl && (
         <div className="flex flex-col items-center justify-center min-h-[300px] gap-6">
-          <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-r from-primary via-primary/80 to-primary/60 rounded-full blur-xl opacity-30 animate-pulse" />
-            <div className="relative bg-background border border-border/60 rounded-full p-6">
-              <IconPalette className="h-12 w-12 text-primary animate-pulse" />
-            </div>
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+            <IconWorldWww className="h-8 w-8 text-muted-foreground" />
           </div>
-          <div className="text-center space-y-2">
-            <h3 className="text-lg font-semibold">
-              Extracting brand identity...
-            </h3>
-            <p className="text-sm text-muted-foreground max-w-md">
-              Scanning {websiteUrl} for colors, fonts, and logo. This usually
-              takes 10-20 seconds.
+          <div className="text-center space-y-2 max-w-md">
+            <h3 className="text-lg font-semibold">No website URL found</h3>
+            <p className="text-sm text-muted-foreground">
+              Go back to Step 2 and enter your company website so we can
+              extract your brand identity, or skip this step.
             </p>
           </div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <IconLoader2 className="h-4 w-4 animate-spin text-primary" />
-            <span>Analyzing website styles...</span>
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={() => router.push("/onboarding/step2")}
+            >
+              <IconArrowLeft className="h-4 w-4 mr-2" />
+              Back to Step 2
+            </Button>
+            <Button variant="ghost" onClick={handleSkip}>
+              Skip for now
+            </Button>
           </div>
         </div>
       )}
@@ -344,7 +389,7 @@ export default function Step3() {
             }}
             editable
             onUpdate={handlePreviewUpdate}
-            onRetry={handleExtract}
+            onRetry={handleRetry}
           />
         </div>
       )}
@@ -396,6 +441,99 @@ export default function Step3() {
             </Button>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Animated loading state shown while brand kit is being extracted
+ * @param props - Component props
+ * @param props.websiteUrl - The URL being analyzed
+ * @param props.currentStage - Current extraction stage index
+ * @returns Animated extraction JSX
+ */
+function ExtractingAnimation({
+  websiteUrl,
+  currentStage,
+}: {
+  websiteUrl: string
+  currentStage: number
+}) {
+  const [dots, setDots] = useState("")
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDots((prev) => (prev.length >= 3 ? "" : prev + "."))
+    }, 500)
+    return () => clearInterval(interval)
+  }, [])
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[350px] gap-6">
+      {/* Gradient spinner */}
+      <div className="relative">
+        <div className="absolute inset-0 bg-gradient-to-r from-primary via-primary/80 to-primary/60 rounded-full blur-xl opacity-30 animate-pulse" />
+        <div className="relative bg-background border border-border/60 rounded-full p-6">
+          <IconPalette className="h-12 w-12 text-primary animate-pulse" />
+        </div>
+      </div>
+
+      {/* Text */}
+      <div className="text-center space-y-2">
+        <h3 className="text-xl font-semibold tracking-tight">
+          Extracting brand identity{dots}
+        </h3>
+        <p className="text-sm text-muted-foreground max-w-md">
+          Analyzing <span className="font-medium text-foreground">{websiteUrl}</span> for
+          colors, fonts, and logo. This usually takes 10-20 seconds.
+        </p>
+      </div>
+
+      {/* Progress stages */}
+      <div className="flex flex-col gap-3 mt-2">
+        {EXTRACTION_STAGES.map((stage, index) => {
+          const Icon = stage.icon
+          const state: "completed" | "active" | "pending" =
+            index < currentStage
+              ? "completed"
+              : index === currentStage
+                ? "active"
+                : "pending"
+
+          return (
+            <div
+              key={stage.id}
+              className={cn(
+                "flex items-center gap-3 text-sm transition-all duration-300",
+                state === "completed" && "text-emerald-600 dark:text-emerald-400",
+                state === "active" && "text-primary font-medium",
+                state === "pending" && "text-muted-foreground/50"
+              )}
+            >
+              {state === "completed" ? (
+                <IconCheck className="h-4 w-4" />
+              ) : state === "active" ? (
+                <IconLoader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Icon className="h-4 w-4 opacity-40" />
+              )}
+              <span>{stage.label}</span>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Source indicator */}
+      <div className="flex items-center gap-4 mt-4 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          Firecrawl (CSS analysis)
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-violet-500" />
+          Brandfetch (brand registry)
+        </span>
       </div>
     </div>
   )

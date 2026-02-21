@@ -156,7 +156,7 @@ function ColorSwatch({ name, color, editable, onChange }: ColorSwatchProps) {
           <span className="text-xs text-muted-foreground capitalize">{name}</span>
         </div>
       </PopoverTrigger>
-      <PopoverContent className="w-52">
+      <PopoverContent className="w-72">
         <div className="flex flex-col gap-3">
           <Label htmlFor={`color-${name}`}>Edit {name} color</Label>
           <div className="flex gap-2">
@@ -172,7 +172,7 @@ function ColorSwatch({ name, color, editable, onChange }: ColorSwatchProps) {
               type="color"
               value={editValue || "#000000"}
               onChange={(e) => setEditValue(e.target.value)}
-              className="h-9 w-9 cursor-pointer rounded border p-1"
+              className="h-9 w-12 cursor-pointer rounded border p-1"
             />
           </div>
           <Button
@@ -256,7 +256,7 @@ function FontPreview({ role, font, editable, onChange }: FontPreviewProps) {
       <PopoverTrigger asChild>
         {PreviewContent}
       </PopoverTrigger>
-      <PopoverContent className="w-64">
+      <PopoverContent className="w-80">
         <div className="flex flex-col gap-3">
           <Label htmlFor={`font-${role}`}>Edit {role} font</Label>
           <Input

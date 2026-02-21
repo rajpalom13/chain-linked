@@ -1,15 +1,25 @@
 /**
  * Team Header Component
- * @description Header for team page with team info and invite button
+ * @description Floating card-style team header with gradient banner, brand kit logo,
+ * centered layout, and polished spacing matching ChainLinked design system.
  * @module components/features/team-header
  */
 
 'use client'
 
 import { useState, useCallback } from 'react'
-import { IconUsers, IconSettings, IconUserPlus, IconCalendar } from '@tabler/icons-react'
+import {
+  IconUsers,
+  IconSettings,
+  IconUserPlus,
+  IconCalendar,
+  IconChevronDown,
+  IconDoorExit,
+  IconBuilding,
+} from '@tabler/icons-react'
 import { getLogoUrlsWithFallback } from '@/lib/logo-dev'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,10 +27,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { InviteTeamDialog } from './invite-team-dialog'
 import type { TeamWithMeta } from '@/hooks/use-team'
 import type { TeamMemberRole } from '@/types/database'
+import { cn } from '@/lib/utils'
 
 /**
  * Props for TeamHeader component
@@ -34,6 +44,8 @@ interface TeamHeaderProps {
   pendingInvitationsCount?: number
   /** Company website for logo.dev fallback */
   companyWebsite?: string | null
+  /** Brand kit logo URL (highest priority, extracted in onboarding step 3) */
+  brandKitLogoUrl?: string | null
   /** Callback when settings clicked */
   onSettingsClick?: () => void
   /** Callback when invitations sent */
@@ -53,7 +65,9 @@ function formatDate(dateString: string): string {
 /**
  * Team Header Component
  *
- * Displays team info with prominent invite button for owners/admins.
+ * Floating card with gradient banner, centered brand kit logo,
+ * team name, metadata pills, and action buttons.
+ * Logo overlaps the banner/card boundary for a modern profile-header look.
  *
  * @param props - Component props
  * @returns Team header JSX
@@ -63,111 +77,170 @@ export function TeamHeader({
   userRole,
   pendingInvitationsCount = 0,
   companyWebsite,
+  brandKitLogoUrl,
   onSettingsClick,
   onInvitationsSent,
 }: TeamHeaderProps) {
   const canInvite = userRole === 'owner' || userRole === 'admin'
   const canManage = userRole === 'owner' || userRole === 'admin'
 
-  // Build ordered fallback list: team logo → company logo → Google favicon → logo.dev → direct favicon
   const fallbackUrls = getLogoUrlsWithFallback({
     website: companyWebsite,
     companyName: team.company?.name || team.name,
   })
 
-  // Direct DB logos have highest priority
   const allLogoUrls = [
+    brandKitLogoUrl,
     team.logo_url,
     team.company?.logo_url,
     ...fallbackUrls,
   ].filter(Boolean) as string[]
 
-  // Track which URL index we're currently trying
   const [logoIndex, setLogoIndex] = useState(0)
   const currentLogoUrl = allLogoUrls[logoIndex] || null
 
-  /** When current logo fails, try next fallback */
   const handleLogoError = useCallback(() => {
     setLogoIndex(prev => prev + 1)
   }, [])
 
-  return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between p-4 md:p-6 border-b bg-card">
-      <div className="flex items-center gap-4">
-        {/* Team Avatar/Logo with fallback chain */}
-        <Avatar className="h-14 w-14 border-2 border-primary/10">
-          {currentLogoUrl ? (
-            <img
-              src={currentLogoUrl}
-              alt={team.name}
-              onError={handleLogoError}
-              className="h-full w-full object-cover"
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
-              {team.name.substring(0, 2).toUpperCase()}
-            </AvatarFallback>
-          )}
-        </Avatar>
+  const roleLabel = userRole === 'owner' ? 'Owner' : userRole === 'admin' ? 'Admin' : 'Member'
 
-        {/* Team Info */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">{team.name}</h1>
-          <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
-            <span className="flex items-center gap-1">
-              <IconUsers className="h-4 w-4" />
-              {team.member_count} member{team.member_count !== 1 ? 's' : ''}
-            </span>
-            {pendingInvitationsCount > 0 && (
-              <span className="flex items-center gap-1 text-amber-600">
-                <IconUserPlus className="h-4 w-4" />
-                {pendingInvitationsCount} pending
-              </span>
-            )}
-            <span className="flex items-center gap-1">
-              <IconCalendar className="h-4 w-4" />
-              Created {formatDate(team.created_at)}
-            </span>
+  return (
+    <div className="px-4 md:px-6 pt-4 md:pt-6">
+      <div className="relative rounded-2xl overflow-hidden border border-border/50 bg-card shadow-sm max-w-5xl mx-auto">
+        {/* Gradient banner */}
+        <div className="h-28 sm:h-32 bg-gradient-to-br from-primary via-primary/85 to-secondary/70 relative">
+          <div
+            className="absolute inset-0 opacity-[0.06]"
+            style={{
+              backgroundImage: 'radial-gradient(circle at 25% 40%, white 1.5px, transparent 1.5px), radial-gradient(circle at 75% 60%, white 1px, transparent 1px)',
+              backgroundSize: '48px 48px, 64px 64px',
+            }}
+          />
+        </div>
+
+        {/* Logo - centered, overlapping the banner/content boundary */}
+        <div className="flex justify-center -mt-11">
+          <div className="relative">
+            <div className={cn(
+              "h-[84px] w-[84px] rounded-2xl border-4 border-card bg-background shadow-lg overflow-hidden",
+            )}>
+              {currentLogoUrl ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={currentLogoUrl}
+                  alt={team.name}
+                  onError={handleLogoError}
+                  className="h-full w-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-primary/15 to-primary/5">
+                  <span className="text-2xl font-bold text-primary">
+                    {team.name.substring(0, 2).toUpperCase()}
+                  </span>
+                </div>
+              )}
+            </div>
+            {/* Online indicator */}
+            <div className="absolute bottom-0 right-0 h-4 w-4 rounded-full bg-emerald-500 border-[2.5px] border-card" />
           </div>
         </div>
-      </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-2">
-        {canManage && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <IconSettings className="h-4 w-4 mr-2" />
-                Manage
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={onSettingsClick}>
-                Team Settings
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive">
-                Leave Team
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+        {/* Content - centered below the logo, fully on card background */}
+        <div className="px-5 sm:px-6 pt-3 pb-5 text-center">
+          {/* Team name + role badge */}
+          <div className="flex items-center justify-center gap-2.5 flex-wrap">
+            <h1 className="text-xl font-bold tracking-tight">
+              {team.name}
+            </h1>
+            <Badge
+              variant="secondary"
+              className={cn(
+                "text-[10px] px-2 py-0 font-semibold uppercase tracking-wider",
+                userRole === 'owner' && "bg-primary/10 text-primary border-primary/20",
+                userRole === 'admin' && "bg-amber-500/10 text-amber-600 border-amber-500/20",
+                userRole === 'member' && "bg-muted text-muted-foreground"
+              )}
+            >
+              {roleLabel}
+            </Badge>
+          </div>
 
-        {canInvite && (
-          <InviteTeamDialog
-            teamId={team.id}
-            teamName={team.name}
-            onInvited={onInvitationsSent}
-            trigger={
-              <Button size="sm" className="bg-primary hover:bg-primary/90">
-                <IconUserPlus className="h-4 w-4 mr-2" />
-                Invite Members
-              </Button>
-            }
-          />
-        )}
+          {/* Meta info row */}
+          <div className="flex items-center justify-center gap-3 mt-2 flex-wrap">
+            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+              <IconUsers className="size-3.5" />
+              {team.member_count} member{team.member_count !== 1 ? 's' : ''}
+            </span>
+
+            {team.company?.name && (
+              <>
+                <span className="text-border text-xs">·</span>
+                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <IconBuilding className="size-3.5" />
+                  {team.company.name}
+                </span>
+              </>
+            )}
+
+            <span className="text-border text-xs">·</span>
+            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+              <IconCalendar className="size-3.5" />
+              {formatDate(team.created_at)}
+            </span>
+
+            {pendingInvitationsCount > 0 && (
+              <>
+                <span className="text-border text-xs">·</span>
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-600">
+                  <IconUserPlus className="size-3.5" />
+                  {pendingInvitationsCount} pending
+                </span>
+              </>
+            )}
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex items-center justify-center gap-2 mt-4">
+            {canManage && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1.5 rounded-xl h-9">
+                    <IconSettings className="size-4" />
+                    Manage
+                    <IconChevronDown className="size-3 opacity-50" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="center" className="w-48">
+                  <DropdownMenuItem onClick={onSettingsClick} className="gap-2">
+                    <IconSettings className="size-4" />
+                    Team Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="gap-2 text-destructive focus:text-destructive">
+                    <IconDoorExit className="size-4" />
+                    Leave Team
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {canInvite && (
+              <InviteTeamDialog
+                teamId={team.id}
+                teamName={team.name}
+                onInvited={onInvitationsSent}
+                trigger={
+                  <Button size="sm" className="gap-1.5 rounded-xl h-9 shadow-sm">
+                    <IconUserPlus className="size-4" />
+                    Invite Members
+                  </Button>
+                }
+              />
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )

@@ -46,6 +46,7 @@ import { useTeamInvitations } from "@/hooks/use-team-invitations"
 import { useAuthContext } from "@/lib/auth/auth-provider"
 import { usePageMeta } from "@/lib/dashboard-context"
 import { cn, getInitials, formatMetricNumber } from "@/lib/utils"
+import { createClient } from "@/lib/supabase/client"
 
 // ============================================================================
 // Types
@@ -517,6 +518,7 @@ function TeamContent() {
   const router = useRouter()
   const { user, profile } = useAuthContext()
   const [activeTab, setActiveTab] = useState<TeamTab>("overview")
+  const [brandKitLogoUrl, setBrandKitLogoUrl] = useState<string | null>(null)
 
   const { posts, isLoading: postsLoading } = useTeamPosts(10)
   const {
@@ -549,6 +551,23 @@ function TeamContent() {
     teamId: currentTeam?.id || null,
     pendingOnly: true,
   })
+
+  // Fetch brand kit logo from the active brand kit (saved in onboarding Step 3)
+  useEffect(() => {
+    if (!user) return
+    const supabase = createClient()
+    supabase
+      .from('brand_kits')
+      .select('logo_url')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.logo_url) {
+          setBrandKitLogoUrl(data.logo_url)
+        }
+      })
+  }, [user])
 
   // Check if user can manage team (owner or admin)
   const canManage = currentUserRole === 'owner' || currentUserRole === 'admin'
@@ -628,18 +647,19 @@ function TeamContent() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
     >
-      {/* Team Header with logo.dev company logo */}
+      {/* Team Header with brand kit logo */}
       <TeamHeader
         team={currentTeam}
         userRole={currentUserRole}
         pendingInvitationsCount={pendingInvitations.length}
         companyWebsite={profile?.company_website}
+        brandKitLogoUrl={brandKitLogoUrl}
         onSettingsClick={handleSettingsClick}
         onInvitationsSent={handleInvitationsSent}
       />
 
-      {/* Animated Tab Bar */}
-      <div className="px-4 md:px-6 py-3 border-b">
+      {/* Animated Tab Bar - centered */}
+      <div className="flex justify-center px-4 md:px-6 pt-5 pb-0">
         <AnimatedTabBar activeTab={activeTab} onTabChange={setActiveTab} />
       </div>
 
@@ -654,8 +674,8 @@ function TeamContent() {
         >
           {/* Overview Tab */}
           {activeTab === "overview" && (
-            <div className="p-4 md:p-6 space-y-6">
-              {/* Top Influencers (Full Width) */}
+            <div className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto">
+              {/* Top Influencers */}
               <TeamLeaderboard
                 members={leaderboardMembers}
                 timeRange={timeRange}
@@ -667,7 +687,7 @@ function TeamContent() {
                 }}
               />
 
-              {/* Recent Team Posts Grid - Below the leaderboard */}
+              {/* Recent Team Posts Grid */}
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-base font-semibold">Recent Team Activity</h3>
@@ -685,7 +705,7 @@ function TeamContent() {
 
           {/* Members Tab */}
           {activeTab === "members" && (
-            <div className="p-4 md:p-6 space-y-6">
+            <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
               <TeamMemberList
                 members={members}
                 isLoading={isLoadingMembers}
@@ -720,9 +740,9 @@ function TeamContent() {
           {/* Settings Tab */}
           {activeTab === "settings" && (
             <div className="p-4 md:p-6">
-              <div className="max-w-2xl space-y-6">
+              <div className="max-w-2xl mx-auto space-y-5">
                 {/* General Settings Card */}
-                <Card className="border-border/50">
+                <Card className="border-border/50 rounded-xl shadow-sm">
                   <CardHeader className="pb-4">
                     <div className="flex items-center gap-2">
                       <div className="rounded-lg bg-primary/10 p-2">
@@ -736,23 +756,23 @@ function TeamContent() {
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-5">
-                    <div className="flex items-center justify-between py-2 border-b border-border/30 last:border-0">
+                  <CardContent className="space-y-0">
+                    <div className="flex items-center justify-between py-3 border-b border-border/30">
                       <div className="space-y-0.5">
                         <p className="text-sm font-medium">Team Name</p>
                         <p className="text-xs text-muted-foreground">The display name for your team</p>
                       </div>
-                      <span className="text-sm font-medium bg-muted/50 px-3 py-1.5 rounded-md">
+                      <span className="text-sm font-medium bg-muted/50 px-3 py-1.5 rounded-lg">
                         {currentTeam.name}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between py-2 border-b border-border/30 last:border-0">
+                    <div className="flex items-center justify-between py-3 border-b border-border/30">
                       <div className="space-y-0.5">
                         <p className="text-sm font-medium">Your Role</p>
                         <p className="text-xs text-muted-foreground">Your permission level in this team</p>
                       </div>
                       <span className={cn(
-                        "text-sm font-medium px-3 py-1.5 rounded-md capitalize",
+                        "text-sm font-medium px-3 py-1.5 rounded-lg capitalize",
                         currentUserRole === 'owner'
                           ? "bg-primary/10 text-primary"
                           : currentUserRole === 'admin'
@@ -762,7 +782,7 @@ function TeamContent() {
                         {currentUserRole || 'Member'}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between py-2">
+                    <div className="flex items-center justify-between py-3">
                       <div className="space-y-0.5">
                         <p className="text-sm font-medium">Team Size</p>
                         <p className="text-xs text-muted-foreground">Total number of team members</p>
@@ -779,7 +799,7 @@ function TeamContent() {
 
                 {/* Company Info Card */}
                 {currentTeam.company && (
-                  <Card className="border-border/50">
+                  <Card className="border-border/50 rounded-xl shadow-sm">
                     <CardHeader className="pb-4">
                       <div className="flex items-center gap-2">
                         <div className="rounded-lg bg-blue-500/10 p-2">
@@ -799,7 +819,7 @@ function TeamContent() {
                           <p className="text-sm font-medium">Company Name</p>
                           <p className="text-xs text-muted-foreground">Linked organization</p>
                         </div>
-                        <span className="text-sm font-medium bg-muted/50 px-3 py-1.5 rounded-md">
+                        <span className="text-sm font-medium bg-muted/50 px-3 py-1.5 rounded-lg">
                           {currentTeam.company.name}
                         </span>
                       </div>
@@ -809,7 +829,7 @@ function TeamContent() {
 
                 {/* Actions Card */}
                 {canManage && (
-                  <Card className="border-border/50">
+                  <Card className="border-border/50 rounded-xl shadow-sm">
                     <CardHeader className="pb-4">
                       <div className="flex items-center gap-2">
                         <div className="rounded-lg bg-violet-500/10 p-2">
@@ -825,11 +845,11 @@ function TeamContent() {
                     </CardHeader>
                     <CardContent>
                       <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" size="sm" onClick={handleSettingsClick}>
+                        <Button variant="outline" size="sm" className="rounded-lg" onClick={handleSettingsClick}>
                           <IconSettings className="size-4 mr-1.5" />
                           Advanced Settings
                         </Button>
-                        <Button variant="outline" size="sm" onClick={handleViewAllMembers}>
+                        <Button variant="outline" size="sm" className="rounded-lg" onClick={handleViewAllMembers}>
                           <IconUsers className="size-4 mr-1.5" />
                           Manage Members
                         </Button>
@@ -840,7 +860,7 @@ function TeamContent() {
 
                 {/* Danger Zone */}
                 {currentUserRole === 'owner' && (
-                  <Card className="border-destructive/30 bg-destructive/[0.02]">
+                  <Card className="border-destructive/30 bg-destructive/[0.02] rounded-xl">
                     <CardHeader className="pb-4">
                       <div className="flex items-center gap-2">
                         <div className="rounded-lg bg-destructive/10 p-2">
@@ -855,25 +875,25 @@ function TeamContent() {
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      <div className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-background">
+                      <div className="flex items-center justify-between p-3 rounded-xl border border-border/50 bg-background">
                         <div>
                           <p className="text-sm font-medium">Transfer Ownership</p>
                           <p className="text-xs text-muted-foreground">
                             Transfer team ownership to another member
                           </p>
                         </div>
-                        <Button variant="outline" size="sm" disabled>
+                        <Button variant="outline" size="sm" className="rounded-lg" disabled>
                           Transfer
                         </Button>
                       </div>
-                      <div className="flex items-center justify-between p-3 rounded-lg border border-destructive/20 bg-background">
+                      <div className="flex items-center justify-between p-3 rounded-xl border border-destructive/20 bg-background">
                         <div>
                           <p className="text-sm font-medium text-destructive">Delete Team</p>
                           <p className="text-xs text-muted-foreground">
                             Permanently delete this team and all its data
                           </p>
                         </div>
-                        <Button variant="destructive" size="sm" disabled>
+                        <Button variant="destructive" size="sm" className="rounded-lg" disabled>
                           Delete
                         </Button>
                       </div>
