@@ -356,7 +356,7 @@ function SwipeContent() {
     if (currentCard && !exitingCardId) {
       incrementShown()
     }
-  }, [currentCard?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentCard?.id, exitingCardId, incrementShown])
 
   /**
    * Handles the swipe action.
@@ -529,14 +529,14 @@ function SwipeContent() {
   }, [handleSwipe])
 
   // Transform GeneratedSuggestion to SwipeCardData
-  const cardData: SwipeCardData[] = filteredSuggestions.map((s) => ({
+  const cardData: SwipeCardData[] = React.useMemo(() => filteredSuggestions.map((s) => ({
     id: s.id,
     content: s.content,
     category: s.category || "General",
     estimatedEngagement: s.estimated_engagement ?? undefined,
     postType: s.post_type ?? undefined,
     isPersonalized: true,
-  }))
+  })), [filteredSuggestions])
 
   // Error state
   if (suggestionsError) {

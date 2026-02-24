@@ -85,13 +85,10 @@ export function useTeamPosts(limit: number = 20): UseTeamPostsReturn {
           .from('team_members')
           .select('team_id')
           .eq('user_id', user.id)
-          .single()
+          .maybeSingle()
 
         if (teamError) {
-          // PGRST116 = no rows, 406 = RLS issues - continue with solo user
-          if (teamError.code !== 'PGRST116' && teamError.code !== '406' && !teamError.message?.includes('406')) {
-            console.warn('Team membership query error:', teamError.message)
-          }
+          console.warn('Team membership query error:', teamError.message)
         } else if (teamMembership?.team_id) {
           // Step 2: Get all members of that team
           const { data: teamMembersData, error: membersError } = await supabase

@@ -7,7 +7,7 @@
  * @module components/features/canvas-editor/enhanced-color-picker
  */
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { HexColorPicker } from 'react-colorful';
 import { IconCheck } from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
@@ -74,7 +74,7 @@ export function EnhancedColorPicker({
   onOpacityChange,
 }: EnhancedColorPickerProps) {
   const [hexInput, setHexInput] = useState(color);
-  const recentColorsRef = useRef<string[]>([]);
+  const [recentColors, setRecentColors] = useState<string[]>([]);
 
   // Deduplicate preset colors: template colors first, then defaults
   const presetColors = [...new Set([...templateColors, ...DEFAULT_COLOR_PALETTE])];
@@ -83,9 +83,7 @@ export function EnhancedColorPicker({
    * Add a color to recent colors list
    */
   const addToRecent = useCallback((c: string) => {
-    const recent = recentColorsRef.current;
-    const updated = [c, ...recent.filter((r) => r !== c)].slice(0, MAX_RECENT);
-    recentColorsRef.current = updated;
+    setRecentColors((prev) => [c, ...prev.filter((r) => r !== c)].slice(0, MAX_RECENT));
   }, []);
 
   /**
@@ -232,11 +230,11 @@ export function EnhancedColorPicker({
           </div>
 
           {/* Recent colors */}
-          {recentColorsRef.current.length > 0 && (
+          {recentColors.length > 0 && (
             <div>
               <Label className="text-xs text-muted-foreground">Recent</Label>
               <div className="mt-1.5 flex gap-1.5">
-                {recentColorsRef.current.map((c, i) => (
+                {recentColors.map((c, i) => (
                   <button
                     key={`${c}-${i}`}
                     type="button"

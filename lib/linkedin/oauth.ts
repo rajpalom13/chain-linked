@@ -125,13 +125,6 @@ export async function exchangeCodeForTokens(
   }
 
   const data = await response.json() as LinkedInTokenResponse
-  console.log('LinkedIn token exchange successful:', {
-    hasAccessToken: !!data.access_token,
-    hasRefreshToken: !!data.refresh_token,
-    hasIdToken: !!data.id_token,
-    expiresIn: data.expires_in,
-    scope: data.scope,
-  })
   return data
 }
 
@@ -221,8 +214,6 @@ export async function revokeToken(accessToken: string): Promise<boolean> {
 export async function getLinkedInUserInfo(
   accessToken: string
 ): Promise<LinkedInUserInfo> {
-  console.log('Fetching LinkedIn user info from:', LINKEDIN_API.USERINFO)
-
   const response = await fetch(LINKEDIN_API.USERINFO, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -269,7 +260,6 @@ export async function getLinkedInUserInfo(
   }
 
   const userInfo = await response.json() as LinkedInUserInfo
-  console.log('LinkedIn user info received:', { sub: userInfo.sub, name: userInfo.name })
   return userInfo
 }
 
@@ -294,14 +284,6 @@ export function decodeIdToken(idToken: string): LinkedInUserInfo | null {
     const base64 = payload.replace(/-/g, '+').replace(/_/g, '/')
     const decoded = Buffer.from(base64, 'base64').toString('utf8')
     const claims = JSON.parse(decoded)
-
-    console.log('Decoded ID token claims:', {
-      sub: claims.sub,
-      name: claims.name,
-      email: claims.email,
-      iss: claims.iss,
-      aud: claims.aud,
-    })
 
     // Map JWT claims to LinkedInUserInfo
     return {
@@ -334,17 +316,13 @@ export async function getLinkedInUserInfoFromTokens(
 ): Promise<LinkedInUserInfo> {
   // Try to decode ID token first - this is more reliable
   if (idToken) {
-    console.log('Attempting to get user info from ID token...')
     const userInfo = decodeIdToken(idToken)
     if (userInfo && userInfo.sub) {
-      console.log('Successfully got user info from ID token')
       return userInfo
     }
-    console.log('ID token decode failed or missing sub, falling back to userinfo endpoint')
   }
 
   // Fall back to userinfo endpoint
-  console.log('Fetching user info from userinfo endpoint...')
   return getLinkedInUserInfo(accessToken)
 }
 

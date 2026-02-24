@@ -173,7 +173,7 @@ function CalendarSkeleton() {
         {/* Calendar grid */}
         <div className="grid grid-cols-7 gap-1">
           {Array.from({ length: 35 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 w-full" />
+            <Skeleton key={`skeleton-${i}`} className="h-20 w-full" />
           ))}
         </div>
       </CardContent>
@@ -251,36 +251,34 @@ function DayCell({
       {dayPosts.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {dayPosts.slice(0, 4).map((post) => (
-            <TooltipProvider key={post.id}>
-              <Tooltip delayDuration={200}>
-                <TooltipTrigger asChild>
-                  <button
-                    className={cn(
-                      "size-4 rounded-full transition-transform hover:scale-125 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary flex items-center justify-center text-white",
-                      getStatusDotClass(post.status)
-                    )}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onPostClick?.(post)
-                    }}
-                    aria-label={`${post.status} post: ${truncateContent(post.content, 30)}`}
-                  >
-                    <StatusIcon status={post.status} />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-[200px]">
-                  <p className="text-xs font-medium capitalize mb-1">
-                    {post.status}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {truncateContent(post.content, 60)}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {format(post.scheduledFor, "h:mm a")}
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Tooltip key={post.id} delayDuration={200}>
+              <TooltipTrigger asChild>
+                <button
+                  className={cn(
+                    "size-4 rounded-full transition-transform hover:scale-125 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary flex items-center justify-center text-white",
+                    getStatusDotClass(post.status)
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onPostClick?.(post)
+                  }}
+                  aria-label={`${post.status} post: ${truncateContent(post.content, 30)}`}
+                >
+                  <StatusIcon status={post.status} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-[200px]">
+                <p className="text-xs font-medium capitalize mb-1">
+                  {post.status}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {truncateContent(post.content, 60)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {format(post.scheduledFor, "h:mm a")}
+                </p>
+              </TooltipContent>
+            </Tooltip>
           ))}
           {dayPosts.length > 4 && (
             <span className="text-xs text-muted-foreground">
@@ -522,7 +520,7 @@ export function ScheduleCalendar({
         {posts.length === 0 ? (
           <EmptyState />
         ) : (
-          <>
+          <TooltipProvider>
             {/* Legend - includes icons for color-independent status */}
             <div className="flex items-center gap-2 sm:gap-4 mb-4 text-xs text-muted-foreground flex-wrap">
               <div className="flex items-center gap-1.5">
@@ -588,7 +586,7 @@ export function ScheduleCalendar({
                 />
               ))}
             </div>
-          </>
+          </TooltipProvider>
         )}
       </CardContent>
     </Card>

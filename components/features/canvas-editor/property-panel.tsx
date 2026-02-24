@@ -9,7 +9,7 @@
  * @module components/features/canvas-editor/property-panel
  */
 
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   IconTypography,
   IconSquare,
@@ -759,6 +759,16 @@ function ImageProperties({
     'idle' | 'uploading' | 'processing' | 'done'
   >('idle');
   const [bgRemovalProgress, setBgRemovalProgress] = useState(0);
+  const bgResetTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup timer on unmount
+  React.useEffect(() => {
+    return () => {
+      if (bgResetTimerRef.current) {
+        clearTimeout(bgResetTimerRef.current);
+      }
+    };
+  }, []);
 
   /**
    * Handle background removal for the image
@@ -782,7 +792,13 @@ function ImageProperties({
       setBgRemovalState('done');
       toast.success('Background removed successfully');
 
-      setTimeout(() => setBgRemovalState('idle'), 2000);
+      if (bgResetTimerRef.current) {
+        clearTimeout(bgResetTimerRef.current);
+      }
+      bgResetTimerRef.current = setTimeout(() => {
+        setBgRemovalState('idle');
+        bgResetTimerRef.current = null;
+      }, 2000);
     } catch (err) {
       console.error('[BgRemoval] Failed:', err);
       toast.error('Failed to remove background. Try a different image.');

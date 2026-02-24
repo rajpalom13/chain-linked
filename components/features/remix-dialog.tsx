@@ -159,17 +159,35 @@ export function RemixDialog({
   const [error, setError] = React.useState<string | null>(null)
   const [remixedContent, setRemixedContent] = React.useState<string | null>(null)
   const [copied, setCopied] = React.useState(false)
+  const resetTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const copiedTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Cleanup timers on unmount
+  React.useEffect(() => {
+    return () => {
+      if (resetTimerRef.current) {
+        clearTimeout(resetTimerRef.current)
+      }
+      if (copiedTimerRef.current) {
+        clearTimeout(copiedTimerRef.current)
+      }
+    }
+  }, [])
 
   /**
    * Resets form when dialog opens/closes
    */
   React.useEffect(() => {
     if (!isOpen) {
-      setTimeout(() => {
+      if (resetTimerRef.current) {
+        clearTimeout(resetTimerRef.current)
+      }
+      resetTimerRef.current = setTimeout(() => {
         setCustomInstructions('')
         setError(null)
         setRemixedContent(null)
         setCopied(false)
+        resetTimerRef.current = null
       }, 300)
     }
   }, [isOpen])
@@ -226,17 +244,15 @@ export function RemixDialog({
     try {
       await navigator.clipboard.writeText(remixedContent)
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      // Fallback for older browsers
-      const textArea = document.createElement('textarea')
-      textArea.value = remixedContent
-      document.body.appendChild(textArea)
-      textArea.select()
-      document.execCommand('copy')
-      document.body.removeChild(textArea)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      if (copiedTimerRef.current) {
+        clearTimeout(copiedTimerRef.current)
+      }
+      copiedTimerRef.current = setTimeout(() => {
+        setCopied(false)
+        copiedTimerRef.current = null
+      }, 2000)
+    } catch (err) {
+      console.error('Failed to copy to clipboard:', err)
     }
   }
 

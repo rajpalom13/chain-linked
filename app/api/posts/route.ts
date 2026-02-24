@@ -47,7 +47,7 @@ export async function GET(request: Request) {
         .from('team_members')
         .select('team_id')
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle()
 
       if (teamMembership?.team_id) {
         const { data: teamMembersData } = await supabase
@@ -63,25 +63,28 @@ export async function GET(request: Request) {
       // Continue with solo user if team lookup fails
     }
 
-    // Fetch posts from all team members
-    const { data: teamPosts, error: teamError, count: teamCount } = await supabase
-      .from('my_posts')
-      .select('*', { count: 'exact' })
-      .in('user_id', teamMemberIds)
-      .order('posted_at', { ascending: false })
-      .range(offset, offset + limit - 1)
+    // Fetch posts and profiles in parallel (both only need teamMemberIds)
+    const [teamPostsResult, profilesResult] = await Promise.all([
+      supabase
+        .from('my_posts')
+        .select('*', { count: 'exact' })
+        .in('user_id', teamMemberIds)
+        .order('posted_at', { ascending: false })
+        .range(offset, offset + limit - 1),
+      supabase
+        .from('profiles')
+        .select('id, full_name, email, avatar_url, linkedin_avatar_url')
+        .in('id', teamMemberIds),
+    ])
+
+    const { data: teamPosts, error: teamError, count: teamCount } = teamPostsResult
 
     if (teamError) {
       console.error('Team posts fetch error:', teamError)
       return NextResponse.json({ error: 'Failed to fetch team posts' }, { status: 500 })
     }
 
-    // Fetch author profiles for each post
-    const uniqueUserIds = [...new Set((teamPosts || []).map(p => p.user_id))]
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, full_name, email, avatar_url, linkedin_avatar_url')
-      .in('id', uniqueUserIds)
+    const { data: profiles } = profilesResult
 
     // Prefer LinkedIn avatar over default avatar
     const profileMap = new Map(

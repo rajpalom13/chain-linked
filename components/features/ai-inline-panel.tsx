@@ -130,6 +130,16 @@ export function AIInlinePanel({
   const [context, setContext] = React.useState(initialContext ?? '')
   const [isGenerating, setIsGenerating] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const resetTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Cleanup timer on unmount
+  React.useEffect(() => {
+    return () => {
+      if (resetTimerRef.current) {
+        clearTimeout(resetTimerRef.current)
+      }
+    }
+  }, [])
 
   /**
    * Sync initial values when they change (e.g. template loaded)
@@ -151,10 +161,14 @@ export function AIInlinePanel({
    */
   React.useEffect(() => {
     if (!isExpanded && !persistFields) {
-      setTimeout(() => {
+      if (resetTimerRef.current) {
+        clearTimeout(resetTimerRef.current)
+      }
+      resetTimerRef.current = setTimeout(() => {
         setTopic('')
         setContext('')
         setError(null)
+        resetTimerRef.current = null
       }, 300)
     }
   }, [isExpanded, persistFields])

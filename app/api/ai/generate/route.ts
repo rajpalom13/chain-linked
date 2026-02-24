@@ -256,6 +256,17 @@ async function getUserContext(userId: string, tone?: string) {
  */
 export async function POST(request: NextRequest) {
   try {
+    // Require authenticated user before any processing
+    const supabase = await createClient()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     // Parse request body
     const body = (await request.json()) as GeneratePostRequest
     const { topic, tone = 'professional', length = 'medium', context, apiKey, postType } = body
@@ -272,14 +283,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'OpenRouter API key is required. Please set OPENROUTER_API_KEY in environment.' }, { status: 400 })
     }
 
-    // Get authenticated user
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
     // Fetch user context for personalization
-    const userContext = user ? await getUserContext(user.id, tone) : {}
+    const userContext = await getUserContext(user.id, tone)
 
     // Determine the prompt type and get prompt from service
     let promptType: PromptType | undefined

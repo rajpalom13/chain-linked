@@ -22,4 +22,31 @@ window.addEventListener('chainlinked-extension-ping', () => {
   window.dispatchEvent(new CustomEvent('chainlinked-extension-pong'))
 })
 
+/** Allowed origins for postMessage communication */
+const ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'https://chainlinked.app',
+  'https://www.chainlinked.app',
+]
+
+// Listen for mention search requests from the web app
+// Relays to the ISOLATED world webapp-relay script via postMessage
+// (MAIN world cannot call chrome.runtime.sendMessage without an extension ID)
+window.addEventListener('message', (event: MessageEvent) => {
+  if (event.source !== window) return
+  // Verify origin to prevent cross-origin message injection
+  if (!ALLOWED_ORIGINS.includes(event.origin)) return
+  if (event.data?.type !== 'CHAINLINKED_MENTION_SEARCH') return
+
+  const { query, requestId } = event.data
+  console.log(`[ChainLinked Bridge] Mention search request: "${query}" (reqId=${requestId})`)
+
+  // Forward to ISOLATED world relay via postMessage (uses __CL_MENTION_SEARCH__ type)
+  // The relay script has chrome.runtime access and will forward to the service worker
+  window.postMessage({
+    type: '__CL_MENTION_SEARCH__',
+    payload: { query, requestId },
+  }, window.location.origin)
+})
+
 console.log('[ChainLinked Extension] WebApp bridge loaded')

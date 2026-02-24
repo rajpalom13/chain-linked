@@ -1,28 +1,22 @@
 /**
  * Dashboard Template
- * @description Dashboard-specific page transitions
+ * @description Dashboard-specific template that passes through children directly.
+ * The app-level template (app/template.tsx) already wraps all pages with
+ * PageTransition, so adding another here would cause double animation nesting.
  * @module app/dashboard/template
  */
 
-"use client"
-
-import { PageTransition } from "@/components/page-transition"
-
 /**
- * Dashboard template with optimized transitions for dashboard navigation
+ * Dashboard template that passes children through without additional wrappers
  *
  * @param props - Template props
  * @param props.children - Dashboard page content
- * @returns Dashboard content wrapped with transitions
+ * @returns Dashboard page content directly
  */
 export default function DashboardTemplate({
   children,
 }: {
   children: React.ReactNode
 }) {
-  return (
-    <PageTransition className="flex-1">
-      {children}
-    </PageTransition>
-  )
+  return children
 }

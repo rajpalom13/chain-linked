@@ -3,6 +3,7 @@
 import { ThemeProvider } from "next-themes"
 import { Toaster } from "@/components/ui/sonner"
 import { PostHogProvider, PostHogUserSync } from "@/components/posthog-provider"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { DraftProvider } from "@/lib/store/draft-context"
 import { AuthProvider } from "@/lib/auth/auth-provider"
 import { SessionReplayDebug } from "@/components/debug/session-replay-debug"
@@ -29,9 +30,11 @@ export function Providers({ children }: { children: React.ReactNode }): React.Re
       <AuthProvider>
         <PostHogProvider>
           <PostHogUserSync />
-          <DraftProvider>
-            {children}
-          </DraftProvider>
+          <TooltipProvider>
+            <DraftProvider>
+              {children}
+            </DraftProvider>
+          </TooltipProvider>
         </PostHogProvider>
       </AuthProvider>
       <Toaster

@@ -28,6 +28,16 @@ import {
   downloadBlob,
   generateFilename,
 } from '@/lib/canvas-pdf-export';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import type { CanvasTemplate, CanvasSlide, ExportOptions, LeftPanelTab } from '@/types/canvas-editor';
 import type { ShapeElementConfig } from '@/types/graphics-library';
@@ -385,13 +395,24 @@ export function CanvasEditor({
   );
 
   /**
+   * State for reset confirmation dialog
+   */
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  /**
    * Handle reset with confirmation
    */
   const handleReset = useCallback(() => {
-    if (window.confirm('Are you sure you want to reset? All changes will be lost.')) {
-      resetEditor();
-      setShowTemplateModal(true);
-    }
+    setShowResetConfirm(true);
+  }, []);
+
+  /**
+   * Confirm the reset action
+   */
+  const confirmReset = useCallback(() => {
+    resetEditor();
+    setShowTemplateModal(true);
+    setShowResetConfirm(false);
   }, [resetEditor]);
 
   /**
@@ -553,6 +574,22 @@ export function CanvasEditor({
         currentSlideIndex={currentSlideIndex}
         setCurrentSlide={setCurrentSlide}
       />
+
+      {/* Reset confirmation dialog */}
+      <AlertDialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset editor?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to reset? All changes will be lost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmReset}>Reset</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

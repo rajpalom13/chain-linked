@@ -16,7 +16,7 @@ import {
 } from '@tabler/icons-react'
 
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
+import { cn, getInitials } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -47,20 +47,6 @@ export interface TeamManagementProps {
   className?: string
   /** Pre-selected team ID (optional) */
   teamId?: string
-}
-
-/**
- * Get initials from a name or string
- * @param name - Name to extract initials from
- * @returns Up to 2 character initials
- */
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2)
 }
 
 /**

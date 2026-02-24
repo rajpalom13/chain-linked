@@ -72,13 +72,53 @@ function toPersonUrn(entityUrn: string): string {
 }
 
 /**
- * Search local connections raw_data for matching profiles
+ * Search local connections using efficient SQL jsonb extraction.
+ * Pushes filtering to PostgreSQL instead of pulling all raw_data client-side.
  * @param supabase - Supabase client
  * @param userId - Current user ID
  * @param query - Search query
  * @returns Array of matching local profiles
  */
-async function searchLocalConnections(
+async function searchLocalConnectionsSQL(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  query: string
+): Promise<MentionResult[]> {
+  if (!query) return []
+
+  // Use PostgreSQL jsonb_array_elements to search MiniProfiles inside raw_data
+  const { data: rows, error } = await supabase.rpc('search_connections_mentions' as never, {
+    p_user_id: userId,
+    p_query: query,
+  } as never) as { data: Array<{ name: string; entity_urn: string; headline: string | null; public_identifier: string | null; root_url: string | null; artifact_path: string | null }> | null; error: unknown }
+
+  if (!error && rows?.length) {
+    console.log(`[MentionAPI] SQL search returned ${rows.length} results`)
+    return rows.map(r => ({
+      name: r.name,
+      urn: toPersonUrn(r.entity_urn),
+      headline: r.headline,
+      avatarUrl: r.root_url && r.artifact_path ? `${r.root_url}${r.artifact_path}` : null,
+      publicIdentifier: r.public_identifier,
+    }))
+  }
+
+  if (error) {
+    console.log(`[MentionAPI] SQL RPC not available (${error}), falling back to JS-based search`)
+  }
+
+  // Fallback: JS-based search for when the RPC doesn't exist yet
+  return searchLocalConnectionsJS(supabase, userId, query)
+}
+
+/**
+ * JS-based fallback: search local connections raw_data for matching profiles
+ * @param supabase - Supabase client
+ * @param userId - Current user ID
+ * @param query - Search query
+ * @returns Array of matching local profiles
+ */
+async function searchLocalConnectionsJS(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
   query: string
@@ -89,8 +129,12 @@ async function searchLocalConnections(
     .select('raw_data')
     .eq('user_id', userId) as unknown as Promise<{ data: Array<{ raw_data: unknown }> | null }>)
 
-  if (!connections?.length) return []
+  if (!connections?.length) {
+    console.log('[MentionAPI] No connections found in database')
+    return []
+  }
 
+  console.log(`[MentionAPI] Found ${connections.length} connection rows to search through`)
   const profiles: MentionResult[] = []
   const seen = new Set<string>()
 
@@ -147,12 +191,15 @@ export async function GET(request: Request) {
 
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
+    console.log('[MentionAPI] Unauthorized request')
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const { searchParams } = new URL(request.url)
   const query = searchParams.get('q')?.trim() || ''
 
-  const results = await searchLocalConnections(supabase, user.id, query)
+  console.log(`[MentionAPI] Local connections search: query="${query}", userId=${user.id}`)
+  const results = await searchLocalConnectionsSQL(supabase, user.id, query)
+  console.log(`[MentionAPI] Returning ${results.length} results from local connections`)
   return NextResponse.json({ results })
 }

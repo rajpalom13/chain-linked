@@ -29,7 +29,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
-import { cn } from "@/lib/utils"
+import { cn, getInitials, formatMetricNumber } from "@/lib/utils"
 
 /**
  * Daily metrics data point for a post
@@ -137,33 +137,6 @@ const chartConfig = {
 } satisfies ChartConfig
 
 /**
- * Generates initials from a full name.
- * @param name - Full name to extract initials from
- * @returns Two-letter initials string
- */
-function getInitials(name: string): string {
-  const parts = name.split(" ").filter(Boolean)
-  if (parts.length === 0) return "?"
-  if (parts.length === 1) return parts[0].charAt(0).toUpperCase()
-  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
-}
-
-/**
- * Formats a number into a compact, human-readable string.
- * @param num - The number to format
- * @returns Formatted string (e.g., "1.2K", "3.4M")
- */
-function formatNumber(num: number): string {
-  if (num >= 1000000) {
-    return `${(num / 1000000).toFixed(1)}M`
-  }
-  if (num >= 1000) {
-    return `${(num / 1000).toFixed(1)}K`
-  }
-  return num.toString()
-}
-
-/**
  * Formats a date string for display in charts
  * @param dateString - ISO date string (YYYY-MM-DD)
  * @returns Formatted date string (e.g., "Jan 15")
@@ -205,7 +178,7 @@ function PostPerformanceSkeleton() {
         {/* Metrics Skeleton */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="space-y-2">
+            <div key={`skeleton-${index}`} className="space-y-2">
               <Skeleton className="h-3 w-20" />
               <Skeleton className="h-6 w-16" />
             </div>
@@ -285,7 +258,7 @@ function EngagementBreakdown({ metrics }: { metrics: PostMetrics[] }) {
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">{item.label}</span>
                 <span className="font-medium tabular-nums">
-                  {formatNumber(item.value)} ({percentage.toFixed(1)}%)
+                  {formatMetricNumber(item.value)} ({percentage.toFixed(1)}%)
                 </span>
               </div>
               <div className="h-2 bg-muted rounded-full overflow-hidden">
@@ -427,12 +400,12 @@ export function PostPerformance({
             <MetricCard
               icon={IconEye}
               label="Impressions"
-              value={formatNumber(post.totalImpressions)}
+              value={formatMetricNumber(post.totalImpressions)}
             />
             <MetricCard
               icon={IconThumbUp}
               label="Engagements"
-              value={formatNumber(post.totalEngagements)}
+              value={formatMetricNumber(post.totalEngagements)}
             />
             <MetricCard
               icon={IconChartLine}
@@ -442,7 +415,7 @@ export function PostPerformance({
             <MetricCard
               icon={IconClick}
               label="Total Clicks"
-              value={formatNumber(
+              value={formatMetricNumber(
                 post.metrics.reduce((acc, m) => acc + m.clicks, 0)
               )}
             />

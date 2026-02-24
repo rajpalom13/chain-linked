@@ -158,6 +158,16 @@ export function AIGenerationDialog({
   const [isGenerating, setIsGenerating] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [errorHelpUrl, setErrorHelpUrl] = React.useState<string | null>(null)
+  const resetTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Cleanup timer on unmount
+  React.useEffect(() => {
+    return () => {
+      if (resetTimerRef.current) {
+        clearTimeout(resetTimerRef.current)
+      }
+    }
+  }, [])
 
   /**
    * Sync the default post type from the parent composer when the dialog opens
@@ -174,11 +184,15 @@ export function AIGenerationDialog({
   React.useEffect(() => {
     if (!isOpen) {
       // Reset form after animation completes
-      setTimeout(() => {
+      if (resetTimerRef.current) {
+        clearTimeout(resetTimerRef.current)
+      }
+      resetTimerRef.current = setTimeout(() => {
         setTopic('')
         setContext('')
         setError(null)
         setErrorHelpUrl(null)
+        resetTimerRef.current = null
       }, 300)
     }
   }, [isOpen])

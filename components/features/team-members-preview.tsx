@@ -18,6 +18,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { getInitials } from '@/lib/utils'
 import type { TeamMemberWithUser } from '@/hooks/use-team'
 
 /**
@@ -36,23 +37,6 @@ interface TeamMembersPreviewProps {
   onViewAll?: () => void
 }
 
-/**
- * Get initials from name or email
- * @param name - Full name
- * @param email - Email address
- * @returns Initials string
- */
-function getInitials(name: string | null, email: string): string {
-  if (name) {
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .substring(0, 2)
-  }
-  return email.substring(0, 2).toUpperCase()
-}
 
 /**
  * Get role icon and color
@@ -90,7 +74,7 @@ function MemberItem({
           <AvatarImage src={member.user.avatar_url} alt={displayName} />
         )}
         <AvatarFallback className="text-xs">
-          {getInitials(member.user.full_name, member.user.email)}
+          {getInitials(member.user.full_name || member.user.email)}
         </AvatarFallback>
       </Avatar>
       <div className="flex-1 min-w-0">
@@ -140,7 +124,7 @@ function AvatarStack({
                   />
                 )}
                 <AvatarFallback className="text-xs">
-                  {getInitials(member.user.full_name, member.user.email)}
+                  {getInitials(member.user.full_name || member.user.email)}
                 </AvatarFallback>
               </Avatar>
             </TooltipTrigger>

@@ -7,6 +7,7 @@
  */
 
 import { useState, useCallback, useRef } from 'react';
+import Image from 'next/image';
 import {
   IconUpload,
   IconLink,
@@ -53,6 +54,7 @@ export function PanelUploads({ onInsertImage }: PanelUploadsProps) {
 
   /**
    * Process an image file to create an uploaded image record
+   * Uses object URLs instead of data URLs for better memory efficiency
    */
   const processFile = useCallback(
     (file: File) => {
@@ -66,41 +68,40 @@ export function PanelUploads({ onInsertImage }: PanelUploadsProps) {
         return;
       }
 
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const dataUrl = e.target?.result as string;
-        if (!dataUrl) return;
+      const objectUrl = URL.createObjectURL(file);
 
-        const img = new window.Image();
-        img.onload = () => {
-          const maxSize = 500;
-          let width = img.width;
-          let height = img.height;
-          if (width > maxSize || height > maxSize) {
-            if (width > height) {
-              height = (height / width) * maxSize;
-              width = maxSize;
-            } else {
-              width = (width / height) * maxSize;
-              height = maxSize;
-            }
+      const img = new window.Image();
+      img.onload = () => {
+        const maxSize = 500;
+        let width = img.width;
+        let height = img.height;
+        if (width > maxSize || height > maxSize) {
+          if (width > height) {
+            height = (height / width) * maxSize;
+            width = maxSize;
+          } else {
+            width = (width / height) * maxSize;
+            height = maxSize;
           }
+        }
 
-          const uploaded: UploadedImage = {
-            id: `upload-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
-            src: dataUrl,
-            name: file.name,
-            width: Math.round(width),
-            height: Math.round(height),
-          };
-
-          setUploadedImages((prev) => [uploaded, ...prev]);
-          onInsertImage(dataUrl, Math.round(width), Math.round(height));
-          toast.success('Image added to canvas');
+        const uploaded: UploadedImage = {
+          id: `upload-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+          src: objectUrl,
+          name: file.name,
+          width: Math.round(width),
+          height: Math.round(height),
         };
-        img.src = dataUrl;
+
+        setUploadedImages((prev) => [uploaded, ...prev]);
+        onInsertImage(objectUrl, Math.round(width), Math.round(height));
+        toast.success('Image added to canvas');
       };
-      reader.readAsDataURL(file);
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        toast.error('Failed to load image');
+      };
+      img.src = objectUrl;
     },
     [onInsertImage]
   );
@@ -203,10 +204,16 @@ export function PanelUploads({ onInsertImage }: PanelUploadsProps) {
   );
 
   /**
-   * Remove an image from the gallery
+   * Remove an image from the gallery, revoking its object URL if applicable
    */
   const handleRemoveFromGallery = useCallback((id: string) => {
-    setUploadedImages((prev) => prev.filter((img) => img.id !== id));
+    setUploadedImages((prev) => {
+      const imageToRemove = prev.find((img) => img.id === id);
+      if (imageToRemove && imageToRemove.src.startsWith('blob:')) {
+        URL.revokeObjectURL(imageToRemove.src);
+      }
+      return prev.filter((img) => img.id !== id);
+    });
   }, []);
 
   return (
@@ -314,11 +321,12 @@ export function PanelUploads({ onInsertImage }: PanelUploadsProps) {
                       className="h-full w-full"
                       onClick={() => handleReinsert(image)}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
+                        <Image
                         src={image.src}
                         alt={image.name}
-                        className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                        fill
+                        className="object-cover transition-transform group-hover:scale-105"
+                        unoptimized
                       />
                     </button>
                     <button

@@ -40,6 +40,31 @@ import type {
   ShapeElementConfig,
 } from '@/types/graphics-library';
 
+/**
+ * Sanitizes SVG markup by removing script tags, event handler attributes,
+ * and other potentially dangerous content to prevent XSS attacks
+ * @param svgHtml - Raw SVG markup string
+ * @returns Sanitized SVG markup safe for rendering
+ */
+function sanitizeSvg(svgHtml: string): string {
+  // Remove script tags and their content
+  let sanitized = svgHtml.replace(/<script[\s\S]*?<\/script>/gi, '')
+  // Remove script tags without closing (self-closing or orphan)
+  sanitized = sanitized.replace(/<script[^>]*\/?>/gi, '')
+  // Remove event handler attributes (on*)
+  sanitized = sanitized.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi, '')
+  // Remove javascript: URLs in href/xlink:href attributes
+  sanitized = sanitized.replace(/(href\s*=\s*(?:"|'))javascript:[^"']*("|')/gi, '$1#$2')
+  sanitized = sanitized.replace(/(xlink:href\s*=\s*(?:"|'))javascript:[^"']*("|')/gi, '$1#$2')
+  // Remove data: URLs in href/xlink:href (can be used for XSS)
+  sanitized = sanitized.replace(/(href\s*=\s*(?:"|'))data:[^"']*("|')/gi, '$1#$2')
+  sanitized = sanitized.replace(/(xlink:href\s*=\s*(?:"|'))data:[^"']*("|')/gi, '$1#$2')
+  // Remove foreignObject elements (can contain arbitrary HTML)
+  sanitized = sanitized.replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, '')
+  sanitized = sanitized.replace(/<foreignObject[^>]*\/?>/gi, '')
+  return sanitized
+}
+
 const PHOTO_CATEGORIES: { value: PhotoCategory; label: string }[] = [
   { value: 'business', label: 'Business' },
   { value: 'technology', label: 'Tech' },
@@ -401,7 +426,7 @@ export function PanelGraphics({ onInsertImage, onInsertShape }: PanelGraphicsPro
                           >
                             <div
                               className="flex h-full w-full items-center justify-center"
-                              dangerouslySetInnerHTML={{ __html: shape.previewSvg }}
+                              dangerouslySetInnerHTML={{ __html: sanitizeSvg(shape.previewSvg) }}
                             />
                           </button>
                         </TooltipTrigger>

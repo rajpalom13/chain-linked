@@ -19,7 +19,7 @@ import {
 } from '@tabler/icons-react'
 import { formatDistanceToNow } from 'date-fns'
 
-import { cn } from '@/lib/utils'
+import { cn, getInitials } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -61,20 +61,6 @@ export interface TeamMemberListProps {
   className?: string
 }
 
-/**
- * Get initials from a name or email
- * @param name - Name or email to extract initials from
- * @returns Up to 2 character initials
- */
-function getInitials(name: string | null, email: string): string {
-  const source = name || email.split('@')[0]
-  return source
-    .split(/[\s._-]/)
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2)
-}
 
 /**
  * Get display name from user info
@@ -226,7 +212,7 @@ export function TeamMemberList({
                   />
                 ) : null}
                 <AvatarFallback className="text-sm">
-                  {getInitials(member.user.full_name, member.user.email)}
+                  {getInitials(member.user.full_name || member.user.email)}
                 </AvatarFallback>
               </Avatar>
 

@@ -22,7 +22,6 @@
 /dist
 
 # misc
-.DS_Store
 *.pem
 
 # debug
@@ -62,6 +61,12 @@ tmpclaude-*
 .settings/
 
 # OS files
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
 Thumbs.db
 ehthumbs.db
 Desktop.ini
@@ -112,7 +117,9 @@ storybook-static/
 /*.jpeg
 
 # Extension build artifacts
+extension/dist/
 extension/dist.zip
+extension/node_modules/
 
 # Empty data files
 linkedin-dataset.json

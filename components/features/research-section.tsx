@@ -42,7 +42,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { Switch } from "@/components/ui/switch"
-import { cn } from "@/lib/utils"
+import { cn, getInitials } from "@/lib/utils"
 import {
   useResearch,
   type ResearchResult,
@@ -105,20 +105,6 @@ interface ResearchSectionProps {
   onClose?: () => void
 }
 
-/**
- * Gets initials from a name for avatar fallback
- * @param name - Name to get initials from
- * @returns Up to 2 character initials
- */
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase()
-}
 
 /**
  * Progress indicator component for research workflow

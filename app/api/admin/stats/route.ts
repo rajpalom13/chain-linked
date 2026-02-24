@@ -64,86 +64,57 @@ export async function GET() {
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
     const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
 
-    // Fetch total users
-    const { count: totalUsers } = await supabase
-      .from("profiles")
-      .select("*", { count: "exact", head: true })
-
-    // Fetch users from 30 days ago for comparison
-    const { count: usersThirtyDaysAgo } = await supabase
-      .from("profiles")
-      .select("*", { count: "exact", head: true })
-      .lt("created_at", thirtyDaysAgo.toISOString())
-
-    // Fetch active users (users with posts or activity in last 7 days)
-    const { count: activeUsers7d } = await supabase
-      .from("my_posts")
-      .select("user_id", { count: "exact", head: true })
-      .gte("created_at", sevenDaysAgo.toISOString())
-
-    // Fetch active users from previous 7-day period
-    const { count: activeUsersPrevious7d } = await supabase
-      .from("my_posts")
-      .select("user_id", { count: "exact", head: true })
-      .gte("created_at", fourteenDaysAgo.toISOString())
-      .lt("created_at", sevenDaysAgo.toISOString())
-
-    // Fetch total posts
-    const { count: totalPosts } = await supabase
-      .from("my_posts")
-      .select("*", { count: "exact", head: true })
-
-    // Fetch posts from 30 days ago
-    const { count: postsThirtyDaysAgo } = await supabase
-      .from("my_posts")
-      .select("*", { count: "exact", head: true })
-      .lt("created_at", thirtyDaysAgo.toISOString())
-
-    // Fetch scheduled posts
-    const { count: scheduledPosts } = await supabase
-      .from("scheduled_posts")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "pending")
-
-    // Fetch scheduled posts from 30 days ago
-    const { count: scheduledPostsThirtyDaysAgo } = await supabase
-      .from("scheduled_posts")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "pending")
-      .lt("created_at", thirtyDaysAgo.toISOString())
-
-    // Fetch LinkedIn connections (users with tokens)
-    const { count: linkedinConnections } = await supabase
-      .from("linkedin_tokens")
-      .select("*", { count: "exact", head: true })
-
-    const { count: linkedinConnectionsThirtyDaysAgo } = await supabase
-      .from("linkedin_tokens")
-      .select("*", { count: "exact", head: true })
-      .lt("created_at", thirtyDaysAgo.toISOString())
-
-    // Fetch 30-day active users
-    const { count: activeUsers30d } = await supabase
-      .from("my_posts")
-      .select("user_id", { count: "exact", head: true })
-      .gte("created_at", thirtyDaysAgo.toISOString())
-
     const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000)
-    const { count: activeUsersPrevious30d } = await supabase
-      .from("my_posts")
-      .select("user_id", { count: "exact", head: true })
-      .gte("created_at", sixtyDaysAgo.toISOString())
-      .lt("created_at", thirtyDaysAgo.toISOString())
 
-    // Compute average engagement rate using count query + sum estimation
-    // Fetch only the engagement_rate column without an arbitrary row limit
-    const { data: engagementData, count: engagementCount } = await supabase
-      .from("post_analytics")
-      .select("engagement_rate", { count: "exact" })
-      .not("engagement_rate", "is", null)
+    // Run all independent count queries in parallel
+    const [
+      totalUsersResult,
+      usersThirtyDaysAgoResult,
+      activeUsers7dResult,
+      activeUsersPrevious7dResult,
+      totalPostsResult,
+      postsThirtyDaysAgoResult,
+      scheduledPostsResult,
+      scheduledPostsThirtyDaysAgoResult,
+      linkedinConnectionsResult,
+      linkedinConnectionsThirtyDaysAgoResult,
+      activeUsers30dResult,
+      activeUsersPrevious30dResult,
+      avgEngagementResult,
+    ] = await Promise.all([
+      supabase.from("profiles").select("*", { count: "exact", head: true }),
+      supabase.from("profiles").select("*", { count: "exact", head: true }).lt("created_at", thirtyDaysAgo.toISOString()),
+      supabase.from("my_posts").select("user_id", { count: "exact", head: true }).gte("created_at", sevenDaysAgo.toISOString()),
+      supabase.from("my_posts").select("user_id", { count: "exact", head: true }).gte("created_at", fourteenDaysAgo.toISOString()).lt("created_at", sevenDaysAgo.toISOString()),
+      supabase.from("my_posts").select("*", { count: "exact", head: true }),
+      supabase.from("my_posts").select("*", { count: "exact", head: true }).lt("created_at", thirtyDaysAgo.toISOString()),
+      supabase.from("scheduled_posts").select("*", { count: "exact", head: true }).eq("status", "pending"),
+      supabase.from("scheduled_posts").select("*", { count: "exact", head: true }).eq("status", "pending").lt("created_at", thirtyDaysAgo.toISOString()),
+      supabase.from("linkedin_tokens").select("*", { count: "exact", head: true }),
+      supabase.from("linkedin_tokens").select("*", { count: "exact", head: true }).lt("created_at", thirtyDaysAgo.toISOString()),
+      supabase.from("my_posts").select("user_id", { count: "exact", head: true }).gte("created_at", thirtyDaysAgo.toISOString()),
+      supabase.from("my_posts").select("user_id", { count: "exact", head: true }).gte("created_at", sixtyDaysAgo.toISOString()).lt("created_at", thirtyDaysAgo.toISOString()),
+      // Use RPC or limited query for average engagement rate instead of fetching all rows
+      supabase.from("post_analytics").select("engagement_rate").not("engagement_rate", "is", null).limit(1000),
+    ])
 
+    const totalUsers = totalUsersResult.count
+    const usersThirtyDaysAgo = usersThirtyDaysAgoResult.count
+    const activeUsers7d = activeUsers7dResult.count
+    const activeUsersPrevious7d = activeUsersPrevious7dResult.count
+    const totalPosts = totalPostsResult.count
+    const postsThirtyDaysAgo = postsThirtyDaysAgoResult.count
+    const scheduledPosts = scheduledPostsResult.count
+    const scheduledPostsThirtyDaysAgo = scheduledPostsThirtyDaysAgoResult.count
+    const linkedinConnections = linkedinConnectionsResult.count
+    const linkedinConnectionsThirtyDaysAgo = linkedinConnectionsThirtyDaysAgoResult.count
+    const activeUsers30d = activeUsers30dResult.count
+    const activeUsersPrevious30d = activeUsersPrevious30dResult.count
+
+    // Compute average engagement rate from limited sample
+    const engagementData = avgEngagementResult.data
     const avgEngagementRate = engagementData && engagementData.length > 0
-      ? engagementData.reduce((sum, p) => sum + (p.engagement_rate || 0), 0) / (engagementCount || engagementData.length)
+      ? engagementData.reduce((sum, p) => sum + (p.engagement_rate || 0), 0) / engagementData.length
       : 0
 
     // Build platform stats
@@ -188,12 +159,39 @@ export async function GET() {
       averageEngagementRate: Math.round(avgEngagementRate * 100) / 100,
     }
 
-    // Fetch all profiles for user growth calculation (optimized from N+1)
+    // Fetch chart data, recent activity, signups, and top posts in parallel
     const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1)
-    const { data: allProfiles } = await supabase
-      .from("profiles")
-      .select("created_at")
-      .gte("created_at", sixMonthsAgo.toISOString())
+    const sevenDaysAgoStart = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000)
+    sevenDaysAgoStart.setHours(0, 0, 0, 0)
+    const thirtyDaysAgoForSignups = new Date()
+    thirtyDaysAgoForSignups.setDate(thirtyDaysAgoForSignups.getDate() - 30)
+
+    const [
+      allProfilesResult,
+      weeklyPostsResult,
+      recentProfilesResult,
+      recentPostsResult,
+      allSignupsResult,
+      topPostsResult,
+      onboardingWithNameResult,
+      onboardingCompletedResult,
+      onboardingProfilesResult,
+    ] = await Promise.all([
+      supabase.from("profiles").select("created_at").gte("created_at", sixMonthsAgo.toISOString()),
+      supabase.from("my_posts").select("created_at").gte("created_at", sevenDaysAgoStart.toISOString()),
+      supabase.from("profiles").select("id, full_name, created_at").order("created_at", { ascending: false }).limit(5),
+      supabase.from("my_posts").select("id, user_id, created_at").order("created_at", { ascending: false }).limit(5),
+      supabase.from("profiles").select("created_at").gte("created_at", thirtyDaysAgoForSignups.toISOString()),
+      supabase.from("my_posts").select("id, user_id, content, reactions, comments, reposts, impressions, created_at").order("reactions", { ascending: false }).limit(5),
+      supabase.from("profiles").select("*", { count: "exact", head: true }).not("company_name", "is", null),
+      supabase.from("profiles").select("*", { count: "exact", head: true }).eq("company_onboarding_completed", true),
+      supabase.from("profiles").select("company_name, company_description, company_products, company_icp, company_value_props"),
+    ])
+
+    const allProfiles = allProfilesResult.data
+    const weeklyPosts = weeklyPostsResult.data
+    const recentProfiles = recentProfilesResult.data
+    const recentPosts = recentPostsResult.data
 
     // Group profiles by month for growth calculation
     const profilesByMonth = new Map<string, number>()
@@ -222,15 +220,6 @@ export async function GET() {
         users: cumulativeUsers,
       })
     }
-
-    // Fetch all posts from the last 7 days in a single query (optimized from N+1)
-    const sevenDaysAgoStart = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000)
-    sevenDaysAgoStart.setHours(0, 0, 0, 0)
-
-    const { data: weeklyPosts } = await supabase
-      .from("my_posts")
-      .select("created_at")
-      .gte("created_at", sevenDaysAgoStart.toISOString())
 
     // Group posts by date client-side
     const postsByDate = new Map<string, number>()
@@ -261,19 +250,6 @@ export async function GET() {
         aiGenerations: Math.floor(Math.random() * 100 + 50), // Placeholder
       })
     }
-
-    // Fetch recent activity (profiles + posts combined)
-    const { data: recentProfiles } = await supabase
-      .from("profiles")
-      .select("id, full_name, created_at")
-      .order("created_at", { ascending: false })
-      .limit(5)
-
-    const { data: recentPosts } = await supabase
-      .from("my_posts")
-      .select("id, user_id, created_at")
-      .order("created_at", { ascending: false })
-      .limit(5)
 
     const recentActivity: AdminActivityEvent[] = []
 
@@ -310,16 +286,8 @@ export async function GET() {
     )
     const limitedActivity = recentActivity.slice(0, 10)
 
-    // Fetch all signups in the last 30 days in a single query (optimized from N+1)
-    const thirtyDaysAgoForSignups = new Date()
-    thirtyDaysAgoForSignups.setDate(thirtyDaysAgoForSignups.getDate() - 30)
-
-    const { data: allSignups } = await supabase
-      .from("profiles")
-      .select("created_at")
-      .gte("created_at", thirtyDaysAgoForSignups.toISOString())
-
-    // Group signups by date client-side
+    // Group signups by date client-side (data already fetched in parallel batch)
+    const allSignups = allSignupsResult.data
     const signupsByDate = new Map<string, number>()
     if (allSignups) {
       for (const signup of allSignups) {
@@ -343,27 +311,38 @@ export async function GET() {
       })
     }
 
-    // Fetch content type breakdown using count queries (optimized from fetching 10K rows)
-    const contentTypes = ['text', 'image', 'carousel', 'video', 'article']
-    const contentTypeBreakdown: ContentTypeBreakdown[] = await Promise.all(
-      contentTypes.map(async (type) => {
-        const { count } = await supabase
-          .from("my_posts")
-          .select("*", { count: "exact", head: true })
-          .eq("media_type", type)
-        return {
-          type,
-          count: count || 0,
-          percentage: 0, // Calculate after getting totals
-        }
-      })
-    )
+    // Use top posts data from parallel batch (needed for author lookup below)
+    const topPostsData = topPostsResult.data
+    const topPostUserIds = topPostsData?.map((p) => p.user_id) || []
 
-    // Also get the null/default type count (posts without media_type set)
-    const { count: nullCount } = await supabase
-      .from("my_posts")
-      .select("*", { count: "exact", head: true })
-      .is("media_type", null)
+    // Fetch content type breakdown, null-type count, and top post authors in parallel
+    const contentTypes = ['text', 'image', 'carousel', 'video', 'article']
+    const [contentTypeCounts, nullTypeResult, topPostAuthorsResult] = await Promise.all([
+      Promise.all(
+        contentTypes.map(async (type) => {
+          const { count } = await supabase
+            .from("my_posts")
+            .select("*", { count: "exact", head: true })
+            .eq("media_type", type)
+          return {
+            type,
+            count: count || 0,
+            percentage: 0, // Calculate after getting totals
+          }
+        })
+      ),
+      supabase
+        .from("my_posts")
+        .select("*", { count: "exact", head: true })
+        .is("media_type", null),
+      supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", topPostUserIds),
+    ])
+    const contentTypeBreakdown: ContentTypeBreakdown[] = contentTypeCounts
+    const nullCount = nullTypeResult.count
+    const topPostAuthors = topPostAuthorsResult.data
 
     // Add null count to 'text' category or create it
     const textIndex = contentTypeBreakdown.findIndex(item => item.type === 'text')
@@ -384,29 +363,6 @@ export async function GET() {
     // Sort by count descending and filter out zero counts
     contentTypeBreakdown.sort((a, b) => b.count - a.count)
     const filteredContentTypeBreakdown = contentTypeBreakdown.filter(item => item.count > 0)
-
-    // Fetch top performing posts
-    const { data: topPostsData } = await supabase
-      .from("my_posts")
-      .select(`
-        id,
-        user_id,
-        content,
-        reactions,
-        comments,
-        reposts,
-        impressions,
-        created_at
-      `)
-      .order("reactions", { ascending: false })
-      .limit(5)
-
-    // Get author names for top posts
-    const topPostUserIds = topPostsData?.map((p) => p.user_id) || []
-    const { data: topPostAuthors } = await supabase
-      .from("profiles")
-      .select("id, full_name")
-      .in("id", topPostUserIds)
 
     const authorNameMap: Record<string, string> = {}
     if (topPostAuthors) {
@@ -438,27 +394,12 @@ export async function GET() {
       totalPosts: totalPosts || 0,
     }
 
-    // Fetch onboarding funnel data
-    // Note: This assumes onboarding_step and onboarding_completed columns exist
-    // If they don't exist, we'll use placeholder data
+    // Build onboarding funnel data (queries already fetched in parallel batch)
     let onboardingFunnel: OnboardingFunnel
 
     try {
-      const { count: totalWithOnboarding } = await supabase
-        .from("profiles")
-        .select("*", { count: "exact", head: true })
-        .not("company_name", "is", null)
-
-      const { count: completedOnboarding } = await supabase
-        .from("profiles")
-        .select("*", { count: "exact", head: true })
-        .eq("company_onboarding_completed", true)
-
-      // Fetch all profiles once to compute onboarding step counts client-side
-      // This eliminates the N+1 query pattern (was 5 separate count queries)
-      const { data: onboardingProfiles } = await supabase
-        .from("profiles")
-        .select("company_name, company_description, company_products, company_icp, company_value_props")
+      const completedOnboarding = onboardingCompletedResult.count
+      const onboardingProfiles = onboardingProfilesResult.data
 
       const fieldCounts: Record<string, number> = {
         company_name: 0,

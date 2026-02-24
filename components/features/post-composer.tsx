@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import {
@@ -367,6 +368,19 @@ export function PostComposer({
     }
     fetchApiKeyStatus()
     return () => { cancelled = true }
+  }, [])
+
+  // Track media files in a ref for cleanup on unmount
+  const mediaFilesRef = React.useRef<MediaFile[]>(mediaFiles)
+  React.useEffect(() => {
+    mediaFilesRef.current = mediaFiles
+  }, [mediaFiles])
+
+  // Revoke all media object URLs on unmount to prevent memory leaks
+  React.useEffect(() => {
+    return () => {
+      mediaFilesRef.current.forEach((f) => URL.revokeObjectURL(f.previewUrl))
+    }
   }, [])
 
   /**
@@ -1122,11 +1136,12 @@ export function PostComposer({
                           className="group relative aspect-square overflow-hidden rounded-md border bg-muted"
                         >
                           {file.type === "image" ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
+                            <Image
                               src={file.previewUrl}
                               alt={file.file.name}
-                              className="size-full object-cover"
+                              fill
+                              className="object-cover"
+                              unoptimized
                             />
                           ) : (
                             <div className="flex size-full flex-col items-center justify-center gap-1 text-muted-foreground">

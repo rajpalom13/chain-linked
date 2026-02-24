@@ -13,6 +13,7 @@ import {
   calculateExpiresAt,
   getLinkedInScopes,
 } from '@/lib/linkedin'
+import { encrypt } from '@/lib/crypto'
 
 /**
  * Cookie name for storing OAuth state
@@ -95,14 +96,18 @@ export async function GET(request: Request) {
     // Calculate token expiration
     const expiresAt = calculateExpiresAt(tokens.expires_in)
 
+    // Encrypt tokens before storing in database
+    const encryptedAccessToken = encrypt(tokens.access_token)
+    const encryptedRefreshToken = tokens.refresh_token ? encrypt(tokens.refresh_token) : null
+
     // Store tokens in database (upsert to handle reconnection)
     const { error: upsertError } = await supabase
       .from('linkedin_tokens')
       .upsert(
         {
           user_id: user.id,
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token || null,
+          access_token: encryptedAccessToken,
+          refresh_token: encryptedRefreshToken,
           expires_at: expiresAt,
           linkedin_urn: linkedInUrn,
           scopes: getLinkedInScopes(),

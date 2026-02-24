@@ -58,6 +58,18 @@
       "world": "MAIN"
     },
     {
+      "matches": [
+        "http://localhost:3000/*",
+        "http://localhost:3001/*",
+        "http://localhost:3002/*",
+        "http://localhost:3003/*",
+        "http://localhost:3004/*",
+        "https://chain-linked-theta.vercel.app/*"
+      ],
+      "js": ["content/webapp-relay.js"],
+      "run_at": "document_start"
+    },
+    {
       "matches": ["https://*.linkedin.com/*"],
       "js": ["content/main-world-interceptor.js"],
       "run_at": "document_start",

@@ -100,7 +100,7 @@ async function getApiKey(
     .from('user_api_keys')
     .select('encrypted_key')
     .eq('user_id', userId)
-    .eq('provider', 'openrouter')
+    .eq('provider', 'openai')
     .eq('is_valid', true)
     .single()
 

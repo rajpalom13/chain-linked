@@ -13,6 +13,7 @@ import {
   type LinkedInVisibility,
 } from '@/lib/linkedin'
 import { isPostingEnabled, POSTING_DISABLED_MESSAGE, DISABLED_DRAFT_STATUS } from '@/lib/linkedin/posting-config'
+import { decrypt, encrypt } from '@/lib/crypto'
 
 export const runtime = 'nodejs'
 
@@ -145,13 +146,28 @@ export async function POST(request: Request) {
     )
   }
 
+  // Decrypt tokens before creating API client
+  const decryptedTokenData: LinkedInTokenData = {
+    ...(tokenData as LinkedInTokenData),
+    access_token: decrypt(tokenData.access_token),
+    refresh_token: tokenData.refresh_token ? decrypt(tokenData.refresh_token) : null,
+  } as LinkedInTokenData
+
   // Create LinkedIn API client with token refresh callback
   const client = createLinkedInClient(
-    tokenData as LinkedInTokenData,
+    decryptedTokenData,
     async (newTokenData) => {
+      // Re-encrypt tokens before storing back to DB
+      const encryptedUpdate: Partial<LinkedInTokenData> = { ...newTokenData }
+      if (newTokenData.access_token) {
+        encryptedUpdate.access_token = encrypt(newTokenData.access_token)
+      }
+      if (newTokenData.refresh_token) {
+        encryptedUpdate.refresh_token = encrypt(newTokenData.refresh_token)
+      }
       await supabase
         .from('linkedin_tokens')
-        .update(newTokenData)
+        .update(encryptedUpdate)
         .eq('user_id', user.id)
     }
   )

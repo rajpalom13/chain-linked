@@ -20,7 +20,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import { cn, getInitials, formatMetricNumber } from "@/lib/utils"
 import { MarkdownContent } from "@/components/shared/markdown-content"
 import type { DiscoverArticle } from "@/hooks/use-discover"
 
@@ -56,31 +56,6 @@ function formatRelativeTime(dateStr: string): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
 }
 
-/**
- * Get initials from a name
- * @param name - Full name string
- * @returns Up to 2 character initials
- */
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase()
-}
-
-/**
- * Format large numbers with K/M suffix
- * @param num - Number to format
- * @returns Formatted string
- */
-function formatCount(num: number): string {
-  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
-  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`
-  return num.toString()
-}
 
 /**
  * Strip any residual markdown syntax from a title for plain-text rendering.
@@ -149,7 +124,7 @@ function CompactItem({ article, onRemix }: Omit<DiscoverNewsItemProps, "variant"
           {article.likesCount != null && article.likesCount > 0 && (
             <span className="flex items-center gap-0.5">
               <IconHeart className="size-3" />
-              {formatCount(article.likesCount)}
+              {formatMetricNumber(article.likesCount)}
             </span>
           )}
         </div>
@@ -256,19 +231,19 @@ function FeaturedItem({ article, onRemix }: Omit<DiscoverNewsItemProps, "variant
           {article.likesCount != null && article.likesCount > 0 && (
             <span className="flex items-center gap-1">
               <IconHeart className="size-3.5" />
-              {formatCount(article.likesCount)}
+              {formatMetricNumber(article.likesCount)}
             </span>
           )}
           {article.commentsCount != null && article.commentsCount > 0 && (
             <span className="flex items-center gap-1">
               <IconMessage className="size-3.5" />
-              {formatCount(article.commentsCount)}
+              {formatMetricNumber(article.commentsCount)}
             </span>
           )}
           {article.repostsCount != null && article.repostsCount > 0 && (
             <span className="flex items-center gap-1">
               <IconRepeat className="size-3.5" />
-              {formatCount(article.repostsCount)}
+              {formatMetricNumber(article.repostsCount)}
             </span>
           )}
           {article.isViral && (

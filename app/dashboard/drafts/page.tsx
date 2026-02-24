@@ -331,11 +331,13 @@ function DraftCard({
   }
 
   return (
-    <motion.button
-      type="button"
+    <motion.div
+      role="button"
+      tabIndex={0}
       onClick={handleClick}
+      onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick() } }}
       className={cn(
-        "text-left h-[210px] flex flex-col rounded-xl border overflow-hidden",
+        "text-left h-[210px] flex flex-col rounded-xl border overflow-hidden cursor-pointer",
         "bg-gradient-to-br",
         style.gradient,
         "transition-all hover:shadow-lg hover:-translate-y-0.5",
@@ -404,7 +406,7 @@ function DraftCard({
           </span>
         )}
       </div>
-    </motion.button>
+    </motion.div>
   )
 }
 

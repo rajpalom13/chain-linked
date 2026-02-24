@@ -27,19 +27,12 @@ import { Card, CardContent } from "@/components/ui/card"
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Skeleton } from "@/components/ui/skeleton"
-import { cn } from "@/lib/utils"
+import { cn, getInitials, formatMetricNumber } from "@/lib/utils"
 import { cardHoverProps } from "@/lib/animations"
 import type { InspirationPost } from "@/components/features/inspiration-feed"
-
-/** Maximum character count before content is truncated */
-const CONTENT_TRUNCATE_LENGTH = 200
-
-/** Fixed content height in lines for consistent card display */
-const CONTENT_MAX_LINES = 4
 
 /**
  * Props for the InspirationPostCard component
@@ -86,29 +79,6 @@ const CATEGORY_LABELS: Record<string, string> = {
 }
 
 /**
- * Formats a number into a compact, human-readable string
- */
-function formatMetricNumber(num: number): string {
-  if (num >= 1000000) {
-    return `${(num / 1000000).toFixed(1)}M`
-  }
-  if (num >= 1000) {
-    return `${(num / 1000).toFixed(1)}K`
-  }
-  return num.toString()
-}
-
-/**
- * Generates initials from a full name
- */
-function getInitials(name: string): string {
-  const parts = name.split(" ").filter(Boolean)
-  if (parts.length === 0) return "?"
-  if (parts.length === 1) return parts[0].charAt(0).toUpperCase()
-  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
-}
-
-/**
  * Calculate engagement score for virality indicator
  */
 function calculateEngagementScore(metrics: InspirationPost["metrics"]): number {
@@ -135,62 +105,19 @@ function MetricItem({
   color?: string
 }) {
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className={cn("flex items-center gap-1", color)}>
-            <Icon className="size-3.5" />
-            <span className="text-xs font-medium tabular-nums">
-              {formatMetricNumber(value)}
-            </span>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>{value.toLocaleString()} {label}</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  )
-}
-
-/**
- * Metrics overlay that appears on hover (Pinterest-style)
- */
-function MetricsOverlay({
-  metrics,
-  isVisible,
-}: {
-  metrics: InspirationPost["metrics"]
-  isVisible: boolean
-}) {
-  return (
-    <motion.div
-      className="absolute inset-0 flex items-end justify-center p-4 pointer-events-none"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: isVisible ? 1 : 0 }}
-      transition={{ duration: 0.2 }}
-    >
-      <div className="glass rounded-xl px-4 py-2 flex gap-4 border border-border/30 shadow-lg">
-        <div className="flex items-center gap-1.5 text-primary">
-          <IconThumbUp className="size-4" />
-          <span className="text-sm font-semibold tabular-nums">
-            {formatMetricNumber(metrics.reactions)}
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className={cn("flex items-center gap-1", color)}>
+          <Icon className="size-3.5" />
+          <span className="text-xs font-medium tabular-nums">
+            {formatMetricNumber(value)}
           </span>
         </div>
-        <div className="flex items-center gap-1.5 text-secondary">
-          <IconMessageCircle className="size-4" />
-          <span className="text-sm font-semibold tabular-nums">
-            {formatMetricNumber(metrics.comments)}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5 text-accent-foreground">
-          <IconShare className="size-4" />
-          <span className="text-sm font-semibold tabular-nums">
-            {formatMetricNumber(metrics.reposts)}
-          </span>
-        </div>
-      </div>
-    </motion.div>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>{value.toLocaleString()} {label}</p>
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -233,8 +160,6 @@ export function InspirationPostCard({
   className,
   compact = false,
 }: InspirationPostCardProps) {
-  const [isHovered, setIsHovered] = React.useState(false)
-
   const relativeTime = formatDistanceToNow(new Date(post.postedAt), {
     addSuffix: true,
   })
@@ -262,8 +187,6 @@ export function InspirationPostCard({
   return (
     <motion.div
       className="relative"
-      onHoverStart={() => setIsHovered(true)}
-      onHoverEnd={() => setIsHovered(false)}
       {...cardHoverProps}
     >
       <ViralityBadge score={engagementScore} />
@@ -320,37 +243,35 @@ export function InspirationPostCard({
             </div>
 
             {/* Save/Bookmark Button */}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <motion.div
-                    initial={{ scale: 1 }}
-                    whileTap={{ scale: 0.9 }}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <motion.div
+                  initial={{ scale: 1 }}
+                  whileTap={{ scale: 0.9 }}
+                >
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn(
+                      "size-8 shrink-0 transition-all duration-200",
+                      isSaved
+                        ? "opacity-100 text-primary"
+                        : "opacity-0 group-hover:opacity-100"
+                    )}
+                    onClick={handleSaveToggle}
                   >
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={cn(
-                        "size-8 shrink-0 transition-all duration-200",
-                        isSaved
-                          ? "opacity-100 text-primary"
-                          : "opacity-0 group-hover:opacity-100"
-                      )}
-                      onClick={handleSaveToggle}
-                    >
-                      {isSaved ? (
-                        <IconBookmarkFilled className="size-4" />
-                      ) : (
-                        <IconBookmark className="size-4" />
-                      )}
-                    </Button>
-                  </motion.div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{isSaved ? "Remove from saved" : "Save for later"}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+                    {isSaved ? (
+                      <IconBookmarkFilled className="size-4" />
+                    ) : (
+                      <IconBookmark className="size-4" />
+                    )}
+                  </Button>
+                </motion.div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{isSaved ? "Remove from saved" : "Save for later"}</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
 
           {/* Content Section - Fixed height for consistent cards */}
@@ -414,32 +335,27 @@ export function InspirationPostCard({
                 </Button>
               </motion.div>
               {onExpand && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <motion.div whileTap={{ scale: 0.95 }}>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleExpand}
-                          className="shrink-0 border-border/50 hover:border-primary/30"
-                        >
-                          <IconMaximize className="size-3.5" />
-                        </Button>
-                      </motion.div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>View full post</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <motion.div whileTap={{ scale: 0.95 }}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleExpand}
+                        className="shrink-0 border-border/50 hover:border-primary/30"
+                      >
+                        <IconMaximize className="size-3.5" />
+                      </Button>
+                    </motion.div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>View full post</p>
+                  </TooltipContent>
+                </Tooltip>
               )}
             </div>
           </div>
         </CardContent>
-
-        {/* Metrics Overlay (hidden for now, can be enabled) */}
-        {/* <MetricsOverlay metrics={post.metrics} isVisible={isHovered} /> */}
       </Card>
     </motion.div>
   )

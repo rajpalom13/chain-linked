@@ -5,6 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 
 /** Allowed image content types */
 const ALLOWED_CONTENT_TYPES = [
@@ -20,6 +21,53 @@ const ALLOWED_CONTENT_TYPES = [
 /** Maximum image size: 10MB */
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024
 
+/** Allowed hostnames for image proxying */
+const ALLOWED_HOSTNAMES = [
+  'media.licdn.com',
+  'img.logo.dev',
+  'images.unsplash.com',
+]
+
+/**
+ * Checks if a hostname matches the allowlist (supports wildcard subdomains for linkedin.com)
+ * @param hostname - The hostname to check
+ * @returns True if the hostname is allowed
+ */
+function isAllowedHostname(hostname: string): boolean {
+  if (ALLOWED_HOSTNAMES.includes(hostname)) return true
+  // Allow *.linkedin.com subdomains
+  if (hostname === 'linkedin.com' || hostname.endsWith('.linkedin.com')) return true
+  return false
+}
+
+/**
+ * Checks if a hostname resolves to a private/internal IP range
+ * @param hostname - The hostname to check
+ * @returns True if the hostname appears to be a private/internal address
+ */
+function isPrivateHost(hostname: string): boolean {
+  // Block localhost variants
+  if (hostname === 'localhost' || hostname === '::1') return true
+
+  // Check if it's an IP address and block private ranges
+  const ipv4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
+  if (ipv4Match) {
+    const [, a, b] = ipv4Match.map(Number)
+    // 10.0.0.0/8
+    if (a === 10) return true
+    // 172.16.0.0/12
+    if (a === 172 && b >= 16 && b <= 31) return true
+    // 192.168.0.0/16
+    if (a === 192 && b === 168) return true
+    // 127.0.0.0/8 (loopback)
+    if (a === 127) return true
+    // 169.254.0.0/16 (link-local)
+    if (a === 169 && b === 254) return true
+  }
+
+  return false
+}
+
 /**
  * GET /api/proxy-image?url=<encoded-url>
  * Fetches an external image and serves it with proper CORS headers
@@ -28,6 +76,17 @@ const MAX_IMAGE_SIZE = 10 * 1024 * 1024
  */
 export async function GET(request: NextRequest) {
   try {
+    // Verify user authentication
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
     const url = request.nextUrl.searchParams.get('url')
 
     if (!url) {
@@ -53,6 +112,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: 'Only HTTP(S) URLs are allowed' },
         { status: 400 }
+      )
+    }
+
+    // Block private/internal IP addresses (SSRF protection)
+    if (isPrivateHost(parsedUrl.hostname)) {
+      return NextResponse.json(
+        { error: 'Requests to private/internal addresses are not allowed' },
+        { status: 403 }
+      )
+    }
+
+    // Only allow known image hostnames
+    if (!isAllowedHostname(parsedUrl.hostname)) {
+      return NextResponse.json(
+        { error: 'Hostname not allowed' },
+        { status: 403 }
       )
     }
 

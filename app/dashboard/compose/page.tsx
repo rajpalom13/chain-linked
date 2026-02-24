@@ -57,6 +57,10 @@ function ComposeContent() {
   // Track whether draft has already been saved to avoid double-saves
   const draftSavedRef = React.useRef(false)
 
+  // Track user in a ref so cleanup effects always have the current value
+  const userRef = React.useRef(user)
+  userRef.current = user
+
   // Track the current content for auto-save (via ref to avoid stale closures)
   const contentRef = React.useRef(draft.content || "")
 
@@ -131,11 +135,12 @@ function ComposeContent() {
   /**
    * Auto-save draft on Next.js route change (component unmount).
    * This fires when the user navigates to a different dashboard page.
+   * Uses userRef.current to avoid stale closure over user.
    */
   React.useEffect(() => {
     return () => {
       const currentContent = contentRef.current.trim()
-      if (currentContent && !draftSavedRef.current && user) {
+      if (currentContent && !draftSavedRef.current && userRef.current) {
         // Fire-and-forget save on unmount
         const ctx = generationContextRef.current
         const wordCount = currentContent.split(/\s+/).filter(Boolean).length

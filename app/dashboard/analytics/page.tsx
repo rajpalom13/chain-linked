@@ -135,7 +135,8 @@ function useMyRecentPosts(userId: string | undefined, limit = 9) {
     } finally {
       setIsLoading(false)
     }
-  }, [supabase, userId, limit])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase client is effectively a singleton
+  }, [userId, limit])
 
   useEffect(() => {
     fetchPosts()
@@ -559,6 +560,7 @@ function AnalyticsContent() {
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
+      URL.revokeObjectURL(url)
       toast.success('Analytics data exported successfully')
     } catch (err) {
       console.error('Export error:', err)

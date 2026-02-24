@@ -274,13 +274,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setProfile(prev => {
       // If new profile is null but we already have one, keep the existing data
       if (!newProfile && prev) {
-        console.log('[AuthProvider] Blocked null profile downgrade — keeping existing profile')
+        // Blocked null profile downgrade — keeping existing profile
         return prev
       }
       // If we have an existing profile with LinkedIn data and new one lacks it,
       // merge to preserve LinkedIn data (fetch may have partially failed)
       if (prev?.linkedin_profile && newProfile && !newProfile.linkedin_profile) {
-        console.log('[AuthProvider] Preserving LinkedIn data from existing profile')
+        // Preserving LinkedIn data from existing profile
         return {
           ...newProfile,
           linkedin_profile: prev.linkedin_profile,
@@ -389,14 +389,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Listen for ALL auth state changes including INITIAL_SESSION
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
-        console.log('[AuthProvider] onAuthStateChange:', { event, hasSession: !!newSession, email: newSession?.user?.email })
 
         if (!isMounted || abortController.signal.aborted) return
 
         // Handle different auth events appropriately
         if (event === 'SIGNED_OUT') {
           // Only clear state on explicit sign out
-          console.log('[AuthProvider] SIGNED_OUT - clearing all state')
           setUser(null)
           setProfile(null)
           setSession(null)
@@ -428,7 +426,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
             const profileAge = Date.now() - lastProfileFetchTime
             const isProfileFresh = profileAge < 60000 // 60 seconds
             if (event === 'SIGNED_IN' && profileRef.current?.id === newSession.user.id && isProfileFresh) {
-              console.log('[AuthProvider] SIGNED_IN with fresh profile — skipping re-fetch')
               setSession(newSession)
               setUser(prev => prev?.id === newSession.user.id ? prev : newSession.user)
               if (!hasInitialized) {
@@ -441,7 +438,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
             // Fetch profile BEFORE setting user/session so all state updates
             // are batched into a single render — avoids the flash where name
             // shows but avatar/headline are missing.
-            console.log('[AuthProvider] Fetching profile for:', newSession.user.email)
             const fetchId = ++currentFetchId
             const userProfile = await fetchProfileWithTimeout(newSession.user.id, fetchId)
             if (isMounted && fetchId === currentFetchId && !abortController.signal.aborted) {
@@ -468,13 +464,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
           if (event === 'INITIAL_SESSION' || !hasInitialized) {
             hasInitialized = true
             if (isMounted) {
-              console.log('[AuthProvider] Setting isLoading=false after:', event)
               setIsLoading(false)
             }
           }
         } else if (event === 'INITIAL_SESSION') {
           // Only clear on INITIAL_SESSION with no user (truly not logged in)
-          console.log('[AuthProvider] INITIAL_SESSION with no user - user is not logged in')
           setUser(null)
           setProfile(null)
 
@@ -491,13 +485,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     // Call getSession to trigger the INITIAL_SESSION event
     // This is required to kick off the auth state detection
-    console.log('[AuthProvider] Calling getSession to trigger INITIAL_SESSION...')
     supabase.auth.getSession().then(({ data: { session }, error }) => {
-      console.log('[AuthProvider] getSession completed:', { hasSession: !!session, error })
       // If there's no session and we haven't initialized, set loading to false
       // (onAuthStateChange should have fired INITIAL_SESSION, but this is a fallback)
       if (!session && !hasInitialized && isMounted) {
-        console.log('[AuthProvider] No session from getSession, setting isLoading=false (fallback)')
         hasInitialized = true
         setIsLoading(false)
       }
@@ -526,7 +517,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // If we have a user but no LinkedIn profile data, the extension may still be syncing
     if (profile && !profile.linkedin_profile) {
       const timer = setTimeout(async () => {
-        console.log('[AuthProvider] Re-fetching profile (LinkedIn data may have arrived from extension)')
         const updated = await fetchProfile(user.id)
         if (updated?.linkedin_profile) {
           setProfile(updated)

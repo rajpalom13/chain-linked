@@ -26,20 +26,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { createClient } from '@/lib/supabase/client'
 import { useInvitations, type AcceptInvitationResult } from '@/hooks/use-invitations'
 import type { TeamInvitationWithInviter } from '@/types/database'
-
-/**
- * Get initials from a name string
- * @param name - Full name to extract initials from
- * @returns Up to 2 character initials
- */
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2)
-}
+import { getInitials } from '@/lib/utils'
 
 /**
  * Invitation status types

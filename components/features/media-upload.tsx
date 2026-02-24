@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Image from "next/image"
 import {
   IconFile,
   IconMovie,
@@ -232,11 +233,23 @@ export function MediaUpload({
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   // Track current files for simulated upload updates
   const filesRef = React.useRef<MediaFile[]>(files)
+  // Track interval ID for cleanup
+  const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Keep ref in sync with props
   React.useEffect(() => {
     filesRef.current = files
   }, [files])
+
+  // Cleanup interval on unmount
+  React.useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+    }
+  }, [])
 
   // Determine if we've reached the file limit
   const hasVideo = files.some((f) => f.type === "video")
@@ -282,6 +295,7 @@ export function MediaUpload({
           if (progress >= 100) {
             progress = 100
             clearInterval(interval)
+            intervalRef.current = null
 
             const updatedFiles = filesRef.current.map((f) =>
               f.id === mediaFile.id
@@ -298,6 +312,7 @@ export function MediaUpload({
             onFilesChange(updatedFiles)
           }
         }, 200)
+        intervalRef.current = interval
       }
     },
     [onFilesChange, onUpload]
@@ -556,12 +571,13 @@ export function MediaUpload({
                 {/* Preview content */}
                 <div className="relative aspect-square">
                   {mediaFile.type === "image" ? (
-                    // Image preview
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    // Image preview (blob URLs require unoptimized)
+                    <Image
                       src={mediaFile.previewUrl}
                       alt={mediaFile.file.name}
-                      className="size-full object-cover"
+                      fill
+                      className="object-cover"
+                      unoptimized
                     />
                   ) : (
                     // Non-image file preview

@@ -129,7 +129,7 @@ export async function PATCH(request: Request) {
       // Fetch the template to check ownership or public status
       const { data: template } = await supabase
         .from('templates')
-        .select('usage_count, is_public, user_id')
+        .select('is_public, user_id, usage_count')
         .eq('id', id)
         .single()
 
@@ -142,23 +142,21 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ error: 'Not authorized to use this template' }, { status: 403 })
       }
 
-      updates.usage_count = (template.usage_count || 0) + 1
+      const newUsageCount = (template.usage_count || 0) + 1
 
-      // For public templates not owned by user, update without the user_id filter
-      if (template.is_public && template.user_id !== user.id) {
-        const { data: updatedTemplate, error: updateError } = await query
-          .update(updates)
-          .eq('id', id)
-          .select()
-          .single()
+      // For public templates not owned by user, update without user_id filter
+      const updateQuery = template.is_public && template.user_id !== user.id
+        ? supabase.from('templates').update({ usage_count: newUsageCount }).eq('id', id)
+        : supabase.from('templates').update({ ...updates, usage_count: newUsageCount }).eq('id', id).eq('user_id', user.id)
 
-        if (updateError) {
-          console.error('Update error:', updateError)
-          return NextResponse.json({ error: 'Failed to update template' }, { status: 500 })
-        }
+      const { data: updatedTemplate, error: updateError } = await updateQuery.select().single()
 
-        return NextResponse.json({ template: updatedTemplate })
+      if (updateError) {
+        console.error('Update error:', updateError)
+        return NextResponse.json({ error: 'Failed to update template' }, { status: 500 })
       }
+
+      return NextResponse.json({ template: updatedTemplate })
     }
 
     const { data: updatedTemplate, error: updateError } = await query

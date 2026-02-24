@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { cn, formatMetricNumber } from "@/lib/utils"
+import { cn, formatMetricNumber, getInitials } from "@/lib/utils"
 
 /**
  * Statistics for a team member on the leaderboard
@@ -72,17 +72,6 @@ export interface TeamLeaderboardProps {
   className?: string
 }
 
-/**
- * Generates initials from a full name.
- * @param name - Full name to extract initials from
- * @returns Two-letter initials string
- */
-function getInitials(name: string): string {
-  const parts = name.split(" ").filter(Boolean)
-  if (parts.length === 0) return "?"
-  if (parts.length === 1) return parts[0].charAt(0).toUpperCase()
-  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
-}
 
 /**
  * Returns the styling for rank position badges.

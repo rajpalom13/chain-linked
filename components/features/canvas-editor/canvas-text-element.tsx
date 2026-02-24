@@ -32,7 +32,18 @@ export function CanvasTextElement({
 }: CanvasTextElementProps) {
   const textRef = useRef<Konva.Text>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+
+  // Cleanup textarea on unmount to prevent memory leak
+  useEffect(() => {
+    return () => {
+      if (textareaRef.current && textareaRef.current.parentNode) {
+        textareaRef.current.parentNode.removeChild(textareaRef.current);
+        textareaRef.current = null;
+      }
+    };
+  }, []);
 
   // Attach transformer when selected
   useEffect(() => {
@@ -89,6 +100,7 @@ export function CanvasTextElement({
 
     // Create textarea for editing
     const textarea = document.createElement('textarea');
+    textareaRef.current = textarea;
     document.body.appendChild(textarea);
 
     textarea.value = element.text;
@@ -120,7 +132,10 @@ export function CanvasTextElement({
     // Handle blur to finish editing
     const handleBlur = () => {
       const newText = textarea.value;
-      document.body.removeChild(textarea);
+      if (textarea.parentNode) {
+        document.body.removeChild(textarea);
+      }
+      textareaRef.current = null;
       setIsEditing(false);
       onChange({ text: newText });
     };
@@ -129,7 +144,10 @@ export function CanvasTextElement({
     const handleKeyDown = (e: KeyboardEvent) => {
       // Escape to cancel
       if (e.key === 'Escape') {
-        document.body.removeChild(textarea);
+        if (textarea.parentNode) {
+          document.body.removeChild(textarea);
+        }
+        textareaRef.current = null;
         setIsEditing(false);
         return;
       }

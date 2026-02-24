@@ -14,7 +14,7 @@ export function TemplateGridSkeleton() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="rounded-xl border border-t-2 border-border/50 border-t-muted p-5 space-y-3">
+        <div key={`skeleton-${i}`} className="rounded-xl border border-t-2 border-border/50 border-t-muted p-5 space-y-3">
           <div className="flex items-start justify-between">
             <Skeleton className="h-5 w-32" />
             <Skeleton className="h-5 w-20 rounded-full" />

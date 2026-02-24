@@ -39,7 +39,7 @@ import { trackSettingsChanged, trackLinkedInAction } from "@/lib/analytics"
 import { ApiKeySettings } from "@/components/features/api-key-settings"
 import { LinkedInStatusBadge } from "@/components/features/linkedin-status-badge"
 
-import { cn } from "@/lib/utils"
+import { cn, getInitials } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -179,20 +179,6 @@ interface BrandKitFormState {
 }
 
 /**
- * Gets initials from a name string
- * @param name - Full name to extract initials from
- * @returns Up to 2 character initials
- */
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2)
-}
-
-/**
  * Maps role to badge variant and display text
  * @param role - Team member role
  * @returns Object with variant and label
@@ -292,6 +278,16 @@ export function Settings({
   // Saving state
   const [isSaving, setIsSaving] = React.useState(false)
   const [saveStatus, setSaveStatus] = React.useState<'idle' | 'saving' | 'saved'>('idle')
+  const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Cleanup save status timer on unmount
+  React.useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current)
+      }
+    }
+  }, [])
 
   // Fetch saved brand kit on mount
   React.useEffect(() => {
@@ -429,8 +425,12 @@ export function Settings({
     } finally {
       setIsSaving(false)
       // Auto-hide the "Saved" indicator after 3 seconds
-      setTimeout(() => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current)
+      }
+      saveTimerRef.current = setTimeout(() => {
         setSaveStatus('idle')
+        saveTimerRef.current = null
       }, 3000)
     }
   }

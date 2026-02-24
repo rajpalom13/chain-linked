@@ -99,8 +99,8 @@ export async function middleware(request: NextRequest) {
             .select('onboarding_completed, onboarding_current_step, company_onboarding_completed')
             .eq('id', user.id)
             .single(),
-          new Promise<{ data: null }>((resolve) =>
-            setTimeout(() => resolve({ data: null }), 8000)
+          new Promise<{ data: null; error: null }>((resolve) =>
+            setTimeout(() => resolve({ data: null, error: null }), 8000)
           ),
         ])
 

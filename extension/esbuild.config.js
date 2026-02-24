@@ -51,6 +51,7 @@ async function buildContentScripts() {
     { entry: 'company-extractor.ts', out: 'company-extractor.js' },
     { entry: 'main-world-interceptor.ts', out: 'main-world-interceptor.js' },
     { entry: 'webapp-bridge.ts', out: 'webapp-bridge.js' },
+    { entry: 'webapp-relay.ts', out: 'webapp-relay.js' },
   ];
 
   for (const script of contentScripts) {

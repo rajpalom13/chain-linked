@@ -495,7 +495,8 @@ function DashboardContent() {
       setHasScheduledContent(scheduledCount > 0)
     }
     checkOnboarding()
-  }, [user?.id, supabase])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase client is effectively a singleton
+  }, [user?.id])
 
   const tourCompleted = profile?.dashboard_tour_completed !== false
 

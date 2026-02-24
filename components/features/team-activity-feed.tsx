@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Image from "next/image"
 import {
   IconEye,
   IconThumbUp,
@@ -117,13 +118,16 @@ function MediaGrid({ mediaUrls }: { mediaUrls: string[] }) {
 
   if (count === 1) {
     return (
-      /* eslint-disable-next-line @next/next/no-img-element */
-      <img
-        src={mediaUrls[0]}
-        alt="Post media"
-        className="w-full max-h-[512px] object-cover"
-        loading="lazy"
-      />
+      <div className="relative w-full" style={{ maxHeight: 512 }}>
+        <Image
+          src={mediaUrls[0]}
+          alt="Post media"
+          width={600}
+          height={512}
+          className="w-full max-h-[512px] object-cover"
+          unoptimized
+        />
+      </div>
     )
   }
 
@@ -131,14 +135,15 @@ function MediaGrid({ mediaUrls }: { mediaUrls: string[] }) {
     return (
       <div className="grid grid-cols-2 gap-[2px]">
         {mediaUrls.slice(0, 2).map((url, i) => (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            key={i}
-            src={url}
-            alt={`Post media ${i + 1}`}
-            className="w-full h-52 object-cover"
-            loading="lazy"
-          />
+          <div key={i} className="relative h-52">
+            <Image
+              src={url}
+              alt={`Post media ${i + 1}`}
+              fill
+              className="object-cover"
+              unoptimized
+            />
+          </div>
         ))}
       </div>
     )
@@ -147,28 +152,33 @@ function MediaGrid({ mediaUrls }: { mediaUrls: string[] }) {
   if (count === 3) {
     return (
       <div className="grid grid-cols-2 gap-[2px]">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={mediaUrls[0]}
-          alt="Post media 1"
-          className="w-full h-full object-cover row-span-2"
-          style={{ gridRow: "1 / 3" }}
-          loading="lazy"
-        />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={mediaUrls[1]}
-          alt="Post media 2"
-          className="w-full h-[130px] object-cover"
-          loading="lazy"
-        />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={mediaUrls[2]}
-          alt="Post media 3"
-          className="w-full h-[130px] object-cover"
-          loading="lazy"
-        />
+        <div className="relative row-span-2" style={{ gridRow: "1 / 3" }}>
+          <Image
+            src={mediaUrls[0]}
+            alt="Post media 1"
+            fill
+            className="object-cover"
+            unoptimized
+          />
+        </div>
+        <div className="relative h-[130px]">
+          <Image
+            src={mediaUrls[1]}
+            alt="Post media 2"
+            fill
+            className="object-cover"
+            unoptimized
+          />
+        </div>
+        <div className="relative h-[130px]">
+          <Image
+            src={mediaUrls[2]}
+            alt="Post media 3"
+            fill
+            className="object-cover"
+            unoptimized
+          />
+        </div>
       </div>
     )
   }
@@ -177,22 +187,23 @@ function MediaGrid({ mediaUrls }: { mediaUrls: string[] }) {
   return (
     <div className="grid grid-cols-2 gap-[2px]">
       {mediaUrls.slice(0, 3).map((url, i) => (
-        /* eslint-disable-next-line @next/next/no-img-element */
-        <img
-          key={i}
-          src={url}
-          alt={`Post media ${i + 1}`}
-          className="w-full h-40 object-cover"
-          loading="lazy"
-        />
+        <div key={i} className="relative h-40">
+          <Image
+            src={url}
+            alt={`Post media ${i + 1}`}
+            fill
+            className="object-cover"
+            unoptimized
+          />
+        </div>
       ))}
-      <div className="relative">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+      <div className="relative h-40">
+        <Image
           src={mediaUrls[3]}
           alt="Post media 4"
-          className="w-full h-40 object-cover"
-          loading="lazy"
+          fill
+          className="object-cover"
+          unoptimized
         />
         {count > 4 && (
           <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
@@ -434,13 +445,15 @@ function CompactPostCard({ post }: { post: TeamActivityItem }) {
       {/* First image thumbnail if available */}
       {post.mediaUrls && post.mediaUrls.length > 0 && (
         <div className="mb-2 rounded-lg overflow-hidden border border-border/50">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={post.mediaUrls[0]}
-            alt="Post media"
-            className="w-full h-32 object-cover"
-            loading="lazy"
-          />
+          <div className="relative w-full h-32">
+            <Image
+              src={post.mediaUrls[0]}
+              alt="Post media"
+              fill
+              className="object-cover"
+              unoptimized
+            />
+          </div>
           {post.mediaUrls.length > 1 && (
             <div className="text-[10px] text-muted-foreground text-center py-0.5 bg-muted/50">
               +{post.mediaUrls.length - 1} more

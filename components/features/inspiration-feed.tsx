@@ -176,7 +176,7 @@ function LoadingSkeletonGrid({ count = 6 }: { count?: number }) {
       animate="animate"
     >
       {Array.from({ length: count }).map((_, index) => (
-        <motion.div key={index} variants={staggerItemVariants}>
+        <motion.div key={`skeleton-${index}`} variants={staggerItemVariants}>
           <InspirationPostCardSkeleton />
         </motion.div>
       ))}

@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url)
-  const days = parseInt(searchParams.get('days') || '30')
+  const days = Math.min(parseInt(searchParams.get('days') || '30'), 365)
 
   // Get latest analytics
   const { data: analytics, error: analyticsError } = await supabase

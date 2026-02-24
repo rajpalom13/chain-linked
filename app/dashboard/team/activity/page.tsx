@@ -107,7 +107,7 @@ function useAllTeamPosts(limit: number = 100) {
           .from('team_members')
           .select('team_id')
           .eq('user_id', user.id)
-          .single()
+          .maybeSingle()
 
         if (!teamError && teamMembership?.team_id) {
           const { data: teamMembersData } = await supabase

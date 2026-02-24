@@ -122,8 +122,6 @@ function estimateDuration(body: StartResearchRequest): number {
  */
 export async function POST(request: Request) {
   const supabase = await createClient()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any // Type assertion for new tables not in schema
 
   // Verify authentication
   const {
@@ -153,7 +151,7 @@ export async function POST(request: Request) {
   }
 
   // Check for rate limiting - max 5 active sessions per user
-  const { data: activeSessions, error: sessionError } = await db
+  const { data: activeSessions, error: sessionError } = await supabase
     .from('research_sessions')
     .select('id')
     .eq('user_id', user.id)
@@ -180,7 +178,7 @@ export async function POST(request: Request) {
   const cleanedTopics = body.topics.map((t) => t.trim())
 
   // Create session record
-  const { error: insertError } = await db.from('research_sessions').insert({
+  const { error: insertError } = await supabase.from('research_sessions').insert({
     id: sessionId,
     user_id: user.id,
     topics: cleanedTopics,
@@ -237,7 +235,7 @@ export async function POST(request: Request) {
     console.error('[Research/Start] Failed to trigger Inngest workflow:', error)
 
     // Update session status to failed
-    await db
+    await supabase
       .from('research_sessions')
       .update({ status: 'failed', error_message: 'Failed to start workflow' })
       .eq('id', sessionId)

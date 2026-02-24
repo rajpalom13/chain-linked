@@ -64,6 +64,7 @@ import {
 } from "@/components/ui/table"
 
 import { useAdminUsers } from "@/hooks/use-admin-users"
+import { getInitials } from "@/lib/utils"
 import type { AdminUser } from "@/types/admin"
 
 /**
@@ -154,18 +155,6 @@ function getStatusBadge(status: AdminUser["status"]): {
   }
 }
 
-/**
- * Gets user initials for avatar fallback
- * @param name - User's full name
- * @returns Two-character initials
- */
-function getInitials(name: string): string {
-  const parts = name.split(" ")
-  if (parts.length >= 2) {
-    return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
-  }
-  return name.slice(0, 2).toUpperCase()
-}
 
 /**
  * Column definitions for the user management TanStack React Table

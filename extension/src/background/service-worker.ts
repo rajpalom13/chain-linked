@@ -1225,7 +1225,50 @@ interface VoyagerMiniProfile {
 }
 
 /**
- * Search LinkedIn users via Voyager search/blended API.
+ * Known GraphQL queryId hashes for voyagerSearchDashClusters.
+ * LinkedIn rotates these hashes periodically (every 4-8 weeks).
+ * When one stops working, add the new hash at the top of this list.
+ * The hash can be extracted from LinkedIn's bundled JS in the browser.
+ */
+const SEARCH_QUERY_IDS = [
+  'voyagerSearchDashClusters.994bf4e7d2173b92ccdb5935710c3c5d',
+  'voyagerSearchDashClusters.b0928897b71bd00a5a7291755dcd64f0',
+  'voyagerSearchDashClusters.2e1bd7852900a8ea30c06e5e09d1843b',
+];
+
+/**
+ * Attempt a single Voyager fetch with a timeout.
+ * @param url - Voyager API endpoint
+ * @param headers - Pre-built Voyager headers
+ * @param label - Human-readable label for logging
+ * @returns The fetch Response, or null if it failed/timed out
+ */
+async function tryVoyagerFetch(
+  url: string,
+  headers: Record<string, string>,
+  label: string,
+): Promise<Response | null> {
+  try {
+    console.log(`[MentionSearch] Trying ${label}: ${url.substring(0, 120)}...`);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const response = await fetch(url, { method: 'GET', headers, signal: controller.signal });
+    clearTimeout(timeout);
+    console.log(`[MentionSearch] ${label} status: ${response.status}`);
+    if (response.ok) return response;
+    return null;
+  } catch (err) {
+    console.warn(`[MentionSearch] ${label} failed:`, err);
+    return null;
+  }
+}
+
+/**
+ * Search LinkedIn users via Voyager API.
+ * Tries multiple endpoint strategies in order:
+ *   1. typeahead/hitsV2 (newer lightweight endpoint)
+ *   2. GraphQL search with multiple queryId hashes (rotated by LinkedIn)
+ *   3. search/dash/clusters REST endpoint
  * Cookies stay in the extension — only parsed results are returned.
  * @param query - Search query string
  * @returns Object with success flag and results array
@@ -1241,94 +1284,337 @@ async function handleMentionSearch(query: string): Promise<{
   }>;
   error?: string;
 }> {
+  console.log(`[MentionSearch] Starting search for "${query}"`);
   try {
     // Read cookies directly — they never leave the extension
     const liAt = await chrome.cookies.get({ url: 'https://www.linkedin.com', name: 'li_at' });
     const jsessionid = await chrome.cookies.get({ url: 'https://www.linkedin.com', name: 'JSESSIONID' });
 
+    console.log(`[MentionSearch] Cookies: li_at=${liAt ? 'found' : 'MISSING'}, JSESSIONID=${jsessionid ? 'found' : 'MISSING'}`);
+
     if (!liAt?.value || !jsessionid?.value) {
+      console.warn('[MentionSearch] Missing LinkedIn cookies — user not logged in');
       return { success: false, results: [], error: 'Not logged into LinkedIn' };
     }
 
     const csrfToken = jsessionid.value.replace(/"/g, '');
     const encodedQuery = encodeURIComponent(query);
 
-    const endpoint =
-      'https://www.linkedin.com/voyager/api/search/blended' +
-      `?count=10&filters=List(resultType->PEOPLE)&keywords=${encodedQuery}` +
-      '&origin=TYPEAHEAD_ESCAPE_HATCH&q=all' +
-      '&queryContext=List(spellCorrectionEnabled->true,relatedSearchesEnabled->true)&start=0';
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-
-    const response = await fetch(endpoint, {
-      method: 'GET',
-      headers: {
-        'accept': 'application/vnd.linkedin.normalized+json+2.1',
-        'csrf-token': csrfToken,
-        'x-li-lang': 'en_US',
-        'x-restli-protocol-version': '2.0.0',
-        'cookie': `li_at=${liAt.value}; JSESSIONID=${jsessionid.value}`,
-      },
-      signal: controller.signal,
+    // Generate UUID for page instance (required by Voyager)
+    const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0;
+      const v = c === 'x' ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
     });
 
-    clearTimeout(timeout);
+    // Build headers matching what LinkedIn expects (same as working background-sync)
+    const headers: Record<string, string> = {
+      'accept': 'application/vnd.linkedin.normalized+json+2.1',
+      'accept-language': 'en-US,en;q=0.9',
+      'csrf-token': csrfToken,
+      'x-li-lang': 'en_US',
+      'x-li-page-instance': `urn:li:page:d_flagship3_feed;${uuid}`,
+      'x-li-track': JSON.stringify({
+        clientVersion: '1.13.8960',
+        mpVersion: '1.13.8960',
+        osName: 'web',
+        timezoneOffset: new Date().getTimezoneOffset() / -60,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        deviceFormFactor: 'DESKTOP',
+        mpName: 'voyager-web',
+      }),
+      'x-restli-protocol-version': '2.0.0',
+      'cookie': `li_at=${liAt.value}; JSESSIONID=${jsessionid.value}`,
+    };
 
-    if (!response.ok) {
-      return { success: false, results: [], error: `LinkedIn API error (${response.status})` };
+    let response: Response | null = null;
+
+    // Strategy 1: typeahead/hitsV2 — newer version of the deprecated typeahead/hits
+    response = await tryVoyagerFetch(
+      'https://www.linkedin.com/voyager/api/typeahead/hitsV2' +
+        `?q=blended&query=${encodedQuery}` +
+        '&count=10&type=PEOPLE',
+      headers,
+      'typeahead/hitsV2',
+    );
+
+    // Strategy 2: GraphQL search with multiple queryId hashes
+    // LinkedIn rotates the hash — try each known hash until one works
+    if (!response) {
+      for (const queryId of SEARCH_QUERY_IDS) {
+        response = await tryVoyagerFetch(
+          'https://www.linkedin.com/voyager/api/graphql' +
+            `?variables=(start:0,origin:SWITCH_SEARCH_VERTICAL,query:(keywords:${encodedQuery},flagshipSearchIntent:SEARCH_SRP,queryParameters:List((key:resultType,value:List(PEOPLE))),includeFiltersInResponse:false))` +
+            `&queryId=${queryId}`,
+          headers,
+          `graphql(${queryId.split('.')[1]?.substring(0, 8)}...)`,
+        );
+        if (response) break;
+      }
     }
 
-    const data = await response.json();
+    // Strategy 3: search/dash/clusters REST endpoint (newer than search/blended)
+    if (!response) {
+      response = await tryVoyagerFetch(
+        'https://www.linkedin.com/voyager/api/search/dash/clusters' +
+          `?q=all&query=(keywords:${encodedQuery},flagshipSearchIntent:SEARCH_SRP,` +
+          'queryParameters:List((key:resultType,value:List(PEOPLE))))' +
+          '&count=10&start=0&origin=GLOBAL_SEARCH_HEADER',
+        headers,
+        'search/dash/clusters',
+      );
+    }
 
-    // Extract MiniProfile objects from the included array
-    const included: VoyagerMiniProfile[] = data?.included || data?.data?.included || [];
-    const results: Array<{
+    // Strategy 4: legacy typeahead/hits (kept as last resort)
+    if (!response) {
+      response = await tryVoyagerFetch(
+        'https://www.linkedin.com/voyager/api/typeahead/hits' +
+          `?q=blended&query=${encodedQuery}&type=PEOPLE`,
+        headers,
+        'typeahead/hits (legacy)',
+      );
+    }
+
+    if (!response) {
+      console.error('[MentionSearch] All Voyager endpoints failed');
+      return { success: false, results: [], error: 'All LinkedIn API endpoints failed' };
+    }
+
+    const data = await response.json() as Record<string, unknown>;
+    const responseUrl = response.url;
+    console.log(`[MentionSearch] Success from: ${responseUrl.substring(0, 80)}...`);
+    console.log(`[MentionSearch] Response keys: ${Object.keys(data || {}).join(', ')}`);
+
+    type MentionResult = {
       name: string;
       urn: string;
       headline: string | null;
       avatarUrl: string | null;
       publicIdentifier: string | null;
-    }> = [];
+    };
+    const results: MentionResult[] = [];
     const seen = new Set<string>();
 
+    /**
+     * Helper: Build avatar URL from Voyager picture object (legacy MiniProfile format)
+     */
+    function buildAvatar(picture?: VoyagerMiniProfile['picture']): string | null {
+      if (!picture?.rootUrl || !picture.artifacts?.length) return null;
+      const artifact =
+        picture.artifacts.find(a => a.width === 100 && a.height === 100) ||
+        picture.artifacts[0];
+      if (!artifact?.fileIdentifyingUrlPathSegment) return null;
+      return `${picture.rootUrl}${artifact.fileIdentifyingUrlPathSegment}`;
+    }
+
+    /**
+     * Helper: Extract avatar URL from GraphQL EntityResultViewModel image object
+     */
+    function extractGraphqlAvatar(imageObj: Record<string, unknown> | undefined): string | null {
+      if (!imageObj) return null;
+      const imageAttrs = (imageObj.attributes || []) as Array<Record<string, unknown>>;
+      if (imageAttrs.length === 0) return null;
+      const detailData = imageAttrs[0].detailData as Record<string, unknown> | undefined;
+      // Try nonEntityProfilePicture path (most common for people search)
+      const nonEntity = detailData?.nonEntityProfilePicture as Record<string, unknown> | undefined;
+      // Also try profilePicture path (alternative)
+      const profilePic = detailData?.profilePicture as Record<string, unknown> | undefined;
+      const vectorImage = (nonEntity?.vectorImage || profilePic?.vectorImage) as Record<string, unknown> | undefined;
+      if (!vectorImage?.rootUrl) return null;
+      const arts = (vectorImage.artifacts || []) as Array<Record<string, unknown>>;
+      if (arts.length === 0) return null;
+      const art = arts.find(a => (a.width as number) === 100) || arts[0];
+      if (!art?.fileIdentifyingUrlPathSegment) return null;
+      return `${vectorImage.rootUrl}${art.fileIdentifyingUrlPathSegment}`;
+    }
+
+    /**
+     * Helper: Extract text from a LinkedIn text object (handles both {text:"..."} and plain string)
+     */
+    function extractText(obj: unknown): string {
+      if (typeof obj === 'string') return obj;
+      if (obj && typeof obj === 'object' && 'text' in obj) return (obj as Record<string, unknown>).text as string || '';
+      return '';
+    }
+
+    /**
+     * Helper: Extract publicIdentifier from a LinkedIn navigation URL
+     */
+    function extractPublicId(navUrl: string | undefined): string | null {
+      if (!navUrl) return null;
+      const match = navUrl.match(/\/in\/([^/?]+)/);
+      return match ? match[1] : null;
+    }
+
+    /**
+     * Helper: Extract a clean person URN from various LinkedIn URN formats.
+     * Handles: urn:li:fsd_profile:X, urn:li:fs_miniProfile:X,
+     * urn:li:fs_entityResultViewModel:(urn:li:fsd_profile:X,...), urn:li:member:X
+     */
+    function toPersonUrn(rawUrn: string): string {
+      // EntityResultViewModel URN contains inner URN: extract fsd_profile part
+      const innerMatch = rawUrn.match(/urn:li:fsd_profile:([^,)]+)/);
+      if (innerMatch) return `urn:li:person:${innerMatch[1]}`;
+      // fs_miniProfile or member URN: just take the last segment
+      const id = rawUrn.split(':').pop() || rawUrn;
+      return `urn:li:person:${id}`;
+    }
+
+    /**
+     * Helper: Add a result, deduplicating by URN
+     */
+    function addResult(r: MentionResult): void {
+      if (seen.has(r.urn)) return;
+      seen.add(r.urn);
+      results.push(r);
+    }
+
+    // Build a URN lookup map from included[] for resolving pointer references
+    const included = (data?.included || []) as Array<Record<string, unknown>>;
+    const includedByUrn = new Map<string, Record<string, unknown>>();
     for (const item of included) {
-      if (
-        item.$type === 'com.linkedin.voyager.identity.shared.MiniProfile' &&
-        item.entityUrn &&
-        item.firstName
-      ) {
-        const id = item.entityUrn.split(':').pop() || item.entityUrn;
-        const urn = `urn:li:person:${id}`;
-        if (seen.has(urn)) continue;
-        seen.add(urn);
+      const urn = item.entityUrn as string | undefined;
+      if (urn) includedByUrn.set(urn, item);
+    }
 
-        // Build avatar URL from picture artifacts
-        let avatarUrl: string | null = null;
-        if (item.picture?.rootUrl && item.picture.artifacts?.length) {
-          const artifact =
-            item.picture.artifacts.find(a => a.width === 100 && a.height === 100) ||
-            item.picture.artifacts[0];
-          if (artifact?.fileIdentifyingUrlPathSegment) {
-            avatarUrl = `${item.picture.rootUrl}${artifact.fileIdentifyingUrlPathSegment}`;
-          }
-        }
+    // Log distinct $type values for debugging
+    if (included.length > 0) {
+      const types = [...new Set(included.map(i => i.$type).filter(Boolean))];
+      console.log(`[MentionSearch] included: ${included.length} items, types: ${types.join(', ')}`);
+    }
 
-        results.push({
-          name: [item.firstName, item.lastName].filter(Boolean).join(' '),
-          urn,
-          headline: item.occupation || null,
-          avatarUrl,
-          publicIdentifier: item.publicIdentifier || null,
+    // ─── Strategy 1: Parse EntityResultViewModel objects from included[] ───
+    // GraphQL search responses put these in the included array. They have
+    // title.text (full name), primarySubtitle.text (headline), image, navigationUrl
+    for (const item of included) {
+      if (item.$type === 'com.linkedin.voyager.dash.search.EntityResultViewModel') {
+        const name = extractText(item.title);
+        const entityUrn = item.entityUrn as string | undefined;
+        if (!name || !entityUrn) continue;
+
+        addResult({
+          name,
+          urn: toPersonUrn(entityUrn),
+          headline: extractText(item.primarySubtitle) || null,
+          avatarUrl: extractGraphqlAvatar(item.image as Record<string, unknown> | undefined),
+          publicIdentifier: extractPublicId(item.navigationUrl as string | undefined),
         });
       }
     }
 
-    console.log(`[ServiceWorker] Mention search for "${query}": ${results.length} results`);
+    // ─── Strategy 2: Parse legacy MiniProfile objects from included[] ───
+    // Older REST endpoints (typeahead/hits, search/blended) return these
+    if (results.length === 0) {
+      for (const item of included) {
+        if (
+          item.$type === 'com.linkedin.voyager.identity.shared.MiniProfile' &&
+          item.firstName && item.entityUrn
+        ) {
+          const mp = item as unknown as VoyagerMiniProfile;
+          addResult({
+            name: [mp.firstName, mp.lastName].filter(Boolean).join(' '),
+            urn: toPersonUrn(mp.entityUrn!),
+            headline: mp.occupation || null,
+            avatarUrl: buildAvatar(mp.picture),
+            publicIdentifier: mp.publicIdentifier || null,
+          });
+        }
+      }
+    }
+
+    // ─── Strategy 3: Walk the GraphQL data.data.searchDashClustersByAll tree ───
+    // LinkedIn's normalized GraphQL response has a double-nested data structure:
+    // response.data.data.searchDashClustersByAll.elements[].items[]
+    // Items may have inline entityResult or URN pointers (*entityResult)
+    if (results.length === 0) {
+      // Navigate the double-nested data (data.data or data)
+      const outerData = data?.data as Record<string, unknown> | undefined;
+      const innerData = (outerData?.data || outerData) as Record<string, unknown> | undefined;
+      const clusters = (
+        innerData?.searchDashClustersByAll ||
+        innerData?.searchClustersByAll
+      ) as Record<string, unknown> | undefined;
+
+      if (clusters) {
+        const clusterElements = (clusters.elements || []) as Array<Record<string, unknown>>;
+        console.log(`[MentionSearch] Walking cluster tree: ${clusterElements.length} clusters`);
+
+        for (const cluster of clusterElements) {
+          const items = (cluster.items || []) as Array<Record<string, unknown>>;
+          for (const itemWrapper of items) {
+            const itemObj = itemWrapper.item as Record<string, unknown> | undefined;
+            if (!itemObj) continue;
+
+            // Get entityResult — may be inline or via URN pointer
+            let entityResult = itemObj.entityResult as Record<string, unknown> | undefined;
+            if (!entityResult) {
+              // Try URN pointer: "*entityResult" -> lookup in included
+              const urnRef = (itemObj as Record<string, string>)['*entityResult'];
+              if (urnRef) entityResult = includedByUrn.get(urnRef) as Record<string, unknown> | undefined;
+            }
+            if (!entityResult) continue;
+
+            const name = extractText(entityResult.title);
+            const entityUrn = entityResult.entityUrn as string | undefined;
+            if (!name || !entityUrn) continue;
+
+            addResult({
+              name,
+              urn: toPersonUrn(entityUrn),
+              headline: extractText(entityResult.primarySubtitle) || null,
+              avatarUrl: extractGraphqlAvatar(entityResult.image as Record<string, unknown> | undefined),
+              publicIdentifier: extractPublicId(entityResult.navigationUrl as string | undefined),
+            });
+          }
+        }
+      } else if (outerData) {
+        console.log(`[MentionSearch] graphql data keys: ${Object.keys(innerData || {}).join(', ')}`);
+      }
+    }
+
+    // ─── Strategy 4: Typeahead elements array (typeahead/hits format) ───
+    const elements = (data?.elements || []) as Array<Record<string, unknown>>;
+    if (elements.length > 0 && results.length === 0) {
+      console.log(`[MentionSearch] Parsing typeahead elements: ${elements.length} items`);
+      for (const el of elements) {
+        const hitInfo = (el.hitInfo || el) as Record<string, unknown>;
+        const mp = (hitInfo.miniProfile || hitInfo.member || hitInfo) as VoyagerMiniProfile;
+        if (mp?.firstName && mp?.entityUrn) {
+          addResult({
+            name: [mp.firstName, mp.lastName].filter(Boolean).join(' '),
+            urn: toPersonUrn(mp.entityUrn),
+            headline: mp.occupation || null,
+            avatarUrl: buildAvatar(mp.picture),
+            publicIdentifier: mp.publicIdentifier || null,
+          });
+        }
+      }
+    }
+
+    // ─── Strategy 5: Broadest fallback — any included item with firstName ───
+    if (results.length === 0 && included.length > 0) {
+      console.log(`[MentionSearch] Broadest fallback: scanning for any firstName+entityUrn`);
+      for (const item of included) {
+        if (item.firstName && item.entityUrn) {
+          const mp = item as unknown as VoyagerMiniProfile;
+          addResult({
+            name: [mp.firstName, mp.lastName].filter(Boolean).join(' '),
+            urn: toPersonUrn(mp.entityUrn!),
+            headline: mp.occupation || null,
+            avatarUrl: buildAvatar(mp.picture),
+            publicIdentifier: mp.publicIdentifier || null,
+          });
+        }
+      }
+    }
+
+    console.log(`[MentionSearch] Search complete for "${query}": ${results.length} results`);
+    if (results.length > 0) {
+      console.log(`[MentionSearch] First result: ${results[0].name} (${results[0].urn})`);
+    }
     return { success: true, results };
   } catch (error) {
-    console.error('[ServiceWorker] Mention search error:', error);
+    console.error('[MentionSearch] Search failed:', error);
     return { success: false, results: [], error: error instanceof Error ? error.message : 'Search failed' };
   }
 }
@@ -1338,16 +1624,22 @@ async function handleMentionSearch(query: string): Promise<{
 // ============================================
 
 chrome.runtime.onMessageExternal.addListener(
-  (message: { type?: string; query?: string }, _sender, sendResponse) => {
+  (message: { type?: string; query?: string }, sender, sendResponse) => {
+    console.log(`[ExternalMsg] Received: type=${message?.type}, from=${sender?.origin || 'unknown'}`);
     if (message?.type === 'CHAINLINKED_PING') {
+      console.log('[ExternalMsg] Responding to PING');
       sendResponse({
         installed: true,
         version: chrome.runtime.getManifest().version,
       })
     } else if (message?.type === 'LINKEDIN_MENTION_SEARCH' && message.query) {
+      console.log(`[ExternalMsg] Mention search request: "${message.query}"`);
       // Search LinkedIn users via Voyager API — cookies never leave the extension
-      handleMentionSearch(message.query).then(sendResponse).catch((err) => {
-        console.error('[ServiceWorker] Mention search error:', err);
+      handleMentionSearch(message.query).then((result) => {
+        console.log(`[ExternalMsg] Mention search response: success=${result.success}, results=${result.results.length}`);
+        sendResponse(result);
+      }).catch((err) => {
+        console.error('[ExternalMsg] Mention search error:', err);
         sendResponse({ success: false, error: 'Search failed', results: [] });
       });
     }
@@ -1385,6 +1677,19 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
       case 'GET_COOKIES':
         response = await getLinkedInCookies();
         break;
+
+      case 'LINKEDIN_MENTION_SEARCH': {
+        // Internal message from webapp-bridge content script
+        const query = (message as unknown as { query?: string }).query;
+        console.log(`[ServiceWorker] Internal mention search: "${query}"`);
+        if (query) {
+          const searchResult = await handleMentionSearch(query);
+          response = { success: searchResult.success, data: searchResult };
+        } else {
+          response = { success: false, error: 'No query provided' };
+        }
+        break;
+      }
 
       case 'CHECK_AUTH':
         response = { success: true, data: await checkAuthentication() };

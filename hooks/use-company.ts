@@ -111,7 +111,7 @@ export function useCompany(): UseCompanyReturn {
         .from('team_members')
         .select('team_id, role')
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle()
 
       if (!teamMembership) {
         // User has no team membership - check if they own a company

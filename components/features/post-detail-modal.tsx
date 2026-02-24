@@ -16,7 +16,8 @@ import {
 } from "@tabler/icons-react"
 import { formatDistanceToNow } from "date-fns"
 
-import { cn } from "@/lib/utils"
+import { cn, getInitials, formatMetricNumber } from "@/lib/utils"
+import { getCategoryBadgeVariant } from "@/lib/category-utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -99,60 +100,6 @@ export interface PostDetailModalProps {
   isSaving?: boolean
   /** Additional CSS classes to apply to the dialog content */
   className?: string
-}
-
-/**
- * Formats a number into a compact, human-readable string.
- * @param num - The number to format
- * @returns Formatted string (e.g., "1.2K", "3.4M")
- */
-function formatMetricNumber(num: number): string {
-  if (num >= 1000000) {
-    return `${(num / 1000000).toFixed(1)}M`
-  }
-  if (num >= 1000) {
-    return `${(num / 1000).toFixed(1)}K`
-  }
-  return num.toString()
-}
-
-/**
- * Generates initials from a full name.
- * @param name - Full name to extract initials from
- * @returns Two-letter initials string
- */
-function getInitials(name: string): string {
-  const parts = name.split(" ").filter(Boolean)
-  if (parts.length === 0) return "?"
-  if (parts.length === 1) return parts[0].charAt(0).toUpperCase()
-  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
-}
-
-/**
- * Returns the badge variant based on category.
- * @param category - The category string
- * @returns Badge variant string
- */
-function getCategoryBadgeVariant(
-  category: string
-): "default" | "secondary" | "outline" {
-  const lowerCategory = category.toLowerCase()
-  if (
-    lowerCategory.includes("thought") ||
-    lowerCategory.includes("leadership")
-  ) {
-    return "default"
-  }
-  if (lowerCategory.includes("personal") || lowerCategory.includes("story")) {
-    return "secondary"
-  }
-  if (lowerCategory.includes("sales") || lowerCategory.includes("business")) {
-    return "default"
-  }
-  if (lowerCategory.includes("how-to") || lowerCategory.includes("tutorial")) {
-    return "secondary"
-  }
-  return "outline"
 }
 
 /**
@@ -388,7 +335,7 @@ export function PostDetailModal({
                   value={post.metrics.shares}
                   label="shares"
                 />
-                {post.metrics.impressions && (
+                {typeof post.metrics.impressions === 'number' && (
                   <MetricItem
                     icon={IconEye}
                     value={post.metrics.impressions}

@@ -135,7 +135,8 @@ export function CanvasImageElement({
       img.onload = null;
       img.onerror = null;
     };
-  }, [element.src]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- onChange is stable from parent; re-run when aspect ratio or dimensions change
+  }, [element.src, element.preserveAspectRatio, element.width, element.height]);
 
   // Attach transformer when selected
   useEffect(() => {

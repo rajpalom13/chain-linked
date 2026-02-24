@@ -50,7 +50,7 @@ import { ApiKeySettings } from "@/components/features/api-key-settings"
 import { LinkedInStatusBadge } from "@/components/features/linkedin-status-badge"
 import { SettingsSkeleton } from "@/components/skeletons/page-skeletons"
 
-import { cn } from "@/lib/utils"
+import { cn, getInitials } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -181,19 +181,6 @@ const sectionVariants: Variants = {
    HELPERS
    ============================================================================= */
 
-/**
- * Gets initials from a name string
- * @param name - Full name to extract initials from
- * @returns Up to 2 character initials
- */
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2)
-}
 
 /**
  * Maps role to badge variant

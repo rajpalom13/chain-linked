@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   IconCheck,
@@ -274,8 +275,7 @@ function SlideRenderer({ slide, scale = 0.38 }: { slide: CanvasSlide; scale?: nu
                 transform: `rotate(${element.rotation}deg)`,
               }}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={element.src} alt={element.alt || ''} className="h-full w-full object-cover" />
+              <Image src={element.src} alt={element.alt || ''} fill className="object-cover" unoptimized />
             </div>
           );
         }
@@ -366,7 +366,13 @@ function TemplateCard({
       )}
 
       {/* First slide preview - click opens preview popup */}
-      <button type="button" onClick={onPreview} className="block w-full text-left">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onPreview}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPreview() } }}
+        className="block w-full text-left cursor-pointer"
+      >
         <div
           className="relative aspect-square w-full overflow-hidden"
           style={{ backgroundColor: firstSlide?.backgroundColor || '#f5f5f5' }}
@@ -402,7 +408,7 @@ function TemplateCard({
             </Button>
           </div>
         </div>
-      </button>
+      </div>
     </motion.div>
   );
 }
@@ -729,7 +735,7 @@ export function TemplateSelectorModal({
         favoritesFetchedRef.current = true;
       });
     }
-  }, [open, fetchTemplates]);
+  }, [open, fetchTemplates, fetchCategories]);
 
   /**
    * Toggle a template's favorite status with optimistic UI update

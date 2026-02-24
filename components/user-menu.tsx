@@ -22,24 +22,7 @@ import { IconLogout, IconSettings, IconUser, IconMoon, IconSun } from '@tabler/i
 import Link from 'next/link'
 import { useTheme } from 'next-themes'
 import { useEffect, useState } from 'react'
-
-/**
- * Get user initials from name or email
- */
-function getInitials(name: string | null, email: string | null): string {
-  if (name) {
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2)
-  }
-  if (email) {
-    return email.slice(0, 2).toUpperCase()
-  }
-  return 'U'
-}
+import { getInitials } from '@/lib/utils'
 
 /**
  * User Menu component with avatar and dropdown
@@ -78,7 +61,7 @@ export function UserMenu() {
           <Avatar className="h-8 w-8">
             <AvatarImage src={avatarUrl || undefined} alt={displayName || 'User'} />
             <AvatarFallback className="bg-primary/10 text-primary text-xs">
-              {getInitials(profile?.name || null, user.email || null)}
+              {getInitials(profile?.name || user.email || 'U')}
             </AvatarFallback>
           </Avatar>
         </Button>

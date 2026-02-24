@@ -7,6 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 
 /** Maximum allowed image size: 12MB (remove.bg accepts up to 12MB) */
 const MAX_IMAGE_SIZE = 12 * 1024 * 1024;
@@ -27,6 +28,17 @@ const REMOVE_BG_URL = 'https://api.remove.bg/v1.0/removebg';
  */
 export async function POST(request: NextRequest) {
   try {
+    // Verify user authentication
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 },
+      );
+    }
+
     const apiKey = process.env.REMOVE_BG_API_KEY;
     if (!apiKey) {
       console.error('[RemoveBG] REMOVE_BG_API_KEY is not configured');

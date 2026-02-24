@@ -21,8 +21,6 @@ import {
   SidebarProvider,
 } from '@/components/ui/sidebar'
 
-export const dynamic = 'force-dynamic'
-
 /** localStorage key for dismissing the data sync banner */
 const SYNC_BANNER_DISMISSED_KEY = 'chainlinked_sync_banner_dismissed'
 

@@ -100,14 +100,10 @@ export function useTeamLeaderboard(): UseTeamLeaderboardReturn {
           .from('team_members')
           .select('team_id')
           .eq('user_id', user!.id)
-          .single()
+          .maybeSingle()
 
-        // If table doesn't exist or RLS blocks access, continue with solo user
         if (teamError) {
-          // 406 = Not Acceptable (often RLS/table issues), PGRST116 = not found
-          if (teamError.code !== 'PGRST116' && teamError.code !== '406' && !teamError.message?.includes('406')) {
-            console.warn('Team membership query error:', teamError.message)
-          }
+          console.warn('Team membership query error:', teamError.message)
         } else if (teamMembership?.team_id) {
           // Get all team members
           const { data: teamMembersData, error: membersError } = await supabase

@@ -25,7 +25,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { cn } from "@/lib/utils"
+import { cn, getInitials, formatMetricNumber } from "@/lib/utils"
 import { MarkdownContent } from "@/components/shared/markdown-content"
 import type { DiscoverArticle } from "@/hooks/use-discover"
 
@@ -46,20 +46,6 @@ interface DiscoverContentCardProps {
   onSave?: (article: DiscoverArticle) => void
 }
 
-/**
- * Formats a number into a compact display string (e.g., 1.2K, 3.4M)
- * @param num - Number to format
- * @returns Formatted string
- */
-function formatCompactNumber(num: number): string {
-  if (num >= 1_000_000) {
-    return `${(num / 1_000_000).toFixed(1)}M`
-  }
-  if (num >= 1_000) {
-    return `${(num / 1_000).toFixed(1)}K`
-  }
-  return num.toString()
-}
 
 /**
  * Returns a human-readable relative time string
@@ -74,20 +60,6 @@ function getRelativeTime(dateStr: string): string {
   }
 }
 
-/**
- * Gets initials from a name for avatar fallback
- * @param name - Full name
- * @returns Up to 2 character initials
- */
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase()
-}
 
 /**
  * Enhanced content card for displaying industry articles in the Discover page.
@@ -233,7 +205,7 @@ export function DiscoverContentCard({
             <div className="flex items-center gap-1 text-muted-foreground">
               <IconHeart className="size-4" />
               <span className="text-xs font-medium">
-                {formatCompactNumber(article.likesCount)}
+                {formatMetricNumber(article.likesCount)}
               </span>
             </div>
           )}
@@ -241,7 +213,7 @@ export function DiscoverContentCard({
             <div className="flex items-center gap-1 text-muted-foreground">
               <IconMessageCircle className="size-4" />
               <span className="text-xs font-medium">
-                {formatCompactNumber(article.commentsCount)}
+                {formatMetricNumber(article.commentsCount)}
               </span>
             </div>
           )}
@@ -249,7 +221,7 @@ export function DiscoverContentCard({
             <div className="flex items-center gap-1 text-muted-foreground">
               <IconRepeat className="size-4" />
               <span className="text-xs font-medium">
-                {formatCompactNumber(article.repostsCount)}
+                {formatMetricNumber(article.repostsCount)}
               </span>
             </div>
           )}

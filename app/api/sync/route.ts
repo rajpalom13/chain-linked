@@ -6,6 +6,49 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
+
+/** Zod schema for validated profile fields in full_backup */
+const backupProfileSchema = z.object({
+  profile_urn: z.string().optional(),
+  public_identifier: z.string().optional(),
+  first_name: z.string().optional(),
+  last_name: z.string().optional(),
+  headline: z.string().optional(),
+  location: z.string().optional(),
+  profile_picture_url: z.string().url().optional(),
+  connections_count: z.number().int().nonnegative().optional(),
+  followers_count: z.number().int().nonnegative().optional(),
+}).strict()
+
+/** Zod schema for validated analytics fields in full_backup */
+const backupAnalyticsSchema = z.object({
+  page_type: z.string(),
+  impressions: z.number().int().nonnegative().optional(),
+  members_reached: z.number().int().nonnegative().optional(),
+  engagements: z.number().int().nonnegative().optional(),
+  new_followers: z.number().int().nonnegative().optional(),
+  profile_views: z.number().int().nonnegative().optional(),
+  top_posts: z.array(z.any()).optional(),
+}).strict()
+
+/** Zod schema for validated audience fields in full_backup */
+const backupAudienceSchema = z.object({
+  total_followers: z.number().int().nonnegative().optional(),
+  follower_growth: z.number().optional(),
+  top_job_titles: z.array(z.any()).optional(),
+  top_companies: z.array(z.any()).optional(),
+  top_locations: z.array(z.any()).optional(),
+  top_industries: z.array(z.any()).optional(),
+}).strict()
+
+/** Zod schema for validated settings fields in full_backup */
+const backupSettingsSchema = z.object({
+  auto_sync: z.boolean().optional(),
+  sync_interval_minutes: z.number().int().positive().optional(),
+  capture_enabled: z.boolean().optional(),
+  notification_enabled: z.boolean().optional(),
+}).strict()
 
 /**
  * POST sync data from extension
@@ -140,33 +183,54 @@ export async function POST(request: Request) {
 
       case 'full_backup': {
         // Handle full backup with multiple data types, collecting errors
+        // Validate each sub-object with Zod to prevent spreading raw user input
         const { profile, analytics, audience, settings } = data
         const backupErrors: string[] = []
 
         if (profile) {
-          const { error } = await supabase
-            .from('linkedin_profiles')
-            .upsert({ user_id: user.id, ...profile, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
-          if (error) backupErrors.push(`profile: ${error.message}`)
+          const parsed = backupProfileSchema.safeParse(profile)
+          if (!parsed.success) {
+            backupErrors.push(`profile: invalid data - ${parsed.error.message}`)
+          } else {
+            const { error } = await supabase
+              .from('linkedin_profiles')
+              .upsert({ user_id: user.id, ...parsed.data, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+            if (error) backupErrors.push(`profile: ${error.message}`)
+          }
         }
 
         if (analytics) {
-          const { error } = await supabase.from('linkedin_analytics').insert({ user_id: user.id, ...analytics })
-          if (error) backupErrors.push(`analytics: ${error.message}`)
+          const parsed = backupAnalyticsSchema.safeParse(analytics)
+          if (!parsed.success) {
+            backupErrors.push(`analytics: invalid data - ${parsed.error.message}`)
+          } else {
+            const { error } = await supabase.from('linkedin_analytics').insert({ user_id: user.id, ...parsed.data })
+            if (error) backupErrors.push(`analytics: ${error.message}`)
+          }
         }
 
         if (audience) {
-          const { error } = await supabase
-            .from('audience_data')
-            .upsert({ user_id: user.id, ...audience, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
-          if (error) backupErrors.push(`audience: ${error.message}`)
+          const parsed = backupAudienceSchema.safeParse(audience)
+          if (!parsed.success) {
+            backupErrors.push(`audience: invalid data - ${parsed.error.message}`)
+          } else {
+            const { error } = await supabase
+              .from('audience_data')
+              .upsert({ user_id: user.id, ...parsed.data, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+            if (error) backupErrors.push(`audience: ${error.message}`)
+          }
         }
 
         if (settings) {
-          const { error } = await supabase
-            .from('extension_settings')
-            .upsert({ user_id: user.id, ...settings, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
-          if (error) backupErrors.push(`settings: ${error.message}`)
+          const parsed = backupSettingsSchema.safeParse(settings)
+          if (!parsed.success) {
+            backupErrors.push(`settings: invalid data - ${parsed.error.message}`)
+          } else {
+            const { error } = await supabase
+              .from('extension_settings')
+              .upsert({ user_id: user.id, ...parsed.data, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+            if (error) backupErrors.push(`settings: ${error.message}`)
+          }
         }
 
         results.backup = {

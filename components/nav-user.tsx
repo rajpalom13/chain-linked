@@ -34,6 +34,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { getInitials } from "@/lib/utils"
 
 /**
  * Props for NavUser component
@@ -47,18 +48,6 @@ interface NavUserProps {
     headline?: string
   }
   onSignOut?: () => Promise<void>
-}
-
-/**
- * Get initials from a name string
- * @param name - Full name string
- * @returns Two-letter initials
- */
-function getInitials(name: string): string {
-  const parts = name.trim().split(' ').filter(Boolean)
-  if (parts.length === 0) return 'U'
-  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase()
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
 /**
