@@ -199,7 +199,7 @@ function useAllTeamPosts(limit: number = 100) {
             comments: post.comments || 0,
             reposts: post.reposts || 0,
           },
-          postedAt: post.posted_at || post.created_at,
+          postedAt: post.posted_at || post.created_at || new Date().toISOString(),
           postType,
           mediaUrls: post.media_urls || null,
           // Store user_id for filtering

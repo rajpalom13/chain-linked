@@ -148,7 +148,7 @@ export function useInvitations(options: UseInvitationsOptions = {}): UseInvitati
           const { data: inviter } = await supabase
             .from('profiles')
             .select('full_name, email, avatar_url')
-            .eq('id', invitation.invited_by)
+            .eq('id', invitation.invited_by ?? '')
             .single()
 
           // Get team and company info
@@ -271,7 +271,7 @@ export function useInvitations(options: UseInvitationsOptions = {}): UseInvitati
       const { data: inviter } = await supabase
         .from('profiles')
         .select('full_name, email, avatar_url')
-        .eq('id', invitation.invited_by)
+        .eq('id', invitation.invited_by ?? '')
         .single()
 
       // Get team and company info

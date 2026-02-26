@@ -61,13 +61,13 @@ export interface LinkedInAnalytics {
   new_followers: number | null
   profile_views: number | null
   search_appearances: number | null
-  top_posts: unknown[]
+  top_posts: unknown[] | null
   raw_data: {
     impressionGrowth?: number
     [key: string]: unknown
   } | null
   captured_at: string | null
-  updated_at: string
+  updated_at: string | null
 }
 
 /**

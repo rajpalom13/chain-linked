@@ -44,7 +44,10 @@ export async function GET() {
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
 
-    const needsRefresh = shouldRefreshStyle(style, postCount || 0)
+    const needsRefresh = shouldRefreshStyle({
+      posts_analyzed_count: style.posts_analyzed_count ?? 0,
+      last_refreshed_at: style.last_refreshed_at ?? style.created_at ?? new Date().toISOString(),
+    }, postCount || 0)
 
     return NextResponse.json({ style, needsRefresh })
   } catch (error) {

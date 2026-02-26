@@ -329,6 +329,68 @@ export function convertMarkdownToUnicode(text: string): string {
 }
 
 /**
+ * Detects the Unicode font style applied to a character.
+ * Returns the style if the character is a math alphanumeric, or 'normal' otherwise.
+ *
+ * @param char - A single character (possibly multi-byte)
+ * @returns The detected UnicodeFontStyle
+ */
+export function detectCharStyle(char: string): UnicodeFontStyle {
+  const cp = char.codePointAt(0)!
+
+  // Check script exceptions
+  for (const exCp of Object.values(SCRIPT_EXCEPTIONS)) {
+    if (cp === exCp) return 'script'
+  }
+  // Check double-struck exceptions
+  for (const exCp of Object.values(DOUBLE_STRUCK_EXCEPTIONS)) {
+    if (cp === exCp) return 'doubleStruck'
+  }
+
+  if (cp < 0x1D400 || cp > 0x1D7FF) return 'normal'
+
+  // Check each font
+  for (const font of Object.values(UNICODE_FONTS)) {
+    if (font.id === 'normal') continue
+    const upperOffset = cp - font.uppercaseStart
+    if (upperOffset >= 0 && upperOffset < 26) return font.id
+    const lowerOffset = cp - font.lowercaseStart
+    if (lowerOffset >= 0 && lowerOffset < 26) return font.id
+    if (font.digitStart) {
+      const digitOffset = cp - font.digitStart
+      if (digitOffset >= 0 && digitOffset < 10) return font.id
+    }
+  }
+
+  return 'normal'
+}
+
+/**
+ * Checks whether the entire selected text is already styled with the given font.
+ * Used to implement toggle behavior (bold on/off).
+ *
+ * @param text - The text to check
+ * @param style - The style to check for
+ * @returns True if every alphabetic character in text is already in the given style
+ */
+export function isTextStyled(text: string, style: UnicodeFontStyle): boolean {
+  if (style === 'normal') return true
+  const chars = [...text]
+  let hasAlpha = false
+  for (const char of chars) {
+    const cp = char.codePointAt(0)!
+    // Only check alphabetic characters (skip spaces, punctuation, etc.)
+    const isAsciiAlpha = (cp >= 0x41 && cp <= 0x5A) || (cp >= 0x61 && cp <= 0x7A)
+    const isMath = isMathAlphanumeric(cp)
+    if (!isAsciiAlpha && !isMath) continue
+    hasAlpha = true
+    if (isAsciiAlpha) return false // Plain ASCII = not styled
+    if (detectCharStyle(char) !== style) return false
+  }
+  return hasAlpha
+}
+
+/**
  * Returns the code-point-aware length of a string.
  * Use this instead of `.length` for accurate LinkedIn character counting,
  * since Unicode math chars are surrogate pairs in UTF-16.

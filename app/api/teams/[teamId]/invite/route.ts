@@ -88,7 +88,7 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     // Get inviter info for each invitation
-    const inviterIds = [...new Set((invitations || []).map(i => i.invited_by))]
+    const inviterIds = [...new Set((invitations || []).map(i => i.invited_by).filter((id): id is string => id !== null))]
     const { data: inviters } = await supabase
       .from('profiles')
       .select('id, full_name, email, avatar_url')
@@ -104,7 +104,7 @@ export async function GET(request: Request, context: RouteContext) {
 
     const enrichedInvitations = (invitations || []).map(inv => ({
       ...inv,
-      inviter: inviterMap.get(inv.invited_by) || null,
+      inviter: inv.invited_by ? inviterMap.get(inv.invited_by) || null : null,
       is_expired: new Date(inv.expires_at) < new Date(),
     }))
 

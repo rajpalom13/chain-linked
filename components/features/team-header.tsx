@@ -187,7 +187,7 @@ export function TeamHeader({
             <span className="text-border text-xs">·</span>
             <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
               <IconCalendar className="size-3.5" />
-              {formatDate(team.created_at)}
+              {formatDate(team.created_at ?? new Date().toISOString())}
             </span>
 
             {pendingInvitationsCount > 0 && (

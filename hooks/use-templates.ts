@@ -105,9 +105,9 @@ export function useTemplates(): UseTemplatesReturn {
         content: template.content,
         category: template.category || 'Other',
         tags: Array.isArray(template.tags) ? (template.tags as string[]) : [],
-        usageCount: template.usage_count,
-        isPublic: template.is_public,
-        createdAt: template.created_at,
+        usageCount: template.usage_count ?? 0,
+        isPublic: template.is_public ?? false,
+        createdAt: template.created_at ?? new Date().toISOString(),
       }))
 
       setTemplates(transformedTemplates)
@@ -242,7 +242,7 @@ export function useTemplates(): UseTemplatesReturn {
 
       await supabase
         .from('templates')
-        .update({ usage_count: template.usage_count + 1 })
+        .update({ usage_count: (template.usage_count ?? 0) + 1 })
         .eq('id', id)
 
       // Update local state without refetching

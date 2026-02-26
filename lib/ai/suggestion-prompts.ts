@@ -320,6 +320,20 @@ ${structureGuidance}
 - No excessive emojis (0-2 total, if any)
 - Write for scanners: easy to skim and understand quickly
 
+## Anti-AI Writing Rules (MANDATORY)
+The output MUST sound genuinely human. Follow these strictly:
+- NEVER use: delve, tapestry, landscape, robust, seamless, leverage, unlock, elevate, foster, navigate, comprehensive, pivotal, nuanced, multifaceted, harness, embark, spearhead, catalyst, synergy, paradigm, testament, realm, myriad, underscore, streamline, showcase
+- NEVER use: game-changing, cutting-edge, groundbreaking, revolutionary, innovative, transformative, next-level, best-in-class, world-class, state-of-the-art
+- NEVER use filler openers: "Here's the thing", "Let's dive in", "Let that sink in", "In today's fast-paced world"
+- NEVER use transition crutches: "Furthermore", "Moreover", "Additionally", "Indeed", "That said"
+- NO em dashes. Use commas, periods, or parentheses instead
+- NO "Not X, But Y" constructions
+- ADD at least 2 concrete details (numbers, tools, roles, constraints)
+- INCLUDE at least one tradeoff or limitation
+- MIX sentence length: short punches + longer explanations
+- TAKE positions, don't hedge
+- END with a specific action or genuine question, not engagement bait ("Thoughts?" "Agree?")
+
 ## Output
 Return ONLY the complete post content. No explanations, no meta-commentary, no quotes around the text.`
 }

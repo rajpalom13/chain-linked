@@ -31,7 +31,7 @@ import { trackPostCreated, trackPostScheduled, trackFeatureUsed } from "@/lib/an
 import { cn } from "@/lib/utils"
 import { type PostTypeId } from "@/lib/ai/post-types"
 import { type GoalCategory, GOAL_LABELS } from "@/lib/ai/post-types"
-import { type UnicodeFontStyle, transformSelection, convertMarkdownToUnicode } from "@/lib/unicode-fonts"
+import { type UnicodeFontStyle, transformSelection, convertMarkdownToUnicode, stripUnicodeFont, isTextStyled } from "@/lib/unicode-fonts"
 import { useDraft } from "@/lib/store/draft-context"
 import { toast } from "sonner"
 import { postToast, showSuccess } from "@/lib/toast-utils"
@@ -499,10 +499,111 @@ export function PostComposer({
     [content, setDraftContent]
   )
 
+  // Undo history for Ctrl+Z support
+  const undoStackRef = React.useRef<{ text: string; cursorStart: number; cursorEnd: number }[]>([])
+  const isUndoingRef = React.useRef(false)
+
   // Update draft when content changes
   const handleContentChange = (newContent: string) => {
+    // Push to undo stack (unless this change is from an undo operation)
+    if (!isUndoingRef.current) {
+      undoStackRef.current.push({
+        text: content,
+        cursorStart: cursorPositionRef.current.start,
+        cursorEnd: cursorPositionRef.current.end,
+      })
+      // Cap undo stack at 50 entries
+      if (undoStackRef.current.length > 50) {
+        undoStackRef.current.shift()
+      }
+    }
     setContent(newContent)
     setDraftContent(newContent)
+  }
+
+  /**
+   * Handles keyboard shortcuts and auto-list creation in the textarea.
+   * - Ctrl/Cmd + B: Toggle bold
+   * - Ctrl/Cmd + I: Toggle italic
+   * - Ctrl/Cmd + Z: Undo last change
+   * - Enter after a "- " list item: auto-create next list item
+   */
+  const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const isMod = e.metaKey || e.ctrlKey
+
+    // Ctrl/Cmd + B: Bold
+    if (isMod && e.key === 'b') {
+      e.preventDefault()
+      saveCursorPosition()
+      applyUnicodeFont('bold')
+      return
+    }
+
+    // Ctrl/Cmd + I: Italic
+    if (isMod && e.key === 'i') {
+      e.preventDefault()
+      saveCursorPosition()
+      applyUnicodeFont('italic')
+      return
+    }
+
+    // Ctrl/Cmd + Z: Undo
+    if (isMod && e.key === 'z' && !e.shiftKey) {
+      e.preventDefault()
+      const stack = undoStackRef.current
+      if (stack.length === 0) return
+      const prev = stack.pop()!
+      isUndoingRef.current = true
+      setContent(prev.text)
+      setDraftContent(prev.text)
+      isUndoingRef.current = false
+      cursorPositionRef.current = { start: prev.cursorStart, end: prev.cursorEnd }
+      setTimeout(() => {
+        const textarea = textareaRef.current
+        if (textarea) {
+          textarea.focus()
+          textarea.setSelectionRange(prev.cursorStart, prev.cursorEnd)
+        }
+      }, 0)
+      return
+    }
+
+    // Enter: Auto-create list item when previous line starts with "- "
+    if (e.key === 'Enter' && !e.shiftKey && !mentionOpen) {
+      const textarea = e.currentTarget
+      const cursorPos = textarea.selectionStart
+      const textBefore = content.slice(0, cursorPos)
+      const lastNewline = textBefore.lastIndexOf('\n')
+      const currentLine = textBefore.slice(lastNewline + 1)
+
+      if (currentLine.trimStart().startsWith('- ')) {
+        // If the line is just "- " with nothing after, remove the bullet and add a blank line
+        const lineContent = currentLine.trimStart().slice(2)
+        if (lineContent.trim() === '') {
+          e.preventDefault()
+          const lineStart = lastNewline + 1
+          const newContent = content.slice(0, lineStart) + '\n' + content.slice(cursorPos)
+          handleContentChange(newContent)
+          const newPos = lineStart + 1
+          cursorPositionRef.current = { start: newPos, end: newPos }
+          setTimeout(() => {
+            textareaRef.current?.setSelectionRange(newPos, newPos)
+          }, 0)
+        } else {
+          // Continue the list with a new "- "
+          e.preventDefault()
+          const indent = currentLine.match(/^(\s*)/)?.[1] ?? ''
+          const insertion = '\n' + indent + '- '
+          const newContent = content.slice(0, cursorPos) + insertion + content.slice(cursorPos)
+          handleContentChange(newContent)
+          const newPos = cursorPos + insertion.length
+          cursorPositionRef.current = { start: newPos, end: newPos }
+          setTimeout(() => {
+            textareaRef.current?.setSelectionRange(newPos, newPos)
+          }, 0)
+        }
+      }
+    }
   }
 
   // Code-point-aware character counting (mention tokens count as display name only)
@@ -513,19 +614,25 @@ export function PostComposer({
 
   /**
    * Applies a Unicode font style to the selected text, or sets it for future typing.
+   * Supports toggle: if the selection is already in the target style, it strips back to normal.
    * Uses cursorPositionRef so it works reliably even if focus has shifted.
    */
   const applyUnicodeFont = (style: UnicodeFontStyle) => {
     const { start, end } = cursorPositionRef.current
     if (start === end) {
-      // No selection — set for future typing
-      setActiveFontStyle(style)
+      // No selection — toggle for future typing
+      setActiveFontStyle((prev) => prev === style ? 'normal' : style)
       return
     }
 
-    const result = transformSelection(content, start, end, style)
+    const selectedText = content.slice(start, end)
+    const alreadyStyled = isTextStyled(selectedText, style)
+
+    // Toggle: if already styled, strip back to normal; otherwise apply the style
+    const targetStyle = alreadyStyled ? 'normal' : style
+    const result = transformSelection(content, start, end, targetStyle)
     handleContentChange(result.text)
-    setActiveFontStyle(style)
+    setActiveFontStyle(targetStyle)
     cursorPositionRef.current = { start, end: result.newEnd }
 
     setTimeout(() => {
@@ -891,6 +998,7 @@ export function PostComposer({
                             saveCursorPosition()
                             detectMention()
                           }}
+                          onKeyDown={handleTextareaKeyDown}
                           onKeyUp={(e) => {
                             saveCursorPosition()
                             // Close mention on space after @-only trigger
@@ -966,29 +1074,35 @@ export function PostComposer({
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
-                                variant="ghost"
+                                variant={activeFontStyle === 'bold' || activeFontStyle === 'boldItalic' ? "secondary" : "ghost"}
                                 size="icon-sm"
-                                onClick={() => applyUnicodeFont('bold')}
+                                onClick={() => {
+                                  saveCursorPosition()
+                                  applyUnicodeFont('bold')
+                                }}
                                 aria-label="Bold"
                               >
                                 <IconBold className="size-4" />
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Bold (Unicode)</TooltipContent>
+                            <TooltipContent>Bold ({typeof navigator !== 'undefined' && /Mac/.test(navigator.userAgent) ? '\u2318' : 'Ctrl'}+B)</TooltipContent>
                           </Tooltip>
 
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
-                                variant="ghost"
+                                variant={activeFontStyle === 'italic' || activeFontStyle === 'boldItalic' ? "secondary" : "ghost"}
                                 size="icon-sm"
-                                onClick={() => applyUnicodeFont('italic')}
+                                onClick={() => {
+                                  saveCursorPosition()
+                                  applyUnicodeFont('italic')
+                                }}
                                 aria-label="Italic"
                               >
                                 <IconItalic className="size-4" />
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Italic (Unicode)</TooltipContent>
+                            <TooltipContent>Italic ({typeof navigator !== 'undefined' && /Mac/.test(navigator.userAgent) ? '\u2318' : 'Ctrl'}+I)</TooltipContent>
                           </Tooltip>
 
                           <Tooltip>

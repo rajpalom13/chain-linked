@@ -725,7 +725,7 @@ export async function updateOnboardingStepInDatabase(step: number): Promise<bool
       .single()
 
     // Only update if new step is greater than current (allows progress, prevents regression)
-    if (currentProfile && currentProfile.onboarding_current_step >= step) {
+    if (currentProfile && (currentProfile.onboarding_current_step ?? 0) >= step) {
       // Already at or past this step, no update needed
       return true
     }

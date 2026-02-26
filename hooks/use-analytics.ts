@@ -303,7 +303,7 @@ export function useAnalytics(userId?: string): UseAnalyticsReturn {
       const sortedAnalytics = [...analytics].reverse()
 
       sortedAnalytics.forEach((record) => {
-        const date = record.captured_at.split('T')[0]
+        const date = (record.captured_at ?? '').split('T')[0]
         const existing = chartDataMap.get(date) || { date, impressions: 0, engagements: 0, profileViews: 0 }
         existing.profileViews = Math.max(existing.profileViews, record.profile_views || 0)
         existing.impressions = Math.max(existing.impressions, record.impressions || 0)

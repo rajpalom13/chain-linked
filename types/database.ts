@@ -1,12 +1,3 @@
-/**
- * Database Types for Supabase
- * @description TypeScript types matching the Supabase database schema
- * @module types/database
- */
-
-/**
- * JSON type for flexible JSONB columns
- */
 export type Json =
   | string
   | number
@@ -15,1887 +6,3073 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-/**
- * Database schema type definition
- */
-export interface Database {
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.1"
+  }
   public: {
     Tables: {
-      /** User accounts with Google OAuth integration (legacy) */
-      users: {
-        Row: {
-          id: string
-          google_id: string | null
-          email: string
-          name: string | null
-          avatar_url: string | null
-          linkedin_profile_url: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          google_id?: string | null
-          email: string
-          name?: string | null
-          avatar_url?: string | null
-          linkedin_profile_url?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          google_id?: string | null
-          email?: string
-          name?: string | null
-          avatar_url?: string | null
-          linkedin_profile_url?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      /** User profiles linked to auth.users */
-      profiles: {
-        Row: {
-          id: string
-          full_name: string | null
-          avatar_url: string | null
-          email: string | null
-          created_at: string | null
-          linkedin_access_token: string | null
-          linkedin_user_id: string | null
-          linkedin_connected_at: string | null
-          linkedin_token_expires_at: string | null
-          /** LinkedIn profile picture URL (from OAuth) */
-          linkedin_avatar_url: string | null
-          /** LinkedIn headline */
-          linkedin_headline: string | null
-          /** LinkedIn profile URL */
-          linkedin_profile_url: string | null
-          /** Company onboarding completion status */
-          company_onboarding_completed: boolean
-          /** Company name for AI context */
-          company_name: string | null
-          /** Company description for AI context */
-          company_description: string | null
-          /** Company products/services for AI context */
-          company_products: string | null
-          /** Ideal Customer Profile for AI context */
-          company_icp: string | null
-          /** Value propositions for AI context */
-          company_value_props: string | null
-          /** Company website URL */
-          company_website: string | null
-          /** Whether the user has completed the full onboarding flow */
-          onboarding_completed: boolean
-          /** Current step in the onboarding flow (1-4) */
-          onboarding_current_step: number
-          /** Whether the user has completed first-time topic selection */
-          discover_topics_selected: boolean
-          /** Array of selected discover topic slugs */
-          discover_topics: string[]
-          /** Whether the user has completed the dashboard tour */
-          dashboard_tour_completed: boolean
-        }
-        Insert: {
-          id: string
-          full_name?: string | null
-          avatar_url?: string | null
-          email?: string | null
-          created_at?: string | null
-          linkedin_access_token?: string | null
-          linkedin_user_id?: string | null
-          linkedin_connected_at?: string | null
-          linkedin_token_expires_at?: string | null
-          linkedin_avatar_url?: string | null
-          linkedin_headline?: string | null
-          linkedin_profile_url?: string | null
-          company_onboarding_completed?: boolean
-          company_name?: string | null
-          company_description?: string | null
-          company_products?: string | null
-          company_icp?: string | null
-          company_value_props?: string | null
-          company_website?: string | null
-          /** Whether the user has completed the full onboarding flow */
-          onboarding_completed?: boolean
-          /** Current step in the onboarding flow (1-4) */
-          onboarding_current_step?: number
-          discover_topics_selected?: boolean
-          discover_topics?: string[]
-          /** Whether the user has completed the dashboard tour */
-          dashboard_tour_completed?: boolean
-        }
-        Update: {
-          id?: string
-          full_name?: string | null
-          avatar_url?: string | null
-          email?: string | null
-          created_at?: string | null
-          linkedin_access_token?: string | null
-          linkedin_user_id?: string | null
-          linkedin_connected_at?: string | null
-          linkedin_token_expires_at?: string | null
-          linkedin_avatar_url?: string | null
-          linkedin_headline?: string | null
-          linkedin_profile_url?: string | null
-          company_onboarding_completed?: boolean
-          company_name?: string | null
-          company_description?: string | null
-          company_products?: string | null
-          company_icp?: string | null
-          company_value_props?: string | null
-          company_website?: string | null
-          /** Whether the user has completed the full onboarding flow */
-          onboarding_completed?: boolean
-          /** Current step in the onboarding flow (1-4) */
-          onboarding_current_step?: number
-          discover_topics_selected?: boolean
-          discover_topics?: string[]
-          /** Whether the user has completed the dashboard tour */
-          dashboard_tour_completed?: boolean
-        }
-        Relationships: []
-      }
-      /** Company context from AI analysis */
-      company_context: {
-        Row: {
-          id: string
-          user_id: string
-          company_name: string
-          website_url: string | null
-          industry: string | null
-          target_audience_input: string | null
-          value_proposition: string | null
-          company_summary: string | null
-          products_and_services: Json
-          target_audience: Json
-          tone_of_voice: Json
-          brand_colors: Json
-          scraped_content: string | null
-          perplexity_research: string | null
-          status: string
-          error_message: string | null
-          inngest_run_id: string | null
-          created_at: string
-          updated_at: string
-          completed_at: string | null
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          company_name: string
-          website_url?: string | null
-          industry?: string | null
-          target_audience_input?: string | null
-          value_proposition?: string | null
-          company_summary?: string | null
-          products_and_services?: Json
-          target_audience?: Json
-          tone_of_voice?: Json
-          brand_colors?: Json
-          scraped_content?: string | null
-          perplexity_research?: string | null
-          status?: string
-          error_message?: string | null
-          inngest_run_id?: string | null
-          created_at?: string
-          updated_at?: string
-          completed_at?: string | null
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          company_name?: string
-          website_url?: string | null
-          industry?: string | null
-          target_audience_input?: string | null
-          value_proposition?: string | null
-          company_summary?: string | null
-          products_and_services?: Json
-          target_audience?: Json
-          tone_of_voice?: Json
-          brand_colors?: Json
-          scraped_content?: string | null
-          perplexity_research?: string | null
-          status?: string
-          error_message?: string | null
-          inngest_run_id?: string | null
-          created_at?: string
-          updated_at?: string
-          completed_at?: string | null
-        }
-        Relationships: []
-      }
-      /** LinkedIn profile snapshots */
-      linkedin_profiles: {
-        Row: {
-          id: string
-          user_id: string
-          profile_urn: string | null
-          public_identifier: string | null
-          first_name: string | null
-          last_name: string | null
-          headline: string | null
-          location: string | null
-          industry: string | null
-          profile_picture_url: string | null
-          background_image_url: string | null
-          connections_count: number | null
-          followers_count: number | null
-          summary: string | null
-          raw_data: Json | null
-          captured_at: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          profile_urn?: string | null
-          public_identifier?: string | null
-          first_name?: string | null
-          last_name?: string | null
-          headline?: string | null
-          location?: string | null
-          industry?: string | null
-          profile_picture_url?: string | null
-          background_image_url?: string | null
-          connections_count?: number | null
-          followers_count?: number | null
-          summary?: string | null
-          raw_data?: Json | null
-          captured_at?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          profile_urn?: string | null
-          public_identifier?: string | null
-          first_name?: string | null
-          last_name?: string | null
-          headline?: string | null
-          location?: string | null
-          industry?: string | null
-          profile_picture_url?: string | null
-          background_image_url?: string | null
-          connections_count?: number | null
-          followers_count?: number | null
-          summary?: string | null
-          raw_data?: Json | null
-          captured_at?: string | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      /** Creator analytics snapshots */
-      linkedin_analytics: {
-        Row: {
-          id: string
-          user_id: string
-          page_type: string
-          impressions: number | null
-          members_reached: number | null
-          engagements: number | null
-          new_followers: number | null
-          profile_views: number | null
-          search_appearances: number | null
-          top_posts: Json | null
-          raw_data: Json | null
-          captured_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          page_type: string
-          impressions?: number | null
-          members_reached?: number | null
-          engagements?: number | null
-          new_followers?: number | null
-          profile_views?: number | null
-          search_appearances?: number | null
-          top_posts?: Json | null
-          raw_data?: Json | null
-          captured_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          page_type?: string
-          impressions?: number | null
-          members_reached?: number | null
-          engagements?: number | null
-          new_followers?: number | null
-          profile_views?: number | null
-          search_appearances?: number | null
-          top_posts?: Json | null
-          raw_data?: Json | null
-          captured_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      /** 90-day trend data */
       analytics_history: {
         Row: {
-          id: string
-          user_id: string
+          created_at: string | null
           date: string
-          impressions: number | null
-          members_reached: number | null
           engagements: number | null
           followers: number | null
-          profile_views: number | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          date: string
-          impressions?: number | null
-          members_reached?: number | null
-          engagements?: number | null
-          followers?: number | null
-          profile_views?: number | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          date?: string
-          impressions?: number | null
-          members_reached?: number | null
-          engagements?: number | null
-          followers?: number | null
-          profile_views?: number | null
-          created_at?: string
-        }
-        Relationships: []
-      }
-      /** Individual post performance */
-      post_analytics: {
-        Row: {
           id: string
-          user_id: string
-          activity_urn: string
-          post_content: string | null
-          post_type: string | null
           impressions: number | null
           members_reached: number | null
-          unique_views: number | null
-          reactions: number | null
-          comments: number | null
-          reposts: number | null
-          engagement_rate: number | null
-          profile_viewers: number | null
-          followers_gained: number | null
-          demographics: Json | null
-          raw_data: Json | null
-          posted_at: string | null
-          captured_at: string
-          updated_at: string
+          profile_views: number | null
+          user_id: string
         }
         Insert: {
+          created_at?: string | null
+          date: string
+          engagements?: number | null
+          followers?: number | null
           id?: string
-          user_id: string
-          activity_urn: string
-          post_content?: string | null
-          post_type?: string | null
           impressions?: number | null
           members_reached?: number | null
-          unique_views?: number | null
-          reactions?: number | null
-          comments?: number | null
-          reposts?: number | null
-          engagement_rate?: number | null
-          profile_viewers?: number | null
-          followers_gained?: number | null
-          demographics?: Json | null
-          raw_data?: Json | null
-          posted_at?: string | null
-          captured_at?: string
-          updated_at?: string
+          profile_views?: number | null
+          user_id: string
         }
         Update: {
+          created_at?: string | null
+          date?: string
+          engagements?: number | null
+          followers?: number | null
           id?: string
-          user_id?: string
-          activity_urn?: string
-          post_content?: string | null
-          post_type?: string | null
           impressions?: number | null
           members_reached?: number | null
-          unique_views?: number | null
-          reactions?: number | null
-          comments?: number | null
-          reposts?: number | null
-          engagement_rate?: number | null
-          profile_viewers?: number | null
-          followers_gained?: number | null
-          demographics?: Json | null
-          raw_data?: Json | null
-          posted_at?: string | null
-          captured_at?: string
-          updated_at?: string
+          profile_views?: number | null
+          user_id?: string
         }
         Relationships: []
       }
-      /** Follower demographics and audience info */
+      analytics_tracking_status: {
+        Row: {
+          id: number
+          status: string
+        }
+        Insert: {
+          id: number
+          status: string
+        }
+        Update: {
+          id?: number
+          status?: string
+        }
+        Relationships: []
+      }
       audience_data: {
         Row: {
-          id: string
-          user_id: string
-          total_followers: number | null
-          follower_growth: number | null
+          captured_at: string | null
           demographics_preview: Json | null
-          top_job_titles: Json | null
+          follower_growth: number | null
+          id: string
+          raw_data: Json | null
           top_companies: Json | null
-          top_locations: Json | null
           top_industries: Json | null
-          raw_data: Json | null
-          captured_at: string
-          updated_at: string
+          top_job_titles: Json | null
+          top_locations: Json | null
+          total_followers: number | null
+          updated_at: string | null
+          user_id: string
         }
         Insert: {
-          id?: string
-          user_id: string
-          total_followers?: number | null
-          follower_growth?: number | null
+          captured_at?: string | null
           demographics_preview?: Json | null
-          top_job_titles?: Json | null
-          top_companies?: Json | null
-          top_locations?: Json | null
-          top_industries?: Json | null
-          raw_data?: Json | null
-          captured_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          total_followers?: number | null
           follower_growth?: number | null
-          demographics_preview?: Json | null
-          top_job_titles?: Json | null
+          id?: string
+          raw_data?: Json | null
           top_companies?: Json | null
-          top_locations?: Json | null
           top_industries?: Json | null
-          raw_data?: Json | null
-          captured_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      /** User's own posts */
-      my_posts: {
-        Row: {
-          id: string
+          top_job_titles?: Json | null
+          top_locations?: Json | null
+          total_followers?: number | null
+          updated_at?: string | null
           user_id: string
-          activity_urn: string
-          content: string | null
-          media_type: string | null
-          media_urls: string[] | null
-          reactions: number | null
-          comments: number | null
-          reposts: number | null
-          impressions: number | null
-          posted_at: string | null
-          raw_data: Json | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          activity_urn: string
-          content?: string | null
-          media_type?: string | null
-          media_urls?: string[] | null
-          reactions?: number | null
-          comments?: number | null
-          reposts?: number | null
-          impressions?: number | null
-          posted_at?: string | null
-          raw_data?: Json | null
-          created_at?: string
-          updated_at?: string
         }
         Update: {
+          captured_at?: string | null
+          demographics_preview?: Json | null
+          follower_growth?: number | null
           id?: string
-          user_id?: string
-          activity_urn?: string
-          content?: string | null
-          media_type?: string | null
-          media_urls?: string[] | null
-          reactions?: number | null
-          comments?: number | null
-          reposts?: number | null
-          impressions?: number | null
-          posted_at?: string | null
           raw_data?: Json | null
-          created_at?: string
-          updated_at?: string
+          top_companies?: Json | null
+          top_industries?: Json | null
+          top_job_titles?: Json | null
+          top_locations?: Json | null
+          total_followers?: number | null
+          updated_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }
-      /** Posts captured from LinkedIn feed */
-      feed_posts: {
+      audience_history: {
         Row: {
+          created_at: string | null
+          date: string
           id: string
+          new_followers: number | null
+          total_followers: number | null
           user_id: string
-          activity_urn: string
-          author_urn: string | null
-          author_name: string | null
-          author_headline: string | null
-          author_profile_url: string | null
-          content: string | null
-          hashtags: Json | null
-          media_type: string | null
-          media_urls: string[] | null
-          reactions: number | null
-          comments: number | null
-          reposts: number | null
-          engagement_score: number | null
-          posted_at: string | null
-          raw_data: Json | null
-          created_at: string
-          updated_at: string
         }
         Insert: {
+          created_at?: string | null
+          date: string
           id?: string
+          new_followers?: number | null
+          total_followers?: number | null
           user_id: string
-          activity_urn: string
-          author_urn?: string | null
-          author_name?: string | null
-          author_headline?: string | null
-          author_profile_url?: string | null
-          content?: string | null
-          hashtags?: Json | null
-          media_type?: string | null
-          media_urls?: string[] | null
-          reactions?: number | null
-          comments?: number | null
-          reposts?: number | null
-          engagement_score?: number | null
-          posted_at?: string | null
-          raw_data?: Json | null
-          created_at?: string
-          updated_at?: string
         }
         Update: {
+          created_at?: string | null
+          date?: string
           id?: string
+          new_followers?: number | null
+          total_followers?: number | null
           user_id?: string
-          activity_urn?: string
-          author_urn?: string | null
-          author_name?: string | null
-          author_headline?: string | null
-          author_profile_url?: string | null
-          content?: string | null
-          hashtags?: Json | null
-          media_type?: string | null
-          media_urls?: string[] | null
-          reactions?: number | null
-          comments?: number | null
-          reposts?: number | null
-          engagement_score?: number | null
-          posted_at?: string | null
-          raw_data?: Json | null
-          created_at?: string
-          updated_at?: string
         }
         Relationships: []
       }
-      /** Scheduled posts queue */
-      scheduled_posts: {
+      brand_kits: {
         Row: {
+          accent_color: string | null
+          background_color: string | null
+          created_at: string | null
+          font_primary: string | null
+          font_secondary: string | null
           id: string
-          user_id: string
-          content: string
-          scheduled_for: string
-          timezone: string | null
-          status: 'pending' | 'scheduled' | 'posting' | 'posted' | 'failed' | 'cancelled'
-          visibility: 'PUBLIC' | 'CONNECTIONS'
-          media_urls: string[] | null
-          linkedin_post_id: string | null
-          posted_at: string | null
-          error_message: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          content: string
-          scheduled_for: string
-          timezone?: string | null
-          status?: 'pending' | 'scheduled' | 'posting' | 'posted' | 'failed' | 'cancelled'
-          visibility?: 'PUBLIC' | 'CONNECTIONS'
-          media_urls?: string[] | null
-          linkedin_post_id?: string | null
-          posted_at?: string | null
-          error_message?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          content?: string
-          scheduled_for?: string
-          timezone?: string | null
-          status?: 'pending' | 'scheduled' | 'posting' | 'posted' | 'failed' | 'cancelled'
-          visibility?: 'PUBLIC' | 'CONNECTIONS'
-          media_urls?: string[] | null
-          linkedin_post_id?: string | null
-          posted_at?: string | null
-          error_message?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      /** Post templates */
-      templates: {
-        Row: {
-          id: string
-          user_id: string | null
+          is_active: boolean | null
+          logo_storage_path: string | null
+          logo_url: string | null
+          primary_color: string
+          raw_extraction: Json | null
+          secondary_color: string | null
           team_id: string | null
-          name: string
-          content: string
-          category: string | null
-          tags: Json | null
-          is_public: boolean
-          usage_count: number
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id?: string | null
-          team_id?: string | null
-          name: string
-          content: string
-          category?: string | null
-          tags?: Json | null
-          is_public?: boolean
-          usage_count?: number
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string | null
-          team_id?: string | null
-          name?: string
-          content?: string
-          category?: string | null
-          tags?: Json | null
-          is_public?: boolean
-          usage_count?: number
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      /** Inspiration/viral posts */
-      inspiration_posts: {
-        Row: {
-          id: string
-          author_name: string | null
-          author_headline: string | null
-          author_profile_url: string | null
-          author_avatar_url: string | null
-          content: string
-          category: string | null
-          niche: string | null
-          reactions: number | null
-          comments: number | null
-          reposts: number | null
-          engagement_score: number | null
-          posted_at: string | null
-          source: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          author_name?: string | null
-          author_headline?: string | null
-          author_profile_url?: string | null
-          author_avatar_url?: string | null
-          content: string
-          category?: string | null
-          niche?: string | null
-          reactions?: number | null
-          comments?: number | null
-          reposts?: number | null
-          engagement_score?: number | null
-          posted_at?: string | null
-          source?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          author_name?: string | null
-          author_headline?: string | null
-          author_profile_url?: string | null
-          author_avatar_url?: string | null
-          content?: string
-          category?: string | null
-          niche?: string | null
-          reactions?: number | null
-          comments?: number | null
-          reposts?: number | null
-          engagement_score?: number | null
-          posted_at?: string | null
-          source?: string | null
-          created_at?: string
-        }
-        Relationships: []
-      }
-      /** Swipe preferences for AI learning */
-      swipe_preferences: {
-        Row: {
-          id: string
+          text_color: string | null
+          updated_at: string | null
           user_id: string
-          post_id: string | null
-          suggestion_content: string | null
-          action: string
-          created_at: string
+          website_url: string
         }
         Insert: {
+          accent_color?: string | null
+          background_color?: string | null
+          created_at?: string | null
+          font_primary?: string | null
+          font_secondary?: string | null
           id?: string
+          is_active?: boolean | null
+          logo_storage_path?: string | null
+          logo_url?: string | null
+          primary_color: string
+          raw_extraction?: Json | null
+          secondary_color?: string | null
+          team_id?: string | null
+          text_color?: string | null
+          updated_at?: string | null
           user_id: string
-          post_id?: string | null
-          suggestion_content?: string | null
-          action: string
-          created_at?: string
+          website_url: string
         }
         Update: {
+          accent_color?: string | null
+          background_color?: string | null
+          created_at?: string | null
+          font_primary?: string | null
+          font_secondary?: string | null
           id?: string
+          is_active?: boolean | null
+          logo_storage_path?: string | null
+          logo_url?: string | null
+          primary_color?: string
+          raw_extraction?: Json | null
+          secondary_color?: string | null
+          team_id?: string | null
+          text_color?: string | null
+          updated_at?: string | null
           user_id?: string
-          post_id?: string | null
-          suggestion_content?: string | null
-          action?: string
-          created_at?: string
+          website_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_kits_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      capture_stats: {
+        Row: {
+          analytics_captures: number | null
+          api_calls_captured: number | null
+          created_at: string | null
+          date: string
+          dom_extractions: number | null
+          feed_posts_captured: number | null
+          id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          analytics_captures?: number | null
+          api_calls_captured?: number | null
+          created_at?: string | null
+          date?: string
+          dom_extractions?: number | null
+          feed_posts_captured?: number | null
+          id?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          analytics_captures?: number | null
+          api_calls_captured?: number | null
+          created_at?: string | null
+          date?: string
+          dom_extractions?: number | null
+          feed_posts_captured?: number | null
+          id?: string
+          updated_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }
-      /** Companies - Parent organizations for teams */
+      captured_apis: {
+        Row: {
+          captured_at: string | null
+          category: string | null
+          endpoint: string | null
+          id: string
+          method: string | null
+          response_data: Json | null
+          response_hash: string | null
+          user_id: string
+        }
+        Insert: {
+          captured_at?: string | null
+          category?: string | null
+          endpoint?: string | null
+          id?: string
+          method?: string | null
+          response_data?: Json | null
+          response_hash?: string | null
+          user_id: string
+        }
+        Update: {
+          captured_at?: string | null
+          category?: string | null
+          endpoint?: string | null
+          id?: string
+          method?: string | null
+          response_data?: Json | null
+          response_hash?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      carousel_templates: {
+        Row: {
+          brand_colors: Json | null
+          category: string
+          created_at: string | null
+          description: string | null
+          fonts: Json | null
+          id: string
+          is_public: boolean | null
+          name: string
+          slides: Json
+          team_id: string | null
+          thumbnail: string | null
+          updated_at: string | null
+          usage_count: number | null
+          user_id: string
+        }
+        Insert: {
+          brand_colors?: Json | null
+          category?: string
+          created_at?: string | null
+          description?: string | null
+          fonts?: Json | null
+          id?: string
+          is_public?: boolean | null
+          name: string
+          slides: Json
+          team_id?: string | null
+          thumbnail?: string | null
+          updated_at?: string | null
+          usage_count?: number | null
+          user_id: string
+        }
+        Update: {
+          brand_colors?: Json | null
+          category?: string
+          created_at?: string | null
+          description?: string | null
+          fonts?: Json | null
+          id?: string
+          is_public?: boolean | null
+          name?: string
+          slides?: Json
+          team_id?: string | null
+          thumbnail?: string | null
+          updated_at?: string | null
+          usage_count?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      comments: {
+        Row: {
+          activity_urn: string | null
+          author_headline: string | null
+          author_name: string | null
+          author_profile_url: string | null
+          comment_urn: string | null
+          content: string | null
+          created_at: string | null
+          id: string
+          parent_urn: string | null
+          posted_at: string | null
+          raw_data: Json | null
+          reactions: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          activity_urn?: string | null
+          author_headline?: string | null
+          author_name?: string | null
+          author_profile_url?: string | null
+          comment_urn?: string | null
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          parent_urn?: string | null
+          posted_at?: string | null
+          raw_data?: Json | null
+          reactions?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          activity_urn?: string | null
+          author_headline?: string | null
+          author_name?: string | null
+          author_profile_url?: string | null
+          comment_urn?: string | null
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          parent_urn?: string | null
+          posted_at?: string | null
+          raw_data?: Json | null
+          reactions?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       companies: {
         Row: {
+          created_at: string | null
+          description: string | null
           id: string
-          name: string
-          slug: string
           logo_url: string | null
-          owner_id: string
+          name: string
+          owner_id: string | null
           settings: Json | null
-          created_at: string
-          updated_at: string
+          slug: string | null
+          updated_at: string | null
+          website: string | null
         }
         Insert: {
+          created_at?: string | null
+          description?: string | null
           id?: string
-          name: string
-          slug: string
           logo_url?: string | null
-          owner_id: string
+          name: string
+          owner_id?: string | null
           settings?: Json | null
-          created_at?: string
-          updated_at?: string
+          slug?: string | null
+          updated_at?: string | null
+          website?: string | null
         }
         Update: {
+          created_at?: string | null
+          description?: string | null
           id?: string
-          name?: string
-          slug?: string
           logo_url?: string | null
-          owner_id?: string
+          name?: string
+          owner_id?: string | null
           settings?: Json | null
-          created_at?: string
-          updated_at?: string
+          slug?: string | null
+          updated_at?: string | null
+          website?: string | null
         }
         Relationships: []
       }
-      /** Teams/Companies */
-      teams: {
+      company_context: {
         Row: {
+          brand_colors: Json | null
+          company_name: string
+          company_summary: string | null
+          completed_at: string | null
+          created_at: string | null
+          error_message: string | null
           id: string
-          name: string
-          logo_url: string | null
-          owner_id: string
-          company_id: string | null
-          created_at: string
-          updated_at: string
+          industry: string | null
+          inngest_run_id: string | null
+          perplexity_research: string | null
+          products_and_services: Json | null
+          scraped_content: string | null
+          status: string | null
+          target_audience: Json | null
+          target_audience_input: string | null
+          tone_of_voice: Json | null
+          updated_at: string | null
+          user_id: string
+          value_proposition: string | null
+          website_url: string | null
         }
         Insert: {
+          brand_colors?: Json | null
+          company_name: string
+          company_summary?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
           id?: string
-          name: string
-          logo_url?: string | null
-          owner_id: string
-          company_id?: string | null
-          created_at?: string
-          updated_at?: string
+          industry?: string | null
+          inngest_run_id?: string | null
+          perplexity_research?: string | null
+          products_and_services?: Json | null
+          scraped_content?: string | null
+          status?: string | null
+          target_audience?: Json | null
+          target_audience_input?: string | null
+          tone_of_voice?: Json | null
+          updated_at?: string | null
+          user_id: string
+          value_proposition?: string | null
+          website_url?: string | null
         }
         Update: {
+          brand_colors?: Json | null
+          company_name?: string
+          company_summary?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
           id?: string
-          name?: string
-          logo_url?: string | null
-          owner_id?: string
-          company_id?: string | null
-          created_at?: string
-          updated_at?: string
+          industry?: string | null
+          inngest_run_id?: string | null
+          perplexity_research?: string | null
+          products_and_services?: Json | null
+          scraped_content?: string | null
+          status?: string | null
+          target_audience?: Json | null
+          target_audience_input?: string | null
+          tone_of_voice?: Json | null
+          updated_at?: string | null
+          user_id?: string
+          value_proposition?: string | null
+          website_url?: string | null
         }
         Relationships: []
       }
-      /** Team members */
+      connections: {
+        Row: {
+          connected_at: string | null
+          connection_degree: number | null
+          created_at: string | null
+          first_name: string | null
+          headline: string | null
+          id: string
+          last_name: string | null
+          linkedin_id: string | null
+          profile_picture: string | null
+          public_identifier: string | null
+          raw_data: Json | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          connected_at?: string | null
+          connection_degree?: number | null
+          created_at?: string | null
+          first_name?: string | null
+          headline?: string | null
+          id?: string
+          last_name?: string | null
+          linkedin_id?: string | null
+          profile_picture?: string | null
+          public_identifier?: string | null
+          raw_data?: Json | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          connected_at?: string | null
+          connection_degree?: number | null
+          created_at?: string | null
+          first_name?: string | null
+          headline?: string | null
+          id?: string
+          last_name?: string | null
+          linkedin_id?: string | null
+          profile_picture?: string | null
+          public_identifier?: string | null
+          raw_data?: Json | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      discover_news_articles: {
+        Row: {
+          created_at: string
+          freshness: string
+          headline: string
+          id: string
+          ingest_batch_id: string | null
+          perplexity_citations: string[] | null
+          published_date: string | null
+          relevance_tags: string[]
+          source_name: string
+          source_url: string
+          summary: string
+          topic: string
+        }
+        Insert: {
+          created_at?: string
+          freshness?: string
+          headline: string
+          id?: string
+          ingest_batch_id?: string | null
+          perplexity_citations?: string[] | null
+          published_date?: string | null
+          relevance_tags?: string[]
+          source_name: string
+          source_url: string
+          summary: string
+          topic: string
+        }
+        Update: {
+          created_at?: string
+          freshness?: string
+          headline?: string
+          id?: string
+          ingest_batch_id?: string | null
+          perplexity_citations?: string[] | null
+          published_date?: string | null
+          relevance_tags?: string[]
+          source_name?: string
+          source_url?: string
+          summary?: string
+          topic?: string
+        }
+        Relationships: []
+      }
+      discover_posts: {
+        Row: {
+          author_avatar_url: string | null
+          author_headline: string
+          author_name: string
+          author_profile_url: string | null
+          comments_count: number
+          content: string
+          engagement_rate: number | null
+          freshness: string | null
+          id: string
+          impressions_count: number | null
+          ingest_batch_id: string | null
+          is_viral: boolean
+          likes_count: number
+          linkedin_url: string
+          post_type: string | null
+          posted_at: string
+          reposts_count: number
+          scraped_at: string
+          source: string
+          topics: string[]
+        }
+        Insert: {
+          author_avatar_url?: string | null
+          author_headline?: string
+          author_name: string
+          author_profile_url?: string | null
+          comments_count?: number
+          content: string
+          engagement_rate?: number | null
+          freshness?: string | null
+          id?: string
+          impressions_count?: number | null
+          ingest_batch_id?: string | null
+          is_viral?: boolean
+          likes_count?: number
+          linkedin_url: string
+          post_type?: string | null
+          posted_at: string
+          reposts_count?: number
+          scraped_at?: string
+          source?: string
+          topics?: string[]
+        }
+        Update: {
+          author_avatar_url?: string | null
+          author_headline?: string
+          author_name?: string
+          author_profile_url?: string | null
+          comments_count?: number
+          content?: string
+          engagement_rate?: number | null
+          freshness?: string | null
+          id?: string
+          impressions_count?: number | null
+          ingest_batch_id?: string | null
+          is_viral?: boolean
+          likes_count?: number
+          linkedin_url?: string
+          post_type?: string | null
+          posted_at?: string
+          reposts_count?: number
+          scraped_at?: string
+          source?: string
+          topics?: string[]
+        }
+        Relationships: []
+      }
+      extension_settings: {
+        Row: {
+          auto_capture_enabled: boolean | null
+          capture_analytics: boolean | null
+          capture_feed: boolean | null
+          capture_messaging: boolean | null
+          capture_profile: boolean | null
+          created_at: string | null
+          dark_mode: boolean | null
+          id: string
+          notifications_enabled: boolean | null
+          raw_settings: Json | null
+          sync_enabled: boolean | null
+          sync_interval: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          auto_capture_enabled?: boolean | null
+          capture_analytics?: boolean | null
+          capture_feed?: boolean | null
+          capture_messaging?: boolean | null
+          capture_profile?: boolean | null
+          created_at?: string | null
+          dark_mode?: boolean | null
+          id?: string
+          notifications_enabled?: boolean | null
+          raw_settings?: Json | null
+          sync_enabled?: boolean | null
+          sync_interval?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          auto_capture_enabled?: boolean | null
+          capture_analytics?: boolean | null
+          capture_feed?: boolean | null
+          capture_messaging?: boolean | null
+          capture_profile?: boolean | null
+          created_at?: string | null
+          dark_mode?: boolean | null
+          id?: string
+          notifications_enabled?: boolean | null
+          raw_settings?: Json | null
+          sync_enabled?: boolean | null
+          sync_interval?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      feed_posts: {
+        Row: {
+          activity_urn: string
+          author_headline: string | null
+          author_name: string | null
+          author_profile_url: string | null
+          author_urn: string | null
+          comments: number | null
+          content: string | null
+          created_at: string | null
+          engagement_score: number | null
+          hashtags: Json | null
+          id: string
+          media_type: string | null
+          media_urls: string[] | null
+          posted_at: string | null
+          raw_data: Json | null
+          reactions: number | null
+          reposts: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          activity_urn: string
+          author_headline?: string | null
+          author_name?: string | null
+          author_profile_url?: string | null
+          author_urn?: string | null
+          comments?: number | null
+          content?: string | null
+          created_at?: string | null
+          engagement_score?: number | null
+          hashtags?: Json | null
+          id?: string
+          media_type?: string | null
+          media_urls?: string[] | null
+          posted_at?: string | null
+          raw_data?: Json | null
+          reactions?: number | null
+          reposts?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          activity_urn?: string
+          author_headline?: string | null
+          author_name?: string | null
+          author_profile_url?: string | null
+          author_urn?: string | null
+          comments?: number | null
+          content?: string | null
+          created_at?: string | null
+          engagement_score?: number | null
+          hashtags?: Json | null
+          id?: string
+          media_type?: string | null
+          media_urls?: string[] | null
+          posted_at?: string | null
+          raw_data?: Json | null
+          reactions?: number | null
+          reposts?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      followers: {
+        Row: {
+          created_at: string | null
+          first_name: string | null
+          followed_at: string | null
+          headline: string | null
+          id: string
+          last_name: string | null
+          linkedin_id: string | null
+          profile_picture: string | null
+          public_identifier: string | null
+          raw_data: Json | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          first_name?: string | null
+          followed_at?: string | null
+          headline?: string | null
+          id?: string
+          last_name?: string | null
+          linkedin_id?: string | null
+          profile_picture?: string | null
+          public_identifier?: string | null
+          raw_data?: Json | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          first_name?: string | null
+          followed_at?: string | null
+          headline?: string | null
+          id?: string
+          last_name?: string | null
+          linkedin_id?: string | null
+          profile_picture?: string | null
+          public_identifier?: string | null
+          raw_data?: Json | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      generated_posts: {
+        Row: {
+          content: string
+          created_at: string
+          cta: string | null
+          discover_post_id: string | null
+          estimated_read_time: number | null
+          hook: string | null
+          id: string
+          post_type: string
+          research_session_id: string | null
+          source: string | null
+          source_snippet: string | null
+          source_title: string | null
+          source_url: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          word_count: number | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          cta?: string | null
+          discover_post_id?: string | null
+          estimated_read_time?: number | null
+          hook?: string | null
+          id?: string
+          post_type: string
+          research_session_id?: string | null
+          source?: string | null
+          source_snippet?: string | null
+          source_title?: string | null
+          source_url?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          word_count?: number | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          cta?: string | null
+          discover_post_id?: string | null
+          estimated_read_time?: number | null
+          hook?: string | null
+          id?: string
+          post_type?: string
+          research_session_id?: string | null
+          source?: string | null
+          source_snippet?: string | null
+          source_title?: string | null
+          source_url?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          word_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generated_posts_discover_post_id_fkey"
+            columns: ["discover_post_id"]
+            isOneToOne: false
+            referencedRelation: "discover_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generated_posts_research_session_id_fkey"
+            columns: ["research_session_id"]
+            isOneToOne: false
+            referencedRelation: "research_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      generated_suggestions: {
+        Row: {
+          category: string | null
+          content: string
+          created_at: string | null
+          estimated_engagement: number | null
+          expires_at: string | null
+          generation_batch_id: string | null
+          id: string
+          post_type: string | null
+          prompt_context: Json | null
+          status: string | null
+          tone: string | null
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          content: string
+          created_at?: string | null
+          estimated_engagement?: number | null
+          expires_at?: string | null
+          generation_batch_id?: string | null
+          id?: string
+          post_type?: string | null
+          prompt_context?: Json | null
+          status?: string | null
+          tone?: string | null
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          content?: string
+          created_at?: string | null
+          estimated_engagement?: number | null
+          expires_at?: string | null
+          generation_batch_id?: string | null
+          id?: string
+          post_type?: string | null
+          prompt_context?: Json | null
+          status?: string | null
+          tone?: string | null
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      inspiration_posts: {
+        Row: {
+          author_avatar_url: string | null
+          author_headline: string | null
+          author_name: string | null
+          author_profile_url: string | null
+          category: string | null
+          comments: number | null
+          content: string
+          created_at: string | null
+          engagement_score: number | null
+          id: string
+          niche: string | null
+          posted_at: string | null
+          reactions: number | null
+          reposts: number | null
+          source: string | null
+        }
+        Insert: {
+          author_avatar_url?: string | null
+          author_headline?: string | null
+          author_name?: string | null
+          author_profile_url?: string | null
+          category?: string | null
+          comments?: number | null
+          content: string
+          created_at?: string | null
+          engagement_score?: number | null
+          id?: string
+          niche?: string | null
+          posted_at?: string | null
+          reactions?: number | null
+          reposts?: number | null
+          source?: string | null
+        }
+        Update: {
+          author_avatar_url?: string | null
+          author_headline?: string | null
+          author_name?: string | null
+          author_profile_url?: string | null
+          category?: string | null
+          comments?: number | null
+          content?: string
+          created_at?: string | null
+          engagement_score?: number | null
+          id?: string
+          niche?: string | null
+          posted_at?: string | null
+          reactions?: number | null
+          reposts?: number | null
+          source?: string | null
+        }
+        Relationships: []
+      }
+      invitations: {
+        Row: {
+          actor_headline: string | null
+          actor_name: string | null
+          actor_profile_picture: string | null
+          actor_profile_url: string | null
+          created_at: string | null
+          direction: string | null
+          id: string
+          invitation_type: string | null
+          invitation_urn: string | null
+          message: string | null
+          raw_data: Json | null
+          sent_at: string | null
+          status: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          actor_headline?: string | null
+          actor_name?: string | null
+          actor_profile_picture?: string | null
+          actor_profile_url?: string | null
+          created_at?: string | null
+          direction?: string | null
+          id?: string
+          invitation_type?: string | null
+          invitation_urn?: string | null
+          message?: string | null
+          raw_data?: Json | null
+          sent_at?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          actor_headline?: string | null
+          actor_name?: string | null
+          actor_profile_picture?: string | null
+          actor_profile_url?: string | null
+          created_at?: string | null
+          direction?: string | null
+          id?: string
+          invitation_type?: string | null
+          invitation_urn?: string | null
+          message?: string | null
+          raw_data?: Json | null
+          sent_at?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      linkedin_analytics: {
+        Row: {
+          captured_at: string | null
+          engagements: number | null
+          id: string
+          impressions: number | null
+          members_reached: number | null
+          new_followers: number | null
+          page_type: string
+          profile_views: number | null
+          raw_data: Json | null
+          search_appearances: number | null
+          top_posts: Json | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          captured_at?: string | null
+          engagements?: number | null
+          id?: string
+          impressions?: number | null
+          members_reached?: number | null
+          new_followers?: number | null
+          page_type: string
+          profile_views?: number | null
+          raw_data?: Json | null
+          search_appearances?: number | null
+          top_posts?: Json | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          captured_at?: string | null
+          engagements?: number | null
+          id?: string
+          impressions?: number | null
+          members_reached?: number | null
+          new_followers?: number | null
+          page_type?: string
+          profile_views?: number | null
+          raw_data?: Json | null
+          search_appearances?: number | null
+          top_posts?: Json | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      linkedin_credentials: {
+        Row: {
+          cookies_set_at: string | null
+          created_at: string | null
+          csrf_token: string | null
+          expires_at: string | null
+          id: string
+          is_valid: boolean | null
+          jsessionid: string
+          last_used_at: string | null
+          li_at: string
+          liap: string | null
+          updated_at: string | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          cookies_set_at?: string | null
+          created_at?: string | null
+          csrf_token?: string | null
+          expires_at?: string | null
+          id?: string
+          is_valid?: boolean | null
+          jsessionid: string
+          last_used_at?: string | null
+          li_at: string
+          liap?: string | null
+          updated_at?: string | null
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          cookies_set_at?: string | null
+          created_at?: string | null
+          csrf_token?: string | null
+          expires_at?: string | null
+          id?: string
+          is_valid?: boolean | null
+          jsessionid?: string
+          last_used_at?: string | null
+          li_at?: string
+          liap?: string | null
+          updated_at?: string | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      linkedin_profiles: {
+        Row: {
+          background_image_url: string | null
+          captured_at: string | null
+          connections_count: number | null
+          first_name: string | null
+          followers_count: number | null
+          headline: string | null
+          id: string
+          industry: string | null
+          last_name: string | null
+          location: string | null
+          profile_picture_url: string | null
+          profile_urn: string | null
+          public_identifier: string | null
+          raw_data: Json | null
+          summary: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          background_image_url?: string | null
+          captured_at?: string | null
+          connections_count?: number | null
+          first_name?: string | null
+          followers_count?: number | null
+          headline?: string | null
+          id?: string
+          industry?: string | null
+          last_name?: string | null
+          location?: string | null
+          profile_picture_url?: string | null
+          profile_urn?: string | null
+          public_identifier?: string | null
+          raw_data?: Json | null
+          summary?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          background_image_url?: string | null
+          captured_at?: string | null
+          connections_count?: number | null
+          first_name?: string | null
+          followers_count?: number | null
+          headline?: string | null
+          id?: string
+          industry?: string | null
+          last_name?: string | null
+          location?: string | null
+          profile_picture_url?: string | null
+          profile_urn?: string | null
+          public_identifier?: string | null
+          raw_data?: Json | null
+          summary?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      linkedin_research_posts: {
+        Row: {
+          activity_urn: string | null
+          author_first_name: string | null
+          author_headline: string | null
+          author_last_name: string | null
+          author_profile_picture: string | null
+          author_profile_url: string | null
+          author_username: string | null
+          celebrates: number | null
+          comments: number | null
+          created_at: string | null
+          full_urn: string | null
+          funny: number | null
+          id: string
+          insights: number | null
+          likes: number | null
+          loves: number | null
+          media_images: Json | null
+          media_type: string | null
+          media_url: string | null
+          post_type: string | null
+          posted_date: string | null
+          posted_relative: string | null
+          posted_timestamp: number | null
+          profile_input: string | null
+          raw_data: Json | null
+          reposts: number | null
+          share_urn: string | null
+          supports: number | null
+          text: string | null
+          total_reactions: number | null
+          ugc_post_urn: string | null
+          url: string | null
+        }
+        Insert: {
+          activity_urn?: string | null
+          author_first_name?: string | null
+          author_headline?: string | null
+          author_last_name?: string | null
+          author_profile_picture?: string | null
+          author_profile_url?: string | null
+          author_username?: string | null
+          celebrates?: number | null
+          comments?: number | null
+          created_at?: string | null
+          full_urn?: string | null
+          funny?: number | null
+          id?: string
+          insights?: number | null
+          likes?: number | null
+          loves?: number | null
+          media_images?: Json | null
+          media_type?: string | null
+          media_url?: string | null
+          post_type?: string | null
+          posted_date?: string | null
+          posted_relative?: string | null
+          posted_timestamp?: number | null
+          profile_input?: string | null
+          raw_data?: Json | null
+          reposts?: number | null
+          share_urn?: string | null
+          supports?: number | null
+          text?: string | null
+          total_reactions?: number | null
+          ugc_post_urn?: string | null
+          url?: string | null
+        }
+        Update: {
+          activity_urn?: string | null
+          author_first_name?: string | null
+          author_headline?: string | null
+          author_last_name?: string | null
+          author_profile_picture?: string | null
+          author_profile_url?: string | null
+          author_username?: string | null
+          celebrates?: number | null
+          comments?: number | null
+          created_at?: string | null
+          full_urn?: string | null
+          funny?: number | null
+          id?: string
+          insights?: number | null
+          likes?: number | null
+          loves?: number | null
+          media_images?: Json | null
+          media_type?: string | null
+          media_url?: string | null
+          post_type?: string | null
+          posted_date?: string | null
+          posted_relative?: string | null
+          posted_timestamp?: number | null
+          profile_input?: string | null
+          raw_data?: Json | null
+          reposts?: number | null
+          share_urn?: string | null
+          supports?: number | null
+          text?: string | null
+          total_reactions?: number | null
+          ugc_post_urn?: string | null
+          url?: string | null
+        }
+        Relationships: []
+      }
+      linkedin_tokens: {
+        Row: {
+          access_token: string
+          created_at: string | null
+          expires_at: string
+          id: string
+          linkedin_urn: string | null
+          refresh_token: string | null
+          scopes: string[] | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          linkedin_urn?: string | null
+          refresh_token?: string | null
+          scopes?: string[] | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          linkedin_urn?: string | null
+          refresh_token?: string | null
+          scopes?: string[] | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      my_posts: {
+        Row: {
+          activity_urn: string
+          comments: number | null
+          content: string | null
+          created_at: string | null
+          id: string
+          impressions: number | null
+          media_type: string | null
+          media_urls: string[] | null
+          posted_at: string | null
+          raw_data: Json | null
+          reactions: number | null
+          reposts: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          activity_urn: string
+          comments?: number | null
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          impressions?: number | null
+          media_type?: string | null
+          media_urls?: string[] | null
+          posted_at?: string | null
+          raw_data?: Json | null
+          reactions?: number | null
+          reposts?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          activity_urn?: string
+          comments?: number | null
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          impressions?: number | null
+          media_type?: string | null
+          media_urls?: string[] | null
+          posted_at?: string | null
+          raw_data?: Json | null
+          reactions?: number | null
+          reposts?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      network_data: {
+        Row: {
+          created_at: string | null
+          data_type: string | null
+          entity_urn: string | null
+          id: string
+          person_headline: string | null
+          person_name: string | null
+          person_profile_picture: string | null
+          person_profile_url: string | null
+          public_identifier: string | null
+          raw_data: Json | null
+          suggestion_reason: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          data_type?: string | null
+          entity_urn?: string | null
+          id?: string
+          person_headline?: string | null
+          person_name?: string | null
+          person_profile_picture?: string | null
+          person_profile_url?: string | null
+          public_identifier?: string | null
+          raw_data?: Json | null
+          suggestion_reason?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          data_type?: string | null
+          entity_urn?: string | null
+          id?: string
+          person_headline?: string | null
+          person_name?: string | null
+          person_profile_picture?: string | null
+          person_profile_url?: string | null
+          public_identifier?: string | null
+          raw_data?: Json | null
+          suggestion_reason?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          actor_headline: string | null
+          actor_name: string | null
+          actor_profile_url: string | null
+          content: string | null
+          created_at: string | null
+          id: string
+          is_read: boolean | null
+          notification_type: string | null
+          notification_urn: string | null
+          raw_data: Json | null
+          received_at: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          actor_headline?: string | null
+          actor_name?: string | null
+          actor_profile_url?: string | null
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          notification_type?: string | null
+          notification_urn?: string | null
+          raw_data?: Json | null
+          received_at?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          actor_headline?: string | null
+          actor_name?: string | null
+          actor_profile_url?: string | null
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          notification_type?: string | null
+          notification_urn?: string | null
+          raw_data?: Json | null
+          received_at?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      post_analytics: {
+        Row: {
+          activity_urn: string | null
+          captured_at: string | null
+          comments: number | null
+          demographics: Json | null
+          engagement_rate: number | null
+          followers_gained: number | null
+          id: string
+          impressions: number | null
+          members_reached: number | null
+          post_content: string | null
+          post_type: string | null
+          posted_at: string | null
+          profile_viewers: number | null
+          raw_data: Json | null
+          reactions: number | null
+          reposts: number | null
+          unique_views: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          activity_urn?: string | null
+          captured_at?: string | null
+          comments?: number | null
+          demographics?: Json | null
+          engagement_rate?: number | null
+          followers_gained?: number | null
+          id?: string
+          impressions?: number | null
+          members_reached?: number | null
+          post_content?: string | null
+          post_type?: string | null
+          posted_at?: string | null
+          profile_viewers?: number | null
+          raw_data?: Json | null
+          reactions?: number | null
+          reposts?: number | null
+          unique_views?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          activity_urn?: string | null
+          captured_at?: string | null
+          comments?: number | null
+          demographics?: Json | null
+          engagement_rate?: number | null
+          followers_gained?: number | null
+          id?: string
+          impressions?: number | null
+          members_reached?: number | null
+          post_content?: string | null
+          post_type?: string | null
+          posted_at?: string | null
+          profile_viewers?: number | null
+          raw_data?: Json | null
+          reactions?: number | null
+          reposts?: number | null
+          unique_views?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      post_analytics_accumulative: {
+        Row: {
+          analysis_date: string
+          analytics_tracking_status_id: number | null
+          comments_total: number | null
+          engagements_rate: number | null
+          engagements_total: number | null
+          id: string
+          impressions_total: number | null
+          post_created_at: string | null
+          post_id: string
+          reactions_total: number | null
+          reposts_total: number | null
+          saves_total: number | null
+          sends_total: number | null
+          unique_reach_total: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          analysis_date: string
+          analytics_tracking_status_id?: number | null
+          comments_total?: number | null
+          engagements_rate?: number | null
+          engagements_total?: number | null
+          id?: string
+          impressions_total?: number | null
+          post_created_at?: string | null
+          post_id: string
+          reactions_total?: number | null
+          reposts_total?: number | null
+          saves_total?: number | null
+          sends_total?: number | null
+          unique_reach_total?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          analysis_date?: string
+          analytics_tracking_status_id?: number | null
+          comments_total?: number | null
+          engagements_rate?: number | null
+          engagements_total?: number | null
+          id?: string
+          impressions_total?: number | null
+          post_created_at?: string | null
+          post_id?: string
+          reactions_total?: number | null
+          reposts_total?: number | null
+          saves_total?: number | null
+          sends_total?: number | null
+          unique_reach_total?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_analytics_accumulative_analytics_tracking_status_id_fkey"
+            columns: ["analytics_tracking_status_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_tracking_status"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_analytics_accumulative_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "my_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_analytics_daily: {
+        Row: {
+          analysis_date: string
+          analytics_tracking_status_id: number | null
+          comments_gained: number | null
+          engagements_gained: number | null
+          engagements_rate: number | null
+          id: string
+          impressions_gained: number | null
+          post_id: string
+          reactions_gained: number | null
+          reposts_gained: number | null
+          saves_gained: number | null
+          sends_gained: number | null
+          unique_reach_gained: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          analysis_date: string
+          analytics_tracking_status_id?: number | null
+          comments_gained?: number | null
+          engagements_gained?: number | null
+          engagements_rate?: number | null
+          id?: string
+          impressions_gained?: number | null
+          post_id: string
+          reactions_gained?: number | null
+          reposts_gained?: number | null
+          saves_gained?: number | null
+          sends_gained?: number | null
+          unique_reach_gained?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          analysis_date?: string
+          analytics_tracking_status_id?: number | null
+          comments_gained?: number | null
+          engagements_gained?: number | null
+          engagements_rate?: number | null
+          id?: string
+          impressions_gained?: number | null
+          post_id?: string
+          reactions_gained?: number | null
+          reposts_gained?: number | null
+          saves_gained?: number | null
+          sends_gained?: number | null
+          unique_reach_gained?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_analytics_daily_analytics_tracking_status_id_fkey"
+            columns: ["analytics_tracking_status_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_tracking_status"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_analytics_daily_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "my_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_analytics_mth: {
+        Row: {
+          analysis_date: string
+          analytics_tracking_status_id: number | null
+          comments_total: number | null
+          engagements_rate: number | null
+          engagements_total: number | null
+          id: string
+          impressions_total: number | null
+          is_finalized: boolean | null
+          month_start: string
+          post_id: string
+          reactions_total: number | null
+          reposts_total: number | null
+          saves_total: number | null
+          sends_total: number | null
+          unique_reach_total: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          analysis_date: string
+          analytics_tracking_status_id?: number | null
+          comments_total?: number | null
+          engagements_rate?: number | null
+          engagements_total?: number | null
+          id?: string
+          impressions_total?: number | null
+          is_finalized?: boolean | null
+          month_start: string
+          post_id: string
+          reactions_total?: number | null
+          reposts_total?: number | null
+          saves_total?: number | null
+          sends_total?: number | null
+          unique_reach_total?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          analysis_date?: string
+          analytics_tracking_status_id?: number | null
+          comments_total?: number | null
+          engagements_rate?: number | null
+          engagements_total?: number | null
+          id?: string
+          impressions_total?: number | null
+          is_finalized?: boolean | null
+          month_start?: string
+          post_id?: string
+          reactions_total?: number | null
+          reposts_total?: number | null
+          saves_total?: number | null
+          sends_total?: number | null
+          unique_reach_total?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_analytics_mth_analytics_tracking_status_id_fkey"
+            columns: ["analytics_tracking_status_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_tracking_status"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_analytics_mth_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "my_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_analytics_qtr: {
+        Row: {
+          analysis_date: string
+          analytics_tracking_status_id: number | null
+          comments_total: number | null
+          engagements_rate: number | null
+          engagements_total: number | null
+          id: string
+          impressions_total: number | null
+          is_finalized: boolean | null
+          post_id: string
+          quarter_start: string
+          reactions_total: number | null
+          reposts_total: number | null
+          saves_total: number | null
+          sends_total: number | null
+          unique_reach_total: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          analysis_date: string
+          analytics_tracking_status_id?: number | null
+          comments_total?: number | null
+          engagements_rate?: number | null
+          engagements_total?: number | null
+          id?: string
+          impressions_total?: number | null
+          is_finalized?: boolean | null
+          post_id: string
+          quarter_start: string
+          reactions_total?: number | null
+          reposts_total?: number | null
+          saves_total?: number | null
+          sends_total?: number | null
+          unique_reach_total?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          analysis_date?: string
+          analytics_tracking_status_id?: number | null
+          comments_total?: number | null
+          engagements_rate?: number | null
+          engagements_total?: number | null
+          id?: string
+          impressions_total?: number | null
+          is_finalized?: boolean | null
+          post_id?: string
+          quarter_start?: string
+          reactions_total?: number | null
+          reposts_total?: number | null
+          saves_total?: number | null
+          sends_total?: number | null
+          unique_reach_total?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_analytics_qtr_analytics_tracking_status_id_fkey"
+            columns: ["analytics_tracking_status_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_tracking_status"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_analytics_qtr_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "my_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_analytics_wk: {
+        Row: {
+          analysis_date: string
+          analytics_tracking_status_id: number | null
+          comments_total: number | null
+          engagements_rate: number | null
+          engagements_total: number | null
+          id: string
+          impressions_total: number | null
+          is_finalized: boolean | null
+          post_id: string
+          reactions_total: number | null
+          reposts_total: number | null
+          saves_total: number | null
+          sends_total: number | null
+          unique_reach_total: number | null
+          updated_at: string | null
+          user_id: string
+          week_start: string
+        }
+        Insert: {
+          analysis_date: string
+          analytics_tracking_status_id?: number | null
+          comments_total?: number | null
+          engagements_rate?: number | null
+          engagements_total?: number | null
+          id?: string
+          impressions_total?: number | null
+          is_finalized?: boolean | null
+          post_id: string
+          reactions_total?: number | null
+          reposts_total?: number | null
+          saves_total?: number | null
+          sends_total?: number | null
+          unique_reach_total?: number | null
+          updated_at?: string | null
+          user_id: string
+          week_start: string
+        }
+        Update: {
+          analysis_date?: string
+          analytics_tracking_status_id?: number | null
+          comments_total?: number | null
+          engagements_rate?: number | null
+          engagements_total?: number | null
+          id?: string
+          impressions_total?: number | null
+          is_finalized?: boolean | null
+          post_id?: string
+          reactions_total?: number | null
+          reposts_total?: number | null
+          saves_total?: number | null
+          sends_total?: number | null
+          unique_reach_total?: number | null
+          updated_at?: string | null
+          user_id?: string
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_analytics_wk_analytics_tracking_status_id_fkey"
+            columns: ["analytics_tracking_status_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_tracking_status"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_analytics_wk_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "my_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_analytics_yr: {
+        Row: {
+          analysis_date: string
+          analytics_tracking_status_id: number | null
+          comments_total: number | null
+          engagements_rate: number | null
+          engagements_total: number | null
+          id: string
+          impressions_total: number | null
+          is_finalized: boolean | null
+          post_id: string
+          reactions_total: number | null
+          reposts_total: number | null
+          saves_total: number | null
+          sends_total: number | null
+          unique_reach_total: number | null
+          updated_at: string | null
+          user_id: string
+          year_start: string
+        }
+        Insert: {
+          analysis_date: string
+          analytics_tracking_status_id?: number | null
+          comments_total?: number | null
+          engagements_rate?: number | null
+          engagements_total?: number | null
+          id?: string
+          impressions_total?: number | null
+          is_finalized?: boolean | null
+          post_id: string
+          reactions_total?: number | null
+          reposts_total?: number | null
+          saves_total?: number | null
+          sends_total?: number | null
+          unique_reach_total?: number | null
+          updated_at?: string | null
+          user_id: string
+          year_start: string
+        }
+        Update: {
+          analysis_date?: string
+          analytics_tracking_status_id?: number | null
+          comments_total?: number | null
+          engagements_rate?: number | null
+          engagements_total?: number | null
+          id?: string
+          impressions_total?: number | null
+          is_finalized?: boolean | null
+          post_id?: string
+          reactions_total?: number | null
+          reposts_total?: number | null
+          saves_total?: number | null
+          sends_total?: number | null
+          unique_reach_total?: number | null
+          updated_at?: string | null
+          user_id?: string
+          year_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_analytics_yr_analytics_tracking_status_id_fkey"
+            columns: ["analytics_tracking_status_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_tracking_status"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_analytics_yr_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "my_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      posting_goals: {
+        Row: {
+          created_at: string | null
+          current_posts: number | null
+          end_date: string
+          id: string
+          period: string
+          start_date: string
+          target_posts: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          current_posts?: number | null
+          end_date: string
+          id?: string
+          period: string
+          start_date: string
+          target_posts: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          current_posts?: number | null
+          end_date?: string
+          id?: string
+          period?: string
+          start_date?: string
+          target_posts?: number
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profile_analytics_accumulative: {
+        Row: {
+          analysis_date: string
+          connections_total: number | null
+          followers_total: number | null
+          id: string
+          profile_views_total: number | null
+          search_appearances_total: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          analysis_date: string
+          connections_total?: number | null
+          followers_total?: number | null
+          id?: string
+          profile_views_total?: number | null
+          search_appearances_total?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          analysis_date?: string
+          connections_total?: number | null
+          followers_total?: number | null
+          id?: string
+          profile_views_total?: number | null
+          search_appearances_total?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profile_analytics_daily: {
+        Row: {
+          analysis_date: string
+          connections_gained: number | null
+          followers_gained: number | null
+          id: string
+          profile_views_gained: number | null
+          search_appearances_gained: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          analysis_date: string
+          connections_gained?: number | null
+          followers_gained?: number | null
+          id?: string
+          profile_views_gained?: number | null
+          search_appearances_gained?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          analysis_date?: string
+          connections_gained?: number | null
+          followers_gained?: number | null
+          id?: string
+          profile_views_gained?: number | null
+          search_appearances_gained?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          company_description: string | null
+          company_icp: string | null
+          company_name: string | null
+          company_onboarding_completed: boolean | null
+          company_products: string | null
+          company_value_props: string | null
+          company_website: string | null
+          created_at: string | null
+          dashboard_tour_completed: boolean | null
+          discover_topics: string[] | null
+          discover_topics_selected: boolean | null
+          email: string | null
+          full_name: string | null
+          id: string
+          linkedin_access_token: string | null
+          linkedin_avatar_url: string | null
+          linkedin_connected_at: string | null
+          linkedin_headline: string | null
+          linkedin_profile_url: string | null
+          linkedin_token_expires_at: string | null
+          linkedin_user_id: string | null
+          onboarding_completed: boolean | null
+          onboarding_current_step: number | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          company_description?: string | null
+          company_icp?: string | null
+          company_name?: string | null
+          company_onboarding_completed?: boolean | null
+          company_products?: string | null
+          company_value_props?: string | null
+          company_website?: string | null
+          created_at?: string | null
+          dashboard_tour_completed?: boolean | null
+          discover_topics?: string[] | null
+          discover_topics_selected?: boolean | null
+          email?: string | null
+          full_name?: string | null
+          id: string
+          linkedin_access_token?: string | null
+          linkedin_avatar_url?: string | null
+          linkedin_connected_at?: string | null
+          linkedin_headline?: string | null
+          linkedin_profile_url?: string | null
+          linkedin_token_expires_at?: string | null
+          linkedin_user_id?: string | null
+          onboarding_completed?: boolean | null
+          onboarding_current_step?: number | null
+        }
+        Update: {
+          avatar_url?: string | null
+          company_description?: string | null
+          company_icp?: string | null
+          company_name?: string | null
+          company_onboarding_completed?: boolean | null
+          company_products?: string | null
+          company_value_props?: string | null
+          company_website?: string | null
+          created_at?: string | null
+          dashboard_tour_completed?: boolean | null
+          discover_topics?: string[] | null
+          discover_topics_selected?: boolean | null
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          linkedin_access_token?: string | null
+          linkedin_avatar_url?: string | null
+          linkedin_connected_at?: string | null
+          linkedin_headline?: string | null
+          linkedin_profile_url?: string | null
+          linkedin_token_expires_at?: string | null
+          linkedin_user_id?: string | null
+          onboarding_completed?: boolean | null
+          onboarding_current_step?: number | null
+        }
+        Relationships: []
+      }
+      prompt_test_results: {
+        Row: {
+          created_at: string
+          estimated_cost: number | null
+          id: string
+          max_tokens: number | null
+          model: string
+          notes: string | null
+          prompt_id: string | null
+          prompt_version: number
+          rating: number | null
+          response_content: string
+          system_prompt: string
+          temperature: number | null
+          tokens_used: number | null
+          user_id: string | null
+          user_prompt: string
+          variables: Json
+        }
+        Insert: {
+          created_at?: string
+          estimated_cost?: number | null
+          id?: string
+          max_tokens?: number | null
+          model: string
+          notes?: string | null
+          prompt_id?: string | null
+          prompt_version: number
+          rating?: number | null
+          response_content: string
+          system_prompt: string
+          temperature?: number | null
+          tokens_used?: number | null
+          user_id?: string | null
+          user_prompt: string
+          variables?: Json
+        }
+        Update: {
+          created_at?: string
+          estimated_cost?: number | null
+          id?: string
+          max_tokens?: number | null
+          model?: string
+          notes?: string | null
+          prompt_id?: string | null
+          prompt_version?: number
+          rating?: number | null
+          response_content?: string
+          system_prompt?: string
+          temperature?: number | null
+          tokens_used?: number | null
+          user_id?: string | null
+          user_prompt?: string
+          variables?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prompt_test_results_prompt_id_fkey"
+            columns: ["prompt_id"]
+            isOneToOne: false
+            referencedRelation: "system_prompts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prompt_usage_logs: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          feature: string
+          id: string
+          input_tokens: number | null
+          metadata: Json
+          model: string | null
+          output_tokens: number | null
+          prompt_id: string | null
+          prompt_type: Database["public"]["Enums"]["prompt_type"]
+          prompt_version: number
+          response_time_ms: number | null
+          success: boolean
+          total_tokens: number | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          feature: string
+          id?: string
+          input_tokens?: number | null
+          metadata?: Json
+          model?: string | null
+          output_tokens?: number | null
+          prompt_id?: string | null
+          prompt_type: Database["public"]["Enums"]["prompt_type"]
+          prompt_version: number
+          response_time_ms?: number | null
+          success?: boolean
+          total_tokens?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          feature?: string
+          id?: string
+          input_tokens?: number | null
+          metadata?: Json
+          model?: string | null
+          output_tokens?: number | null
+          prompt_id?: string | null
+          prompt_type?: Database["public"]["Enums"]["prompt_type"]
+          prompt_version?: number
+          response_time_ms?: number | null
+          success?: boolean
+          total_tokens?: number | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prompt_usage_logs_prompt_id_fkey"
+            columns: ["prompt_id"]
+            isOneToOne: false
+            referencedRelation: "system_prompts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prompt_versions: {
+        Row: {
+          change_notes: string | null
+          content: string
+          created_at: string
+          created_by: string | null
+          id: string
+          prompt_id: string
+          variables: Json
+          version: number
+        }
+        Insert: {
+          change_notes?: string | null
+          content: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          prompt_id: string
+          variables?: Json
+          version: number
+        }
+        Update: {
+          change_notes?: string | null
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          prompt_id?: string
+          variables?: Json
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prompt_versions_prompt_id_fkey"
+            columns: ["prompt_id"]
+            isOneToOne: false
+            referencedRelation: "system_prompts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_sessions: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          depth: string
+          error_message: string | null
+          failed_step: string | null
+          id: string
+          inngest_run_id: string | null
+          posts_discovered: number | null
+          posts_generated: number | null
+          started_at: string | null
+          status: string
+          topics: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          depth?: string
+          error_message?: string | null
+          failed_step?: string | null
+          id?: string
+          inngest_run_id?: string | null
+          posts_discovered?: number | null
+          posts_generated?: number | null
+          started_at?: string | null
+          status?: string
+          topics: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          depth?: string
+          error_message?: string | null
+          failed_step?: string | null
+          id?: string
+          inngest_run_id?: string | null
+          posts_discovered?: number | null
+          posts_generated?: number | null
+          started_at?: string | null
+          status?: string
+          topics?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      saved_inspirations: {
+        Row: {
+          created_at: string | null
+          id: string
+          inspiration_post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          inspiration_post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          inspiration_post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_inspirations_inspiration_post_id_fkey"
+            columns: ["inspiration_post_id"]
+            isOneToOne: false
+            referencedRelation: "linkedin_research_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scheduled_posts: {
+        Row: {
+          content: string
+          created_at: string
+          error_message: string | null
+          id: string
+          linkedin_post_id: string | null
+          media_urls: string[] | null
+          posted_at: string | null
+          scheduled_for: string
+          status: string
+          timezone: string | null
+          updated_at: string
+          user_id: string
+          visibility: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          linkedin_post_id?: string | null
+          media_urls?: string[] | null
+          posted_at?: string | null
+          scheduled_for: string
+          status?: string
+          timezone?: string | null
+          updated_at?: string
+          user_id: string
+          visibility?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          linkedin_post_id?: string | null
+          media_urls?: string[] | null
+          posted_at?: string | null
+          scheduled_for?: string
+          status?: string
+          timezone?: string | null
+          updated_at?: string
+          user_id?: string
+          visibility?: string
+        }
+        Relationships: []
+      }
+      suggestion_generation_runs: {
+        Row: {
+          company_context_id: string | null
+          completed_at: string | null
+          created_at: string | null
+          error_message: string | null
+          id: string
+          inngest_run_id: string | null
+          post_types_used: string[] | null
+          status: string | null
+          suggestions_generated: number | null
+          suggestions_requested: number | null
+          user_id: string
+        }
+        Insert: {
+          company_context_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          inngest_run_id?: string | null
+          post_types_used?: string[] | null
+          status?: string | null
+          suggestions_generated?: number | null
+          suggestions_requested?: number | null
+          user_id: string
+        }
+        Update: {
+          company_context_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          inngest_run_id?: string | null
+          post_types_used?: string[] | null
+          status?: string | null
+          suggestions_generated?: number | null
+          suggestions_requested?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suggestion_generation_runs_company_context_id_fkey"
+            columns: ["company_context_id"]
+            isOneToOne: false
+            referencedRelation: "company_context"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      swipe_preferences: {
+        Row: {
+          action: string
+          created_at: string | null
+          id: string
+          post_id: string | null
+          suggestion_content: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          id?: string
+          post_id?: string | null
+          suggestion_content?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          id?: string
+          post_id?: string | null
+          suggestion_content?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "swipe_preferences_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "inspiration_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      swipe_wishlist: {
+        Row: {
+          category: string | null
+          collection_id: string | null
+          content: string
+          created_at: string | null
+          id: string
+          is_scheduled: boolean | null
+          notes: string | null
+          post_type: string | null
+          scheduled_post_id: string | null
+          status: string | null
+          suggestion_id: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          collection_id?: string | null
+          content: string
+          created_at?: string | null
+          id?: string
+          is_scheduled?: boolean | null
+          notes?: string | null
+          post_type?: string | null
+          scheduled_post_id?: string | null
+          status?: string | null
+          suggestion_id?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          collection_id?: string | null
+          content?: string
+          created_at?: string | null
+          id?: string
+          is_scheduled?: boolean | null
+          notes?: string | null
+          post_type?: string | null
+          scheduled_post_id?: string | null
+          status?: string | null
+          suggestion_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "swipe_wishlist_collection_id_fkey"
+            columns: ["collection_id"]
+            isOneToOne: false
+            referencedRelation: "wishlist_collections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "swipe_wishlist_scheduled_post_id_fkey"
+            columns: ["scheduled_post_id"]
+            isOneToOne: false
+            referencedRelation: "scheduled_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "swipe_wishlist_suggestion_id_fkey"
+            columns: ["suggestion_id"]
+            isOneToOne: false
+            referencedRelation: "generated_suggestions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sync_metadata: {
+        Row: {
+          created_at: string | null
+          id: string
+          last_synced_at: string | null
+          pending_changes: number | null
+          sync_status: string | null
+          table_name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          last_synced_at?: string | null
+          pending_changes?: number | null
+          sync_status?: string | null
+          table_name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          last_synced_at?: string | null
+          pending_changes?: number | null
+          sync_status?: string | null
+          table_name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      system_prompts: {
+        Row: {
+          content: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          is_default: boolean
+          name: string
+          type: Database["public"]["Enums"]["prompt_type"]
+          updated_at: string
+          updated_by: string | null
+          variables: Json
+          version: number
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name: string
+          type: Database["public"]["Enums"]["prompt_type"]
+          updated_at?: string
+          updated_by?: string | null
+          variables?: Json
+          version?: number
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name?: string
+          type?: Database["public"]["Enums"]["prompt_type"]
+          updated_at?: string
+          updated_by?: string | null
+          variables?: Json
+          version?: number
+        }
+        Relationships: []
+      }
+      team_invitations: {
+        Row: {
+          accepted_at: string | null
+          created_at: string | null
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string | null
+          role: string
+          status: string
+          team_id: string
+          token: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string | null
+          email: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          role?: string
+          status?: string
+          team_id: string
+          token: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          role?: string
+          status?: string
+          team_id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_invitations_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       team_members: {
         Row: {
           id: string
+          joined_at: string | null
+          role: string
           team_id: string
           user_id: string
-          role: string
-          joined_at: string
         }
         Insert: {
           id?: string
+          joined_at?: string | null
+          role?: string
           team_id: string
           user_id: string
-          role?: string
-          joined_at?: string
         }
         Update: {
           id?: string
+          joined_at?: string | null
+          role?: string
           team_id?: string
           user_id?: string
-          role?: string
-          joined_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
-      /** Team invitations for onboarding */
-      team_invitations: {
+      teams: {
         Row: {
-          id: string
-          team_id: string
-          email: string
-          role: string
-          token: string
-          invited_by: string
-          status: string
-          expires_at: string
-          created_at: string
-          accepted_at: string | null
-        }
-        Insert: {
-          id?: string
-          team_id: string
-          email: string
-          role?: string
-          token: string
-          invited_by: string
-          status?: string
-          expires_at?: string
-          created_at?: string
-          accepted_at?: string | null
-        }
-        Update: {
-          id?: string
-          team_id?: string
-          email?: string
-          role?: string
-          token?: string
-          invited_by?: string
-          status?: string
-          expires_at?: string
-          created_at?: string
-          accepted_at?: string | null
-        }
-        Relationships: []
-      }
-      /** Extension settings */
-      extension_settings: {
-        Row: {
-          id: string
-          user_id: string
-          auto_capture_enabled: boolean | null
-          capture_feed: boolean | null
-          capture_analytics: boolean | null
-          capture_profile: boolean | null
-          capture_messaging: boolean | null
-          sync_enabled: boolean | null
-          sync_interval: number | null
-          dark_mode: boolean | null
-          notifications_enabled: boolean | null
-          raw_settings: Json | null
+          company_id: string | null
           created_at: string | null
+          id: string
+          logo_url: string | null
+          name: string
+          owner_id: string | null
           updated_at: string | null
         }
         Insert: {
-          id?: string
-          user_id: string
-          auto_capture_enabled?: boolean | null
-          capture_feed?: boolean | null
-          capture_analytics?: boolean | null
-          capture_profile?: boolean | null
-          capture_messaging?: boolean | null
-          sync_enabled?: boolean | null
-          sync_interval?: number | null
-          dark_mode?: boolean | null
-          notifications_enabled?: boolean | null
-          raw_settings?: Json | null
+          company_id?: string | null
           created_at?: string | null
+          id?: string
+          logo_url?: string | null
+          name: string
+          owner_id?: string | null
           updated_at?: string | null
         }
         Update: {
-          id?: string
-          user_id?: string
-          auto_capture_enabled?: boolean | null
-          capture_feed?: boolean | null
-          capture_analytics?: boolean | null
-          capture_profile?: boolean | null
-          capture_messaging?: boolean | null
-          sync_enabled?: boolean | null
-          sync_interval?: number | null
-          dark_mode?: boolean | null
-          notifications_enabled?: boolean | null
-          raw_settings?: Json | null
+          company_id?: string | null
           created_at?: string | null
+          id?: string
+          logo_url?: string | null
+          name?: string
+          owner_id?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "teams_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
-      /** Sync metadata tracking */
-      sync_metadata: {
-        Row: {
-          id: string
-          user_id: string
-          table_name: string
-          last_synced_at: string
-          sync_status: string
-          pending_changes: number
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          table_name: string
-          last_synced_at?: string
-          sync_status?: string
-          pending_changes?: number
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          table_name?: string
-          last_synced_at?: string
-          sync_status?: string
-          pending_changes?: number
-          created_at?: string
-        }
-        Relationships: []
-      }
-      /** Posting goals */
-      posting_goals: {
-        Row: {
-          id: string
-          user_id: string
-          period: string
-          target_posts: number
-          current_posts: number
-          start_date: string
-          end_date: string
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          period: string
-          target_posts: number
-          current_posts?: number
-          start_date: string
-          end_date: string
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          period?: string
-          target_posts?: number
-          current_posts?: number
-          start_date?: string
-          end_date?: string
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      /** User API keys for BYOK (encrypted storage) */
-      user_api_keys: {
-        Row: {
-          id: string
-          user_id: string
-          provider: string
-          encrypted_key: string
-          key_hint: string | null
-          is_valid: boolean
-          last_validated_at: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          provider?: string
-          encrypted_key: string
-          key_hint?: string | null
-          is_valid?: boolean
-          last_validated_at?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          provider?: string
-          encrypted_key?: string
-          key_hint?: string | null
-          is_valid?: boolean
-          last_validated_at?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      /** User niches for content personalization */
-      user_niches: {
-        Row: {
-          id: string
-          user_id: string
-          niche: string
-          confidence: number | null
-          source: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          niche: string
-          confidence?: number | null
-          source?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          niche?: string
-          confidence?: number | null
-          source?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      /** Saved/bookmarked inspiration posts */
-      saved_inspirations: {
-        Row: {
-          id: string
-          user_id: string
-          inspiration_post_id: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          inspiration_post_id: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          inspiration_post_id?: string
-          created_at?: string
-        }
-        Relationships: []
-      }
-      /** LinkedIn OAuth tokens for API access */
-      linkedin_tokens: {
-        Row: {
-          id: string
-          user_id: string
-          access_token: string
-          refresh_token: string | null
-          expires_at: string
-          linkedin_urn: string | null
-          scopes: string[] | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          access_token: string
-          refresh_token?: string | null
-          expires_at: string
-          linkedin_urn?: string | null
-          scopes?: string[] | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          access_token?: string
-          refresh_token?: string | null
-          expires_at?: string
-          linkedin_urn?: string | null
-          scopes?: string[] | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      /** Brand kits extracted from websites */
-      brand_kits: {
-        Row: {
-          id: string
-          user_id: string
-          team_id: string | null
-          website_url: string
-          primary_color: string
-          secondary_color: string | null
-          accent_color: string | null
-          background_color: string | null
-          text_color: string | null
-          font_primary: string | null
-          font_secondary: string | null
-          logo_url: string | null
-          logo_storage_path: string | null
-          raw_extraction: Json | null
-          is_active: boolean
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          team_id?: string | null
-          website_url: string
-          primary_color: string
-          secondary_color?: string | null
-          accent_color?: string | null
-          background_color?: string | null
-          text_color?: string | null
-          font_primary?: string | null
-          font_secondary?: string | null
-          logo_url?: string | null
-          logo_storage_path?: string | null
-          raw_extraction?: Json | null
-          is_active?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          team_id?: string | null
-          website_url?: string
-          primary_color?: string
-          secondary_color?: string | null
-          accent_color?: string | null
-          background_color?: string | null
-          text_color?: string | null
-          font_primary?: string | null
-          font_secondary?: string | null
-          logo_url?: string | null
-          logo_storage_path?: string | null
-          raw_extraction?: Json | null
-          is_active?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      /** Saved carousel templates for reuse in the carousel editor */
-      carousel_templates: {
-        Row: {
-          id: string
-          user_id: string
-          team_id: string | null
-          name: string
-          description: string | null
-          category: string
-          slides: Json
-          brand_colors: Json
-          fonts: Json
-          thumbnail: string | null
-          is_public: boolean
-          usage_count: number
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          team_id?: string | null
-          name: string
-          description?: string | null
-          category?: string
-          slides: Json
-          brand_colors?: Json
-          fonts?: Json
-          thumbnail?: string | null
-          is_public?: boolean
-          usage_count?: number
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          team_id?: string | null
-          name?: string
-          description?: string | null
-          category?: string
-          slides?: Json
-          brand_colors?: Json
-          fonts?: Json
-          thumbnail?: string | null
-          is_public?: boolean
-          usage_count?: number
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      /** Template favorites for persisting user favorite template selections */
-      template_favorites: {
-        Row: {
-          id: string
-          user_id: string
-          template_id: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          template_id: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          template_id?: string
-          created_at?: string
-        }
-        Relationships: []
-      }
-      /** LinkedIn Voyager API credentials (session cookies) */
-      linkedin_credentials: {
-        Row: {
-          id: string
-          user_id: string
-          li_at: string
-          jsessionid: string
-          liap: string | null
-          csrf_token: string | null
-          user_agent: string | null
-          cookies_set_at: string
-          expires_at: string | null
-          is_valid: boolean
-          last_used_at: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          li_at: string
-          jsessionid: string
-          liap?: string | null
-          csrf_token?: string | null
-          user_agent?: string | null
-          cookies_set_at?: string
-          expires_at?: string | null
-          is_valid?: boolean
-          last_used_at?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          li_at?: string
-          jsessionid?: string
-          liap?: string | null
-          csrf_token?: string | null
-          user_agent?: string | null
-          cookies_set_at?: string
-          expires_at?: string | null
-          is_valid?: boolean
-          last_used_at?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      /** Perplexity-sourced news articles for the Discover feed */
-      discover_news_articles: {
-        Row: {
-          id: string
-          headline: string
-          summary: string
-          source_url: string
-          source_name: string
-          published_date: string | null
-          relevance_tags: string[]
-          topic: string
-          ingest_batch_id: string | null
-          freshness: string
-          perplexity_citations: string[]
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          headline: string
-          summary: string
-          source_url: string
-          source_name: string
-          published_date?: string | null
-          relevance_tags?: string[]
-          topic: string
-          ingest_batch_id?: string | null
-          freshness?: string
-          perplexity_citations?: string[]
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          headline?: string
-          summary?: string
-          source_url?: string
-          source_name?: string
-          published_date?: string | null
-          relevance_tags?: string[]
-          topic?: string
-          ingest_batch_id?: string | null
-          freshness?: string
-          perplexity_citations?: string[]
-          created_at?: string
-        }
-        Relationships: []
-      }
-      /** Discover posts - curated/scraped industry content */
-      discover_posts: {
-        Row: {
-          id: string
-          linkedin_url: string
-          author_name: string
-          author_headline: string
-          author_avatar_url: string | null
-          author_profile_url: string | null
-          content: string
-          post_type: string | null
-          likes_count: number
-          comments_count: number
-          reposts_count: number
-          impressions_count: number | null
-          posted_at: string
-          scraped_at: string
-          topics: string[]
-          is_viral: boolean
-          engagement_rate: number | null
-          source: string
-          /** UUID grouping items from same cron ingest run */
-          ingest_batch_id: string | null
-          /** Content freshness: 'new' | 'recent' | 'aging' | 'stale' */
-          freshness: string
-        }
-        Insert: {
-          id?: string
-          linkedin_url: string
-          author_name: string
-          author_headline: string
-          author_avatar_url?: string | null
-          author_profile_url?: string | null
-          content: string
-          post_type?: string | null
-          likes_count?: number
-          comments_count?: number
-          reposts_count?: number
-          impressions_count?: number | null
-          posted_at: string
-          scraped_at?: string
-          topics?: string[]
-          is_viral?: boolean
-          engagement_rate?: number | null
-          source?: string
-          ingest_batch_id?: string | null
-          freshness?: string
-        }
-        Update: {
-          id?: string
-          linkedin_url?: string
-          author_name?: string
-          author_headline?: string
-          author_avatar_url?: string | null
-          author_profile_url?: string | null
-          content?: string
-          post_type?: string | null
-          likes_count?: number
-          comments_count?: number
-          reposts_count?: number
-          impressions_count?: number | null
-          posted_at?: string
-          scraped_at?: string
-          topics?: string[]
-          is_viral?: boolean
-          engagement_rate?: number | null
-          source?: string
-          ingest_batch_id?: string | null
-          freshness?: string
-        }
-        Relationships: []
-      }
-      /** Writing style profiles derived from user's posts and saved content */
-      writing_style_profiles: {
-        Row: {
-          id: string
-          user_id: string
-          avg_sentence_length: number | null
-          vocabulary_level: string | null
-          tone: string | null
-          formatting_style: Json
-          hook_patterns: string[]
-          emoji_usage: string | null
-          cta_patterns: string[]
-          signature_phrases: string[]
-          content_themes: string[]
-          raw_analysis: Json
-          posts_analyzed_count: number
-          wishlisted_analyzed_count: number
-          created_at: string
-          updated_at: string
-          last_refreshed_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          avg_sentence_length?: number | null
-          vocabulary_level?: string | null
-          tone?: string | null
-          formatting_style?: Json
-          hook_patterns?: string[]
-          emoji_usage?: string | null
-          cta_patterns?: string[]
-          signature_phrases?: string[]
-          content_themes?: string[]
-          raw_analysis?: Json
-          posts_analyzed_count?: number
-          wishlisted_analyzed_count?: number
-          created_at?: string
-          updated_at?: string
-          last_refreshed_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          avg_sentence_length?: number | null
-          vocabulary_level?: string | null
-          tone?: string | null
-          formatting_style?: Json
-          hook_patterns?: string[]
-          emoji_usage?: string | null
-          cta_patterns?: string[]
-          signature_phrases?: string[]
-          content_themes?: string[]
-          raw_analysis?: Json
-          posts_analyzed_count?: number
-          wishlisted_analyzed_count?: number
-          created_at?: string
-          updated_at?: string
-          last_refreshed_at?: string
-        }
-        Relationships: []
-      }
-      /** AI-generated post suggestions personalized to each user */
-      generated_suggestions: {
-        Row: {
-          id: string
-          user_id: string
-          content: string
-          post_type: string | null
-          tone: string | null
-          category: string | null
-          prompt_context: Json
-          generation_batch_id: string | null
-          estimated_engagement: number | null
-          status: 'active' | 'used' | 'dismissed' | 'expired'
-          created_at: string
-          expires_at: string
-          used_at: string | null
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          content: string
-          post_type?: string | null
-          tone?: string | null
-          category?: string | null
-          prompt_context?: Json
-          generation_batch_id?: string | null
-          estimated_engagement?: number | null
-          status?: 'active' | 'used' | 'dismissed' | 'expired'
-          created_at?: string
-          expires_at?: string
-          used_at?: string | null
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          content?: string
-          post_type?: string | null
-          tone?: string | null
-          category?: string | null
-          prompt_context?: Json
-          generation_batch_id?: string | null
-          estimated_engagement?: number | null
-          status?: 'active' | 'used' | 'dismissed' | 'expired'
-          created_at?: string
-          expires_at?: string
-          used_at?: string | null
-        }
-        Relationships: []
-      }
-      /** User-created collections/folders for organizing wishlisted posts */
-      wishlist_collections: {
-        Row: {
-          id: string
-          user_id: string
-          name: string
-          description: string | null
-          emoji_icon: string
-          color: string
-          item_count: number
-          is_default: boolean
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          name: string
-          description?: string | null
-          emoji_icon?: string
-          color?: string
-          item_count?: number
-          is_default?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          name?: string
-          description?: string | null
-          emoji_icon?: string
-          color?: string
-          item_count?: number
-          is_default?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      /** Stores liked post suggestions for later scheduling or posting */
-      swipe_wishlist: {
-        Row: {
-          id: string
-          user_id: string
-          suggestion_id: string | null
-          collection_id: string | null
-          content: string
-          post_type: string | null
-          category: string | null
-          notes: string | null
-          is_scheduled: boolean
-          scheduled_post_id: string | null
-          status: 'saved' | 'scheduled' | 'posted' | 'removed'
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          suggestion_id?: string | null
-          collection_id?: string | null
-          content: string
-          post_type?: string | null
-          category?: string | null
-          notes?: string | null
-          is_scheduled?: boolean
-          scheduled_post_id?: string | null
-          status?: 'saved' | 'scheduled' | 'posted' | 'removed'
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          suggestion_id?: string | null
-          collection_id?: string | null
-          content?: string
-          post_type?: string | null
-          category?: string | null
-          notes?: string | null
-          is_scheduled?: boolean
-          scheduled_post_id?: string | null
-          status?: 'saved' | 'scheduled' | 'posted' | 'removed'
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      /** Tracks AI suggestion generation job runs for audit and rate limiting */
-      suggestion_generation_runs: {
-        Row: {
-          id: string
-          user_id: string
-          status: 'pending' | 'generating' | 'completed' | 'failed' | 'cancelled'
-          suggestions_requested: number
-          suggestions_generated: number
-          company_context_id: string | null
-          post_types_used: string[] | null
-          inngest_run_id: string | null
-          error_message: string | null
-          created_at: string
-          completed_at: string | null
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          status?: 'pending' | 'generating' | 'completed' | 'failed' | 'cancelled'
-          suggestions_requested?: number
-          suggestions_generated?: number
-          company_context_id?: string | null
-          post_types_used?: string[] | null
-          inngest_run_id?: string | null
-          error_message?: string | null
-          created_at?: string
-          completed_at?: string | null
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          status?: 'pending' | 'generating' | 'completed' | 'failed' | 'cancelled'
-          suggestions_requested?: number
-          suggestions_generated?: number
-          company_context_id?: string | null
-          post_types_used?: string[] | null
-          inngest_run_id?: string | null
-          error_message?: string | null
-          created_at?: string
-          completed_at?: string | null
-        }
-        Relationships: []
-      }
-      /** LinkedIn research posts - curated viral posts from influencers */
-      linkedin_research_posts: {
-        Row: {
-          id: string
-          activity_urn: string | null
-          text: string | null
-          url: string | null
-          post_type: string | null
-          posted_date: string | null
-          author_first_name: string | null
-          author_last_name: string | null
-          author_headline: string | null
-          author_username: string | null
-          author_profile_url: string | null
-          author_profile_picture: string | null
-          total_reactions: number | null
-          likes: number | null
-          comments: number | null
-          reposts: number | null
-          created_at: string | null
-        }
-        Insert: {
-          id?: string
-          activity_urn?: string | null
-          text?: string | null
-          url?: string | null
-          post_type?: string | null
-          posted_date?: string | null
-          author_first_name?: string | null
-          author_last_name?: string | null
-          author_headline?: string | null
-          author_username?: string | null
-          author_profile_url?: string | null
-          author_profile_picture?: string | null
-          total_reactions?: number | null
-          likes?: number | null
-          comments?: number | null
-          reposts?: number | null
-          created_at?: string | null
-        }
-        Update: {
-          id?: string
-          activity_urn?: string | null
-          text?: string | null
-          url?: string | null
-          post_type?: string | null
-          posted_date?: string | null
-          author_first_name?: string | null
-          author_last_name?: string | null
-          author_headline?: string | null
-          author_username?: string | null
-          author_profile_url?: string | null
-          author_profile_picture?: string | null
-          total_reactions?: number | null
-          likes?: number | null
-          comments?: number | null
-          reposts?: number | null
-          created_at?: string | null
-        }
-        Relationships: []
-      }
-      /** Research sessions for tracking deep research workflows */
-      research_sessions: {
-        Row: {
-          id: string
-          user_id: string
-          topics: string[]
-          depth: string
-          status: string
-          posts_discovered: number | null
-          posts_generated: number | null
-          error_message: string | null
-          failed_step: string | null
-          started_at: string | null
-          completed_at: string | null
-          created_at: string
-          updated_at: string
-          inngest_run_id: string | null
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          topics: string[]
-          depth?: string
-          status?: string
-          posts_discovered?: number | null
-          posts_generated?: number | null
-          error_message?: string | null
-          failed_step?: string | null
-          started_at?: string | null
-          completed_at?: string | null
-          created_at?: string
-          updated_at?: string
-          inngest_run_id?: string | null
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          topics?: string[]
-          depth?: string
-          status?: string
-          posts_discovered?: number | null
-          posts_generated?: number | null
-          error_message?: string | null
-          failed_step?: string | null
-          started_at?: string | null
-          completed_at?: string | null
-          created_at?: string
-          updated_at?: string
-          inngest_run_id?: string | null
-        }
-        Relationships: []
-      }
-      /** User-defined carousel template categories */
       template_categories: {
         Row: {
-          id: string
-          user_id: string
-          name: string
           created_at: string
+          id: string
+          name: string
+          user_id: string
         }
         Insert: {
-          id?: string
-          user_id: string
-          name: string
           created_at?: string
+          id?: string
+          name: string
+          user_id: string
         }
         Update: {
-          id?: string
-          user_id?: string
-          name?: string
           created_at?: string
+          id?: string
+          name?: string
+          user_id?: string
         }
         Relationships: []
       }
-      /** AI-generated LinkedIn post drafts from research */
-      generated_posts: {
+      template_favorites: {
         Row: {
+          created_at: string | null
           id: string
+          template_id: string
           user_id: string
-          discover_post_id: string | null
-          research_session_id: string | null
-          content: string
-          post_type: string
-          hook: string | null
-          cta: string | null
-          word_count: number | null
-          estimated_read_time: number | null
-          status: string
-          source: string
-          source_url: string | null
-          source_title: string | null
-          source_snippet: string | null
-          created_at: string
-          updated_at: string
         }
         Insert: {
+          created_at?: string | null
           id?: string
+          template_id: string
           user_id: string
-          discover_post_id?: string | null
-          research_session_id?: string | null
-          content: string
-          post_type: string
-          hook?: string | null
-          cta?: string | null
-          word_count?: number | null
-          estimated_read_time?: number | null
-          status?: string
-          source?: string
-          source_url?: string | null
-          source_title?: string | null
-          source_snippet?: string | null
-          created_at?: string
-          updated_at?: string
         }
         Update: {
+          created_at?: string | null
           id?: string
+          template_id?: string
           user_id?: string
-          discover_post_id?: string | null
-          research_session_id?: string | null
+        }
+        Relationships: []
+      }
+      templates: {
+        Row: {
+          category: string | null
+          content: string
+          created_at: string | null
+          id: string
+          is_public: boolean | null
+          name: string
+          tags: Json | null
+          team_id: string | null
+          updated_at: string | null
+          usage_count: number | null
+          user_id: string | null
+        }
+        Insert: {
+          category?: string | null
+          content: string
+          created_at?: string | null
+          id?: string
+          is_public?: boolean | null
+          name: string
+          tags?: Json | null
+          team_id?: string | null
+          updated_at?: string | null
+          usage_count?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          category?: string | null
           content?: string
-          post_type?: string
-          hook?: string | null
-          cta?: string | null
-          word_count?: number | null
-          estimated_read_time?: number | null
-          status?: string
-          source?: string
-          source_url?: string | null
-          source_title?: string | null
-          source_snippet?: string | null
-          created_at?: string
-          updated_at?: string
+          created_at?: string | null
+          id?: string
+          is_public?: boolean | null
+          name?: string
+          tags?: Json | null
+          team_id?: string | null
+          updated_at?: string | null
+          usage_count?: number | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "templates_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_api_keys: {
+        Row: {
+          created_at: string | null
+          encrypted_key: string
+          id: string
+          is_valid: boolean | null
+          key_hint: string | null
+          last_validated_at: string | null
+          provider: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          encrypted_key: string
+          id?: string
+          is_valid?: boolean | null
+          key_hint?: string | null
+          last_validated_at?: string | null
+          provider?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          encrypted_key?: string
+          id?: string
+          is_valid?: boolean | null
+          key_hint?: string | null
+          last_validated_at?: string | null
+          provider?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_niches: {
+        Row: {
+          confidence: number | null
+          created_at: string | null
+          id: string
+          niche: string
+          source: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string | null
+          id?: string
+          niche: string
+          source?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string | null
+          id?: string
+          niche?: string
+          source?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wishlist_collections: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          description: string | null
+          emoji_icon: string | null
+          id: string
+          is_default: boolean | null
+          item_count: number | null
+          name: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          description?: string | null
+          emoji_icon?: string | null
+          id?: string
+          is_default?: boolean | null
+          item_count?: number | null
+          name: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          description?: string | null
+          emoji_icon?: string | null
+          id?: string
+          is_default?: boolean | null
+          item_count?: number | null
+          name?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      writing_style_profiles: {
+        Row: {
+          avg_sentence_length: number | null
+          content_themes: string[] | null
+          created_at: string | null
+          cta_patterns: string[] | null
+          emoji_usage: string | null
+          formatting_style: Json | null
+          hook_patterns: string[] | null
+          id: string
+          last_refreshed_at: string | null
+          posts_analyzed_count: number | null
+          raw_analysis: Json | null
+          signature_phrases: string[] | null
+          tone: string | null
+          updated_at: string | null
+          user_id: string
+          vocabulary_level: string | null
+          wishlisted_analyzed_count: number | null
+        }
+        Insert: {
+          avg_sentence_length?: number | null
+          content_themes?: string[] | null
+          created_at?: string | null
+          cta_patterns?: string[] | null
+          emoji_usage?: string | null
+          formatting_style?: Json | null
+          hook_patterns?: string[] | null
+          id?: string
+          last_refreshed_at?: string | null
+          posts_analyzed_count?: number | null
+          raw_analysis?: Json | null
+          signature_phrases?: string[] | null
+          tone?: string | null
+          updated_at?: string | null
+          user_id: string
+          vocabulary_level?: string | null
+          wishlisted_analyzed_count?: number | null
+        }
+        Update: {
+          avg_sentence_length?: number | null
+          content_themes?: string[] | null
+          created_at?: string | null
+          cta_patterns?: string[] | null
+          emoji_usage?: string | null
+          formatting_style?: Json | null
+          hook_patterns?: string[] | null
+          id?: string
+          last_refreshed_at?: string | null
+          posts_analyzed_count?: number | null
+          raw_analysis?: Json | null
+          signature_phrases?: string[] | null
+          tone?: string | null
+          updated_at?: string | null
+          user_id?: string
+          vocabulary_level?: string | null
+          wishlisted_analyzed_count?: number | null
         }
         Relationships: []
       }
@@ -1904,10 +3081,47 @@ export interface Database {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      can_user_generate_suggestions: {
+        Args: { p_user_id: string }
+        Returns: boolean
+      }
+      expire_old_suggestions: { Args: never; Returns: number }
+      get_active_suggestion_count: {
+        Args: { p_user_id: string }
+        Returns: number
+      }
+      search_connections_mentions: {
+        Args: { p_query: string; p_user_id: string }
+        Returns: {
+          artifact_path: string
+          entity_urn: string
+          headline: string
+          name: string
+          public_identifier: string
+          root_url: string
+        }[]
+      }
     }
     Enums: {
-      [_ in never]: never
+      prompt_type:
+        | "remix_professional"
+        | "remix_casual"
+        | "remix_inspiring"
+        | "remix_educational"
+        | "remix_thought_provoking"
+        | "remix_match_style"
+        | "post_story"
+        | "post_listicle"
+        | "post_how_to"
+        | "post_contrarian"
+        | "post_case_study"
+        | "post_reflection"
+        | "post_data_driven"
+        | "post_question"
+        | "post_carousel"
+        | "carousel_system"
+        | "carousel_user_template"
+        | "base_rules"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1915,147 +3129,207 @@ export interface Database {
   }
 }
 
-/**
- * Discover post type for the Discover tab content feed
- */
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      prompt_type: [
+        "remix_professional",
+        "remix_casual",
+        "remix_inspiring",
+        "remix_educational",
+        "remix_thought_provoking",
+        "remix_match_style",
+        "post_story",
+        "post_listicle",
+        "post_how_to",
+        "post_contrarian",
+        "post_case_study",
+        "post_reflection",
+        "post_data_driven",
+        "post_question",
+        "post_carousel",
+        "carousel_system",
+        "carousel_user_template",
+        "base_rules",
+      ],
+    },
+  },
+} as const
+
+// ============================================================================
+// Custom Type Aliases & Interfaces
+// ============================================================================
+
 export interface DiscoverPost {
-  /** Unique identifier */
   id: string
-  /** LinkedIn URL of the original post */
   linkedin_url: string
-  /** Author display name */
   author_name: string
-  /** Author headline/title */
   author_headline: string
-  /** Author avatar image URL */
   author_avatar_url: string | null
-  /** Author LinkedIn profile URL */
   author_profile_url: string | null
-  /** Full post content text */
   content: string
-  /** Post type (text, image, video, carousel, etc.) */
   post_type: string | null
-  /** Number of likes/reactions */
   likes_count: number
-  /** Number of comments */
   comments_count: number
-  /** Number of reposts/shares */
   reposts_count: number
-  /** Number of impressions (if available) */
   impressions_count: number | null
-  /** When the post was originally published */
   posted_at: string
-  /** When the post was scraped/imported */
   scraped_at: string
-  /** Topic tags for categorization */
   topics: string[]
-  /** Whether the post is classified as viral */
   is_viral: boolean
-  /** Calculated engagement rate */
   engagement_rate: number | null
-  /** Data source: 'apify' | 'manual' | 'import' | 'daily-ingest' */
   source: string
-  /** UUID grouping items from same cron ingest run */
   ingest_batch_id: string | null
-  /** Content freshness: 'new' | 'recent' | 'aging' | 'stale' */
   freshness: string
 }
 
-/**
- * Perplexity-sourced news article for the Discover feed
- */
 export interface DiscoverNewsArticle {
-  /** Unique identifier */
   id: string
-  /** Catchy headline for the article */
   headline: string
-  /** 2-3 sentence summary of the article */
   summary: string
-  /** URL to the original source article */
   source_url: string
-  /** Name of the publication/source */
   source_name: string
-  /** When the article was published */
   published_date: string | null
-  /** Tags indicating relevance to the topic */
   relevance_tags: string[]
-  /** Topic slug this article belongs to */
   topic: string
-  /** UUID grouping items from same cron ingest run */
   ingest_batch_id: string | null
-  /** Content freshness: 'new' | 'recent' | 'aging' | 'stale' */
   freshness: string
-  /** Citation URLs from Perplexity API */
   perplexity_citations: string[]
-  /** When the article was ingested */
   created_at: string
 }
 
-/** Helper type to extract table row types */
-export type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row']
-
-/** Helper type to extract insert types */
-export type TablesInsert<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Insert']
-
-/** Helper type to extract update types */
-export type TablesUpdate<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Update']
-
-/**
- * Company type alias for convenience
- */
 export type Company = Tables<'companies'>
-
-/**
- * Company insert type alias
- */
 export type CompanyInsert = TablesInsert<'companies'>
-
-/**
- * Company update type alias
- */
 export type CompanyUpdate = TablesUpdate<'companies'>
-
-/**
- * Team type alias for convenience
- */
 export type Team = Tables<'teams'>
-
-/**
- * Team member type alias for convenience
- */
 export type TeamMember = Tables<'team_members'>
-
-/**
- * Team invitation type alias for convenience
- */
 export type TeamInvitation = Tables<'team_invitations'>
-
-/**
- * Team invitation insert type alias
- */
 export type TeamInvitationInsert = TablesInsert<'team_invitations'>
-
-/**
- * Invitation status enum type
- */
 export type InvitationStatus = 'pending' | 'accepted' | 'expired' | 'cancelled'
-
-/**
- * Team member role enum type
- */
 export type TeamMemberRole = 'owner' | 'admin' | 'member'
 
-/**
- * Company with related team data
- */
 export interface CompanyWithTeam extends Company {
   team?: Team | null
   team_members?: TeamMember[]
 }
 
-/**
- * Team invitation with inviter info
- */
 export interface TeamInvitationWithInviter extends TeamInvitation {
   inviter?: {
     name: string | null
@@ -2071,34 +3345,12 @@ export interface TeamInvitationWithInviter extends TeamInvitation {
   }
 }
 
-/**
- * Scheduled post type alias for convenience
- */
 export type ScheduledPost = Tables<'scheduled_posts'>
-
-/**
- * Scheduled post insert type alias
- */
 export type ScheduledPostInsert = TablesInsert<'scheduled_posts'>
-
-/**
- * Scheduled post update type alias
- */
 export type ScheduledPostUpdate = TablesUpdate<'scheduled_posts'>
-
-/**
- * Scheduled post status enum type
- */
 export type ScheduledPostStatus = 'pending' | 'scheduled' | 'posting' | 'posted' | 'failed' | 'cancelled'
-
-/**
- * Post visibility enum type
- */
 export type PostVisibility = 'PUBLIC' | 'CONNECTIONS'
 
-/**
- * Research session status enum type
- */
 export type ResearchSessionStatus =
   | 'pending'
   | 'initializing'
@@ -2109,14 +3361,8 @@ export type ResearchSessionStatus =
   | 'completed'
   | 'failed'
 
-/**
- * Research depth enum type
- */
 export type ResearchDepth = 'basic' | 'deep'
 
-/**
- * Generated post type enum
- */
 export type GeneratedPostType =
   | 'thought-leadership'
   | 'storytelling'
@@ -2126,86 +3372,44 @@ export type GeneratedPostType =
   | 'how-to'
   | 'listicle'
 
-/**
- * Generated post status enum type
- */
 export type GeneratedPostStatus = 'draft' | 'scheduled' | 'posted' | 'archived'
 
-/**
- * Research session for tracking deep research workflows
- */
 export interface ResearchSession {
-  /** Unique identifier */
   id: string
-  /** User who created the session */
   user_id: string
-  /** Topics being researched */
   topics: string[]
-  /** Research depth level */
   depth: ResearchDepth
-  /** Current status */
   status: ResearchSessionStatus
-  /** Number of discover posts created */
   posts_discovered: number | null
-  /** Number of AI-generated posts created */
   posts_generated: number | null
-  /** Error message if failed */
   error_message: string | null
-  /** Which step failed */
   failed_step: string | null
-  /** When the research started */
   started_at: string | null
-  /** When the research completed */
   completed_at: string | null
-  /** Record creation timestamp */
   created_at: string
-  /** Last update timestamp */
   updated_at: string
-  /** Inngest run ID for tracking */
   inngest_run_id: string | null
 }
 
-/**
- * Generated post from AI content generation
- */
 export interface GeneratedPost {
-  /** Unique identifier */
   id: string
-  /** User who owns this post */
   user_id: string
-  /** Reference to source discover post */
   discover_post_id: string | null
-  /** Reference to research session */
   research_session_id: string | null
-  /** Generated post content */
   content: string
-  /** Type of post (thought-leadership, storytelling, etc.) */
   post_type: GeneratedPostType
-  /** Opening hook line */
   hook: string | null
-  /** Call to action */
   cta: string | null
-  /** Word count */
   word_count: number | null
-  /** Estimated read time in seconds */
   estimated_read_time: number | null
-  /** Current status */
   status: GeneratedPostStatus
-  /** Source URL */
   source_url: string | null
-  /** Source title */
   source_title: string | null
-  /** Source content snippet */
   source_snippet: string | null
-  /** Record creation timestamp */
   created_at: string
-  /** Last update timestamp */
   updated_at: string
 }
 
-/**
- * Research session insert type
- */
 export interface ResearchSessionInsert {
   id?: string
   user_id: string
@@ -2221,9 +3425,6 @@ export interface ResearchSessionInsert {
   inngest_run_id?: string | null
 }
 
-/**
- * Generated post insert type
- */
 export interface GeneratedPostInsert {
   id?: string
   user_id: string
@@ -2241,59 +3442,22 @@ export interface GeneratedPostInsert {
   source_snippet?: string | null
 }
 
-/** Generated suggestion type alias */
 export type GeneratedSuggestion = Tables<'generated_suggestions'>
-
-/** Generated suggestion insert type alias */
 export type GeneratedSuggestionInsert = TablesInsert<'generated_suggestions'>
-
-/** Generated suggestion update type alias */
 export type GeneratedSuggestionUpdate = TablesUpdate<'generated_suggestions'>
-
-/** Wishlist collection type alias */
 export type WishlistCollection = Tables<'wishlist_collections'>
-
-/** Wishlist collection insert type alias */
 export type WishlistCollectionInsert = TablesInsert<'wishlist_collections'>
-
-/** Wishlist collection update type alias */
 export type WishlistCollectionUpdate = TablesUpdate<'wishlist_collections'>
-
-/** Wishlist item type alias */
 export type WishlistItem = Tables<'swipe_wishlist'>
-
-/** Wishlist item insert type alias */
 export type WishlistItemInsert = TablesInsert<'swipe_wishlist'>
-
-/** Wishlist item update type alias */
 export type WishlistItemUpdate = TablesUpdate<'swipe_wishlist'>
-
-/** Generation run type alias */
 export type GenerationRun = Tables<'suggestion_generation_runs'>
-
-/** Generation run insert type alias */
 export type GenerationRunInsert = TablesInsert<'suggestion_generation_runs'>
-
-/** Generation run update type alias */
 export type GenerationRunUpdate = TablesUpdate<'suggestion_generation_runs'>
-
-/** Suggestion status enum */
 export type SuggestionStatus = 'active' | 'used' | 'dismissed' | 'expired'
-
-/** Wishlist status enum */
 export type WishlistStatus = 'saved' | 'scheduled' | 'posted' | 'removed'
-
-/** Generation run status enum */
 export type GenerationRunStatus = 'pending' | 'generating' | 'completed' | 'failed' | 'cancelled'
-
-/** Writing style profile type alias */
 export type WritingStyleProfile = Tables<'writing_style_profiles'>
-
-/** Writing style profile insert type alias */
 export type WritingStyleProfileInsert = TablesInsert<'writing_style_profiles'>
-
-/** Writing style profile update type alias */
 export type WritingStyleProfileUpdate = TablesUpdate<'writing_style_profiles'>
-
-/** Content freshness enum type */
 export type ContentFreshness = 'new' | 'recent' | 'aging' | 'stale'

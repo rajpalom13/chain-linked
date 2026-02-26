@@ -86,7 +86,7 @@ function transformToSwipeRecord(row: Tables<'swipe_preferences'>): SwipeRecord {
     postId: row.post_id,
     content: row.suggestion_content,
     action: row.action as SwipeAction,
-    createdAt: row.created_at,
+    createdAt: row.created_at ?? new Date().toISOString(),
   }
 }
 

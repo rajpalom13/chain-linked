@@ -171,7 +171,7 @@ export function useTeamPosts(limit: number = 20): UseTeamPostsReturn {
             comments: post.comments || 0,
             reposts: post.reposts || 0,
           },
-          postedAt: post.posted_at || post.created_at,
+          postedAt: post.posted_at || post.created_at || new Date().toISOString(),
           postType: mapMediaToPostType(post.media_type),
           mediaUrls: post.media_urls || null,
         }

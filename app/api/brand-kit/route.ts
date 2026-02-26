@@ -56,9 +56,9 @@ export async function GET() {
       logoUrl: kit.logo_url,
       logoStoragePath: kit.logo_storage_path,
       rawExtraction: kit.raw_extraction as RawExtractionData | null,
-      isActive: kit.is_active,
-      createdAt: kit.created_at,
-      updatedAt: kit.updated_at,
+      isActive: kit.is_active ?? false,
+      createdAt: kit.created_at ?? new Date().toISOString(),
+      updatedAt: kit.updated_at ?? new Date().toISOString(),
     }))
 
     return NextResponse.json({ brandKits: transformedKits })
@@ -176,9 +176,9 @@ export async function POST(request: Request) {
       logoUrl: brandKit.logo_url,
       logoStoragePath: brandKit.logo_storage_path,
       rawExtraction: brandKit.raw_extraction as RawExtractionData | null,
-      isActive: brandKit.is_active,
-      createdAt: brandKit.created_at,
-      updatedAt: brandKit.updated_at,
+      isActive: brandKit.is_active ?? false,
+      createdAt: brandKit.created_at ?? new Date().toISOString(),
+      updatedAt: brandKit.updated_at ?? new Date().toISOString(),
     }
 
     return NextResponse.json({ brandKit: transformedKit }, { status: 201 })
@@ -292,9 +292,9 @@ export async function PUT(request: Request) {
       logoUrl: brandKit.logo_url,
       logoStoragePath: brandKit.logo_storage_path,
       rawExtraction: brandKit.raw_extraction as RawExtractionData | null,
-      isActive: brandKit.is_active,
-      createdAt: brandKit.created_at,
-      updatedAt: brandKit.updated_at,
+      isActive: brandKit.is_active ?? false,
+      createdAt: brandKit.created_at ?? new Date().toISOString(),
+      updatedAt: brandKit.updated_at ?? new Date().toISOString(),
     }
 
     return NextResponse.json({ brandKit: transformedKit })

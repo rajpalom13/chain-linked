@@ -339,7 +339,7 @@ export function usePostingGoals(userId?: string): UsePostingGoalsReturn {
         id: data.id,
         period: data.period as 'daily' | 'weekly' | 'monthly',
         target: data.target_posts,
-        current: data.current_posts,
+        current: data.current_posts ?? 0,
         startDate: data.start_date,
         endDate: data.end_date,
       }

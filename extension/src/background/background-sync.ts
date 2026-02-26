@@ -155,14 +155,22 @@ async function saveSyncConfig(config: BackgroundSyncConfig): Promise<void> {
  * chrome.alarms alarm for periodic triggering. Should be called once
  * during the service worker's top-level initialization sequence.
  *
+ * When called with `isStartup = true` (from chrome.runtime.onStartup),
+ * an immediate sync is triggered so that data is captured as soon as
+ * the user opens Chrome, without waiting for the next alarm cycle.
+ *
+ * @param isStartup - Whether this is a browser startup initialization.
+ *
  * @example
- * // In service-worker.ts startup:
+ * // In service-worker.ts onStartup:
+ * await initBackgroundSync(true);
+ * // In service-worker.ts onInstalled or top-level IIFE:
  * await initBackgroundSync();
  */
 /** Guard to ensure initBackgroundSync() only runs once per service worker lifetime */
 let initCompleted = false;
 
-export async function initBackgroundSync(): Promise<void> {
+export async function initBackgroundSync(isStartup: boolean = false): Promise<void> {
   // Prevent duplicate initialization from multiple entry points
   // (onInstalled, onStartup, top-level IIFE all call this function).
   if (initCompleted) {
@@ -171,7 +179,7 @@ export async function initBackgroundSync(): Promise<void> {
   }
   initCompleted = true;
 
-  console.log(`${LOG_PREFIX} Initializing background sync...`);
+  console.log(`${LOG_PREFIX} Initializing background sync (startup=${isStartup})...`);
 
   const config = await getSyncConfig();
   const state = await getSyncState();
@@ -181,7 +189,6 @@ export async function initBackgroundSync(): Promise<void> {
   // automatically so users don't have to configure anything.
   const rawConfig = await chrome.storage.local.get(SYNC_CONFIG_KEY);
   const isFirstRun = !rawConfig[SYNC_CONFIG_KEY];
-  let shouldRunImmediately = false;
 
   if (isFirstRun) {
     console.log(`${LOG_PREFIX} First run detected — checking LinkedIn auth`);
@@ -189,7 +196,6 @@ export async function initBackgroundSync(): Promise<void> {
     if (isLoggedIn) {
       console.log(`${LOG_PREFIX} LinkedIn cookies found — auto-enabling sync`);
       config.enabled = true;
-      shouldRunImmediately = true;
       await saveSyncConfig(config);
     } else {
       console.log(`${LOG_PREFIX} No LinkedIn cookies — saving disabled config for now`);
@@ -206,14 +212,15 @@ export async function initBackgroundSync(): Promise<void> {
       await saveSyncState(state);
     }
 
-    // On first run with auth available, trigger an immediate sync so
-    // the user sees data right away instead of waiting 4+ hours.
-    if (shouldRunImmediately) {
-      console.log(`${LOG_PREFIX} First run — triggering immediate sync`);
+    // Trigger immediate sync on browser startup or first run so the user
+    // sees fresh data as soon as they open Chrome.
+    if (isStartup || isFirstRun) {
+      const reason = isFirstRun ? 'first run' : 'browser startup';
+      console.log(`${LOG_PREFIX} Triggering immediate sync (${reason})`);
       // Use setTimeout to let the rest of initialization finish first
       setTimeout(() => {
-        triggerSync(true).catch((err) => {
-          console.error(`${LOG_PREFIX} First-run immediate sync failed:`, err);
+        triggerSync(false, true).catch((err) => {
+          console.error(`${LOG_PREFIX} Startup sync failed:`, err);
         });
       }, 3000);
     }
@@ -398,15 +405,15 @@ let isSyncing = false;
 /** Guard to ensure cookie change listener is registered only once */
 let cookieListenerRegistered = false;
 
-export async function triggerSync(manual?: boolean): Promise<void> {
-  console.log(`${LOG_PREFIX} Sync triggered (manual=${!!manual})`);
+export async function triggerSync(manual?: boolean, startup?: boolean): Promise<void> {
+  console.log(`${LOG_PREFIX} Sync triggered (manual=${!!manual}, startup=${!!startup})`);
 
   if (isSyncing) {
     console.log(`${LOG_PREFIX} Sync already in progress, skipping`);
     return;
   }
 
-  const precondition = await shouldSyncNow(!!manual);
+  const precondition = await shouldSyncNow(!!manual, !!startup);
   if (!precondition.canSync) {
     console.log(`${LOG_PREFIX} Sync skipped: ${precondition.reason}`);
     return;
@@ -439,14 +446,16 @@ export async function triggerSync(manual?: boolean): Promise<void> {
  * 1. Sync is enabled in config.
  * 2. Circuit breaker has not been tripped.
  * 3. User is authenticated to LinkedIn.
- * 4. (Non-manual only) User has been active within the last 2 hours.
- * 5. At least 30 minutes have elapsed since the last sync.
+ * 4. (Non-manual/non-startup only) User has been active within the last 2 hours.
+ * 5. (Non-startup only) At least 30 minutes have elapsed since the last sync.
  *
  * @param manual - Whether this is a manual (user-initiated) sync request.
+ * @param startup - Whether this is a browser startup sync (bypasses interval + active-hours checks).
  * @returns An object indicating whether sync can proceed, with a reason if not.
  */
 async function shouldSyncNow(
   manual: boolean,
+  startup: boolean = false,
 ): Promise<{ canSync: boolean; reason?: string }> {
   const config = await getSyncConfig();
   const state = await getSyncState();
@@ -467,8 +476,8 @@ async function shouldSyncNow(
     return { canSync: false, reason: 'Not authenticated' };
   }
 
-  // 4. Active hours (skip for manual triggers)
-  if (!manual && config.activeHoursOnly) {
+  // 4. Active hours (skip for manual and startup triggers)
+  if (!manual && !startup && config.activeHoursOnly) {
     try {
       const activityResult = await chrome.storage.local.get('last_user_activity');
       const lastActivity = activityResult.last_user_activity as number | undefined;
@@ -485,8 +494,9 @@ async function shouldSyncNow(
     }
   }
 
-  // 5. Minimum interval guard
-  if (state.lastSyncTime && (Date.now() - state.lastSyncTime < MIN_SYNC_INTERVAL_MS)) {
+  // 5. Minimum interval guard (skip for startup — user just opened Chrome,
+  //    we want fresh data regardless of when the last sync ran)
+  if (!startup && state.lastSyncTime && (Date.now() - state.lastSyncTime < MIN_SYNC_INTERVAL_MS)) {
     return { canSync: false, reason: 'Too soon since last sync (30 min minimum)' };
   }
 

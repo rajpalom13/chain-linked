@@ -75,7 +75,7 @@ const overviewNavItems: NavItem[] = [
     exact: true,
   },
   {
-    title: "Analytics & Goals",
+    title: "Analytics",
     url: "/dashboard/analytics",
     icon: IconChartBar,
   },

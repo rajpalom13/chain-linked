@@ -204,7 +204,7 @@ export function usePostAnalytics(userId?: string, limit = 10): UsePostAnalyticsR
           return {
             id: post.id,
             content: post.content || '',
-            publishedAt: post.posted_at || post.created_at,
+            publishedAt: post.posted_at || post.created_at || new Date().toISOString(),
             author: {
               name: authorName,
               avatarUrl: authorAvatar,
@@ -218,7 +218,7 @@ export function usePostAnalytics(userId?: string, limit = 10): UsePostAnalyticsR
               post.reactions || 0,
               post.comments || 0,
               post.reposts || 0,
-              post.posted_at || post.created_at
+              post.posted_at || post.created_at || new Date().toISOString()
             ),
           }
         })
@@ -244,7 +244,7 @@ export function usePostAnalytics(userId?: string, limit = 10): UsePostAnalyticsR
         return {
           id: post.id,
           content: post.post_content || '',
-          publishedAt: post.posted_at || post.captured_at,
+          publishedAt: post.posted_at || post.captured_at || new Date().toISOString(),
           author: {
             name: authorName,
             avatarUrl: authorAvatar,
@@ -258,7 +258,7 @@ export function usePostAnalytics(userId?: string, limit = 10): UsePostAnalyticsR
             post.reactions || 0,
             post.comments || 0,
             post.reposts || 0,
-            post.posted_at || post.captured_at
+            post.posted_at || post.captured_at || new Date().toISOString()
           ),
           // Demographics could be added here if available
           audienceBreakdown: post.demographics && Array.isArray(post.demographics) && post.demographics.length > 0

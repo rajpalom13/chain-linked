@@ -227,7 +227,7 @@ export async function GET(request: Request) {
     const { data: inviter } = await supabase
       .from('profiles')
       .select('full_name, email, avatar_url')
-      .eq('id', invitation.invited_by)
+      .eq('id', invitation.invited_by ?? '')
       .single()
 
     // Check status

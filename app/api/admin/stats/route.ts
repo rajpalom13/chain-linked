@@ -274,7 +274,7 @@ export async function GET() {
           type: "post_created",
           description: "Published a new post",
           userName: "User", // Would need to join with profiles
-          timestamp: post.created_at,
+          timestamp: post.created_at ?? new Date().toISOString(),
         })
       }
     }
@@ -383,7 +383,7 @@ export async function GET() {
         totalEngagement,
         impressions: post.impressions || 0,
         engagementRate: Math.round(engagementRate * 100) / 100,
-        createdAt: post.created_at,
+        createdAt: post.created_at ?? new Date().toISOString(),
       }
     })
 

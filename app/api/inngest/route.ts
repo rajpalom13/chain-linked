@@ -14,6 +14,7 @@ import {
   dailyContentIngest,
   onDemandContentIngest,
   swipeAutoRefill,
+  analyticsPipeline,
 } from '@/lib/inngest/functions'
 
 /**
@@ -30,5 +31,6 @@ export const { GET, POST, PUT } = serve({
     dailyContentIngest,
     onDemandContentIngest,
     swipeAutoRefill,
+    analyticsPipeline,
   ],
 })

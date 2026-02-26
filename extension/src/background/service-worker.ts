@@ -3423,7 +3423,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 });
 
 chrome.runtime.onStartup.addListener(async () => {
-  console.log('[ServiceWorker] Browser started');
+  console.log('[ServiceWorker] Browser started — triggering immediate data sync');
 
   // Initialize IndexedDB on browser startup
   try {
@@ -3444,10 +3444,11 @@ chrome.runtime.onStartup.addListener(async () => {
     console.error('[ServiceWorker] Alarms initialization error:', error);
   }
 
-  // Initialize background sync on browser startup
+  // Initialize background sync on browser startup with startup=true
+  // to trigger an immediate sync so data is fresh when the user opens Chrome
   try {
-    await initBackgroundSync();
-    console.log('[ServiceWorker] Background sync initialized on startup');
+    await initBackgroundSync(true);
+    console.log('[ServiceWorker] Background sync initialized on startup (immediate sync queued)');
   } catch (error) {
     console.error('[ServiceWorker] Background sync initialization error:', error);
   }

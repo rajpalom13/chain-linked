@@ -189,6 +189,24 @@ export type InngestEvents = {
       atMax: number
     }
   }
+
+  // Analytics Pipeline Events
+  'analytics/pipeline': {
+    data: {
+      /** The date to run the pipeline for (YYYY-MM-DD) */
+      runDate: string
+    }
+  }
+  'analytics/pipeline.completed': {
+    data: {
+      /** Number of profile daily rows written */
+      profilesProcessed: number
+      /** Number of post daily rows written */
+      postsProcessed: number
+      /** Total rollup rows upserted across wk/mth/qtr/yr */
+      rollupsDone: number
+    }
+  }
 }
 
 /**

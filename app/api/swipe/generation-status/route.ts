@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculate progress based on status
-    const progress = STATUS_PROGRESS[run.status] ?? 0
+    const progress = STATUS_PROGRESS[run.status ?? 'pending'] ?? 0
 
     // Build response
     const response: {
@@ -87,12 +87,12 @@ export async function GET(request: NextRequest) {
       error?: string
     } = {
       runId: run.id,
-      status: run.status,
+      status: run.status ?? 'pending',
       progress,
-      suggestionsRequested: run.suggestions_requested,
-      suggestionsGenerated: run.suggestions_generated,
+      suggestionsRequested: run.suggestions_requested ?? 0,
+      suggestionsGenerated: run.suggestions_generated ?? 0,
       postTypesUsed: run.post_types_used,
-      createdAt: run.created_at,
+      createdAt: run.created_at ?? new Date().toISOString(),
       completedAt: run.completed_at
     }
 

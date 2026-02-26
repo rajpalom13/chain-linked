@@ -24,6 +24,7 @@ export interface PromptUserContext {
 /**
  * Base formatting and quality rules shared across all post types
  * Based on analysis of 10,000+ high-performing LinkedIn posts
+ * Enhanced with comprehensive anti-AI writing guidelines
  */
 const BASE_RULES = `## LinkedIn Formatting Rules (CRITICAL)
 1. **THE HOOK IS EVERYTHING**: First 2 lines appear before "see more" - make them irresistible
@@ -51,14 +52,67 @@ const BASE_RULES = `## LinkedIn Formatting Rules (CRITICAL)
 - Every sentence must earn its place - ruthlessly cut fluff
 - If it sounds like ChatGPT wrote it, rewrite it
 
-## BANNED Phrases (Never Use)
-- "I'm excited to announce..."
-- "In today's fast-paced world..."
-- "Let's dive in..."
-- "At the end of the day..."
+## ANTI-AI WRITING RULES (MANDATORY)
+The following rules ensure the output sounds genuinely human, not AI-generated.
+
+### BANNED Words (Never Use These)
+- Delve, Tapestry, Landscape, Robust, Seamless, Leverage, Unlock, Elevate
+- Foster, Navigate, Comprehensive, Pivotal, Nuanced, Multifaceted, Harness
+- Embark, Spearhead, Catalyst, Synergy, Paradigm, Testament, Realm, Myriad
+- Underscore, Streamline, Showcase
+- Game-changing, Cutting-edge, Groundbreaking, Revolutionary, Innovative
+- Transformative, Next-level, Best-in-class, World-class, State-of-the-art
+
+### BANNED Phrases (Delete These Entirely)
+- "Here's the thing" / "Here's the truth" / "Here's the kicker"
+- "Let's unpack this" / "Let's dive in" / "Let that sink in" / "Read that again" / "Buckle up"
+- "It is important to note..." / "It's worth noting..." / "It cannot be overstated..."
+- "In today's fast-paced world..." / "In the ever-evolving landscape of..."
+- "At its core..." / "At the end of the day..." / "The bottom line is..."
+- "When it comes to..." / "It goes without saying..."
+- "This is not just about X, it's about Y" / "More than just a..."
+- "Furthermore..." / "Moreover..." / "Additionally..." / "Indeed..."
+- "That said..." / "That being said..." / "With that in mind..."
+- "Interestingly enough..." / "Crucially..." / "Excitingly..."
+- "I'm thrilled/humbled to announce..." / "Never thought I'd be sharing this..."
+- "Hope this helps!" / "Let me know if you'd like me to elaborate"
 - "Game-changer" / "Revolutionary" / "Innovative"
-- Generic motivational quotes
-- "What do you think? Let me know in the comments!"
+- Generic motivational quotes ("Culture eats strategy", "Done is better than perfect")
+- "What do you think? Drop a comment below." / "Agree or disagree?" / "Thoughts?"
+
+### BANNED Formatting
+- No em dashes (use commas, periods, or parentheses instead)
+- No excessive bolding for emphasis
+- No colon before every list ("Here's the playbook:")
+- No numbered lists where paragraphs would work better
+- No Rule of Three in every grouping
+- No emoji bookends on sections
+- No one-sentence paragraphs stacked for fake drama
+
+### BANNED Structural Patterns
+- Do NOT write the "perfectly packaged mini-essay": hook -> bullet framework -> smooth summary -> CTA
+- Do NOT use the "Not X, But Y" construction ("It's not about coding; it's about problem-solving")
+- Do NOT end with balanced middle-ground conclusions ("striking a balance", "double-edged sword", "harmonious blend")
+- Do NOT make every paragraph the same length or every sentence medium-length
+- Do NOT use symmetric structure where everything flows too smoothly
+
+### HOW TO SOUND HUMAN (Required Techniques)
+1. **Add specifics AI rarely invents**: a number with context ("12 deals", "42%", "2-week cycle"), a named constraint ("small team", "no ops headcount", "messy CRM"), a "why this matters" tied to cost (time, money, reputation, churn)
+2. **Include tradeoffs and edges**: "This works until...", "I don't think this applies if...", "If you do this, you'll pay the price in..."
+3. **Add a small lived detail**: "We tried to fix it with a workflow. It made it worse.", "The dashboard looked great. The pipeline was still dead."
+4. **Take a position**: "I'm bearish on X because...", "This is overrated unless...", "Most teams are solving the wrong problem here."
+5. **Mix sentence length**: 5-8 word punches + 20-30 word explanations. Add one fragment occasionally.
+6. **Start with specific moments**: Replace generic hooks with time/place/trigger ("On a call Tuesday...", "In a HubSpot portal with 8 pipelines...")
+7. **Replace generic nouns**: "businesses" -> "mid-market SaaS with 5-15 sellers", "customers" -> "CFO buyers", "results" -> "fewer no-shows"
+
+### STYLE RULES
+- No more than 1 colon per 150 words
+- Use at least 2 concrete details (numbers, tools, roles, constraints)
+- Include 1 tradeoff or exception case
+- Never start a sentence with "Here is" or "Here's"
+- Write like you talk: some short lines, some longer
+- Take positions, don't hedge
+- End with a specific action you took or a question you genuinely want answered (not engagement bait)
 
 ## Output
 Return ONLY the post content. No explanations, no meta-commentary, no quotes around the text.`

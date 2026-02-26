@@ -169,7 +169,7 @@ export async function GET(request: Request) {
     if (lastActivitiesResult.data) {
       for (const activity of lastActivitiesResult.data) {
         if (!lastActivityMap[activity.user_id]) {
-          lastActivityMap[activity.user_id] = activity.created_at
+          lastActivityMap[activity.user_id] = activity.created_at ?? new Date().toISOString()
         }
       }
     }
