@@ -16,7 +16,7 @@ import { useInView } from "react-intersection-observer"
 // --- Shared ---
 import { PageContent } from "@/components/shared/page-content"
 import { ErrorBoundary } from "@/components/error-boundary"
-import { RemixDialog } from "@/components/features/remix-dialog"
+import { RemixDialog, type RemixSettings } from "@/components/features/remix-dialog"
 import { InspirationSkeleton, SwipeSkeleton } from "@/components/skeletons/page-skeletons"
 import { useApiKeys } from "@/hooks/use-api-keys"
 import { useAuthContext } from "@/lib/auth/auth-provider"
@@ -100,7 +100,6 @@ import {
   IconWand,
 } from "@tabler/icons-react"
 import {
-  pageVariants,
   fadeSlideUpVariants,
 } from "@/lib/animations"
 import type { GeneratedSuggestion } from "@/types/database"
@@ -424,9 +423,14 @@ function ViralPostsTab() {
     setIsRemixOpen(true)
   }, [])
 
-  const handleRemixComplete = React.useCallback((remixedContent: string) => {
+  const handleRemixComplete = React.useCallback((remixedContent: string, settings: RemixSettings) => {
     if (postToRemix) {
-      loadForRemix(postToRemix.id, remixedContent, postToRemix.author.name)
+      loadForRemix(postToRemix.id, remixedContent, undefined, undefined, {
+        tone: settings.tone,
+        length: settings.length,
+        customInstructions: settings.customInstructions,
+        originalContent: postToRemix.content,
+      })
       inspirationToast.remixed()
       router.push("/dashboard/compose")
     }
@@ -773,9 +777,14 @@ function DiscoverTopicsTab() {
   }, [])
 
   const handleRemixComplete = React.useCallback(
-    (remixedContent: string) => {
+    (remixedContent: string, settings: RemixSettings) => {
       if (articleToRemix) {
-        loadForRemix(articleToRemix.id, remixedContent, articleToRemix.sourceName)
+        loadForRemix(articleToRemix.id, remixedContent, articleToRemix.sourceName, undefined, {
+          tone: settings.tone,
+          length: settings.length,
+          customInstructions: settings.customInstructions,
+          originalContent: `${articleToRemix.headline}\n\n${articleToRemix.summary}`,
+        })
         router.push("/dashboard/compose")
       }
       setIsRemixOpen(false)
@@ -1246,11 +1255,16 @@ function SwipeTab() {
     setShowRemixDialog(true)
   }, [currentCard])
 
-  const handleRemixComplete = React.useCallback((remixedContent: string) => {
+  const handleRemixComplete = React.useCallback((remixedContent: string, settings: RemixSettings) => {
     if (!currentCard) return
     recordSwipe(currentCard.id, "like", currentCard.content)
     markAsUsed(currentCard.id)
-    loadForRemix(currentCard.id, remixedContent, "AI Remix")
+    loadForRemix(currentCard.id, remixedContent, undefined, undefined, {
+      tone: settings.tone,
+      length: settings.length,
+      customInstructions: settings.customInstructions,
+      originalContent: currentCard.content,
+    })
     setShowRemixDialog(false)
     swipeToast.editAndPost()
     router.push("/dashboard/compose")
@@ -1369,11 +1383,8 @@ function SwipeTab() {
   }
 
   return (
-    <motion.div
+    <div
       className="flex flex-col items-center gap-6"
-      variants={pageVariants}
-      initial="initial"
-      animate="animate"
     >
       {/* Generation Progress */}
       <GenerationProgress
@@ -1388,6 +1399,8 @@ function SwipeTab() {
       <motion.div
         className="flex w-full max-w-md items-center justify-between gap-4 flex-wrap"
         variants={fadeSlideUpVariants}
+        initial="initial"
+        animate="animate"
       >
         <div className="flex items-center gap-2">
           <IconFilter className="size-4 text-muted-foreground" />
@@ -1558,7 +1571,7 @@ function SwipeTab() {
         hasApiKey={apiKeyStatus?.hasKey ?? false}
       />
 
-    </motion.div>
+    </div>
   )
 }
 

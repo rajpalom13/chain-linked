@@ -49,7 +49,6 @@ import {
   IconChevronRight,
 } from "@tabler/icons-react"
 import {
-  pageVariants,
   staggerContainerVariants,
   staggerItemVariants,
 } from "@/lib/animations"
@@ -551,11 +550,8 @@ function DashboardContent() {
   )
 
   return (
-    <motion.div
+    <div
       className="flex flex-col gap-4 py-4 md:gap-6 md:py-6"
-      variants={pageVariants}
-      initial="initial"
-      animate="animate"
     >
       {/* Extension Install Banner */}
       <ExtensionInstallBanner
@@ -703,7 +699,7 @@ function DashboardContent() {
           />
         </div>
       </motion.div>
-    </motion.div>
+    </div>
   )
 }
 
@@ -729,5 +725,17 @@ export default function DashboardPage() {
   })
   const { isLoading: authLoading } = useAuthContext()
 
-  return authLoading ? <DashboardSkeleton /> : <DashboardContent />
+  // Use a ref to track whether DashboardContent has ever been shown.
+  // This prevents re-mounting (and re-triggering initial animations at opacity:0)
+  // when authLoading briefly flickers during client-side navigation.
+  const hasRenderedContent = React.useRef(false)
+  if (!authLoading) {
+    hasRenderedContent.current = true
+  }
+
+  if (!hasRenderedContent.current && authLoading) {
+    return <DashboardSkeleton />
+  }
+
+  return <DashboardContent />
 }

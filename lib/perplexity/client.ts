@@ -1,14 +1,21 @@
 /**
- * Perplexity API Client
- * @description Client for interacting with Perplexity AI for company research
+ * Perplexity API Client (via OpenRouter)
+ * @description Routes Perplexity sonar-pro requests through OpenRouter for unified API key management.
+ * Falls back to direct Perplexity API if OPENROUTER_API_KEY is not set but PERPLEXITY_API_KEY is.
  * @module lib/perplexity/client
  */
 
-/** Perplexity API base URL */
+/** OpenRouter API base URL (OpenAI-compatible) */
+const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
+
+/** Direct Perplexity API base URL (fallback) */
 const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions'
 
-/** Default model for research queries - using sonar-pro for higher quality results */
-const DEFAULT_MODEL = 'sonar-pro'
+/** Default model for research queries via OpenRouter */
+const DEFAULT_OPENROUTER_MODEL = 'perplexity/sonar-pro'
+
+/** Default model for direct Perplexity API */
+const DEFAULT_PERPLEXITY_MODEL = 'sonar-pro'
 
 /**
  * Perplexity message format
@@ -87,15 +94,21 @@ export interface PerplexityClientConfig {
   apiKey: string
   model?: string
   timeout?: number
+  /** Whether this client routes through OpenRouter */
+  viaOpenRouter?: boolean
 }
 
 /**
- * Perplexity API client for company research
+ * Perplexity API client routed through OpenRouter
+ * Uses the perplexity/sonar-pro model on OpenRouter for unified billing and API key management.
+ * Falls back to direct Perplexity API when only PERPLEXITY_API_KEY is configured.
  */
 export class PerplexityClient {
   private readonly apiKey: string
   private readonly model: string
   private readonly timeout: number
+  private readonly viaOpenRouter: boolean
+  private readonly apiUrl: string
 
   /**
    * Creates a new Perplexity client
@@ -103,15 +116,17 @@ export class PerplexityClient {
    */
   constructor(config: PerplexityClientConfig) {
     if (!config.apiKey) {
-      throw new Error('Perplexity API key is required')
+      throw new Error('API key is required')
     }
     this.apiKey = config.apiKey
-    this.model = config.model || DEFAULT_MODEL
+    this.viaOpenRouter = config.viaOpenRouter ?? false
+    this.model = config.model || (this.viaOpenRouter ? DEFAULT_OPENROUTER_MODEL : DEFAULT_PERPLEXITY_MODEL)
     this.timeout = config.timeout || 60000 // 60 seconds default
+    this.apiUrl = this.viaOpenRouter ? OPENROUTER_API_URL : PERPLEXITY_API_URL
   }
 
   /**
-   * Sends a chat completion request to Perplexity
+   * Sends a chat completion request to Perplexity (via OpenRouter or direct)
    * @param messages - Array of messages
    * @param options - Additional request options
    * @returns Perplexity response
@@ -123,18 +138,37 @@ export class PerplexityClient {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), this.timeout)
 
+    // Build headers based on routing
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${this.apiKey}`,
+    }
+
+    if (this.viaOpenRouter) {
+      headers['HTTP-Referer'] = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+      headers['X-Title'] = 'ChainLinked'
+    }
+
+    // Build request body — OpenRouter uses standard OpenAI fields
+    // search_mode and reasoning_effort are Perplexity-specific extras
+    const body: Record<string, unknown> = {
+      model: this.model,
+      messages,
+    }
+
+    if (options?.temperature !== undefined) body.temperature = options.temperature
+    if (options?.max_tokens !== undefined) body.max_tokens = options.max_tokens
+    if (options?.top_p !== undefined) body.top_p = options.top_p
+
+    // Perplexity-specific options — OpenRouter passes these through to Perplexity
+    if (options?.search_mode) body.search_mode = options.search_mode
+    if (options?.reasoning_effort) body.reasoning_effort = options.reasoning_effort
+
     try {
-      const response = await fetch(PERPLEXITY_API_URL, {
+      const response = await fetch(this.apiUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: this.model,
-          messages,
-          ...options,
-        }),
+        headers,
+        body: JSON.stringify(body),
         signal: controller.signal,
       })
 
@@ -142,9 +176,10 @@ export class PerplexityClient {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
+        const provider = this.viaOpenRouter ? 'OpenRouter' : 'Perplexity'
         throw new Error(
           errorData.error?.message ||
-          `Perplexity API error: ${response.status} ${response.statusText}`
+          `${provider} API error: ${response.status} ${response.statusText}`
         )
       }
 
@@ -152,7 +187,7 @@ export class PerplexityClient {
     } catch (error) {
       clearTimeout(timeoutId)
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('Perplexity request timed out')
+        throw new Error('Request timed out')
       }
       throw error
     }
@@ -227,16 +262,30 @@ export class PerplexityClient {
 }
 
 /**
- * Creates a Perplexity client using environment variables
- * @returns Perplexity client or null if not configured
+ * Creates a Perplexity client, preferring OpenRouter routing over direct Perplexity API.
+ * Priority: OPENROUTER_API_KEY (via OpenRouter) > PERPLEXITY_API_KEY (direct) > null
+ * @returns Perplexity client or null if neither key is configured
  */
 export function createPerplexityClient(): PerplexityClient | null {
-  const apiKey = process.env.PERPLEXITY_API_KEY
-
-  if (!apiKey) {
-    console.warn('PERPLEXITY_API_KEY environment variable is not set')
-    return null
+  // Prefer OpenRouter for unified API key management
+  const openRouterKey = process.env.OPENROUTER_API_KEY
+  if (openRouterKey) {
+    return new PerplexityClient({
+      apiKey: openRouterKey,
+      viaOpenRouter: true,
+    })
   }
 
-  return new PerplexityClient({ apiKey })
+  // Fallback to direct Perplexity API
+  const perplexityKey = process.env.PERPLEXITY_API_KEY
+  if (perplexityKey) {
+    console.warn('Using direct Perplexity API key — consider switching to OPENROUTER_API_KEY')
+    return new PerplexityClient({
+      apiKey: perplexityKey,
+      viaOpenRouter: false,
+    })
+  }
+
+  console.warn('Neither OPENROUTER_API_KEY nor PERPLEXITY_API_KEY is configured')
+  return null
 }

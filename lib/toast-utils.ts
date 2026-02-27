@@ -153,7 +153,7 @@ export const templateToast = {
  */
 export const inspirationToast = {
   remixed: () =>
-    showInfo("Post loaded for remix", "Edit and make it your own"),
+    showSuccess("Remixed post loaded", "Opening in Composer — edit and publish"),
 
   saved: () =>
     showSuccess("Inspiration saved", "Added to your saved posts"),

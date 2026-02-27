@@ -88,10 +88,16 @@ function MemberItem({
             </Badge>
           )}
         </div>
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          <RoleIcon className={`h-3 w-3 ${colorClass}`} />
-          <span className="capitalize">{member.role}</span>
-        </div>
+        {member.user.headline ? (
+          <p className="text-xs text-muted-foreground truncate">
+            {member.user.headline}
+          </p>
+        ) : (
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <RoleIcon className={`h-3 w-3 ${colorClass}`} />
+            <span className="capitalize">{member.role}</span>
+          </div>
+        )}
       </div>
     </div>
   )

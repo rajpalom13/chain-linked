@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createOpenAIClient, chatCompletion, OpenAIError, getErrorMessage, DEFAULT_MODEL } from '@/lib/ai/openai-client'
 import { getSystemPromptForType } from '@/lib/ai/prompt-templates'
+import { ANTI_AI_WRITING_RULES } from '@/lib/ai/anti-ai-rules'
 import { PromptService, PromptType, mapPostTypeToPromptType } from '@/lib/prompts'
 
 /**
@@ -109,12 +110,7 @@ Current setting: ${length}
 - Use the "problem-agitate-solve" framework when appropriate
 - Create curiosity gaps that make people want to read more
 
-## What NOT to Do
-- Don't start with "I'm excited to announce..."
-- Avoid corporate jargon and buzzwords
-- Don't use emoji excessively (1-2 max, if any)
-- No generic motivational quotes
-- Don't write walls of text without breaks
+${ANTI_AI_WRITING_RULES}
 ${userContext.recentPostsText && userContext.recentPostsText.length > 0 ? `
 ## Writing Style Reference
 ${tone === 'match-my-style' ? 'CRITICAL: Replicate the exact voice, structure, and style of these posts:' : 'Reference these recent posts for style context:'}

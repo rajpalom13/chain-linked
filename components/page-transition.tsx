@@ -1,6 +1,18 @@
 /**
  * Page Transition Component
- * @description Smooth page transitions using Framer Motion
+ * @description Smooth page transitions using Framer Motion.
+ *
+ * IMPORTANT: This component uses inline animation values (objects) instead of
+ * variant labels (strings) to prevent Framer Motion variant propagation.
+ * When a parent motion.div uses string labels like initial="initial" and
+ * animate="animate", those labels propagate down to ALL descendant motion
+ * components that use matching label names — causing children to inherit the
+ * parent's animation timing and potentially stay stuck at opacity:0.
+ *
+ * By using inline objects for initial/animate/exit, the PageTransition wrapper
+ * does NOT propagate any animation context, so child motion components inside
+ * dashboard pages can manage their own animation lifecycles independently.
+ *
  * @module components/page-transition
  */
 
@@ -8,40 +20,9 @@
 
 import { motion, AnimatePresence } from "framer-motion"
 import { usePathname } from "next/navigation"
-import { LayoutRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime"
-import { useContext, useRef } from "react"
 
 /**
- * Hook to freeze the router context to prevent premature unmounting
- * This is needed for exit animations to work properly in Next.js App Router
- */
-function useFrozenRouter(Component: React.ReactNode) {
-  const context = useContext(LayoutRouterContext)
-  const frozen = useRef(context).current
-
-  return frozen
-}
-
-/**
- * Page transition variants for consistent animations
- */
-const pageVariants = {
-  initial: {
-    opacity: 0,
-    y: 8,
-  },
-  animate: {
-    opacity: 1,
-    y: 0,
-  },
-  exit: {
-    opacity: 0,
-    y: -8,
-  },
-}
-
-/**
- * Transition configuration for smooth animations
+ * Transition configuration for smooth page animations
  * Uses a custom cubic-bezier for a more natural feel
  */
 const pageTransition = {
@@ -59,7 +40,11 @@ interface PageTransitionProps {
 }
 
 /**
- * PageTransition component that wraps page content with Framer Motion animations
+ * PageTransition component that wraps page content with Framer Motion animations.
+ *
+ * Uses inline animation objects (not variant labels) to avoid propagating
+ * animation state to child motion components. This ensures child animations
+ * in dashboard pages trigger independently during client-side navigation.
  *
  * @param props - Component props
  * @param props.children - Page content to animate
@@ -68,7 +53,7 @@ interface PageTransitionProps {
  *
  * @example
  * ```tsx
- * // In template.tsx or layout.tsx
+ * // In template.tsx
  * <PageTransition>
  *   {children}
  * </PageTransition>
@@ -81,29 +66,14 @@ export function PageTransition({ children, className }: PageTransitionProps) {
     <AnimatePresence mode="wait" initial={false}>
       <motion.div
         key={pathname}
-        initial="initial"
-        animate="animate"
-        exit="exit"
-        variants={pageVariants}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
         transition={pageTransition}
         className={className}
       >
         {children}
       </motion.div>
     </AnimatePresence>
-  )
-}
-
-/**
- * FrozenRouter component for proper exit animations
- * Use this in template.tsx for better animation support
- */
-export function FrozenRouter({ children }: { children: React.ReactNode }) {
-  const frozen = useFrozenRouter(children)
-
-  return (
-    <LayoutRouterContext.Provider value={frozen}>
-      {children}
-    </LayoutRouterContext.Provider>
   )
 }

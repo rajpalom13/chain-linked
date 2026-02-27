@@ -3,7 +3,7 @@
 /**
  * Analytics Data Table Component (FE-006)
  * @description TanStack React Table displaying analytics data with sortable columns,
- * granularity toggle, and CSV export functionality.
+ * pagination, multi-column "all metrics" mode, granularity toggle, and CSV export.
  * @module components/features/analytics-data-table
  */
 
@@ -12,6 +12,7 @@ import {
   useReactTable,
   getCoreRowModel,
   getSortedRowModel,
+  getPaginationRowModel,
   flexRender,
   type ColumnDef,
   type SortingState,
@@ -23,6 +24,8 @@ import {
   IconArrowDown,
   IconSelector,
   IconTable,
+  IconChevronLeft,
+  IconChevronRight,
 } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
@@ -42,11 +45,20 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { fadeSlideUpVariants } from "@/lib/animations"
 import { toast } from "sonner"
-import type { AnalyticsDataPoint } from "@/hooks/use-analytics-v2"
+import type { AnalyticsDataPoint, MultiMetricData } from "@/hooks/use-analytics-v2"
+import { ALL_MODE_METRICS } from "@/hooks/use-analytics-v2"
+import { LottieEmptyState } from "@/components/shared/lottie-empty-state"
 
 /** Metric display labels */
 const METRIC_LABELS: Record<string, string> = {
@@ -59,6 +71,10 @@ const METRIC_LABELS: Record<string, string> = {
   sends: "Sends",
   engagements: "Engagements",
   engagements_rate: "Engagement Rate",
+  followers: "Followers",
+  profile_views: "Profile Views",
+  search_appearances: "Search Appearances",
+  connections: "Connections",
 }
 
 /**
@@ -75,18 +91,31 @@ interface AnalyticsDataTableProps {
   onGranularityChange: (granularity: string) => void
   /** Whether data is loading */
   isLoading: boolean
+  /** Multi-metric data map (when metric is "all") */
+  multiData?: MultiMetricData | null
 }
 
 /**
- * Row data shape for the table
+ * Row data shape for single-metric mode
  */
-interface TableRowData {
-  /** Formatted date string */
+interface SingleRowData {
   date: string
-  /** Raw date for sorting */
   rawDate: string
-  /** Metric value */
   value: number
+}
+
+/**
+ * Row data shape for multi-metric "all" mode
+ */
+interface MultiRowData {
+  date: string
+  rawDate: string
+  impressions: number
+  reactions: number
+  comments: number
+  reposts: number
+  engagements: number
+  engagement_rate: string
 }
 
 /**
@@ -115,25 +144,70 @@ function formatValue(value: number, isRate: boolean): string {
 }
 
 /**
- * Export analytics data to CSV file
- * @param data - Table row data
- * @param metric - Metric name for column header
+ * Build sortable column header
+ * @param label - Column label
+ * @returns Header render function
  */
-function exportToCSV(data: TableRowData[], metric: string) {
+function sortableHeader(label: string) {
+  return ({ column }: { column: { getIsSorted: () => false | "asc" | "desc"; toggleSorting: (desc: boolean) => void } }) => {
+    const sorted = column.getIsSorted()
+    return (
+      <button
+        type="button"
+        className="flex items-center gap-1 hover:text-foreground transition-colors"
+        onClick={() => column.toggleSorting(sorted === "asc")}
+      >
+        {label}
+        {sorted === "asc" ? (
+          <IconArrowUp className="size-3.5" />
+        ) : sorted === "desc" ? (
+          <IconArrowDown className="size-3.5" />
+        ) : (
+          <IconSelector className="size-3.5 text-muted-foreground" />
+        )}
+      </button>
+    )
+  }
+}
+
+/**
+ * Export multi-column data to CSV
+ * @param data - Multi-row data array
+ */
+function exportMultiCSV(data: MultiRowData[]) {
+  const headers = "Date,Impressions,Reactions,Comments,Reposts,Engagements,Engagement Rate"
+  const rows = data.map((r) =>
+    `${r.rawDate},${r.impressions},${r.reactions},${r.comments},${r.reposts},${r.engagements},${r.engagement_rate}`
+  )
+  downloadCSV([headers, ...rows].join("\n"), "analytics_all_metrics")
+}
+
+/**
+ * Export single-column data to CSV
+ * @param data - Single-row data array
+ * @param metric - Metric name
+ */
+function exportSingleCSV(data: SingleRowData[], metric: string) {
   const label = METRIC_LABELS[metric] || metric
   const isRate = metric === "engagements_rate"
-
   const rows = [
     `Date,${label}`,
     ...data.map((row) => `${row.rawDate},${isRate ? row.value.toFixed(2) : row.value}`),
   ]
+  downloadCSV(rows.join("\n"), `analytics_${metric}`)
+}
 
-  const csvContent = rows.join("\n")
+/**
+ * Download a CSV string as a file
+ * @param csvContent - CSV string content
+ * @param prefix - Filename prefix
+ */
+function downloadCSV(csvContent: string, prefix: string) {
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
   const link = document.createElement("a")
   const url = URL.createObjectURL(blob)
   link.setAttribute("href", url)
-  link.setAttribute("download", `analytics_${metric}_${new Date().toISOString().split("T")[0]}.csv`)
+  link.setAttribute("download", `${prefix}_${new Date().toISOString().split("T")[0]}.csv`)
   link.style.visibility = "hidden"
   document.body.appendChild(link)
   link.click()
@@ -143,13 +217,108 @@ function exportToCSV(data: TableRowData[], metric: string) {
 }
 
 /**
- * Analytics Data Table with sortable columns, granularity toggle, and CSV export
+ * Inner table rendering component to handle generic row types
+ * @param props.table - TanStack Table instance
+ * @returns Table with pagination controls
+ */
+function DataTableInner<T>({
+  table,
+}: {
+  table: ReturnType<typeof useReactTable<T>>
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="overflow-auto rounded-md border border-border/50">
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id}>
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows.map((row) => (
+              <TableRow key={row.id}>
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell key={cell.id}>
+                    {flexRender(
+                      cell.column.columnDef.cell,
+                      cell.getContext()
+                    )}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Pagination Controls */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Rows per page</span>
+          <Select
+            value={String(table.getState().pagination.pageSize)}
+            onValueChange={(value) => table.setPageSize(Number(value))}
+          >
+            <SelectTrigger className="h-8 w-[65px]" aria-label="Rows per page">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[10, 20, 50].map((size) => (
+                <SelectItem key={size} value={String(size)}>
+                  {size}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground tabular-nums">
+            Page {table.getState().pagination.pageIndex + 1} of{" "}
+            {table.getPageCount()}
+          </span>
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-8"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+            aria-label="Previous page"
+          >
+            <IconChevronLeft className="size-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-8"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+            aria-label="Next page"
+          >
+            <IconChevronRight className="size-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Analytics Data Table with sortable columns, pagination, multi-column "all" mode,
+ * granularity toggle, and CSV export
  * @param props - Component props
- * @param props.data - Analytics data points
- * @param props.metric - Selected metric name
- * @param props.granularity - Current data granularity
- * @param props.onGranularityChange - Granularity change handler
- * @param props.isLoading - Loading state
  * @returns Data table card with controls
  */
 export function AnalyticsDataTable({
@@ -158,12 +327,50 @@ export function AnalyticsDataTable({
   granularity,
   onGranularityChange,
   isLoading,
+  multiData,
 }: AnalyticsDataTableProps) {
   const [sorting, setSorting] = useState<SortingState>([])
   const metricLabel = METRIC_LABELS[metric] || metric
   const isRate = metric === "engagements_rate"
+  const isAllMode = metric === "all" && multiData
 
-  const tableData: TableRowData[] = useMemo(
+  // Build multi-column data for "all" mode
+  const multiTableData: MultiRowData[] = useMemo(() => {
+    if (!isAllMode) return []
+
+    const dateMap = new Map<string, MultiRowData>()
+    for (const m of ALL_MODE_METRICS) {
+      for (const pt of multiData[m] ?? []) {
+        if (!dateMap.has(pt.date)) {
+          dateMap.set(pt.date, {
+            date: formatTableDate(pt.date),
+            rawDate: pt.date,
+            impressions: 0,
+            reactions: 0,
+            comments: 0,
+            reposts: 0,
+            engagements: 0,
+            engagement_rate: "0.00%",
+          })
+        }
+        const row = dateMap.get(pt.date)!
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic metric key assignment
+        ;(row as unknown as Record<string, number>)[m] = pt.value
+      }
+    }
+
+    // Compute engagement rate per row
+    for (const row of dateMap.values()) {
+      const imp = row.impressions || 0
+      const eng = row.engagements || 0
+      row.engagement_rate = imp > 0 ? `${((eng / imp) * 100).toFixed(2)}%` : "0.00%"
+    }
+
+    return Array.from(dateMap.values()).sort((a, b) => b.rawDate.localeCompare(a.rawDate))
+  }, [isAllMode, multiData])
+
+  // Build single-column data
+  const singleTableData: SingleRowData[] = useMemo(
     () =>
       data.map((d) => ({
         date: formatTableDate(d.date),
@@ -173,74 +380,108 @@ export function AnalyticsDataTable({
     [data]
   )
 
-  const columns: ColumnDef<TableRowData>[] = useMemo(
+  // Multi-column definitions for "all" mode
+  const multiColumns: ColumnDef<MultiRowData>[] = useMemo(
     () => [
       {
         accessorKey: "rawDate",
-        header: ({ column }) => {
-          const sorted = column.getIsSorted()
-          return (
-            <button
-              type="button"
-              className="flex items-center gap-1 hover:text-foreground transition-colors"
-              onClick={() => column.toggleSorting(sorted === "asc")}
-            >
-              Date
-              {sorted === "asc" ? (
-                <IconArrowUp className="size-3.5" />
-              ) : sorted === "desc" ? (
-                <IconArrowDown className="size-3.5" />
-              ) : (
-                <IconSelector className="size-3.5 text-muted-foreground" />
-              )}
-            </button>
-          )
-        },
+        header: sortableHeader("Date"),
         cell: ({ row }) => (
-          <span className="text-muted-foreground tabular-nums">
-            {row.original.date}
-          </span>
+          <span className="text-muted-foreground tabular-nums">{row.original.date}</span>
+        ),
+      },
+      {
+        accessorKey: "impressions",
+        header: sortableHeader("Impressions"),
+        cell: ({ row }) => (
+          <span className="font-medium tabular-nums">{row.original.impressions.toLocaleString()}</span>
+        ),
+      },
+      {
+        accessorKey: "reactions",
+        header: sortableHeader("Reactions"),
+        cell: ({ row }) => (
+          <span className="font-medium tabular-nums">{row.original.reactions.toLocaleString()}</span>
+        ),
+      },
+      {
+        accessorKey: "comments",
+        header: sortableHeader("Comments"),
+        cell: ({ row }) => (
+          <span className="font-medium tabular-nums">{row.original.comments.toLocaleString()}</span>
+        ),
+      },
+      {
+        accessorKey: "reposts",
+        header: sortableHeader("Reposts"),
+        cell: ({ row }) => (
+          <span className="font-medium tabular-nums">{row.original.reposts.toLocaleString()}</span>
+        ),
+      },
+      {
+        accessorKey: "engagements",
+        header: sortableHeader("Engagements"),
+        cell: ({ row }) => (
+          <span className="font-medium tabular-nums">{row.original.engagements.toLocaleString()}</span>
+        ),
+      },
+      {
+        accessorKey: "engagement_rate",
+        header: sortableHeader("Eng. Rate"),
+        cell: ({ row }) => (
+          <span className="font-medium tabular-nums">{row.original.engagement_rate}</span>
+        ),
+      },
+    ],
+    []
+  )
+
+  // Single-column definitions
+  const singleColumns: ColumnDef<SingleRowData>[] = useMemo(
+    () => [
+      {
+        accessorKey: "rawDate",
+        header: sortableHeader("Date"),
+        cell: ({ row }) => (
+          <span className="text-muted-foreground tabular-nums">{row.original.date}</span>
         ),
       },
       {
         accessorKey: "value",
-        header: ({ column }) => {
-          const sorted = column.getIsSorted()
-          return (
-            <button
-              type="button"
-              className="flex items-center gap-1 hover:text-foreground transition-colors"
-              onClick={() => column.toggleSorting(sorted === "asc")}
-            >
-              {metricLabel}
-              {sorted === "asc" ? (
-                <IconArrowUp className="size-3.5" />
-              ) : sorted === "desc" ? (
-                <IconArrowDown className="size-3.5" />
-              ) : (
-                <IconSelector className="size-3.5 text-muted-foreground" />
-              )}
-            </button>
-          )
-        },
+        header: sortableHeader(metricLabel),
         cell: ({ row }) => (
-          <span className="font-medium tabular-nums">
-            {formatValue(row.original.value, isRate)}
-          </span>
+          <span className="font-medium tabular-nums">{formatValue(row.original.value, isRate)}</span>
         ),
       },
     ],
     [metricLabel, isRate]
   )
 
-  const table = useReactTable({
-    data: tableData,
-    columns,
+  // Multi-column table
+  const multiTable = useReactTable({
+    data: multiTableData,
+    columns: multiColumns,
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: { pagination: { pageSize: 10 } },
   })
+
+  // Single-column table
+  const singleTable = useReactTable({
+    data: singleTableData,
+    columns: singleColumns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: { pagination: { pageSize: 10 } },
+  })
+
+  const isEmpty = isAllMode ? multiTableData.length === 0 : singleTableData.length === 0
 
   if (isLoading) {
     return (
@@ -280,7 +521,9 @@ export function AnalyticsDataTable({
                 Data Table
               </CardTitle>
               <CardDescription>
-                {metricLabel} data by {granularity} intervals
+                {isAllMode
+                  ? `All metrics data by ${granularity} intervals`
+                  : `${metricLabel} data by ${granularity} intervals`}
               </CardDescription>
             </div>
 
@@ -332,8 +575,14 @@ export function AnalyticsDataTable({
                 variant="outline"
                 size="sm"
                 className="gap-1.5"
-                onClick={() => exportToCSV(tableData, metric)}
-                disabled={tableData.length === 0}
+                onClick={() => {
+                  if (isAllMode) {
+                    exportMultiCSV(multiTableData)
+                  } else {
+                    exportSingleCSV(singleTableData, metric)
+                  }
+                }}
+                disabled={isEmpty}
               >
                 <IconDownload className="size-3.5" />
                 CSV
@@ -343,47 +592,15 @@ export function AnalyticsDataTable({
         </CardHeader>
 
         <CardContent>
-          {tableData.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <p className="text-sm text-muted-foreground">
-                No data available for the selected filters.
-              </p>
-            </div>
+          {isEmpty ? (
+            <LottieEmptyState
+              title="Still getting your data"
+              description="Please wait while we calculate your analytics. Data will appear here after your first sync."
+            />
+          ) : isAllMode ? (
+            <DataTableInner table={multiTable} />
           ) : (
-            <div className="max-h-[400px] overflow-auto rounded-md border border-border/50">
-              <Table>
-                <TableHeader>
-                  {table.getHeaderGroups().map((headerGroup) => (
-                    <TableRow key={headerGroup.id}>
-                      {headerGroup.headers.map((header) => (
-                        <TableHead key={header.id}>
-                          {header.isPlaceholder
-                            ? null
-                            : flexRender(
-                                header.column.columnDef.header,
-                                header.getContext()
-                              )}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableHeader>
-                <TableBody>
-                  {table.getRowModel().rows.map((row) => (
-                    <TableRow key={row.id}>
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id}>
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext()
-                          )}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <DataTableInner table={singleTable} />
           )}
         </CardContent>
       </Card>

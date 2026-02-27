@@ -43,6 +43,9 @@ export interface TeamMemberWithUser {
     email: string
     full_name: string | null
     avatar_url: string | null
+    headline: string | null
+    followers_count: number
+    connections_count: number
   }
 }
 

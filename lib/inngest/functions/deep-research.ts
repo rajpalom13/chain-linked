@@ -1,6 +1,7 @@
 /**
  * Deep Research Workflow
- * @description Inngest function that orchestrates content discovery using Tavily, Perplexity, and OpenAI.
+ * @description Inngest function that orchestrates content discovery using Tavily,
+ * OpenRouter (perplexity/sonar-pro for enrichment), and OpenAI (for post generation).
  * Uses concurrent per-topic search+enrich, cross-topic synthesis, optional "My Style" writing
  * integration, and Promise.allSettled everywhere for resilience.
  * @see https://www.inngest.com/docs/guides/step-parallelism

@@ -59,19 +59,36 @@ export async function GET(request: Request, context: RouteContext) {
     // Get user profiles for all members
     const userIds = members?.map(m => m.user_id) || []
 
-    // Try to get from profiles table first, then users table as fallback
+    // Fetch from profiles table
     const { data: profiles } = await supabase
       .from('profiles')
       .select('id, full_name, avatar_url, linkedin_avatar_url, email')
       .in('id', userIds)
 
+    // Fetch LinkedIn profile data for richer member info
+    const { data: linkedinProfiles } = await supabase
+      .from('linkedin_profiles')
+      .select('user_id, headline, profile_picture_url, followers_count, connections_count')
+      .in('user_id', userIds)
+
+    // Build LinkedIn profile map
+    const linkedinMap = new Map(
+      (linkedinProfiles || []).map(lp => [lp.user_id, lp])
+    )
+
     // Build profile map - prefer LinkedIn avatar over default avatar
     const profileMap = new Map(
-      (profiles || []).map(p => [p.id, {
-        email: p.email || '',
-        full_name: p.full_name,
-        avatar_url: p.linkedin_avatar_url || p.avatar_url,
-      }])
+      (profiles || []).map(p => {
+        const linkedin = linkedinMap.get(p.id)
+        return [p.id, {
+          email: p.email || '',
+          full_name: p.full_name,
+          avatar_url: linkedin?.profile_picture_url || p.linkedin_avatar_url || p.avatar_url,
+          headline: linkedin?.headline || null,
+          followers_count: linkedin?.followers_count || 0,
+          connections_count: linkedin?.connections_count || 0,
+        }]
+      })
     )
 
     // Enrich members with user data
@@ -84,6 +101,9 @@ export async function GET(request: Request, context: RouteContext) {
         email: 'Unknown',
         full_name: null,
         avatar_url: null,
+        headline: null,
+        followers_count: 0,
+        connections_count: 0,
       },
     }))
 

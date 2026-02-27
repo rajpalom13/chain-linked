@@ -1,6 +1,7 @@
 /**
  * Company Research
- * @description Uses Perplexity AI to research company information
+ * @description Uses OpenRouter (perplexity/sonar-pro) to research company information.
+ * Falls back to direct Perplexity API if OPENROUTER_API_KEY is not set.
  * @module lib/perplexity/research
  */
 
@@ -50,7 +51,7 @@ export async function researchCompany(
     return {
       research: '',
       success: false,
-      error: 'Perplexity API key not configured',
+      error: 'No OPENROUTER_API_KEY or PERPLEXITY_API_KEY configured',
     }
   }
 
@@ -102,7 +103,7 @@ export async function researchICP(
     return {
       research: '',
       success: false,
-      error: 'Perplexity API key not configured',
+      error: 'No OPENROUTER_API_KEY or PERPLEXITY_API_KEY configured',
     }
   }
 

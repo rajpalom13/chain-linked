@@ -210,6 +210,7 @@ export async function POST(request: Request) {
       .update({
         status: 'posted',
         linkedin_post_id: result.linkedinPostUrn,
+        activity_urn: result.linkedinPostUrn,
         posted_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -226,6 +227,7 @@ export async function POST(request: Request) {
         activity_urn: result.linkedinPostUrn,
         content,
         posted_at: new Date().toISOString(),
+        source: 'platform',
       })
   }
 

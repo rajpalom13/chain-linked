@@ -2,7 +2,8 @@
 
 /**
  * Remix Dialog Component
- * @description Modal for remixing posts with AI using user's content style and context
+ * @description Modal for remixing posts with AI using user's content style and context.
+ * On successful remix, automatically navigates to the Composer with the content loaded.
  * @module components/features/remix-dialog
  */
 
@@ -12,9 +13,6 @@ import {
   IconLoader2,
   IconX,
   IconInfoCircle,
-  IconCopy,
-  IconCheck,
-  IconRefresh,
   IconWand,
 } from "@tabler/icons-react"
 
@@ -43,7 +41,18 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { ScrollArea } from "@/components/ui/scroll-area"
+
+/**
+ * Settings the user chose when remixing, passed to Composer for pre-filling
+ */
+export interface RemixSettings {
+  /** Tone/style selected */
+  tone: string
+  /** Length selected */
+  length: string
+  /** Custom instructions provided */
+  customInstructions: string
+}
 
 /**
  * Props for RemixDialog
@@ -57,8 +66,8 @@ export interface RemixDialogProps {
   originalContent: string
   /** Original post author (for display) */
   originalAuthor?: string
-  /** Callback when content is remixed successfully */
-  onRemixed: (content: string) => void
+  /** Callback when content is remixed successfully — auto-redirects to Composer */
+  onRemixed: (content: string, settings: RemixSettings) => void
   /** Whether user has an API key configured (for showing warning) */
   hasApiKey?: boolean
 }
@@ -125,22 +134,20 @@ const LENGTH_OPTIONS = [
 ]
 
 /**
- * Remix Dialog for transforming posts with AI
+ * Remix Dialog for transforming posts with AI.
+ * On successful generation, automatically calls onRemixed and navigates to Composer.
  *
  * @example
  * ```tsx
- * const [showRemix, setShowRemix] = useState(false)
- * const [selectedPost, setSelectedPost] = useState('')
- *
  * <RemixDialog
  *   isOpen={showRemix}
  *   onClose={() => setShowRemix(false)}
  *   originalContent={selectedPost}
  *   onRemixed={(content) => {
- *     setMyPost(content)
- *     setShowRemix(false)
+ *     loadForRemix(postId, content)
+ *     router.push('/dashboard/compose')
  *   }}
- *   apiKey={apiKey}
+ *   hasApiKey={hasApiKey}
  * />
  * ```
  */
@@ -157,10 +164,7 @@ export function RemixDialog({
   const [customInstructions, setCustomInstructions] = React.useState('')
   const [isRemixing, setIsRemixing] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
-  const [remixedContent, setRemixedContent] = React.useState<string | null>(null)
-  const [copied, setCopied] = React.useState(false)
   const resetTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
-  const copiedTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Cleanup timers on unmount
   React.useEffect(() => {
@@ -168,14 +172,11 @@ export function RemixDialog({
       if (resetTimerRef.current) {
         clearTimeout(resetTimerRef.current)
       }
-      if (copiedTimerRef.current) {
-        clearTimeout(copiedTimerRef.current)
-      }
     }
   }, [])
 
   /**
-   * Resets form when dialog opens/closes
+   * Resets form when dialog closes
    */
   React.useEffect(() => {
     if (!isOpen) {
@@ -185,15 +186,14 @@ export function RemixDialog({
       resetTimerRef.current = setTimeout(() => {
         setCustomInstructions('')
         setError(null)
-        setRemixedContent(null)
-        setCopied(false)
         resetTimerRef.current = null
       }, 300)
     }
   }, [isOpen])
 
   /**
-   * Handles the remix button click
+   * Handles the remix button click.
+   * On success, auto-redirects by calling onRemixed + onClose immediately.
    */
   const handleRemix = async () => {
     if (!originalContent.trim()) {
@@ -203,7 +203,6 @@ export function RemixDialog({
 
     setIsRemixing(true)
     setError(null)
-    setRemixedContent(null)
 
     try {
       const response = await fetch('/api/ai/remix', {
@@ -226,262 +225,166 @@ export function RemixDialog({
         throw new Error(data.error || 'Failed to remix post')
       }
 
-      setRemixedContent(data.content)
+      // Auto-redirect: load content into Composer with settings
+      onRemixed(data.content, { tone, length, customInstructions: customInstructions.trim() })
+      onClose()
     } catch (err) {
       console.error('Remix error:', err)
       setError(err instanceof Error ? err.message : 'Failed to remix post. Please try again.')
-    } finally {
       setIsRemixing(false)
     }
   }
 
-  /**
-   * Handles copying remixed content
-   */
-  const handleCopy = async () => {
-    if (!remixedContent) return
-
-    try {
-      await navigator.clipboard.writeText(remixedContent)
-      setCopied(true)
-      if (copiedTimerRef.current) {
-        clearTimeout(copiedTimerRef.current)
-      }
-      copiedTimerRef.current = setTimeout(() => {
-        setCopied(false)
-        copiedTimerRef.current = null
-      }, 2000)
-    } catch (err) {
-      console.error('Failed to copy to clipboard:', err)
-    }
-  }
-
-  /**
-   * Handles using the remixed content
-   */
-  const handleUseContent = () => {
-    if (remixedContent) {
-      onRemixed(remixedContent)
-      onClose()
-    }
-  }
-
-  /**
-   * Handles regenerating with same settings
-   */
-  const handleRegenerate = () => {
-    setRemixedContent(null)
-    handleRemix()
-  }
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
+      <DialogContent className="max-w-lg sm:max-w-xl max-h-[90vh] overflow-hidden !flex !flex-col gap-0 p-0">
+        <DialogHeader className="shrink-0 px-6 pt-6 pb-4">
           <DialogTitle className="flex items-center gap-2">
             <IconSparkles className="size-5 text-primary" />
             Remix Post with AI
           </DialogTitle>
           <DialogDescription>
-            Transform this post into your own authentic voice using AI that understands your
-            writing style.
+            Transform this post into your own voice. You&apos;ll be taken to the Composer to edit and publish.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden">
-          <ScrollArea className="h-full max-h-[60vh]">
-            <div className="space-y-5 py-4 pr-4">
-              {/* Original Post Preview */}
-              <div className="space-y-2">
-                <Label className="flex items-center gap-1.5 text-muted-foreground text-xs uppercase tracking-wide">
-                  Original Post
-                  {originalAuthor && (
-                    <span className="normal-case text-foreground font-medium">
-                      by {originalAuthor}
-                    </span>
-                  )}
-                </Label>
-                <div className="bg-muted/50 rounded-lg p-3 text-sm max-h-48 overflow-y-auto border">
-                  <p className="whitespace-pre-wrap">{originalContent}</p>
-                </div>
+        <div className="flex-1 min-h-0 overflow-y-auto px-6">
+          <div className="space-y-4 pb-4">
+            {/* Original Post Preview */}
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5 text-muted-foreground text-xs uppercase tracking-wide">
+                Original Post
+                {originalAuthor && (
+                  <span className="normal-case text-foreground font-medium">
+                    by {originalAuthor}
+                  </span>
+                )}
+              </Label>
+              <div className="bg-muted/50 rounded-lg p-3 text-sm max-h-32 overflow-y-auto border">
+                <p className="whitespace-pre-wrap leading-relaxed">{originalContent}</p>
               </div>
-
-              {/* Tone Selection */}
-              <div className="space-y-2">
-                <Label htmlFor="tone" className="flex items-center gap-1.5">
-                  Remix Style
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <IconInfoCircle className="size-3.5 text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        &ldquo;Match My Style&rdquo; analyzes your previous posts to match your unique voice
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </Label>
-                <Select value={tone} onValueChange={setTone} disabled={isRemixing}>
-                  <SelectTrigger id="tone">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TONE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        <div className="flex flex-col items-start">
-                          <span className="font-medium flex items-center gap-1.5">
-                            {option.icon && <option.icon className="size-3.5" />}
-                            {option.label}
-                          </span>
-                          <span className="text-muted-foreground text-xs">
-                            {option.description}
-                          </span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Length Selection */}
-              <div className="space-y-2">
-                <Label className="flex items-center gap-1.5">Post Length</Label>
-                <div className="grid grid-cols-3 gap-3">
-                  {LENGTH_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setLength(option.value as 'short' | 'medium' | 'long')}
-                      disabled={isRemixing}
-                      className={cn(
-                        'border-input bg-background ring-offset-background flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-all',
-                        'hover:border-primary hover:bg-accent',
-                        'focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
-                        'disabled:pointer-events-none disabled:opacity-50',
-                        length === option.value &&
-                          'border-primary bg-primary/5 ring-primary ring-1'
-                      )}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-lg">{option.emoji}</span>
-                        <span className="font-medium text-sm">{option.label}</span>
-                      </div>
-                      <span className="text-muted-foreground text-xs">{option.description}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Custom Instructions */}
-              <div className="space-y-2">
-                <Label htmlFor="instructions" className="flex items-center gap-1.5">
-                  Custom Instructions
-                  <span className="text-muted-foreground text-xs">(Optional)</span>
-                </Label>
-                <Textarea
-                  id="instructions"
-                  placeholder="e.g., 'Add a personal story about my experience' or 'Focus on the actionable takeaways'"
-                  value={customInstructions}
-                  onChange={(e) => setCustomInstructions(e.target.value)}
-                  className="min-h-[70px] resize-none"
-                  disabled={isRemixing}
-                />
-              </div>
-
-              {/* Error Message */}
-              {error && (
-                <div className="bg-destructive/10 text-destructive flex items-start gap-2 rounded-lg border border-destructive/20 p-3 text-sm">
-                  <IconX className="mt-0.5 size-4 shrink-0" />
-                  <p>{error}</p>
-                </div>
-              )}
-
-              {/* No API Key Warning */}
-              {!hasApiKey && !error && (
-                <div className="bg-primary/10 text-primary flex items-start gap-2 rounded-lg border border-primary/20 p-3 text-sm">
-                  <IconInfoCircle className="mt-0.5 size-4 shrink-0" />
-                  <p>
-                    You need to add your OpenAI API key in{' '}
-                    <strong>Settings → API Keys</strong> to use AI remix.
-                  </p>
-                </div>
-              )}
-
-              {/* Remixed Content Preview */}
-              {remixedContent && (
-                <div className="space-y-2">
-                  <Label className="flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 text-primary">
-                      <IconSparkles className="size-3.5" />
-                      Remixed Post
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleCopy}
-                        className="h-7 px-2 text-xs"
-                      >
-                        {copied ? (
-                          <>
-                            <IconCheck className="size-3.5 mr-1" />
-                            Copied!
-                          </>
-                        ) : (
-                          <>
-                            <IconCopy className="size-3.5 mr-1" />
-                            Copy
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleRegenerate}
-                        disabled={isRemixing}
-                        className="h-7 px-2 text-xs"
-                      >
-                        <IconRefresh className="size-3.5 mr-1" />
-                        Regenerate
-                      </Button>
-                    </div>
-                  </Label>
-                  <div className="bg-primary/5 rounded-lg p-4 text-sm border border-primary/20 max-h-48 overflow-y-auto">
-                    <p className="whitespace-pre-wrap">{remixedContent}</p>
-                  </div>
-                  <p className="text-muted-foreground text-xs">
-                    {remixedContent.length} characters
-                  </p>
-                </div>
-              )}
             </div>
-          </ScrollArea>
+
+            {/* Tone Selection */}
+            <div className="space-y-1.5">
+              <Label htmlFor="tone" className="flex items-center gap-1.5">
+                Remix Style
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <IconInfoCircle className="size-3.5 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      &ldquo;Match My Style&rdquo; analyzes your previous posts to match your unique voice
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </Label>
+              <Select value={tone} onValueChange={setTone} disabled={isRemixing}>
+                <SelectTrigger id="tone">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TONE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      <div className="flex flex-col items-start">
+                        <span className="font-medium flex items-center gap-1.5">
+                          {option.icon && <option.icon className="size-3.5" />}
+                          {option.label}
+                        </span>
+                        <span className="text-muted-foreground text-xs">
+                          {option.description}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Length Selection */}
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5">Post Length</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {LENGTH_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setLength(option.value as 'short' | 'medium' | 'long')}
+                    disabled={isRemixing}
+                    className={cn(
+                      'border-input bg-background ring-offset-background flex flex-col items-center gap-0.5 rounded-lg border p-2.5 text-center transition-all',
+                      'hover:border-primary hover:bg-accent',
+                      'focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+                      'disabled:pointer-events-none disabled:opacity-50',
+                      length === option.value &&
+                        'border-primary bg-primary/5 ring-primary ring-1'
+                    )}
+                  >
+                    <div className="flex items-center gap-1">
+                      <span className="text-base">{option.emoji}</span>
+                      <span className="font-medium text-sm">{option.label}</span>
+                    </div>
+                    <span className="text-muted-foreground text-[11px]">{option.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom Instructions */}
+            <div className="space-y-1.5">
+              <Label htmlFor="instructions" className="flex items-center gap-1.5">
+                Custom Instructions
+                <span className="text-muted-foreground text-xs">(Optional)</span>
+              </Label>
+              <Textarea
+                id="instructions"
+                placeholder="e.g., 'Add a personal story' or 'Focus on actionable takeaways'"
+                value={customInstructions}
+                onChange={(e) => setCustomInstructions(e.target.value)}
+                className="min-h-[60px] resize-none"
+                disabled={isRemixing}
+              />
+            </div>
+
+            {/* Error Message */}
+            {error && (
+              <div className="bg-destructive/10 text-destructive flex items-start gap-2 rounded-lg border border-destructive/20 p-3 text-sm">
+                <IconX className="mt-0.5 size-4 shrink-0" />
+                <p>{error}</p>
+              </div>
+            )}
+
+            {/* No API Key Warning */}
+            {!hasApiKey && !error && (
+              <div className="bg-primary/10 text-primary flex items-start gap-2 rounded-lg border border-primary/20 p-3 text-sm">
+                <IconInfoCircle className="mt-0.5 size-4 shrink-0" />
+                <p>
+                  You need to add your OpenAI API key in{' '}
+                  <strong>Settings → API Keys</strong> to use AI remix.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
-        <DialogFooter className="flex-shrink-0 gap-2 sm:gap-2">
+        <DialogFooter className="shrink-0 gap-2 sm:gap-2 border-t px-6 py-4">
           <Button variant="outline" onClick={onClose} disabled={isRemixing}>
             Cancel
           </Button>
-          {remixedContent ? (
-            <Button onClick={handleUseContent}>
-              <IconCheck className="size-4 mr-1" />
-              Use This Version
-            </Button>
-          ) : (
-            <Button onClick={handleRemix} disabled={isRemixing || !hasApiKey}>
-              {isRemixing ? (
-                <>
-                  <IconLoader2 className="size-4 animate-spin" />
-                  Remixing...
-                </>
-              ) : (
-                <>
-                  <IconSparkles className="size-4" />
-                  Remix Post
-                </>
-              )}
-            </Button>
-          )}
+          <Button onClick={handleRemix} disabled={isRemixing || !hasApiKey}>
+            {isRemixing ? (
+              <>
+                <IconLoader2 className="size-4 animate-spin" />
+                Remixing...
+              </>
+            ) : (
+              <>
+                <IconSparkles className="size-4" />
+                Remix &amp; Compose
+              </>
+            )}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

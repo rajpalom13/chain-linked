@@ -1,7 +1,8 @@
 /**
  * Daily Content Ingest Cron Job
  * @description Inngest cron function that runs daily at 6 AM UTC to ingest
- * fresh news articles via Perplexity AI for all users with selected discover topics.
+ * fresh news articles via OpenRouter (perplexity/sonar-pro) for all users with selected discover topics.
+ * Falls back to direct Perplexity API if OPENROUTER_API_KEY is not set.
  * Handles deduplication, freshness management, and resilient topic searching.
  * @module lib/inngest/functions/daily-content-ingest
  */
@@ -125,11 +126,12 @@ export const dailyContentIngest = inngest.createFunction(
     const searchResults = await step.run('search-topics-perplexity', async () => {
       const perplexity = createPerplexityClient()
       if (!perplexity) {
-        console.warn('[DailyIngest] PERPLEXITY_API_KEY not configured, skipping search')
+        console.warn('[DailyIngest] No OPENROUTER_API_KEY or PERPLEXITY_API_KEY configured, skipping search')
         return []
       }
 
-      console.log(`[DailyIngest] Searching ${activeTopics.length} topics via Perplexity`)
+      const provider = process.env.OPENROUTER_API_KEY ? 'OpenRouter (perplexity/sonar-pro)' : 'Perplexity (direct)'
+      console.log(`[DailyIngest] Searching ${activeTopics.length} topics via ${provider}`)
 
       const systemPrompt = `You are a news research assistant for a LinkedIn content platform. Your job is to find the most relevant, timely, and interesting news stories that professionals would want to discuss on LinkedIn. Focus on stories that are: Breaking or very recent (within the last 24 hours), Relevant to business professionals, Likely to generate discussion and engagement, From credible sources. Always return your findings in the exact JSON format requested.`
 

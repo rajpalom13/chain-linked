@@ -241,7 +241,7 @@ function reverseMathChar(cp: number): string | null {
  * transformText('Hello', 'bold') // => '𝗛𝗲𝗹𝗹𝗼'
  */
 export function transformText(text: string, style: UnicodeFontStyle): string {
-  if (style === 'normal') return text
+  if (style === 'normal') return stripUnicodeFont(text)
 
   // Spread into code points to handle existing Unicode chars correctly
   const chars = [...text]

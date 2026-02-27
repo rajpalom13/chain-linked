@@ -121,7 +121,10 @@ export default function DashboardLayout({
     setReady(true)
   }, [isLoading, isAuthenticated, user, pathname, router])
 
-  if (isLoading || !ready) {
+  // Only show the loading state before the first successful auth check.
+  // Once ready is true, never flash the loading screen again — this prevents
+  // the blank/black page on client-side navigation when isLoading briefly flickers.
+  if (!ready) {
     return <DashboardLoadingState />
   }
 

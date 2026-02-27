@@ -1,7 +1,8 @@
 /**
  * Shared Article Ingest Logic
- * @description Core Perplexity search, validation, deduplication, and insert logic
- * used by both the Inngest on-demand function and the seed API route.
+ * @description Core search, validation, deduplication, and insert logic for news articles.
+ * Uses OpenRouter (perplexity/sonar-pro) as primary search provider, with Tavily as fallback.
+ * Used by both the Inngest on-demand function and the seed API route.
  * @module lib/inngest/functions/ingest-articles
  */
 
@@ -177,11 +178,12 @@ export async function searchTopics(
   resultsPerTopic: number = 5,
   logPrefix: string = '[Ingest]'
 ): Promise<IngestedArticle[]> {
-  // Try Perplexity first
+  // Try OpenRouter/Perplexity first
   const perplexity = createPerplexityClient()
 
   if (perplexity) {
-    console.log(`${logPrefix} Searching ${topics.length} topics via Perplexity`)
+    const provider = process.env.OPENROUTER_API_KEY ? 'OpenRouter (perplexity/sonar-pro)' : 'Perplexity (direct)'
+    console.log(`${logPrefix} Searching ${topics.length} topics via ${provider}`)
 
     const results = await searchTopicsWithPerplexity(perplexity, topics, resultsPerTopic, logPrefix)
 
@@ -189,14 +191,14 @@ export async function searchTopics(
       return results
     }
 
-    console.warn(`${logPrefix} Perplexity returned 0 results across all topics, falling back to Tavily`)
+    console.warn(`${logPrefix} ${provider} returned 0 results across all topics, falling back to Tavily`)
   } else {
-    console.warn(`${logPrefix} PERPLEXITY_API_KEY not configured, trying Tavily fallback`)
+    console.warn(`${logPrefix} No OPENROUTER_API_KEY or PERPLEXITY_API_KEY configured, trying Tavily fallback`)
   }
 
   // Fallback: try Tavily
   if (!process.env.TAVILY_API_KEY) {
-    console.error(`${logPrefix} Neither PERPLEXITY_API_KEY nor TAVILY_API_KEY is configured — cannot search`)
+    console.error(`${logPrefix} No search API key configured (OPENROUTER, PERPLEXITY, or TAVILY) — cannot search`)
     return []
   }
 

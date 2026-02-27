@@ -3,7 +3,8 @@
 /**
  * Analytics Trend Chart Component (FE-003 + FE-004 + FE-005)
  * @description Recharts AreaChart displaying the selected metric over time with
- * gradient fill, optional comparison overlay, responsive layout, and tooltips.
+ * gradient fill, optional comparison overlay, multi-line "all metrics" mode,
+ * responsive layout, and tooltips.
  * @module components/features/analytics-trend-chart
  */
 
@@ -19,7 +20,6 @@ import {
 } from "recharts"
 import { motion } from "framer-motion"
 import {
-  IconChartLine,
   IconTrendingUp,
 } from "@tabler/icons-react"
 
@@ -35,10 +35,14 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
 } from "@/components/ui/chart"
 import { Skeleton } from "@/components/ui/skeleton"
 import { fadeSlideUpVariants } from "@/lib/animations"
-import type { AnalyticsDataPoint } from "@/hooks/use-analytics-v2"
+import type { AnalyticsDataPoint, MultiMetricData } from "@/hooks/use-analytics-v2"
+import { ALL_MODE_METRICS } from "@/hooks/use-analytics-v2"
+import { LottieEmptyState } from "@/components/shared/lottie-empty-state"
 
 /** Metric display labels */
 const METRIC_LABELS: Record<string, string> = {
@@ -51,6 +55,20 @@ const METRIC_LABELS: Record<string, string> = {
   sends: "Sends",
   engagements: "Engagements",
   engagements_rate: "Engagement Rate",
+  followers: "Followers",
+  profile_views: "Profile Views",
+  search_appearances: "Search Appearances",
+  connections: "Connections",
+  all: "All Metrics",
+}
+
+/** Colors for each metric in "all" mode */
+const METRIC_COLORS: Record<string, string> = {
+  impressions: "oklch(0.55 0.15 230)",
+  reactions: "oklch(0.60 0.18 145)",
+  comments: "oklch(0.65 0.16 70)",
+  reposts: "oklch(0.55 0.18 290)",
+  engagements: "oklch(0.60 0.18 15)",
 }
 
 /** Primary chart color (CSS custom property) */
@@ -72,6 +90,8 @@ interface AnalyticsTrendChartProps {
   compareActive: boolean
   /** Whether data is loading */
   isLoading: boolean
+  /** Multi-metric data map (when metric is "all") */
+  multiData?: MultiMetricData | null
 }
 
 /**
@@ -127,53 +147,46 @@ function ChartSkeleton() {
 }
 
 /**
- * Empty state with chart icon
+ * Empty state with Lottie animation for when no analytics data is available
  */
-function EmptyState() {
+function ChartEmptyState() {
   return (
-    <motion.div
-      className="flex flex-col items-center justify-center py-16 text-center"
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-    >
-      <motion.div
-        className="mb-4 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 p-4"
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
-        transition={{ delay: 0.1, duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
-      >
-        <IconChartLine className="size-8 text-primary" />
-      </motion.div>
-      <motion.h3
-        className="text-lg font-medium"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2, duration: 0.4 }}
-      >
-        No analytics data yet
-      </motion.h3>
-      <motion.p
-        className="mt-1 max-w-sm text-sm text-muted-foreground"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3, duration: 0.4 }}
-      >
-        Analytics data will appear after your first daily sync.
-      </motion.p>
-    </motion.div>
+    <div className="py-4">
+      <LottieEmptyState
+        title="Still getting your data"
+        description="Please wait while we calculate your analytics. Data will appear here after your first sync."
+      />
+    </div>
   )
 }
 
 /**
- * Analytics Trend Chart with optional comparison overlay
+ * Merge multi-metric data by date into a single array for the ComposedChart
+ * @param multiData - Map of metric name to data points
+ * @returns Array of objects with date + one key per metric
+ */
+function mergeMultiData(multiData: MultiMetricData): Record<string, unknown>[] {
+  const dateMap = new Map<string, Record<string, unknown>>()
+
+  for (const metric of ALL_MODE_METRICS) {
+    const points = multiData[metric] ?? []
+    for (const p of points) {
+      if (!dateMap.has(p.date)) {
+        dateMap.set(p.date, { date: p.date })
+      }
+      dateMap.get(p.date)![metric] = p.value
+    }
+  }
+
+  return Array.from(dateMap.values()).sort(
+    (a, b) => (a.date as string).localeCompare(b.date as string)
+  )
+}
+
+/**
+ * Analytics Trend Chart with optional comparison overlay and multi-line "all" mode
  * @param props - Component props
- * @param props.data - Current period data points
- * @param props.comparisonData - Previous period data points for overlay
- * @param props.metric - Selected metric name
- * @param props.compareActive - Whether comparison is enabled
- * @param props.isLoading - Loading state
- * @returns AreaChart card with gradient fills and comparison line overlay
+ * @returns AreaChart card with gradient fills, comparison line overlay, or multi-line chart
  */
 export function AnalyticsTrendChart({
   data,
@@ -181,12 +194,29 @@ export function AnalyticsTrendChart({
   metric,
   compareActive,
   isLoading,
+  multiData,
 }: AnalyticsTrendChartProps) {
   const metricLabel = METRIC_LABELS[metric] || metric
-  const hasData = data.length > 0
-  const showComparison = compareActive && comparisonData && comparisonData.length > 0
+  const isAllMode = metric === "all" && multiData
+  const hasData = isAllMode
+    ? Object.values(multiData).some((arr) => arr.length > 0)
+    : data.length > 0
+  const showComparison = !isAllMode && compareActive && comparisonData && comparisonData.length > 0
 
-  const chartConfig: ChartConfig = {
+  // Chart config for "all" mode
+  const allModeConfig: ChartConfig = React.useMemo(() => {
+    const cfg: ChartConfig = {}
+    for (const m of ALL_MODE_METRICS) {
+      cfg[m] = {
+        label: METRIC_LABELS[m] || m,
+        color: METRIC_COLORS[m] || PRIMARY_COLOR,
+      }
+    }
+    return cfg
+  }, [])
+
+  // Chart config for single metric
+  const singleConfig: ChartConfig = React.useMemo(() => ({
     value: {
       label: metricLabel,
       color: PRIMARY_COLOR,
@@ -199,11 +229,17 @@ export function AnalyticsTrendChart({
           },
         }
       : {}),
-  }
+  }), [metricLabel, showComparison])
+
+  // Merge multi-metric data for "all" mode
+  const allChartData = React.useMemo(() => {
+    if (!isAllMode) return []
+    return mergeMultiData(multiData)
+  }, [isAllMode, multiData])
 
   // Merge current and comparison data for the composed chart
-  // Align comparison data by relative position (day index)
   const chartData = React.useMemo(() => {
+    if (isAllMode) return allChartData
     if (!showComparison) {
       return data.map((d) => ({ date: d.date, value: d.value }))
     }
@@ -213,16 +249,17 @@ export function AnalyticsTrendChart({
       value: d.value,
       compValue: comparisonData[i]?.value ?? null,
     }))
-  }, [data, comparisonData, showComparison])
+  }, [data, comparisonData, showComparison, isAllMode, allChartData])
 
   // Calculate tick interval based on data length
   const tickInterval = React.useMemo(() => {
-    if (data.length <= 7) return 0
-    if (data.length <= 14) return 1
-    if (data.length <= 31) return 4
-    if (data.length <= 90) return 13
-    return Math.floor(data.length / 8)
-  }, [data.length])
+    const length = isAllMode ? allChartData.length : data.length
+    if (length <= 7) return 0
+    if (length <= 14) return 1
+    if (length <= 31) return 4
+    if (length <= 90) return 13
+    return Math.floor(length / 8)
+  }, [data.length, isAllMode, allChartData.length])
 
   if (isLoading) {
     return (
@@ -246,19 +283,93 @@ export function AnalyticsTrendChart({
             <div className="rounded-lg bg-primary/10 p-1.5">
               <IconTrendingUp className="size-4 text-primary" />
             </div>
-            {metricLabel} Trend
+            {isAllMode ? "All Metrics Trend" : `${metricLabel} Trend`}
           </CardTitle>
           <CardDescription>
-            {showComparison
-              ? `Comparing current and previous period ${metricLabel.toLowerCase()}`
-              : `Your ${metricLabel.toLowerCase()} over the selected time period`}
+            {isAllMode
+              ? "Comparing all post metrics over the selected time period"
+              : showComparison
+                ? `Comparing current and previous period ${metricLabel.toLowerCase()}`
+                : `Your ${metricLabel.toLowerCase()} over the selected time period`}
           </CardDescription>
         </CardHeader>
 
         <CardContent className="relative px-2 pt-0 sm:px-6">
           {!hasData ? (
-            <EmptyState />
+            <ChartEmptyState />
+          ) : isAllMode ? (
+            /* Multi-line chart for "all" mode */
+            <motion.div
+              key="all-metrics"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.1, duration: 0.5 }}
+            >
+              <ChartContainer
+                config={allModeConfig}
+                className="aspect-auto h-[320px] w-full"
+              >
+                <ComposedChart
+                  data={chartData}
+                  margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="var(--border)"
+                    strokeOpacity={0.5}
+                  />
+                  <XAxis
+                    dataKey="date"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    minTickGap={32}
+                    interval={tickInterval}
+                    tickFormatter={formatAxisDate}
+                    tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    tickFormatter={formatYAxis}
+                    width={48}
+                    tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
+                  />
+                  <ChartTooltip
+                    cursor={{
+                      stroke: "var(--primary)",
+                      strokeWidth: 1,
+                      strokeDasharray: "4 4",
+                    }}
+                    content={
+                      <ChartTooltipContent
+                        labelFormatter={(value) => formatDate(value as string)}
+                        indicator="dot"
+                        className="rounded-xl border-border/50 bg-card/95 backdrop-blur-sm"
+                      />
+                    }
+                  />
+                  <ChartLegend content={<ChartLegendContent />} />
+                  {ALL_MODE_METRICS.map((m) => (
+                    <Line
+                      key={m}
+                      dataKey={m}
+                      type="monotone"
+                      stroke={METRIC_COLORS[m]}
+                      strokeWidth={2}
+                      dot={false}
+                      animationDuration={1200}
+                      animationEasing="ease-out"
+                      connectNulls={false}
+                    />
+                  ))}
+                </ComposedChart>
+              </ChartContainer>
+            </motion.div>
           ) : (
+            /* Single metric chart */
             <motion.div
               key={`${metric}-${compareActive}`}
               initial={{ opacity: 0 }}
@@ -266,7 +377,7 @@ export function AnalyticsTrendChart({
               transition={{ delay: 0.1, duration: 0.5 }}
             >
               <ChartContainer
-                config={chartConfig}
+                config={singleConfig}
                 className="aspect-auto h-[280px] w-full"
               >
                 {showComparison ? (

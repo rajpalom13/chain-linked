@@ -1,12 +1,13 @@
 /**
  * Discover News Seed API Route
  * @description Triggers the ingest pipeline to populate discover_news_articles
- * with fresh content. Tries Perplexity first, falls back to Tavily search.
+ * with fresh content. Uses OpenRouter (perplexity/sonar-pro) as primary search,
+ * falls back to direct Perplexity API, then Tavily search.
  * Uses Inngest for async processing when available, otherwise runs directly.
  *
  * Returns a `reason` field on every response so the frontend can act
  * intelligently without parsing free-text messages:
- * - `no_api_key`      -- Neither PERPLEXITY_API_KEY nor TAVILY_API_KEY is configured
+ * - `no_api_key`      -- No search API key configured (OPENROUTER, PERPLEXITY, or TAVILY)
  * - `already_exists`  -- articles already exist for the requested topics
  * - `no_results`      -- search returned zero usable articles (fallback only)
  * - `success`         -- articles were ingested and saved (fallback only)
@@ -59,13 +60,13 @@ export async function POST(request: Request) {
 
   try {
     // ---- API key gate (need at least one search provider) ----
-    if (!process.env.PERPLEXITY_API_KEY && !process.env.TAVILY_API_KEY) {
-      console.warn("[Seed] Neither PERPLEXITY_API_KEY nor TAVILY_API_KEY is configured")
+    if (!process.env.OPENROUTER_API_KEY && !process.env.PERPLEXITY_API_KEY && !process.env.TAVILY_API_KEY) {
+      console.warn("[Seed] No search API key configured (OPENROUTER, PERPLEXITY, or TAVILY)")
       return NextResponse.json<SeedResponse>({
         seeded: false,
         reason: "no_api_key",
         message:
-          "No search API key configured. Set PERPLEXITY_API_KEY or TAVILY_API_KEY to enable news ingestion.",
+          "No search API key configured. Set OPENROUTER_API_KEY, PERPLEXITY_API_KEY, or TAVILY_API_KEY to enable news ingestion.",
       })
     }
 

@@ -27,7 +27,7 @@ import {
 import { ErrorBoundary } from "@/components/error-boundary"
 import { SwipeCard, SwipeCardStack, SwipeCardEmpty, type SwipeCardData } from "@/components/features/swipe-card"
 import { SwipeSkeleton } from "@/components/skeletons/page-skeletons"
-import { RemixDialog } from "@/components/features/remix-dialog"
+import { RemixDialog, type RemixSettings } from "@/components/features/remix-dialog"
 import { GenerationProgress } from "@/components/features/generation-progress"
 import { useGeneratedSuggestions } from "@/hooks/use-generated-suggestions"
 import { useSwipeActions } from "@/hooks/use-swipe-actions"
@@ -50,7 +50,6 @@ import {
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 import {
-  pageVariants,
   staggerContainerVariants,
   staggerItemVariants,
   fadeSlideUpVariants,
@@ -451,17 +450,22 @@ function SwipeContent() {
   }, [currentCard])
 
   /**
-   * Handle remixed content - load into composer
+   * Handle remixed content - load into composer with settings
    */
-  const handleRemixComplete = React.useCallback((remixedContent: string) => {
+  const handleRemixComplete = React.useCallback((remixedContent: string, settings: RemixSettings) => {
     if (!currentCard) return
 
     // Record as a like since they're using the content
     recordSwipe(currentCard.id, "like", currentCard.content)
     markAsUsed(currentCard.id)
 
-    // Load remixed content into composer
-    loadForRemix(currentCard.id, remixedContent, "AI Remix")
+    // Load remixed content into composer with remix settings
+    loadForRemix(currentCard.id, remixedContent, "AI Remix", undefined, {
+      tone: settings.tone,
+      length: settings.length,
+      customInstructions: settings.customInstructions,
+      originalContent: currentCard.content,
+    })
 
     // Close dialog and navigate
     setShowRemixDialog(false)
@@ -587,11 +591,8 @@ function SwipeContent() {
   }
 
   return (
-    <motion.div
+    <div
       className="flex flex-col items-center gap-6 p-4 md:p-6"
-      variants={pageVariants}
-      initial="initial"
-      animate="animate"
     >
       {/* Generation Progress */}
       <GenerationProgress
@@ -605,6 +606,8 @@ function SwipeContent() {
       <motion.div
         className="flex w-full max-w-md items-center justify-between gap-4 flex-wrap"
         variants={fadeSlideUpVariants}
+        initial="initial"
+        animate="animate"
       >
         {/* Left: Filter */}
         <div className="flex items-center gap-2">
@@ -773,7 +776,7 @@ function SwipeContent() {
         hasApiKey={apiKeyStatus?.hasKey ?? false}
       />
 
-    </motion.div>
+    </div>
   )
 }
 

@@ -1035,7 +1035,48 @@ async function savePostAnalyticsToStorage(newData: PostAnalyticsData): Promise<S
       },
     };
 
-    await saveToStorage(STORAGE_KEYS.POST_ANALYTICS_DATA, postAnalyticsData);
+    // Save the aggregate blob to local storage only (skip Supabase sync for the blob).
+    // The blob ({ posts, stats }) is a local convenience structure — not a valid post_analytics row.
+    await saveToStorage(STORAGE_KEYS.POST_ANALYTICS_DATA, postAnalyticsData, /* skipSync */ true);
+
+    // Instead, sync each individual post as a flattened record to the post_analytics table.
+    // This ensures prepareForSupabase receives per-post data with top-level fields.
+    const userId = getCurrentUserId();
+    if (userId) {
+      // Access raw data to handle both typed and untyped access patterns
+      const raw = newData as Record<string, unknown>;
+      const engagement = raw.engagement as Record<string, unknown> | undefined;
+      const profileActivity = raw.profileActivity as Record<string, unknown> | undefined;
+
+      const flatPost: Record<string, unknown> = {
+        activityUrn: raw.activityUrn,
+        impressions: raw.impressions ?? null,
+        membersReached: raw.membersReached ?? null,
+        reactions: engagement?.reactions ?? null,
+        comments: engagement?.comments ?? null,
+        reposts: engagement?.reposts ?? null,
+        profileViewers: profileActivity?.profileViewers ?? null,
+        followersGained: profileActivity?.followersGained ?? null,
+        engagementRate: raw.engagementRate ?? null,
+      };
+
+      // Only sync if we have at least one metric value (avoid syncing empty records from failed extractions)
+      const hasMetrics = flatPost.impressions !== null || flatPost.reactions !== null ||
+                         flatPost.comments !== null || flatPost.reposts !== null;
+
+      console.log(`[ServiceWorker] Post analytics flat data:`, JSON.stringify(flatPost));
+      console.log(`[ServiceWorker] Raw engagement:`, JSON.stringify(engagement));
+      console.log(`[ServiceWorker] Raw profileActivity:`, JSON.stringify(profileActivity));
+      console.log(`[ServiceWorker] Has metrics: ${hasMetrics}`);
+
+      if (hasMetrics) {
+        await queueForSync(STORAGE_KEYS.POST_ANALYTICS_DATA, flatPost);
+        console.log(`[ServiceWorker] Post analytics queued for sync (flattened): ${raw.activityUrn}`);
+      } else {
+        console.warn(`[ServiceWorker] Skipping sync for ${raw.activityUrn} — no metric data extracted`);
+      }
+    }
+
     console.log(`[ServiceWorker] Post analytics saved: ${allPosts.length} posts, latest: ${newData.activityUrn}`);
 
     return {
@@ -2136,7 +2177,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
               ...existingPostAnalytics.data,
               posts,
               lastUpdated: new Date().toISOString(),
-            });
+            }, /* skipSync */ true);
           } else {
             console.log('[CAPTURE][POST_DEMOGRAPHICS] Post not found in storage');
           }
@@ -3480,6 +3521,18 @@ chrome.runtime.onStartup.addListener(async () => {
     // Initialize background sync
     await initBackgroundSync();
     console.log('[ServiceWorker] Background sync ready');
+
+    // Check for stale data on service worker wake-up
+    const state = await getBackgroundSyncState();
+    const config = await getBackgroundSyncConfig();
+    if (config.enabled && state.lastSyncTime) {
+      const msSinceLastSync = Date.now() - state.lastSyncTime;
+      const intervalMs = (config.intervalMinutes || 30) * 60 * 1000;
+      if (msSinceLastSync > intervalMs) {
+        console.log('[ServiceWorker] Stale data detected, triggering catch-up sync');
+        triggerSync(false, false).catch(console.error);
+      }
+    }
   } catch (error) {
     console.error('[ServiceWorker] Initialization error:', error);
   }

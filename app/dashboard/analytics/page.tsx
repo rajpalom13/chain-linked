@@ -454,7 +454,7 @@ function AnalyticsContent() {
   const { user, profile, isLoading: authLoading } = useAuthContext()
   const searchParams = useSearchParams()
   const [filters, setFilters] = useState<AnalyticsV2Filters>(() => getDefaultFilters(searchParams))
-  const { data, summary, comparisonData, isLoading, error } = useAnalyticsV2(filters)
+  const { data, summary, comparisonData, multiData, isLoading, error } = useAnalyticsV2(filters)
   const { posts: recentPosts, isLoading: postsLoading } = useMyRecentPosts(user?.id, 9)
 
   /** Derive display name and avatar for the current user */
@@ -516,6 +516,7 @@ function AnalyticsContent() {
             metric={filters.metric}
             compareActive={filters.compare}
             isLoading={isLoading}
+            multiData={multiData}
           />
         </motion.div>
       </motion.div>
@@ -533,6 +534,7 @@ function AnalyticsContent() {
             granularity={filters.granularity}
             onGranularityChange={handleGranularityChange}
             isLoading={isLoading}
+            multiData={multiData}
           />
         </motion.div>
       </motion.div>

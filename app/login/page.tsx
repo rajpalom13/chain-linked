@@ -57,14 +57,22 @@ function LoginForm() {
   )
 
   // Show error or success message from URL params on mount
+  // Redirect to verify-email page if error is about email verification
   useEffect(() => {
     if (errorParam) {
+      const isVerificationError =
+        errorParam.toLowerCase().includes('email not confirmed') ||
+        errorParam.toLowerCase().includes('not verified')
+      if (isVerificationError) {
+        router.replace(`/verify-email${email ? `?email=${encodeURIComponent(email)}` : ''}`)
+        return
+      }
       toast.error(errorParam)
     }
     if (successParam) {
       toast.success(successParam)
     }
-  }, [errorParam, successParam])
+  }, [errorParam, successParam, email, router])
 
   /**
    * Handle resending verification email via API
@@ -121,7 +129,8 @@ function LoginForm() {
         if (error.message.includes('Invalid login credentials')) {
           toast.error('Invalid email or password')
         } else if (error.message.includes('Email not confirmed')) {
-          toast.error('Please verify your email before signing in')
+          router.push(`/verify-email?email=${encodeURIComponent(email)}`)
+          return
         } else {
           toast.error(error.message || 'Failed to sign in')
         }

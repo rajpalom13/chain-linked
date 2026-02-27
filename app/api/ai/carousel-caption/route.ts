@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createOpenAIClient, chatCompletion, OpenAIError, getErrorMessage, DEFAULT_MODEL } from '@/lib/ai/openai-client'
+import { ANTI_AI_WRITING_RULES } from '@/lib/ai/anti-ai-rules'
 
 /**
  * Request body for carousel caption generation
@@ -42,7 +43,9 @@ Your task is to write a compelling LinkedIn post caption that accompanies a caro
 - Don't write a wall of text
 
 ## Output
-Return ONLY the caption text, no explanations or meta-commentary.`
+Return ONLY the caption text, no explanations or meta-commentary.
+
+${ANTI_AI_WRITING_RULES}`
 
 /**
  * POST /api/ai/carousel-caption

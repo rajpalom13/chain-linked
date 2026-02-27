@@ -120,6 +120,7 @@ export async function POST(request: Request) {
             ? 'ARTICLE'
             : 'TEXT',
         posted_at: new Date().toISOString(),
+        source: 'platform',
         raw_data: {
           voyager_response: {
             postId: result.postId,

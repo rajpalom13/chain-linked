@@ -124,16 +124,13 @@ export function useTeamPosts(limit: number = 20): UseTeamPostsReturn {
         (linkedinProfiles || []).map(p => [p.user_id, p.headline])
       )
 
-      // Step 5: Fetch posts created by team members (rolling 7 days only)
-      const sevenDaysAgo = new Date()
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-
+      // Step 5: Fetch posts created by team members
       const { data: postsData, error: fetchError } = await supabase
         .from('my_posts')
         .select('*')
         .in('user_id', teamMemberIds)
-        .gte('posted_at', sevenDaysAgo.toISOString())
         .not('content', 'is', null)
+        .not('posted_at', 'is', null)
         .order('posted_at', { ascending: false })
         .limit(limit)
 

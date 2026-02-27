@@ -6,6 +6,7 @@
  */
 
 import { PromptType, type PromptVariable } from './prompt-types'
+import { ANTI_AI_WRITING_RULES, ANTI_AI_PROMPT_CONSTRAINTS } from '@/lib/ai/anti-ai-rules'
 
 /**
  * Default prompt definition including metadata
@@ -49,6 +50,8 @@ const BASE_RULES_CONTENT = `## LinkedIn Formatting Rules
 - Write for scanners: every line should deliver value
 - Be specific and concrete, not vague and abstract
 
+${ANTI_AI_WRITING_RULES}
+
 ## Output
 Return ONLY the post content. No explanations, no meta-commentary, no quotes around the text.`
 
@@ -73,6 +76,8 @@ const REMIX_BASE_PROMPT = `You are an expert LinkedIn content creator and copywr
 4. Never plagiarize - transform the content significantly
 5. Remove any @mentions from the original (respect attribution)
 6. Keep emojis minimal and professional unless the tone calls for more
+
+${ANTI_AI_WRITING_RULES}
 
 ## Output:
 Return ONLY the rewritten post content. No explanations, no preamble, no quotes around the text.`
@@ -460,6 +465,8 @@ Adapt your writing style based on the requested tone:
 - Educational: Break down concepts simply, use analogies, include actionable takeaways
 - Inspirational: Use powerful emotive language, share transformation stories
 - Storytelling: Create a narrative arc, use specific details, build suspense
+
+${ANTI_AI_PROMPT_CONSTRAINTS}
 
 ## Critical Guidelines
 1. **Character Limits**: NEVER exceed the max character limit for any slot

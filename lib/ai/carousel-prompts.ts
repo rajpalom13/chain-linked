@@ -5,6 +5,7 @@
  */
 
 import type { TemplateAnalysis, TemplateSlot } from './template-analyzer'
+import { ANTI_AI_PROMPT_CONSTRAINTS } from './anti-ai-rules'
 
 /**
  * Tone options for carousel generation
@@ -173,6 +174,8 @@ ${structureDesc}
 
 ## Content Slots to Fill
 ${slotRequirements}
+
+${ANTI_AI_PROMPT_CONSTRAINTS}
 
 ## Critical Guidelines
 1. **Character Limits**: NEVER exceed the max character limit for any slot

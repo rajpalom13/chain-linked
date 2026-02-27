@@ -64,6 +64,7 @@ import { PostGoalSelector } from "./post-goal-selector"
 import { FontPicker } from "./font-picker"
 import { LinkedInStatusBadge } from "./linkedin-status-badge"
 import { MentionPopover, type MentionSuggestion } from "./mention-popover"
+import { CarouselDocumentPreview } from "./carousel-document-preview"
 import { usePostingConfig } from "@/hooks/use-posting-config"
 import { buildMentionToken, countCharactersWithMentions } from "@/lib/linkedin/mentions"
 
@@ -240,7 +241,6 @@ export function PostComposer({
   const { isPostingEnabled, disabledMessage } = usePostingConfig()
   const { draft, setContent: setDraftContent, setScheduledFor, clearDraft, updateDraft } = useDraft()
 
-  // Initialize content from draft context if available, otherwise use initialContent
   const [content, setContent] = React.useState(() => draft.content || initialContent)
   const [isPosting, setIsPosting] = React.useState(false)
   const [isScheduling, setIsScheduling] = React.useState(false)
@@ -253,6 +253,8 @@ export function PostComposer({
   const [selectedGoal, setSelectedGoal] = React.useState<GoalCategory | undefined>(undefined)
   const [selectedFormat, setSelectedFormat] = React.useState<PostTypeId | undefined>(undefined)
   const [activeFontStyle, setActiveFontStyle] = React.useState<UnicodeFontStyle>('normal')
+  const [carouselSlideImages, setCarouselSlideImages] = React.useState<string[]>([])
+
   const [mentionOpen, setMentionOpen] = React.useState(false)
   const [mentionQuery, setMentionQuery] = React.useState("")
   const [mentionPosition, setMentionPosition] = React.useState({ top: 0, left: 0 })
@@ -263,9 +265,15 @@ export function PostComposer({
 
   // Capture AI suggestion from draft (set by template library) and clear after consuming
   const [aiSuggestion] = React.useState(() => draft.aiSuggestion)
+  // Capture remix metadata from draft (set by discover/swipe remix) and clear after consuming
+  const [remixMeta] = React.useState(() => draft.remixMeta)
+  const [showRemixBanner, setShowRemixBanner] = React.useState(() => !!draft.remixMeta)
   React.useEffect(() => {
     if (draft.aiSuggestion) {
       updateDraft({ aiSuggestion: undefined })
+    }
+    if (draft.remixMeta) {
+      updateDraft({ remixMeta: undefined })
     }
     // Only run once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -828,6 +836,10 @@ export function PostComposer({
    * Removes a media file from the list
    */
   const handleRemoveMedia = (id: string) => {
+    // Clear carousel previews when removing a carousel document
+    if (id.startsWith('carousel-')) {
+      setCarouselSlideImages([])
+    }
     setMediaFiles((prev) => {
       const file = prev.find((f) => f.id === id)
       if (file) {
@@ -891,6 +903,40 @@ export function PostComposer({
                 </div>
               )}
 
+              {/* Remix Info Banner — shown when content was remixed from discover/swipe */}
+              {showRemixBanner && remixMeta && (
+                <div className="relative rounded-lg border border-purple-500/30 bg-purple-500/5 p-3">
+                  <button
+                    onClick={() => setShowRemixBanner(false)}
+                    className="absolute top-2 right-2 text-muted-foreground hover:text-foreground"
+                  >
+                    <IconX className="size-3.5" />
+                  </button>
+                  <div className="flex items-center gap-2 mb-2">
+                    <IconRepeat className="size-4 text-purple-500" />
+                    <span className="text-sm font-medium">Remixed Post</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/10 px-2 py-0.5">
+                      Style: <span className="font-medium text-foreground capitalize">{remixMeta.tone.replace(/-/g, ' ')}</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/10 px-2 py-0.5">
+                      Length: <span className="font-medium text-foreground capitalize">{remixMeta.length}</span>
+                    </span>
+                    {remixMeta.customInstructions && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/10 px-2 py-0.5 max-w-full">
+                        Instructions: <span className="font-medium text-foreground truncate max-w-[200px]">{remixMeta.customInstructions}</span>
+                      </span>
+                    )}
+                  </div>
+                  {draft.sourceAuthor && (
+                    <p className="text-xs text-muted-foreground mt-1.5">
+                      Inspired by <span className="font-medium">{draft.sourceAuthor}</span>
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* Goal Selector */}
               <PostGoalSelector
                 selectedGoal={selectedGoal}
@@ -918,9 +964,10 @@ export function PostComposer({
                 }}
                 onGenerationContext={onGenerationContext}
                 persistFields={true}
-                initialTopic={aiSuggestion?.topic}
-                initialTone={aiSuggestion?.tone}
-                initialContext={aiSuggestion?.context}
+                initialTopic={aiSuggestion?.topic || (remixMeta ? remixMeta.originalContent.slice(0, 200) : undefined)}
+                initialTone={remixMeta?.tone || aiSuggestion?.tone}
+                initialLength={remixMeta?.length || aiSuggestion?.length}
+                initialContext={remixMeta?.customInstructions || aiSuggestion?.context}
               />
             </CardContent>
           </Card>
@@ -1224,61 +1271,184 @@ export function PostComposer({
                   </AnimatePresence>
                 </div>
 
-                {/* Media Preview */}
-                {mediaFiles.length > 0 && (
-                  <div className="border-t px-4 py-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-sm font-medium">
-                        Attached media ({mediaFiles.length})
-                      </span>
+                {/* Media Preview — LinkedIn-style */}
+                {mediaFiles.length > 0 && (() => {
+                  const imageFiles = mediaFiles.filter((f) => f.type === "image")
+                  const docFiles = mediaFiles.filter((f) => f.type === "document")
+                  const hasCarousel = carouselSlideImages.length > 0
+
+                  return (
+                    <div className="group/media relative">
+                      {/* Clear all button — floats top-right on hover */}
                       <Button
-                        variant="ghost"
+                        variant="secondary"
                         size="sm"
-                        className="h-6 text-xs text-muted-foreground"
+                        className="absolute right-2 top-2 z-20 h-6 rounded-full text-xs opacity-0 shadow-md transition-opacity group-hover/media:opacity-100"
                         onClick={() => {
                           mediaFiles.forEach((f) => URL.revokeObjectURL(f.previewUrl))
                           setMediaFiles([])
+                          setCarouselSlideImages([])
                         }}
                       >
+                        <IconX className="mr-1 size-3" />
                         Clear all
                       </Button>
-                    </div>
-                    <div className="grid grid-cols-4 gap-2">
-                      {mediaFiles.map((file) => (
-                        <div
-                          key={file.id}
-                          className="group relative aspect-square overflow-hidden rounded-md border bg-muted"
-                        >
-                          {file.type === "image" ? (
-                            <Image
-                              src={file.previewUrl}
-                              alt={file.file.name}
-                              fill
-                              className="object-cover"
-                              unoptimized
-                            />
-                          ) : (
-                            <div className="flex size-full flex-col items-center justify-center gap-1 text-muted-foreground">
-                              <IconFile className="size-6" />
-                              <span className="max-w-full truncate px-1 text-xs">
-                                {file.file.name}
-                              </span>
+
+                      {/* Carousel / Document preview */}
+                      {hasCarousel ? (
+                        <CarouselDocumentPreview
+                          slideImages={carouselSlideImages}
+                          onRemove={() => {
+                            mediaFiles.forEach((f) => URL.revokeObjectURL(f.previewUrl))
+                            setMediaFiles([])
+                            setCarouselSlideImages([])
+                          }}
+                        />
+                      ) : docFiles.length > 0 && imageFiles.length === 0 ? (
+                        /* Document-only: full-width card */
+                        <div className="group/doc relative border-t bg-muted/50">
+                          <div className="flex items-center gap-3 px-4 py-4">
+                            <div className="flex size-12 items-center justify-center rounded-md bg-red-100 dark:bg-red-900/30">
+                              <IconFile className="size-6 text-red-600 dark:text-red-400" />
                             </div>
-                          )}
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium">{docFiles[0].file.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {(docFiles[0].file.size / 1024).toFixed(0)} KB
+                              </p>
+                            </div>
+                          </div>
                           <Button
                             variant="destructive"
                             size="icon"
-                            className="absolute right-1 top-1 size-5 opacity-0 transition-opacity group-hover:opacity-100"
-                            onClick={() => handleRemoveMedia(file.id)}
-                            aria-label={`Remove ${file.file.name}`}
+                            className="absolute right-2 top-2 size-6 rounded-full opacity-0 shadow-md transition-opacity group-hover/doc:opacity-100"
+                            onClick={() => handleRemoveMedia(docFiles[0].id)}
+                            aria-label={`Remove ${docFiles[0].file.name}`}
                           >
                             <IconX className="size-3" />
                           </Button>
                         </div>
-                      ))}
+                      ) : imageFiles.length === 1 ? (
+                        /* Single image — full-width like LinkedIn */
+                        <div className="group/img relative">
+                          <div className="relative aspect-[4/3] w-full overflow-hidden border-t">
+                            <Image
+                              src={imageFiles[0].previewUrl}
+                              alt={imageFiles[0].file.name}
+                              fill
+                              className="object-cover"
+                              unoptimized
+                            />
+                          </div>
+                          <Button
+                            variant="destructive"
+                            size="icon"
+                            className="absolute right-2 top-3 size-6 rounded-full opacity-0 shadow-md transition-opacity group-hover/img:opacity-100"
+                            onClick={() => handleRemoveMedia(imageFiles[0].id)}
+                            aria-label={`Remove ${imageFiles[0].file.name}`}
+                          >
+                            <IconX className="size-3" />
+                          </Button>
+                        </div>
+                      ) : imageFiles.length === 2 ? (
+                        /* Two images — side by side */
+                        <div className="grid grid-cols-2 gap-0.5 border-t">
+                          {imageFiles.map((file) => (
+                            <div key={file.id} className="group/img relative aspect-square overflow-hidden">
+                              <Image
+                                src={file.previewUrl}
+                                alt={file.file.name}
+                                fill
+                                className="object-cover"
+                                unoptimized
+                              />
+                              <Button
+                                variant="destructive"
+                                size="icon"
+                                className="absolute right-1 top-1 size-5 rounded-full opacity-0 shadow-md transition-opacity group-hover/img:opacity-100"
+                                onClick={() => handleRemoveMedia(file.id)}
+                                aria-label={`Remove ${file.file.name}`}
+                              >
+                                <IconX className="size-3" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : imageFiles.length === 3 ? (
+                        /* Three images — one large left, two stacked right */
+                        <div className="grid grid-cols-2 gap-0.5 border-t">
+                          <div className="group/img relative row-span-2 aspect-auto overflow-hidden" style={{ minHeight: '16rem' }}>
+                            <Image
+                              src={imageFiles[0].previewUrl}
+                              alt={imageFiles[0].file.name}
+                              fill
+                              className="object-cover"
+                              unoptimized
+                            />
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              className="absolute right-1 top-1 size-5 rounded-full opacity-0 shadow-md transition-opacity group-hover/img:opacity-100"
+                              onClick={() => handleRemoveMedia(imageFiles[0].id)}
+                              aria-label={`Remove ${imageFiles[0].file.name}`}
+                            >
+                              <IconX className="size-3" />
+                            </Button>
+                          </div>
+                          {imageFiles.slice(1).map((file) => (
+                            <div key={file.id} className="group/img relative aspect-square overflow-hidden">
+                              <Image
+                                src={file.previewUrl}
+                                alt={file.file.name}
+                                fill
+                                className="object-cover"
+                                unoptimized
+                              />
+                              <Button
+                                variant="destructive"
+                                size="icon"
+                                className="absolute right-1 top-1 size-5 rounded-full opacity-0 shadow-md transition-opacity group-hover/img:opacity-100"
+                                onClick={() => handleRemoveMedia(file.id)}
+                                aria-label={`Remove ${file.file.name}`}
+                              >
+                                <IconX className="size-3" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : imageFiles.length >= 4 ? (
+                        /* Four+ images — 2x2 grid, +N overlay on last */
+                        <div className="grid grid-cols-2 gap-0.5 border-t">
+                          {imageFiles.slice(0, 4).map((file, idx) => (
+                            <div key={file.id} className="group/img relative aspect-square overflow-hidden">
+                              <Image
+                                src={file.previewUrl}
+                                alt={file.file.name}
+                                fill
+                                className="object-cover"
+                                unoptimized
+                              />
+                              {idx === 3 && imageFiles.length > 4 && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                                  <span className="text-2xl font-semibold text-white">+{imageFiles.length - 4}</span>
+                                </div>
+                              )}
+                              <Button
+                                variant="destructive"
+                                size="icon"
+                                className="absolute right-1 top-1 size-5 rounded-full opacity-0 shadow-md transition-opacity group-hover/img:opacity-100"
+                                onClick={() => handleRemoveMedia(file.id)}
+                                aria-label={`Remove ${file.file.name}`}
+                              >
+                                <IconX className="size-3" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
-                  </div>
-                )}
+                  )
+                })()}
 
                 {/* Engagement Stats (Placeholder) */}
                 <div className="text-muted-foreground flex items-center px-4 py-2 text-xs">

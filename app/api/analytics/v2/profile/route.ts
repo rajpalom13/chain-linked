@@ -1,40 +1,28 @@
 /**
- * Analytics V2 API Route
- * @description Serves post-level analytics via Supabase RPC functions
- * with support for metric selection, time periods, content type filtering,
- * source filtering, comparison periods, and granularity controls.
- * @module app/api/analytics/v2
+ * Profile Analytics V2 API Route
+ * @description Serves profile-level analytics via Supabase RPC functions
+ * from profile_analytics_daily and profile_analytics_accumulative tables.
+ * @module app/api/analytics/v2/profile
  */
 
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
-/** Valid post-level metric names */
-const POST_METRICS = [
-  'impressions',
-  'unique_reach',
-  'reactions',
-  'comments',
-  'reposts',
-  'saves',
-  'sends',
-  'engagements',
-  'engagements_rate',
-] as const
+/** Valid profile-level metric names */
+const PROFILE_METRICS = ['followers', 'profile_views', 'search_appearances', 'connections'] as const
+type ProfileMetric = (typeof PROFILE_METRICS)[number]
 
-type PostMetric = (typeof POST_METRICS)[number]
-
-/** Valid granularity values for timeseries RPCs */
-const VALID_GRANULARITIES = ['daily', 'weekly', 'monthly', 'quarterly', 'yearly'] as const
+/** Valid granularity values for profile timeseries RPCs */
+const VALID_GRANULARITIES = ['daily', 'weekly', 'monthly'] as const
 type Granularity = (typeof VALID_GRANULARITIES)[number]
 
-/** Row shape returned by timeseries RPC functions */
+/** Row shape returned by profile timeseries RPC functions */
 interface TimeseriesRow {
   bucket_date: string
   value: number
 }
 
-/** Row shape returned by the summary RPC function */
+/** Row shape returned by the profile summary RPC function */
 interface SummaryRow {
   current_total: number
   current_avg: number
@@ -43,6 +31,15 @@ interface SummaryRow {
   comp_avg: number
   comp_count: number
   pct_change: number
+}
+
+/**
+ * Maps a profile metric to its _total column name
+ * @param metric - The profile metric
+ * @returns The total column name for the metric
+ */
+function totalColumn(metric: ProfileMetric): string {
+  return `${metric}_total`
 }
 
 /**
@@ -82,10 +79,9 @@ function toDateStr(d: Date): string {
 }
 
 /**
- * GET /api/analytics/v2
- * @description Fetches post-level analytics using Supabase RPC functions
- * for summary, timeseries, and comparison data. Supports filtering by
- * content type and source.
+ * GET /api/analytics/v2/profile
+ * @description Fetches profile-level analytics using Supabase RPC functions
+ * for summary and timeseries data, plus accumulative totals.
  */
 export async function GET(request: Request) {
   const supabase = await createClient()
@@ -96,14 +92,12 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url)
-  const metric = (searchParams.get('metric') || 'impressions') as PostMetric
+  const metric = (searchParams.get('metric') || 'followers') as ProfileMetric
   const period = searchParams.get('period') || '30d'
-  const contentType = searchParams.get('contentType') || 'all'
   const compare = searchParams.get('compare') === 'true'
   const granularity = (searchParams.get('granularity') || 'daily') as Granularity
-  const source = searchParams.get('source') || 'all'
 
-  if (!POST_METRICS.includes(metric)) {
+  if (!PROFILE_METRICS.includes(metric)) {
     return NextResponse.json({ error: `Invalid metric: ${metric}` }, { status: 400 })
   }
 
@@ -140,33 +134,15 @@ export async function GET(request: Request) {
   const compEndStr = toDateStr(compEndDate)
 
   try {
-    // Filter post IDs if contentType or source filter is active
-    let postIds: string[] | null = null
-    if (contentType !== 'all' || source !== 'all') {
-      let query = supabase.from('my_posts').select('id').eq('user_id', user.id)
-      if (contentType !== 'all') query = query.eq('media_type', contentType)
-      if (source !== 'all') query = query.eq('source', source)
-      const { data: filteredPosts } = await query
-
-      postIds = filteredPosts?.map(p => p.id) ?? []
-      if (postIds.length === 0) {
-        return NextResponse.json({
-          current: [],
-          comparison: null,
-          summary: { total: 0, average: 0, change: 0 },
-        })
-      }
-    }
-
-    // Try pre-computed cache first (no content/source filters — cache is user-wide)
-    if (!postIds && period !== 'custom') {
+    // Try pre-computed cache first (standard periods only)
+    if (period !== 'custom') {
       const { data: cached } = await supabase
         .from('analytics_summary_cache')
         .select('*')
         .eq('user_id', user.id)
         .eq('metric', metric)
         .eq('period', period)
-        .eq('metric_type', 'post')
+        .eq('metric_type', 'profile')
         .maybeSingle()
 
       if (cached && cached.computed_at) {
@@ -175,11 +151,10 @@ export async function GET(request: Request) {
         if (cacheAge < FOUR_HOURS) {
           const cachedTimeseries = (cached.timeseries as { date: string; value: number }[]) ?? []
           const summary = {
-            total: metric === 'engagements_rate'
-              ? Number(cached.current_avg)
-              : Number(cached.current_total),
+            total: Number(cached.current_total),
             average: Number(cached.current_avg),
             change: Number(cached.pct_change),
+            accumulativeTotal: cached.accumulative_total != null ? Number(cached.accumulative_total) : 0,
             compCount: Number(cached.comp_count),
           }
           return NextResponse.json({
@@ -193,79 +168,87 @@ export async function GET(request: Request) {
 
     // Fall back to RPC if cache miss or stale
 
-    // Call summary RPC
-    const { data: summaryData, error: summaryError } = await supabase.rpc('get_analytics_summary' as never, {
-      p_user_id: user.id,
-      p_metric: metric,
-      p_start_date: startStr,
-      p_end_date: endStr,
-      p_comp_start_date: compStartStr,
-      p_comp_end_date: compEndStr,
-      p_post_ids: postIds,
-    } as never)
-
-    if (summaryError) {
-      console.error('Analytics V2 summary RPC error:', summaryError)
-      return NextResponse.json({ error: 'Failed to fetch analytics summary' }, { status: 500 })
-    }
-
-    // Call timeseries RPC based on granularity
-    const rpcName = `get_analytics_timeseries_${granularity}`
+    // Call profile timeseries RPC based on granularity
+    const rpcName = `get_profile_analytics_timeseries_${granularity}`
     const { data: timeseriesData, error: tsError } = await supabase.rpc(rpcName as never, {
       p_user_id: user.id,
       p_metric: metric,
       p_start_date: startStr,
       p_end_date: endStr,
-      p_post_ids: postIds,
     } as never)
 
     if (tsError) {
-      console.error('Analytics V2 timeseries RPC error:', tsError)
-      return NextResponse.json({ error: 'Failed to fetch timeseries data' }, { status: 500 })
+      console.error('Profile analytics timeseries RPC error:', tsError)
+      return NextResponse.json({ error: 'Failed to fetch profile analytics' }, { status: 500 })
     }
 
-    // If compare, call daily timeseries for comparison period (FE-004)
-    let comparisonData: { date: string; value: number }[] | null = null
-    if (compare) {
-      const { data: compData } = await supabase.rpc('get_analytics_timeseries_daily' as never, {
-        p_user_id: user.id,
-        p_metric: metric,
-        p_start_date: compStartStr,
-        p_end_date: compEndStr,
-        p_post_ids: postIds,
-      } as never)
-      const compRows = (compData ?? []) as TimeseriesRow[]
-      comparisonData = compRows.map(r => ({
-        date: r.bucket_date,
-        value: Math.round(Number(r.value) * 100) / 100,
-      }))
-    }
-
-    // Format current timeseries
     const tsRows = (timeseriesData ?? []) as TimeseriesRow[]
     const current = tsRows.map(r => ({
       date: r.bucket_date,
       value: Math.round(Number(r.value) * 100) / 100,
     }))
 
-    // Format summary from RPC result
+    // Call profile summary RPC (includes comparison)
+    const { data: summaryData, error: summaryError } = await supabase.rpc('get_profile_analytics_summary' as never, {
+      p_user_id: user.id,
+      p_metric: metric,
+      p_start_date: startStr,
+      p_end_date: endStr,
+      p_comp_start_date: compStartStr,
+      p_comp_end_date: compEndStr,
+    } as never)
+
+    if (summaryError) {
+      console.error('Profile analytics summary RPC error:', summaryError)
+      return NextResponse.json({ error: 'Failed to fetch profile analytics summary' }, { status: 500 })
+    }
+
     const summaryRows = (Array.isArray(summaryData) ? summaryData : [summaryData]) as SummaryRow[]
     const row = summaryRows[0]
+
+    // Get accumulative total from most recent record
+    const { data: accumData } = await supabase
+      .from('profile_analytics_accumulative')
+      .select(totalColumn(metric))
+      .eq('user_id', user.id)
+      .order('analysis_date', { ascending: false })
+      .limit(1)
+      .single()
+
+    const accumulativeTotal = accumData
+      ? (accumData[totalColumn(metric) as keyof typeof accumData] as number) ?? 0
+      : 0
+
+    // Comparison timeseries (only when explicitly requested)
+    let comparison: { date: string; value: number }[] | null = null
+    if (compare) {
+      const { data: compData } = await supabase.rpc('get_profile_analytics_timeseries_daily' as never, {
+        p_user_id: user.id,
+        p_metric: metric,
+        p_start_date: compStartStr,
+        p_end_date: compEndStr,
+      } as never)
+
+      const compRows = (compData ?? []) as TimeseriesRow[]
+      comparison = compRows.map(r => ({
+        date: r.bucket_date,
+        value: Math.round(Number(r.value) * 100) / 100,
+      }))
+    }
+
     const summary = row
       ? {
-          total:
-            metric === 'engagements_rate'
-              ? Math.round(Number(row.current_avg) * 100) / 100
-              : Math.round(Number(row.current_total) * 100) / 100,
+          total: Math.round(Number(row.current_total) * 100) / 100,
           average: Math.round(Number(row.current_avg) * 100) / 100,
           change: Math.round(Number(row.pct_change) * 100) / 100,
+          accumulativeTotal,
           compCount: Number(row.comp_count),
         }
-      : { total: 0, average: 0, change: 0, compCount: 0 }
+      : { total: 0, average: 0, change: 0, accumulativeTotal, compCount: 0 }
 
-    return NextResponse.json({ current, comparison: comparisonData, summary })
+    return NextResponse.json({ current, comparison, summary })
   } catch (err) {
-    console.error('Analytics V2 error:', err)
+    console.error('Profile analytics error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

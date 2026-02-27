@@ -29,7 +29,7 @@ import { DiscoverNewsCard } from "@/components/features/discover-news-card"
 import { DiscoverTrendingSidebar } from "@/components/features/discover-trending-sidebar"
 import { TopicSelectionOverlay } from "@/components/features/topic-selection-overlay"
 import { ManageTopicsModal } from "@/components/features/manage-topics-modal"
-import { RemixDialog } from "@/components/features/remix-dialog"
+import { RemixDialog, type RemixSettings } from "@/components/features/remix-dialog"
 import { ResearchSection } from "@/components/features/research-section"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -351,11 +351,23 @@ function DiscoverContent() {
   /**
    * Handle successful remix completion by loading the draft and navigating to compose
    * @param remixedContent - The remixed content string from the dialog
+   * @param settings - Remix settings (tone, length, custom instructions)
    */
   const handleRemixComplete = React.useCallback(
-    (remixedContent: string) => {
+    (remixedContent: string, settings: RemixSettings) => {
       if (articleToRemix) {
-        loadForRemix(articleToRemix.id, remixedContent, articleToRemix.sourceName)
+        loadForRemix(
+          articleToRemix.id,
+          remixedContent,
+          articleToRemix.sourceName,
+          undefined,
+          {
+            tone: settings.tone,
+            length: settings.length,
+            customInstructions: settings.customInstructions,
+            originalContent: `${articleToRemix.headline}\n\n${articleToRemix.summary}`,
+          }
+        )
         router.push("/dashboard/compose")
       }
       setIsRemixOpen(false)

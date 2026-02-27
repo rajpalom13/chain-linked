@@ -450,6 +450,17 @@ export function CanvasEditor({
     [slides, template, saveTemplate, createDbCategory]
   );
 
+  /**
+   * Handle "Post" button: open the PostToLinkedInDialog
+   */
+  const handlePostToCompose = useCallback(() => {
+    if (slides.length === 0) {
+      toast.error('No slides to post');
+      return;
+    }
+    setShowPostDialog(true);
+  }, [slides.length]);
+
   // Get template colors for color picker
   const templateColors = template?.brandColors || [];
 
@@ -512,7 +523,7 @@ export function CanvasEditor({
           onReset={handleReset}
           onSaveTemplate={() => setShowSaveTemplateDialog(true)}
           onExport={() => setShowExportDialog(true)}
-          onPostToLinkedIn={() => setShowPostDialog(true)}
+          onPostToLinkedIn={handlePostToCompose}
         />
       </div>
 
@@ -565,16 +576,6 @@ export function CanvasEditor({
         existingCategories={existingCustomCategories}
       />
 
-      {/* Post to LinkedIn dialog */}
-      <PostToLinkedInDialog
-        open={showPostDialog}
-        onOpenChange={setShowPostDialog}
-        slides={slides}
-        stageRef={stageRef}
-        currentSlideIndex={currentSlideIndex}
-        setCurrentSlide={setCurrentSlide}
-      />
-
       {/* Reset confirmation dialog */}
       <AlertDialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
         <AlertDialogContent>
@@ -590,6 +591,16 @@ export function CanvasEditor({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Post to LinkedIn dialog */}
+      <PostToLinkedInDialog
+        open={showPostDialog}
+        onOpenChange={setShowPostDialog}
+        slides={slides}
+        stageRef={stageRef}
+        currentSlideIndex={currentSlideIndex}
+        setCurrentSlide={setCurrentSlide}
+      />
     </div>
   );
 }

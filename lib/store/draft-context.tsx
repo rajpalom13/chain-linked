@@ -28,8 +28,24 @@ export interface AISuggestion {
   topic: string
   /** Suggested tone for AI generation */
   tone: string
+  /** Suggested length for AI generation */
+  length?: string
   /** Additional context for AI generation */
   context: string
+}
+
+/**
+ * Remix settings carried from the remix dialog to the compose page
+ */
+export interface RemixMeta {
+  /** Tone/style used for the remix */
+  tone: string
+  /** Length option used for the remix */
+  length: string
+  /** Custom instructions given for the remix */
+  customInstructions: string
+  /** The original prompt/content that was remixed */
+  originalContent: string
 }
 
 /**
@@ -50,6 +66,8 @@ export interface DraftState {
   sourceAuthor?: string
   /** AI suggestion context from template selection */
   aiSuggestion?: AISuggestion
+  /** Remix settings from the remix dialog */
+  remixMeta?: RemixMeta
   /** Last modified timestamp */
   lastModified: number
 }
@@ -74,8 +92,8 @@ interface DraftContextValue {
   setScheduledFor: (date: Date | undefined) => void
   /** Load a template into the draft, optionally with AI suggestion context */
   loadTemplate: (templateId: string, content: string, aiSuggestion?: AISuggestion) => void
-  /** Load content for remixing */
-  loadForRemix: (postId: string, content: string, authorName?: string) => void
+  /** Load content for remixing, optionally with AI suggestion context and remix settings */
+  loadForRemix: (postId: string, content: string, authorName?: string, aiSuggestion?: AISuggestion, remixMeta?: RemixMeta) => void
   /** Clear the entire draft */
   clearDraft: () => void
   /** Check if draft has unsaved content */
@@ -97,6 +115,7 @@ const initialDraftState: DraftState = {
   sourcePostId: undefined,
   sourceAuthor: undefined,
   aiSuggestion: undefined,
+  remixMeta: undefined,
   lastModified: Date.now(),
 }
 
@@ -224,7 +243,7 @@ export function DraftProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const loadForRemix = React.useCallback(
-    (postId: string, content: string, authorName?: string) => {
+    (postId: string, content: string, authorName?: string, aiSuggestion?: AISuggestion, remixMeta?: RemixMeta) => {
       const remixContent = authorName
         ? `Inspired by ${authorName}:\n\n${content}`
         : content
@@ -236,6 +255,8 @@ export function DraftProvider({ children }: { children: React.ReactNode }) {
         templateId: undefined,
         sourcePostId: postId,
         sourceAuthor: authorName,
+        aiSuggestion,
+        remixMeta,
         lastModified: Date.now(),
       })
     },

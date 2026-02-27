@@ -207,6 +207,7 @@ export async function POST(request: Request) {
         activity_urn: result.linkedinPostUrn,
         content,
         posted_at: new Date().toISOString(),
+        source: 'platform',
       })
   }
 

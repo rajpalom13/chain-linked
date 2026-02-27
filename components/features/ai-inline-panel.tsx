@@ -68,6 +68,8 @@ export interface AIInlinePanelProps {
   initialTopic?: string
   /** Initial tone value (e.g. from template AI suggestion) */
   initialTone?: string
+  /** Initial length value (e.g. from remix settings) */
+  initialLength?: string
   /** Initial context value (e.g. from template AI suggestion) */
   initialContext?: string
 }
@@ -122,11 +124,12 @@ export function AIInlinePanel({
   persistFields = false,
   initialTopic,
   initialTone,
+  initialLength,
   initialContext,
 }: AIInlinePanelProps) {
   const [topic, setTopic] = React.useState(initialTopic ?? '')
   const [tone, setTone] = React.useState(initialTone ?? 'professional')
-  const [length, setLength] = React.useState('medium')
+  const [length, setLength] = React.useState(initialLength ?? 'medium')
   const [context, setContext] = React.useState(initialContext ?? '')
   const [isGenerating, setIsGenerating] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -151,6 +154,10 @@ export function AIInlinePanel({
   React.useEffect(() => {
     if (initialTone) setTone(initialTone)
   }, [initialTone])
+
+  React.useEffect(() => {
+    if (initialLength) setLength(initialLength)
+  }, [initialLength])
 
   React.useEffect(() => {
     if (initialContext) setContext(initialContext)
@@ -178,7 +185,7 @@ export function AIInlinePanel({
    */
   const handleGenerate = async () => {
     if (!topic.trim()) {
-      setError('Please enter a topic for your post')
+      setError('Please enter a prompt describing your post topic')
       return
     }
 
@@ -293,20 +300,20 @@ export function AIInlinePanel({
                 </Button>
               </div>
 
-              {/* Topic */}
+              {/* Topic / Prompt */}
               <div className="space-y-1.5">
                 <Label htmlFor="ai-topic" className="text-xs">
-                  Topic <span className="text-destructive">*</span>
+                  Prompt for the topic <span className="text-destructive">*</span>
                 </Label>
                 <Textarea
                   id="ai-topic"
-                  placeholder="e.g. 'Lessons from scaling a remote team to 50 people'"
+                  placeholder="e.g. 'Write a post about lessons from scaling a remote team to 50 people, include a personal story and actionable tips'"
                   value={topic}
                   onChange={(e) => {
                     setTopic(e.target.value)
                     if (error) setError(null)
                   }}
-                  className="min-h-[56px] resize-none text-sm"
+                  className="min-h-[100px] resize-none text-sm"
                   disabled={isGenerating}
                 />
               </div>

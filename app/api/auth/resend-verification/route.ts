@@ -1,17 +1,28 @@
 /**
  * Resend Verification Email API Route
- * @description Handles resending email verification using Supabase Auth or custom Resend
+ * @description Generates a verification link via Supabase admin and sends
+ * the email via Resend with a custom branded template.
  * @module app/api/auth/resend-verification
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
+import { sendEmail } from '@/lib/email/resend'
+import { EmailVerificationEmail } from '@/components/emails/email-verification'
+
+/**
+ * Create a Supabase admin client that can generate auth links
+ * @returns Admin Supabase client
+ */
+function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+  return createClient(url, serviceKey)
+}
 
 /**
  * POST handler for resending verification email
- * Uses Supabase Auth's built-in resend functionality
- * (Configure SMTP in Supabase dashboard to use Resend as provider)
- *
+ * Uses Supabase Admin API to generate the link, then Resend to send the email
  * @param request - Request with email in body
  * @returns JSON response with success status
  */
@@ -26,7 +37,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(email)) {
       return NextResponse.json(
@@ -35,23 +45,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = await createClient()
+    const supabaseAdmin = getSupabaseAdmin()
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
-    // Use Supabase Auth's built-in resend functionality
-    // This will use whatever email provider is configured in Supabase dashboard
-    // (Can be configured to use Resend SMTP)
-    const { error } = await supabase.auth.resend({
-      type: 'signup',
+    // Generate a magic link (acts as email verification) via Supabase admin API
+    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'magiclink',
       email,
       options: {
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/auth/callback`,
+        redirectTo: `${appUrl}/api/auth/callback`,
       },
     })
 
     if (error) {
-      console.error('Resend verification error:', error)
+      console.error('Generate verification link error:', error)
 
-      // Handle specific errors
       if (error.message.includes('rate limit')) {
         return NextResponse.json(
           { error: 'Too many requests. Please wait a few minutes before trying again.' },
@@ -68,6 +76,34 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json(
         { error: 'Failed to resend verification email. Please try again later.' },
+        { status: 500 }
+      )
+    }
+
+    if (!data?.properties?.action_link) {
+      return NextResponse.json(
+        { error: 'Failed to generate verification link.' },
+        { status: 500 }
+      )
+    }
+
+    // Send the verification email via Resend
+    const userName = email.split('@')[0]
+    const emailResult = await sendEmail({
+      to: email,
+      subject: 'Verify your ChainLinked email',
+      react: EmailVerificationEmail({
+        userName,
+        email,
+        verificationLink: data.properties.action_link,
+        expiresInHours: 24,
+      }),
+    })
+
+    if (!emailResult.success) {
+      console.error('Verification email send error:', emailResult.error)
+      return NextResponse.json(
+        { error: 'Failed to send verification email. Please try again later.' },
         { status: 500 }
       )
     }

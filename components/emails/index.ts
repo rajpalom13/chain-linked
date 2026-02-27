@@ -12,3 +12,6 @@ export type { WelcomeToTeamEmailProps } from './welcome-to-team'
 
 export { EmailVerificationEmail } from './email-verification'
 export type { EmailVerificationEmailProps } from './email-verification'
+
+export { PasswordResetEmail } from './password-reset'
+export type { PasswordResetEmailProps } from './password-reset'

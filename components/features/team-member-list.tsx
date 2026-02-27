@@ -222,7 +222,7 @@ export function TeamMemberList({
                   {getDisplayName(member.user)}
                 </p>
                 <p className="text-sm text-muted-foreground truncate">
-                  {member.user.email}
+                  {member.user.headline || member.user.email}
                 </p>
               </div>
 

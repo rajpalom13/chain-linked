@@ -50,6 +50,63 @@ export type Database = {
         }
         Relationships: []
       }
+      analytics_summary_cache: {
+        Row: {
+          id: string
+          user_id: string
+          metric: string
+          period: string
+          metric_type: string
+          current_total: number
+          current_avg: number
+          current_count: number
+          comp_total: number
+          comp_avg: number
+          comp_count: number
+          pct_change: number
+          accumulative_total: number | null
+          timeseries: Json
+          computed_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          metric: string
+          period: string
+          metric_type?: string
+          current_total?: number
+          current_avg?: number
+          current_count?: number
+          comp_total?: number
+          comp_avg?: number
+          comp_count?: number
+          pct_change?: number
+          accumulative_total?: number | null
+          timeseries?: Json
+          computed_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          metric?: string
+          period?: string
+          metric_type?: string
+          current_total?: number
+          current_avg?: number
+          current_count?: number
+          comp_total?: number
+          comp_avg?: number
+          comp_count?: number
+          pct_change?: number
+          accumulative_total?: number | null
+          timeseries?: Json
+          computed_at?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       analytics_tracking_status: {
         Row: {
           id: number

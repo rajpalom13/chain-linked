@@ -3,8 +3,8 @@
 /**
  * Analytics Filter Bar Component (FE-001)
  * @description Top-level filter controls for the analytics dashboard including
- * metric selector, time period toggle, content type filter, and compare toggle.
- * All filter values are persisted in URL search params.
+ * metric selector with "All Metrics" and profile metrics, time period toggle,
+ * content type filter, and compare toggle.
  * @module components/features/analytics-filter-bar
  */
 
@@ -19,7 +19,9 @@ import { Button } from "@/components/ui/button"
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
@@ -33,19 +35,6 @@ import {
 } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import type { AnalyticsV2Filters } from "@/hooks/use-analytics-v2"
-
-/** Available metric options for the analytics dashboard */
-const METRIC_OPTIONS = [
-  { value: "impressions", label: "Impressions" },
-  { value: "unique_reach", label: "Unique Reach" },
-  { value: "reactions", label: "Reactions" },
-  { value: "comments", label: "Comments" },
-  { value: "reposts", label: "Reposts" },
-  { value: "saves", label: "Saves" },
-  { value: "sends", label: "Sends" },
-  { value: "engagements", label: "Engagements" },
-  { value: "engagements_rate", label: "Engagement Rate" },
-] as const
 
 /** Content type options for filtering posts */
 const CONTENT_TYPE_OPTIONS = [
@@ -114,20 +103,33 @@ export function AnalyticsFilterBar({ filters, onFiltersChange }: AnalyticsFilter
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
       <div className="flex flex-wrap items-center gap-2">
-        {/* Metric Selector */}
+        {/* Metric Selector with grouped options */}
         <Select
           value={filters.metric}
           onValueChange={(value) => updateFilters({ metric: value })}
         >
-          <SelectTrigger className="w-[160px]" aria-label="Select metric">
+          <SelectTrigger className="w-[170px]" aria-label="Select metric">
             <SelectValue placeholder="Metric" />
           </SelectTrigger>
           <SelectContent>
-            {METRIC_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
+            <SelectItem value="all">All Metrics</SelectItem>
+            <SelectGroup>
+              <SelectLabel>Post Metrics</SelectLabel>
+              <SelectItem value="impressions">Impressions</SelectItem>
+              <SelectItem value="reactions">Reactions</SelectItem>
+              <SelectItem value="comments">Comments</SelectItem>
+              <SelectItem value="reposts">Reposts</SelectItem>
+              <SelectItem value="engagements">Engagements</SelectItem>
+              <SelectItem value="engagements_rate">Engagement Rate</SelectItem>
+              <SelectItem value="saves">Saves</SelectItem>
+              <SelectItem value="sends">Sends</SelectItem>
+            </SelectGroup>
+            <SelectGroup>
+              <SelectLabel>Profile Metrics</SelectLabel>
+              <SelectItem value="followers">Followers</SelectItem>
+              <SelectItem value="profile_views">Profile Views</SelectItem>
+              <SelectItem value="search_appearances">Search Appearances</SelectItem>
+            </SelectGroup>
           </SelectContent>
         </Select>
 

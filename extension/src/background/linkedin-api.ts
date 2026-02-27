@@ -491,3 +491,48 @@ export async function fetchCurrentUserProfile(): Promise<VoyagerFetchResult> {
 
   return voyagerFetch(`${LINKEDIN_BASE_URL}/voyager/api/me`, auth);
 }
+
+// ---------------------------------------------------------------------------
+// Per-Post Analytics (dashPostAnalytics)
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch detailed analytics for a single LinkedIn post via the
+ * `dashPostAnalytics` Voyager endpoint.
+ *
+ * This endpoint returns richer metrics than the GraphQL `myPosts` feed:
+ * - `impressionCount` / `uniqueImpressionCount`
+ * - `memberReach`
+ * - `likeCount`, `commentCount`, `shareCount`
+ * - `engagementRate`
+ * - `clickCount`
+ *
+ * The result fills in the data gap that exists when posts are discovered
+ * via the background sync `myPosts` endpoint (which only gives social
+ * activity counts: reactions, comments, reposts, impressions).
+ *
+ * @param activityUrn - The LinkedIn activity URN (e.g. `urn:li:activity:123`).
+ * @returns A {@link VoyagerFetchResult} with parsed per-post analytics.
+ */
+export async function fetchPostDetailedAnalytics(
+  activityUrn: string,
+): Promise<VoyagerFetchResult> {
+  console.log(`${LOG_PREFIX} Fetching per-post analytics for ${activityUrn}`);
+
+  const auth = await getLinkedInAuth();
+  if (!auth) {
+    return {
+      success: false,
+      error: 'Not authenticated to LinkedIn.',
+    };
+  }
+
+  const params = new URLSearchParams({
+    q: 'postAnalytics',
+    activityUrn,
+  });
+
+  const url = `${LINKEDIN_BASE_URL}/voyager/api/analytics/dashPostAnalytics?${params.toString()}`;
+
+  return voyagerFetch(url, auth);
+}
