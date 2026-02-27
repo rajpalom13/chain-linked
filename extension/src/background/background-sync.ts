@@ -27,6 +27,7 @@ import {
   isLinkedInAuthenticated,
   fetchEndpoint,
   fetchCurrentUserProfile,
+  fetchPostDetailedAnalytics,
   ENDPOINTS_REQUIRING_PROFILE_URN,
   ENDPOINTS_REQUIRING_PUBLIC_ID,
   CREATOR_ONLY_ENDPOINTS,
@@ -1282,6 +1283,134 @@ async function processMyPostsData(data: unknown): Promise<void> {
     for (const post of updatedPosts) {
       await queueForSync(STORAGE_KEYS.MY_POSTS, post as Record<string, unknown>);
     }
+
+    // Also queue per-post analytics to the post_analytics table so the
+    // analytics pipeline can pick them up. This ensures post-level metrics
+    // are captured even without the user visiting individual post pages.
+    const POST_ANALYTICS_KEY = 'linkedin_post_analytics';
+    const allPostsToSync = [...newPosts, ...updatedPosts];
+    for (const post of allPostsToSync) {
+      const urn = (post.activity_urn || post.activityUrn) as string;
+      const hasMetrics = Number(post.impressions ?? 0) > 0 ||
+        Number(post.reactions ?? 0) > 0 ||
+        Number(post.comments ?? 0) > 0 ||
+        Number(post.reposts ?? 0) > 0;
+
+      if (urn && hasMetrics) {
+        // Only include fields with actual values — omit zeros so the upsert
+        // doesn't overwrite richer DOM-scraped data (engagement_rate, members_reached,
+        // profile_viewers, followers_gained) with empty background sync values.
+        const flatAnalytics: Record<string, unknown> = {
+          activityUrn: urn,
+          impressions: Number(post.impressions ?? 0),
+          reactions: Number(post.reactions ?? 0),
+          comments: Number(post.comments ?? 0),
+          reposts: Number(post.reposts ?? 0),
+          source: 'background_sync',
+          extractedAt: new Date().toISOString(),
+        };
+        // Only include DOM-only fields if they have non-zero values
+        const mr = Number(post.members_reached ?? post.membersReached ?? 0);
+        const er = Number(post.engagement_rate ?? post.engagementRate ?? 0);
+        const pv = Number(post.profile_viewers ?? post.profileViewers ?? 0);
+        const fg = Number(post.followers_gained ?? post.followersGained ?? 0);
+        const sv = Number(post.saves ?? post.saveCount ?? 0);
+        const sn = Number(post.sends ?? post.sendCount ?? 0);
+        if (mr > 0) flatAnalytics.membersReached = mr;
+        if (er > 0) flatAnalytics.engagementRate = er;
+        if (pv > 0) flatAnalytics.profileViewers = pv;
+        if (fg > 0) flatAnalytics.followersGained = fg;
+        if (sv > 0) flatAnalytics.saveCount = sv;
+        if (sn > 0) flatAnalytics.sendCount = sn;
+
+        await queueForSync(POST_ANALYTICS_KEY, flatAnalytics);
+      }
+    }
+    console.log(
+      `${LOG_PREFIX} Queued ${allPostsToSync.filter(p => {
+        const hasM = Number(p.impressions ?? 0) > 0 || Number(p.reactions ?? 0) > 0 ||
+          Number(p.comments ?? 0) > 0 || Number(p.reposts ?? 0) > 0;
+        return (p.activity_urn || p.activityUrn) && hasM;
+      }).length} posts to post_analytics table`,
+    );
+
+    // ── Fetch detailed per-post analytics from dashPostAnalytics ──
+    // The myPosts GraphQL endpoint only provides basic social counts
+    // (impressions, reactions, comments, reposts). The dashPostAnalytics
+    // Voyager endpoint provides richer metrics: engagement_rate,
+    // members_reached (memberReach), unique_views, click_count.
+    // We fetch these for each known post and merge them into post_analytics.
+    const MAX_PER_POST_FETCHES = 10; // Rate-limit: max 10 per sync cycle
+    const allUrns = mergedPosts
+      .map(p => (p.activity_urn || p.activityUrn) as string)
+      .filter(Boolean)
+      .slice(0, MAX_PER_POST_FETCHES);
+
+    let detailedFetchCount = 0;
+    for (const activityUrn of allUrns) {
+      try {
+        const result = await fetchPostDetailedAnalytics(activityUrn);
+        if (!result.success || !result.data) {
+          // Non-creator accounts or posts without analytics return 404 — skip
+          if (result.status === 404) continue;
+          console.warn(`${LOG_PREFIX} dashPostAnalytics failed for ${activityUrn}: ${result.error}`);
+          // Stop fetching on auth errors or rate limits to avoid tripping circuit breaker
+          if (result.status === 401 || result.status === 403 || result.status === 429 || result.status === 999) break;
+          continue;
+        }
+
+        const rawAnalytics = result.data as Record<string, unknown>;
+
+        // The dashPostAnalytics response may be nested in `elements` array
+        let analyticsData = rawAnalytics;
+        if (Array.isArray(rawAnalytics.elements) && (rawAnalytics.elements as Record<string, unknown>[]).length > 0) {
+          analyticsData = (rawAnalytics.elements as Record<string, unknown>[])[0];
+        }
+
+        const impressionCount = Number(analyticsData.impressionCount ?? 0);
+        const uniqueImpressionCount = Number(analyticsData.uniqueImpressionCount ?? 0);
+        const memberReach = Number(analyticsData.memberReach ?? 0);
+        const likeCount = Number(analyticsData.likeCount ?? 0);
+        const commentCount = Number(analyticsData.commentCount ?? 0);
+        const shareCount = Number(analyticsData.shareCount ?? 0);
+        const saveCount = Number(analyticsData.saveCount ?? 0);
+        const sendCount = Number(analyticsData.sendCount ?? 0);
+        const engagementRate = Number(analyticsData.engagementRate ?? 0);
+        const clickCount = Number(analyticsData.clickCount ?? 0);
+
+        // Only queue if we got meaningful data
+        if (impressionCount > 0 || memberReach > 0 || engagementRate > 0) {
+          const detailedAnalytics: Record<string, unknown> = {
+            activityUrn,
+            impressions: impressionCount,
+            reactions: likeCount,
+            comments: commentCount,
+            reposts: shareCount,
+            source: 'background_sync_detailed',
+            extractedAt: new Date().toISOString(),
+          };
+          // Include enriched fields only when non-zero
+          if (uniqueImpressionCount > 0) detailedAnalytics.uniqueViews = uniqueImpressionCount;
+          if (memberReach > 0) detailedAnalytics.membersReached = memberReach;
+          if (engagementRate > 0) detailedAnalytics.engagementRate = engagementRate;
+          if (clickCount > 0) detailedAnalytics.clickCount = clickCount;
+          if (saveCount > 0) detailedAnalytics.saveCount = saveCount;
+          if (sendCount > 0) detailedAnalytics.sendCount = sendCount;
+
+          await queueForSync(POST_ANALYTICS_KEY, detailedAnalytics);
+          detailedFetchCount++;
+        }
+
+        // Small delay between requests to avoid rate-limiting
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (err) {
+        console.error(`${LOG_PREFIX} Error fetching detailed analytics for ${activityUrn}:`, err);
+      }
+    }
+    if (detailedFetchCount > 0) {
+      console.log(`${LOG_PREFIX} Enriched ${detailedFetchCount}/${allUrns.length} posts with detailed analytics (dashPostAnalytics)`);
+    }
+
     // Trigger sync for all queued posts, then reconcile stale rows
     setTimeout(async () => {
       try {
@@ -1930,6 +2059,8 @@ function extractBasicPosts(responseData: Record<string, unknown>): Record<string
     const comments = Number(counts.numComments ?? counts.commentCount ?? 0);
     const reposts = Number(counts.numShares ?? counts.shareCount ?? 0);
     const impressions = Number(counts.numImpressions ?? counts.impressionCount ?? 0);
+    const saves = Number(counts.saveCount ?? counts.numSaves ?? 0);
+    const sends = Number(counts.sendCount ?? counts.numSends ?? 0);
 
     // Extract timestamp from available fields, or decode from activity URN.
     // LinkedIn activity URNs use Snowflake IDs where the upper bits encode
@@ -2003,6 +2134,8 @@ function extractBasicPosts(responseData: Record<string, unknown>): Record<string
       comments,
       reposts,
       impressions,
+      saves,
+      sends,
       media_type: mediaType,
       media_urls: mediaUrls.length > 0 ? mediaUrls : null,
       posted_at: postedAt,

@@ -90,7 +90,7 @@ export const FIELD_MAPPINGS: Record<string, Record<string, string>> = {
   },
   'post_analytics': {
     // Actual DB columns: activity_urn, post_content, post_type, impressions,
-    // members_reached, unique_views, reactions, comments, reposts,
+    // members_reached, unique_views, reactions, comments, reposts, saves, sends,
     // engagement_rate, profile_viewers, followers_gained, demographics,
     // raw_data, posted_at, captured_at, updated_at
     'activityUrn': 'activity_urn',
@@ -108,6 +108,8 @@ export const FIELD_MAPPINGS: Record<string, Record<string, string>> = {
     'repostCount': 'reposts',
     'numShares': 'reposts',
     'shareCount': 'reposts',
+    'saveCount': 'saves',
+    'sendCount': 'sends',
     'membersReached': 'members_reached',
     'uniqueViews': 'unique_views',
     'profileViewers': 'profile_viewers',
@@ -175,7 +177,7 @@ export const FIELD_MAPPINGS: Record<string, Record<string, string>> = {
   },
   'my_posts': {
     // Actual DB columns: activity_urn, content, media_type, media_urls, reactions, comments,
-    // reposts, impressions, posted_at, raw_data, created_at, updated_at
+    // reposts, impressions, saves, sends, unique_views, engagement_rate, posted_at, raw_data, created_at, updated_at
     'activityUrn': 'activity_urn',
     'postText': 'content',
     'text': 'content',
@@ -190,6 +192,10 @@ export const FIELD_MAPPINGS: Record<string, Record<string, string>> = {
     'repostCount': 'reposts',
     'numShares': 'reposts',
     'shareCount': 'reposts',
+    'saveCount': 'saves',
+    'sendCount': 'sends',
+    'uniqueImpressionCount': 'unique_views',
+    'engagementRate': 'engagement_rate',
     'mediaType': 'media_type',
     'mediaUrls': 'media_urls',
     'postedAt': 'posted_at',
@@ -313,7 +319,7 @@ export const TABLE_COLUMNS: Record<string, string[]> = {
   ],
   'my_posts': [
     'id', 'user_id', 'activity_urn', 'content', 'media_type', 'media_urls', 'reactions', 'comments',
-    'reposts', 'impressions', 'posted_at', 'raw_data', 'created_at', 'updated_at',
+    'reposts', 'impressions', 'posted_at', 'raw_data', 'created_at', 'updated_at', 'source',
   ],
   'comments': [
     'id', 'user_id', 'activity_urn', 'author_name', 'author_headline',
@@ -428,6 +434,58 @@ export function prepareForSupabase(
 
   const prepared: Record<string, unknown> = { ...data };
 
+  // ── Flatten nested objects for post_analytics ──
+  // The DOM extractor stores engagement metrics in nested objects:
+  //   { engagement: { reactions, comments, reposts }, profileActivity: { profileViewers, followersGained } }
+  // These must be flattened to top-level keys before field mapping can work.
+  if (table === 'post_analytics') {
+    const engagement = prepared.engagement as Record<string, unknown> | undefined;
+    if (engagement && typeof engagement === 'object') {
+      if (engagement.reactions !== undefined && engagement.reactions !== null) {
+        prepared.reactions = Number(engagement.reactions);
+      }
+      if (engagement.comments !== undefined && engagement.comments !== null) {
+        prepared.comments = Number(engagement.comments);
+      }
+      if (engagement.reposts !== undefined && engagement.reposts !== null) {
+        prepared.reposts = Number(engagement.reposts);
+      }
+      delete prepared.engagement;
+      console.log('[SYNC][PREPARE] Flattened engagement object for post_analytics');
+    }
+
+    const profileActivity = prepared.profileActivity as Record<string, unknown> | undefined;
+    if (profileActivity && typeof profileActivity === 'object') {
+      if (profileActivity.profileViewers !== undefined && profileActivity.profileViewers !== null) {
+        prepared.profileViewers = Number(profileActivity.profileViewers);
+      }
+      if (profileActivity.followersGained !== undefined && profileActivity.followersGained !== null) {
+        prepared.followersGained = Number(profileActivity.followersGained);
+      }
+      delete prepared.profileActivity;
+      console.log('[SYNC][PREPARE] Flattened profileActivity object for post_analytics');
+    }
+
+    // Ensure numeric types for post_analytics metric fields
+    const numericPostFields = ['impressions', 'reactions', 'comments', 'reposts',
+      'members_reached', 'unique_views', 'profile_viewers', 'followers_gained'];
+    for (const field of numericPostFields) {
+      if (prepared[field] !== undefined && prepared[field] !== null) {
+        const val = Number(prepared[field]);
+        prepared[field] = isNaN(val) ? null : val;
+      }
+    }
+
+    // Convert engagementRate string (e.g. "3.45") to number
+    if (typeof prepared.engagementRate === 'string') {
+      const parsed = parseFloat((prepared.engagementRate as string).replace('%', ''));
+      prepared.engagementRate = isNaN(parsed) ? null : parsed;
+    }
+
+    // Remove DOM extractor internal fields before mapping
+    delete prepared.extractedAt;
+  }
+
   // Tables that use user_id as conflict key - don't include 'id' field
   // This lets PostgreSQL handle id auto-generation and proper upsert behavior
   const userIdConflictTables = ['linkedin_profiles', 'audience_data', 'extension_settings'];
@@ -508,18 +566,32 @@ export function prepareForSupabase(
 
   // Ensure numeric fields are numbers for linkedin_analytics
   if (table === 'linkedin_analytics') {
+    // Background sync already converts some fields to snake_case (members_reached, new_followers).
+    // Also handle any lingering camelCase variants that didn't go through field mapping.
+    const snakeCaseAliases: Record<string, string> = {
+      'profileViews': 'profile_views',
+      'searchAppearances': 'search_appearances',
+      'membersReached': 'members_reached',
+      'newFollowers': 'new_followers',
+    };
+    for (const [camel, snake] of Object.entries(snakeCaseAliases)) {
+      if (prepared[camel] !== undefined && prepared[snake] === undefined) {
+        prepared[snake] = prepared[camel];
+        delete prepared[camel];
+      }
+    }
+
     // Only include columns that actually exist in the database
     const numericFields = [
       'impressions', 'engagements', 'members_reached', 'profile_views',
       'search_appearances', 'new_followers',
     ];
     numericFields.forEach(field => {
-      if (prepared[field] !== undefined && typeof prepared[field] === 'string') {
-        // Remove commas and parse as integer
-        const strValue = prepared[field] as string;
-        const parsed = parseInt(strValue.replace(/,/g, ''), 10);
-        prepared[field] = isNaN(parsed) ? 0 : parsed;
-        console.log(`[SYNC][PREPARE] Converted ${field} from "${strValue}" to ${prepared[field]}`);
+      if (prepared[field] !== undefined) {
+        const val = typeof prepared[field] === 'string'
+          ? parseInt((prepared[field] as string).replace(/,/g, ''), 10)
+          : Number(prepared[field]);
+        prepared[field] = isNaN(val) ? 0 : val;
       }
     });
     // Handle engagement_rate as float
@@ -527,7 +599,6 @@ export function prepareForSupabase(
       const strValue = prepared.engagement_rate as string;
       const parsed = parseFloat(strValue.replace(/[%,]/g, ''));
       prepared.engagement_rate = isNaN(parsed) ? 0 : parsed;
-      console.log(`[SYNC][PREPARE] Converted engagement_rate from "${strValue}" to ${prepared.engagement_rate}`);
     }
   }
 
@@ -666,13 +737,14 @@ export async function queueForSync(
 
   // For multi-record tables, dedup by unique record identifiers (activity_urn, comment_urn, linkedin_id)
   // so that different records for the same table don't overwrite each other in the queue
-  const recordId = (data.activity_urn || data.comment_urn || data.linkedin_id || '') as string;
+  // Check both camelCase and snake_case variants of unique identifiers
+  const recordId = (data.activity_urn || data.activityUrn || data.comment_urn || data.commentUrn || data.linkedin_id || data.linkedinId || '') as string;
 
   const existingIndex = pendingChanges.findIndex((c) => {
     if (c.localKey !== localKey || c.table !== table) return false;
     if (recordId) {
       // For records with unique IDs, only match if same record
-      const existingRecordId = (c.data.activity_urn || c.data.comment_urn || c.data.linkedin_id || '') as string;
+      const existingRecordId = (c.data.activity_urn || c.data.activityUrn || c.data.comment_urn || c.data.commentUrn || c.data.linkedin_id || c.data.linkedinId || '') as string;
       return existingRecordId === recordId;
     }
     // For single-record tables (profile, settings), match by key alone
@@ -877,6 +949,8 @@ export async function processPendingChanges(): Promise<{
           'audience_history': 'user_id,date',
           'my_posts': 'user_id,activity_urn',
           'feed_posts': 'user_id,activity_urn',
+          'post_analytics': 'user_id,activity_urn',
+          'linkedin_analytics': 'user_id,page_type',
         };
         const isUserIdTable = userIdConflictTables.includes(table);
         const compositeKey = compositeConflictTables[table];
@@ -899,13 +973,16 @@ export async function processPendingChanges(): Promise<{
         let error: { message: string } | undefined;
 
         if (compositeKey) {
-          // Tables with composite unique constraints (user_id + date)
+          // Tables with composite unique constraints (user_id + activity_urn, user_id + date, etc.)
+          // FK constraints on child tables (post_analytics_daily, etc.) now use ON UPDATE CASCADE,
+          // so standard upsert is safe for all tables including FK parents like my_posts.
           const tableClient = supabase.from(table) as {
             upsert: (data: unknown, options?: { onConflict?: string }) => Promise<{ data?: unknown[]; error?: { message: string } }>;
           };
           console.log(`[SyncBridge] Using UPSERT for ${table} with onConflict: ${compositeKey}`);
+
           for (const record of records) {
-            const recordWithUser = { ...record, user_id: currentUserId };
+            const recordWithUser = { ...record, user_id: currentUserId } as Record<string, unknown>;
             // Ensure date is set for date-composite tables
             if (!recordWithUser.date && compositeKey.includes('date')) {
               recordWithUser.date = new Date().toISOString().split('T')[0];
@@ -915,6 +992,7 @@ export async function processPendingChanges(): Promise<{
             if (recordWithUser.id && !compositeKey.includes('id')) {
               delete recordWithUser.id;
             }
+
             const upsertResult = await tableClient.upsert(recordWithUser, { onConflict: compositeKey });
             console.log(`[SyncBridge] Upsert result for ${table}:`, JSON.stringify(upsertResult));
             if (upsertResult.error) {
@@ -958,12 +1036,15 @@ export async function processPendingChanges(): Promise<{
           console.error(`[CL:SYNC] !!! FAILED: table=${table} error="${error.message}"`);
           errors.push(`${table}: ${error.message}`);
 
-          // Treat any duplicate key violation as "data already exists" — remove from queue
+          // Treat duplicate key violations and FK constraint violations as non-fatal —
+          // remove from queue to prevent endless retries.
           const isDuplicateError =
             error.message.includes('duplicate key value violates unique constraint');
+          const isFkError =
+            error.message.includes('violates foreign key constraint');
 
-          if (isDuplicateError) {
-            console.log(`[CL:SYNC] --- DUPLICATE: table=${table} (data already exists, removing from queue)`);
+          if (isDuplicateError || isFkError) {
+            console.log(`[CL:SYNC] --- ${isDuplicateError ? 'DUPLICATE' : 'FK_CONSTRAINT'}: table=${table} (removing from queue to prevent retry loop)`);
             processedChanges.push(...changes);
           } else {
             failed += changes.length;

@@ -197,6 +197,32 @@ export const analyticsPipeline = inngest.createFunction(
 
     console.log(`${LOG_PREFIX} Starting pipeline for analysis_date=${analysisDate}`)
 
+    // ─── Step 0: Diagnostic — Check Recent Snapshots ──────────────────────
+    await step.run('diagnostic-snapshot-check', async () => {
+      console.log(`${LOG_PREFIX} [Step 0] Checking recent post_analytics snapshots`)
+
+      const cutoff48h = new Date(now)
+      cutoff48h.setUTCHours(cutoff48h.getUTCHours() - 48)
+
+      const { count, error } = await supabase
+        .from('post_analytics')
+        .select('*', { count: 'exact', head: true })
+        .gte('captured_at', cutoff48h.toISOString())
+
+      if (error) {
+        console.warn(`${LOG_PREFIX} [Step 0] Failed to query post_analytics: ${error.message}`)
+        return { snapshotCount: 0, error: error.message }
+      }
+
+      console.log(`${LOG_PREFIX} [Step 0] Found ${count ?? 0} post_analytics snapshots in last 48h`)
+
+      if ((count ?? 0) === 0) {
+        console.warn(`${LOG_PREFIX} [Step 0] No recent snapshots — extension may not have synced recently`)
+      }
+
+      return { snapshotCount: count ?? 0 }
+    })
+
     // ─── Step 1: Profile Daily Deltas ────────────────────────────────────
     const profileResults = await step.run('profile-daily-deltas', async () => {
       console.log(`${LOG_PREFIX} [Step 1] Computing profile daily deltas`)
@@ -399,7 +425,7 @@ export const analyticsPipeline = inngest.createFunction(
       // Fetch all posts with a posted_at date
       const { data: posts, error: postsError } = await supabase
         .from('my_posts')
-        .select('id, user_id, activity_urn, posted_at, impressions, reactions, comments, reposts')
+        .select('id, user_id, activity_urn, posted_at, impressions, reactions, comments, reposts, saves, sends')
         .not('posted_at', 'is', null)
 
       if (postsError) {
@@ -419,7 +445,7 @@ export const analyticsPipeline = inngest.createFunction(
       const { data: postAnalyticsRows } = await supabase
         .from('post_analytics')
         .select(
-          'activity_urn, impressions, members_reached, unique_views, reactions, comments, reposts'
+          'activity_urn, impressions, members_reached, unique_views, reactions, comments, reposts, saves, sends, engagement_rate'
         )
         .in('activity_urn', activityUrns)
         .order('captured_at', { ascending: false })
@@ -433,6 +459,9 @@ export const analyticsPipeline = inngest.createFunction(
           reactions: number
           comments: number
           reposts: number
+          saves: number
+          sends: number
+          engagementRate: number | null
         }
       >()
       for (const row of postAnalyticsRows || []) {
@@ -443,6 +472,9 @@ export const analyticsPipeline = inngest.createFunction(
             reactions: row.reactions ?? 0,
             comments: row.comments ?? 0,
             reposts: row.reposts ?? 0,
+            saves: row.saves ?? 0,
+            sends: row.sends ?? 0,
+            engagementRate: row.engagement_rate ?? null,
           })
         }
       }
@@ -495,8 +527,8 @@ export const analyticsPipeline = inngest.createFunction(
           const currentReactions = paData?.reactions ?? post.reactions ?? 0
           const currentComments = paData?.comments ?? post.comments ?? 0
           const currentReposts = paData?.reposts ?? post.reposts ?? 0
-          const currentSaves = 0 // Not available in source tables
-          const currentSends = 0 // Not available in source tables
+          const currentSaves = paData?.saves ?? post.saves ?? 0
+          const currentSends = paData?.sends ?? post.sends ?? 0
 
           // Get latest accumulative for this post
           const accum = accumMap.get(post.id)
@@ -538,8 +570,17 @@ export const analyticsPipeline = inngest.createFunction(
           // Calculate engagements_gained and rate
           const engagementsGained =
             reactionsGained + commentsGained + repostsGained + savesGained + sendsGained
-          const engagementsRate =
-            impressionsGained > 0 ? engagementsGained / impressionsGained : null
+
+          // Use API-provided engagement_rate if available, else calculate from totals
+          let engagementsRate: number | null = null
+          if (paData?.engagementRate != null && paData.engagementRate > 0) {
+            engagementsRate = paData.engagementRate
+          } else {
+            const totalEngagements = currentReactions + currentComments + currentReposts + currentSaves + currentSends
+            engagementsRate = currentImpressions > 0
+              ? (totalEngagements / currentImpressions) * 100
+              : null
+          }
 
           dailyRowsToInsert.push({
             user_id: post.user_id,
