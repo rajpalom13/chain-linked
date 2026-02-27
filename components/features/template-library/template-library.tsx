@@ -79,21 +79,37 @@ export function TemplateLibrary({
   const [isPreviewOpen, setIsPreviewOpen] = React.useState(false)
 
   /**
-   * Template counts per category name
+   * Split templates into user-created and AI-generated
    */
-  const templateCounts = React.useMemo(() => {
-    const counts: Record<string, number> = {}
+  const { userTemplates, aiGeneratedTemplates } = React.useMemo(() => {
+    const user: Template[] = []
+    const ai: Template[] = []
     for (const t of templates) {
-      counts[t.category] = (counts[t.category] ?? 0) + 1
+      if (t.isAiGenerated) {
+        ai.push(t)
+      } else {
+        user.push(t)
+      }
     }
-    return counts
+    return { userTemplates: user, aiGeneratedTemplates: ai }
   }, [templates])
 
   /**
-   * Filters templates based on search query and category
+   * Template counts per category name (user templates only)
+   */
+  const templateCounts = React.useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const t of userTemplates) {
+      counts[t.category] = (counts[t.category] ?? 0) + 1
+    }
+    return counts
+  }, [userTemplates])
+
+  /**
+   * Filters user templates based on search query and category
    */
   const filteredTemplates = React.useMemo(() => {
-    return templates.filter((template) => {
+    return userTemplates.filter((template) => {
       const matchesSearch =
         searchQuery === "" ||
         template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -105,7 +121,7 @@ export function TemplateLibrary({
 
       return matchesSearch && matchesCategory
     })
-  }, [templates, searchQuery, categoryFilter])
+  }, [userTemplates, searchQuery, categoryFilter])
 
   /**
    * Opens the dialog for creating a new template
@@ -316,6 +332,7 @@ export function TemplateLibrary({
       <AITemplatesSection
         onUseAITemplate={handleUseAITemplate}
         onSaveAITemplate={handleSaveAITemplate}
+        dynamicTemplates={aiGeneratedTemplates}
       />
 
       {/* Create/Edit Dialog */}

@@ -1342,6 +1342,7 @@ export type Database = {
           comments: number | null
           content: string | null
           created_at: string | null
+          engagement_rate: number | null
           id: string
           impressions: number | null
           media_type: string | null
@@ -1350,6 +1351,10 @@ export type Database = {
           raw_data: Json | null
           reactions: number | null
           reposts: number | null
+          saves: number | null
+          sends: number | null
+          source: string
+          unique_views: number | null
           updated_at: string | null
           user_id: string
         }
@@ -1358,6 +1363,7 @@ export type Database = {
           comments?: number | null
           content?: string | null
           created_at?: string | null
+          engagement_rate?: number | null
           id?: string
           impressions?: number | null
           media_type?: string | null
@@ -1366,6 +1372,10 @@ export type Database = {
           raw_data?: Json | null
           reactions?: number | null
           reposts?: number | null
+          saves?: number | null
+          sends?: number | null
+          source?: string
+          unique_views?: number | null
           updated_at?: string | null
           user_id: string
         }
@@ -1374,6 +1384,7 @@ export type Database = {
           comments?: number | null
           content?: string | null
           created_at?: string | null
+          engagement_rate?: number | null
           id?: string
           impressions?: number | null
           media_type?: string | null
@@ -1382,6 +1393,10 @@ export type Database = {
           raw_data?: Json | null
           reactions?: number | null
           reposts?: number | null
+          saves?: number | null
+          sends?: number | null
+          source?: string
+          unique_views?: number | null
           updated_at?: string | null
           user_id?: string
         }
@@ -1501,6 +1516,8 @@ export type Database = {
           raw_data: Json | null
           reactions: number | null
           reposts: number | null
+          saves: number | null
+          sends: number | null
           unique_views: number | null
           updated_at: string | null
           user_id: string
@@ -1522,6 +1539,8 @@ export type Database = {
           raw_data?: Json | null
           reactions?: number | null
           reposts?: number | null
+          saves?: number | null
+          sends?: number | null
           unique_views?: number | null
           updated_at?: string | null
           user_id: string
@@ -1543,6 +1562,8 @@ export type Database = {
           raw_data?: Json | null
           reactions?: number | null
           reposts?: number | null
+          saves?: number | null
+          sends?: number | null
           unique_views?: number | null
           updated_at?: string | null
           user_id?: string
@@ -1626,6 +1647,7 @@ export type Database = {
           analysis_date: string
           analytics_tracking_status_id: number | null
           comments_gained: number | null
+          created_at: string | null
           engagements_gained: number | null
           engagements_rate: number | null
           id: string
@@ -1643,6 +1665,7 @@ export type Database = {
           analysis_date: string
           analytics_tracking_status_id?: number | null
           comments_gained?: number | null
+          created_at?: string | null
           engagements_gained?: number | null
           engagements_rate?: number | null
           id?: string
@@ -1660,6 +1683,7 @@ export type Database = {
           analysis_date?: string
           analytics_tracking_status_id?: number | null
           comments_gained?: number | null
+          created_at?: string | null
           engagements_gained?: number | null
           engagements_rate?: number | null
           id?: string
@@ -2063,6 +2087,7 @@ export type Database = {
         Row: {
           analysis_date: string
           connections_gained: number | null
+          created_at: string | null
           followers_gained: number | null
           id: string
           profile_views_gained: number | null
@@ -2073,6 +2098,7 @@ export type Database = {
         Insert: {
           analysis_date: string
           connections_gained?: number | null
+          created_at?: string | null
           followers_gained?: number | null
           id?: string
           profile_views_gained?: number | null
@@ -2083,6 +2109,7 @@ export type Database = {
         Update: {
           analysis_date?: string
           connections_gained?: number | null
+          created_at?: string | null
           followers_gained?: number | null
           id?: string
           profile_views_gained?: number | null
@@ -2423,6 +2450,7 @@ export type Database = {
       }
       scheduled_posts: {
         Row: {
+          activity_urn: string | null
           content: string
           created_at: string
           error_message: string | null
@@ -2438,6 +2466,7 @@ export type Database = {
           visibility: string
         }
         Insert: {
+          activity_urn?: string | null
           content: string
           created_at?: string
           error_message?: string | null
@@ -2453,6 +2482,7 @@ export type Database = {
           visibility?: string
         }
         Update: {
+          activity_urn?: string | null
           content?: string
           created_at?: string
           error_message?: string | null
@@ -2863,10 +2893,12 @@ export type Database = {
       }
       templates: {
         Row: {
+          ai_generation_batch_id: string | null
           category: string | null
           content: string
           created_at: string | null
           id: string
+          is_ai_generated: boolean | null
           is_public: boolean | null
           name: string
           tags: Json | null
@@ -2876,10 +2908,12 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          ai_generation_batch_id?: string | null
           category?: string | null
           content: string
           created_at?: string | null
           id?: string
+          is_ai_generated?: boolean | null
           is_public?: boolean | null
           name: string
           tags?: Json | null
@@ -2889,10 +2923,12 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          ai_generation_batch_id?: string | null
           category?: string | null
           content?: string
           created_at?: string | null
           id?: string
+          is_ai_generated?: boolean | null
           is_public?: boolean | null
           name?: string
           tags?: Json | null
@@ -3089,6 +3125,146 @@ export type Database = {
       get_active_suggestion_count: {
         Args: { p_user_id: string }
         Returns: number
+      }
+      get_analytics_summary: {
+        Args: {
+          p_comp_end_date: string
+          p_comp_start_date: string
+          p_end_date: string
+          p_metric: string
+          p_post_ids?: string[]
+          p_start_date: string
+          p_user_id: string
+        }
+        Returns: {
+          comp_avg: number
+          comp_count: number
+          comp_total: number
+          current_avg: number
+          current_count: number
+          current_total: number
+          pct_change: number
+        }[]
+      }
+      get_analytics_timeseries_daily: {
+        Args: {
+          p_end_date: string
+          p_metric: string
+          p_post_ids?: string[]
+          p_start_date: string
+          p_user_id: string
+        }
+        Returns: {
+          bucket_date: string
+          value: number
+        }[]
+      }
+      get_analytics_timeseries_monthly: {
+        Args: {
+          p_end_date: string
+          p_metric: string
+          p_post_ids?: string[]
+          p_start_date: string
+          p_user_id: string
+        }
+        Returns: {
+          bucket_date: string
+          value: number
+        }[]
+      }
+      get_analytics_timeseries_quarterly: {
+        Args: {
+          p_end_date: string
+          p_metric: string
+          p_post_ids?: string[]
+          p_start_date: string
+          p_user_id: string
+        }
+        Returns: {
+          bucket_date: string
+          value: number
+        }[]
+      }
+      get_analytics_timeseries_weekly: {
+        Args: {
+          p_end_date: string
+          p_metric: string
+          p_post_ids?: string[]
+          p_start_date: string
+          p_user_id: string
+        }
+        Returns: {
+          bucket_date: string
+          value: number
+        }[]
+      }
+      get_analytics_timeseries_yearly: {
+        Args: {
+          p_end_date: string
+          p_metric: string
+          p_post_ids?: string[]
+          p_start_date: string
+          p_user_id: string
+        }
+        Returns: {
+          bucket_date: string
+          value: number
+        }[]
+      }
+      get_profile_analytics_summary: {
+        Args: {
+          p_comp_end_date: string
+          p_comp_start_date: string
+          p_end_date: string
+          p_metric: string
+          p_start_date: string
+          p_user_id: string
+        }
+        Returns: {
+          comp_avg: number
+          comp_count: number
+          comp_total: number
+          current_avg: number
+          current_count: number
+          current_total: number
+          pct_change: number
+        }[]
+      }
+      get_profile_analytics_timeseries_daily: {
+        Args: {
+          p_end_date: string
+          p_metric: string
+          p_start_date: string
+          p_user_id: string
+        }
+        Returns: {
+          bucket_date: string
+          value: number
+        }[]
+      }
+      get_profile_analytics_timeseries_monthly: {
+        Args: {
+          p_end_date: string
+          p_metric: string
+          p_start_date: string
+          p_user_id: string
+        }
+        Returns: {
+          bucket_date: string
+          value: number
+        }[]
+      }
+      get_profile_analytics_timeseries_weekly: {
+        Args: {
+          p_end_date: string
+          p_metric: string
+          p_start_date: string
+          p_user_id: string
+        }
+        Returns: {
+          bucket_date: string
+          value: number
+        }[]
       }
       search_connections_mentions: {
         Args: { p_query: string; p_user_id: string }

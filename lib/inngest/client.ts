@@ -207,6 +207,21 @@ export type InngestEvents = {
       rollupsDone: number
     }
   }
+
+  // Template Auto-Generation Events
+  'templates/auto-generate': {
+    data: Record<string, never>
+  }
+  'templates/auto-generate.completed': {
+    data: {
+      /** Total users processed */
+      totalUsers: number
+      /** Total templates generated across all users */
+      templatesGenerated: number
+      /** Total categories processed */
+      categoriesProcessed: number
+    }
+  }
 }
 
 /**

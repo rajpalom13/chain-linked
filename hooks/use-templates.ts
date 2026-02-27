@@ -108,6 +108,7 @@ export function useTemplates(): UseTemplatesReturn {
         usageCount: template.usage_count ?? 0,
         isPublic: template.is_public ?? false,
         createdAt: template.created_at ?? new Date().toISOString(),
+        isAiGenerated: template.is_ai_generated ?? false,
       }))
 
       setTemplates(transformedTemplates)

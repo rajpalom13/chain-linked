@@ -15,6 +15,7 @@ import {
   onDemandContentIngest,
   swipeAutoRefill,
   analyticsPipeline,
+  templateAutoGenerate,
 } from '@/lib/inngest/functions'
 
 /**
@@ -32,5 +33,6 @@ export const { GET, POST, PUT } = serve({
     onDemandContentIngest,
     swipeAutoRefill,
     analyticsPipeline,
+    templateAutoGenerate,
   ],
 })
