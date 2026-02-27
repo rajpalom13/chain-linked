@@ -272,8 +272,8 @@ export function InviteTeammatesForm({
         )
       }
 
-      // If all succeeded, complete the flow
-      if (results.success) {
+      // Complete the flow if at least some invitations were sent
+      if (results.sent.length > 0) {
         setTimeout(() => {
           onComplete()
         }, 1500) // Brief delay to show success state

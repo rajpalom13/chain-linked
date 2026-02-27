@@ -23,6 +23,48 @@ export const DISMISS_PROMPT_TIMESTAMP_KEY = 'chainlinked_extension_prompt_dismis
 /** Session storage key for caching detection result */
 const SESSION_CACHE_KEY = 'chainlinked_extension_detected'
 
+/** Session storage key for caching extension status details */
+const SESSION_STATUS_KEY = 'chainlinked_extension_status'
+
+/**
+ * Extension status details returned from the extension PING
+ */
+export interface ExtensionStatus {
+  /** Whether the extension is installed */
+  installed: boolean
+  /** Whether the user is logged into LinkedIn in the browser */
+  linkedInLoggedIn: boolean
+  /** Whether the user is logged into ChainLinked platform in the extension */
+  platformLoggedIn: boolean
+}
+
+/**
+ * Get the cached extension status from sessionStorage
+ * @returns Cached status or null if not available
+ */
+export function getCachedExtensionStatus(): ExtensionStatus | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const cached = sessionStorage.getItem(SESSION_STATUS_KEY)
+    if (cached) return JSON.parse(cached) as ExtensionStatus
+  } catch {
+    // noop
+  }
+  return null
+}
+
+/**
+ * Cache the extension status in sessionStorage
+ * @param status - Extension status to cache
+ */
+function cacheStatus(status: ExtensionStatus): void {
+  try {
+    sessionStorage.setItem(SESSION_STATUS_KEY, JSON.stringify(status))
+  } catch {
+    // noop
+  }
+}
+
 /** Session storage key for per-session dismissal (resets on logout/tab close) */
 const SESSION_DISMISS_KEY = 'chainlinked_extension_prompt_session_dismissed'
 
@@ -145,7 +187,16 @@ function checkExtensionViaExternalMessage(): Promise<boolean> {
             resolve(false)
             return
           }
-          resolve(response?.installed === true)
+          const installed = response?.installed === true
+          if (installed) {
+            // Cache the full status including login states
+            cacheStatus({
+              installed: true,
+              linkedInLoggedIn: response?.linkedInLoggedIn === true,
+              platformLoggedIn: response?.platformLoggedIn === true,
+            })
+          }
+          resolve(installed)
         }
       )
     } catch {

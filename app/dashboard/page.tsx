@@ -47,6 +47,8 @@ import {
   IconX,
   IconClock,
   IconChevronRight,
+  IconAlertTriangle,
+  IconPlugConnected,
 } from "@tabler/icons-react"
 import {
   staggerContainerVariants,
@@ -461,7 +463,7 @@ function UpcomingPostsPanel({
  * Layout: Getting Started → Welcome + Metrics → Calendar + Upcoming Posts
  */
 function DashboardContent() {
-  const { user, profile, extensionInstalled } = useAuthContext()
+  const { user, profile, extensionInstalled, extensionStatus } = useAuthContext()
   const router = useRouter()
   const supabase = createClient()
   const { posts: scheduledPosts, isLoading: scheduleLoading } =
@@ -567,6 +569,47 @@ function DashboardContent() {
           if (permanent) setBannerDismissed(true)
         }}
       />
+
+      {/* Extension Login Warning — shown when extension is installed but not logged into LinkedIn */}
+      {extensionInstalled === true && extensionStatus && !extensionStatus.linkedInLoggedIn && (
+        <div className="mx-4 lg:mx-6 flex items-center gap-3 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3">
+          <IconAlertTriangle className="size-5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+              Extension not logged into LinkedIn
+            </p>
+            <p className="text-xs text-amber-600/80 dark:text-amber-400/80">
+              Open LinkedIn in your browser and sign in so the extension can sync your data.
+            </p>
+          </div>
+          <a
+            href="https://www.linkedin.com/login"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0"
+          >
+            <Button variant="outline" size="sm" className="border-amber-500/50 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10">
+              <IconPlugConnected className="size-4 mr-1.5" />
+              Open LinkedIn
+            </Button>
+          </a>
+        </div>
+      )}
+
+      {/* Extension Platform Login Warning — installed + LinkedIn logged in but not logged into ChainLinked in extension */}
+      {extensionInstalled === true && extensionStatus && extensionStatus.linkedInLoggedIn && !extensionStatus.platformLoggedIn && (
+        <div className="mx-4 lg:mx-6 flex items-center gap-3 rounded-lg border border-blue-500/50 bg-blue-500/10 p-3">
+          <IconAlertTriangle className="size-5 shrink-0 text-blue-600 dark:text-blue-400" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
+              Extension not signed into ChainLinked
+            </p>
+            <p className="text-xs text-blue-600/80 dark:text-blue-400/80">
+              Sign in to ChainLinked in the extension popup to start syncing your LinkedIn data.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Getting Started Checklist */}
       {!checklistDismissed && (

@@ -8,7 +8,7 @@
 
 import { createContext, useContext, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { isExtensionInstalled as detectExtension } from '@/lib/extension/detect'
+import { isExtensionInstalled as detectExtension, getCachedExtensionStatus, type ExtensionStatus } from '@/lib/extension/detect'
 import type { User, Session } from '@supabase/supabase-js'
 
 /**
@@ -129,6 +129,8 @@ interface AuthContextType {
   currentOnboardingStep: number
   /** Whether the Chrome extension is installed (null = not checked yet) */
   extensionInstalled: boolean | null
+  /** Detailed extension status (installed, LinkedIn logged in, platform logged in) */
+  extensionStatus: ExtensionStatus | null
   /** Force re-check extension status */
   checkExtension: () => Promise<void>
   signOut: () => Promise<void>
@@ -156,6 +158,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [session, setSession] = useState<Session | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [extensionInstalled, setExtensionInstalled] = useState<boolean | null>(null)
+  const [extensionStatus, setExtensionStatus] = useState<ExtensionStatus | null>(null)
 
   // Refs to hold latest state without causing re-renders
   // Used by callbacks that need current state but shouldn't trigger re-renders
@@ -297,6 +300,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const checkExtension = useCallback(async () => {
     const installed = await detectExtension(true)
     setExtensionInstalled(installed)
+    // After detection, read the cached status (populated by the PING response)
+    const status = getCachedExtensionStatus()
+    setExtensionStatus(status)
   }, [])
 
   /**
@@ -541,10 +547,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     hasCompletedOnboarding: profile?.onboarding_completed ?? false,
     currentOnboardingStep: profile?.onboarding_current_step ?? 1,
     extensionInstalled,
+    extensionStatus,
     checkExtension,
     signOut,
     refreshProfile,
-  }), [user, profile, session, isLoading, extensionInstalled, checkExtension, signOut, refreshProfile])
+  }), [user, profile, session, isLoading, extensionInstalled, extensionStatus, checkExtension, signOut, refreshProfile])
 
   return (
     <AuthContext.Provider value={value}>
@@ -577,6 +584,7 @@ export function useAuthContext(): AuthContextType {
       hasCompletedOnboarding: false,
       currentOnboardingStep: 1,
       extensionInstalled: null,
+      extensionStatus: null,
       checkExtension: async () => {},
       signOut: async () => {},
       refreshProfile: async () => {},

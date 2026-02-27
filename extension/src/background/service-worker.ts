@@ -1668,11 +1668,30 @@ chrome.runtime.onMessageExternal.addListener(
   (message: { type?: string; query?: string }, sender, sendResponse) => {
     console.log(`[ExternalMsg] Received: type=${message?.type}, from=${sender?.origin || 'unknown'}`);
     if (message?.type === 'CHAINLINKED_PING') {
-      console.log('[ExternalMsg] Responding to PING');
-      sendResponse({
-        installed: true,
-        version: chrome.runtime.getManifest().version,
-      })
+      console.log('[ExternalMsg] Responding to PING with status check');
+      // Check LinkedIn login status via cookies
+      Promise.all([
+        chrome.cookies.get({ url: 'https://www.linkedin.com', name: 'li_at' }),
+        self.supabaseAuth?.getSession?.(),
+      ]).then(([liAtCookie, sessionResult]) => {
+        const linkedInLoggedIn = !!liAtCookie?.value;
+        const platformLoggedIn = !!(sessionResult?.session?.user || sessionResult?.user);
+        console.log(`[ExternalMsg] PING response: linkedIn=${linkedInLoggedIn}, platform=${platformLoggedIn}`);
+        sendResponse({
+          installed: true,
+          version: chrome.runtime.getManifest().version,
+          linkedInLoggedIn,
+          platformLoggedIn,
+        });
+      }).catch((err) => {
+        console.error('[ExternalMsg] PING status check error:', err);
+        sendResponse({
+          installed: true,
+          version: chrome.runtime.getManifest().version,
+          linkedInLoggedIn: false,
+          platformLoggedIn: false,
+        });
+      });
     } else if (message?.type === 'LINKEDIN_MENTION_SEARCH' && message.query) {
       console.log(`[ExternalMsg] Mention search request: "${message.query}"`);
       // Search LinkedIn users via Voyager API — cookies never leave the extension

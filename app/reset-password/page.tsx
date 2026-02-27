@@ -1,6 +1,8 @@
 /**
  * Reset Password Page
- * @description Password reset form for users with reset token
+ * @description Password reset form for users arriving via the recovery link.
+ * After the auth callback exchanges the PKCE code for a session, the user
+ * lands here with a valid session and can set a new password.
  * @module app/reset-password
  */
 
@@ -27,6 +29,7 @@ export default function ResetPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [isSuccess, setIsSuccess] = useState(false)
   const [hasSession, setHasSession] = useState(false)
+  const [isCheckingSession, setIsCheckingSession] = useState(true)
   const router = useRouter()
 
   /**
@@ -67,14 +70,38 @@ export default function ResetPasswordPage() {
 
   const passwordStrength = getPasswordStrength(password)
 
-  // Check if user has a valid session (from reset link)
+  // Check if user has a valid session (from the auth callback code exchange).
+  // Also listen for PASSWORD_RECOVERY auth state change in case Supabase fires it.
   useEffect(() => {
+    const supabase = createClient()
+
     const checkSession = async () => {
-      const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
-      setHasSession(!!session)
+      if (session) {
+        setHasSession(true)
+      }
+      setIsCheckingSession(false)
     }
+
+    // Listen for auth state changes -- Supabase emits PASSWORD_RECOVERY
+    // when the user arrives with a valid recovery token
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === 'PASSWORD_RECOVERY' && session) {
+          setHasSession(true)
+          setIsCheckingSession(false)
+        } else if (event === 'SIGNED_IN' && session) {
+          setHasSession(true)
+          setIsCheckingSession(false)
+        }
+      }
+    )
+
     checkSession()
+
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [])
 
   /**
@@ -124,10 +151,10 @@ export default function ResetPasswordPage() {
 
   if (isSuccess) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30 p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center space-y-4">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 dark:to-primary/10 p-4">
+        <Card className="w-full max-w-lg border-border/50 bg-card/95 backdrop-blur-sm shadow-xl">
+          <CardHeader className="text-center space-y-4 px-8 pb-2">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/5 shadow-sm">
               <IconCheck className="h-8 w-8 text-primary" />
             </div>
             <div>
@@ -137,9 +164,9 @@ export default function ResetPasswordPage() {
               </CardDescription>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-8 pb-8">
             <Button
-              className="w-full"
+              className="w-full h-11 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-sm"
               onClick={() => router.push('/dashboard')}
             >
               Continue to Dashboard
@@ -150,12 +177,33 @@ export default function ResetPasswordPage() {
     )
   }
 
+  // Show a loading spinner while verifying the session
+  if (isCheckingSession) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 dark:to-primary/10 p-4">
+        <Card className="w-full max-w-lg border-border/50 bg-card/95 backdrop-blur-sm shadow-xl">
+          <CardHeader className="text-center space-y-4 px-8 pb-2">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/5 shadow-sm">
+              <IconLoader2 className="h-8 w-8 text-primary animate-spin" />
+            </div>
+            <div>
+              <CardTitle className="text-2xl font-bold">Verifying reset link</CardTitle>
+              <CardDescription className="mt-2">
+                Please wait while we verify your password reset link...
+              </CardDescription>
+            </div>
+          </CardHeader>
+        </Card>
+      </div>
+    )
+  }
+
   if (!hasSession) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30 p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center space-y-4">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 dark:to-primary/10 p-4">
+        <Card className="w-full max-w-lg border-border/50 bg-card/95 backdrop-blur-sm shadow-xl">
+          <CardHeader className="text-center space-y-4 px-8 pb-2">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10 shadow-sm">
               <IconLock className="h-8 w-8 text-destructive" />
             </div>
             <div>
@@ -165,14 +213,14 @@ export default function ResetPasswordPage() {
               </CardDescription>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 px-8 pb-8">
             <Link href="/forgot-password" className="block">
-              <Button className="w-full">
+              <Button className="w-full h-11 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-sm">
                 Request a new reset link
               </Button>
             </Link>
             <Link href="/login" className="block">
-              <Button variant="outline" className="w-full">
+              <Button variant="outline" className="w-full h-11 border-border/50 hover:bg-accent/50 transition-all duration-200">
                 Back to sign in
               </Button>
             </Link>
@@ -183,10 +231,10 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center space-y-4">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 dark:to-primary/10 p-4">
+      <Card className="w-full max-w-lg border-border/50 bg-card/95 backdrop-blur-sm shadow-xl">
+        <CardHeader className="text-center space-y-4 px-8 pb-2">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/5 shadow-sm">
             <IconLink className="h-8 w-8 text-primary" />
           </div>
           <div>
@@ -196,8 +244,8 @@ export default function ResetPasswordPage() {
             </CardDescription>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <form onSubmit={handlePasswordUpdate} className="space-y-4">
+        <CardContent className="space-y-8 px-8 pb-8">
+          <form onSubmit={handlePasswordUpdate} className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="password">New Password</Label>
               <Input
@@ -210,6 +258,7 @@ export default function ResetPasswordPage() {
                 autoComplete="new-password"
                 required
                 minLength={6}
+                className="h-11 transition-all duration-200 focus:ring-2 focus:ring-primary/20"
               />
               {password && (
                 <div className="space-y-1.5">
@@ -244,11 +293,12 @@ export default function ResetPasswordPage() {
                 disabled={isLoading}
                 autoComplete="new-password"
                 required
+                className="h-11 transition-all duration-200 focus:ring-2 focus:ring-primary/20"
               />
             </div>
             <Button
               type="submit"
-              className="w-full h-11"
+              className="w-full h-11 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-sm"
               disabled={isLoading}
             >
               {isLoading ? (

@@ -57,8 +57,8 @@ function VerifyEmailContent() {
   }
 
   return (
-    <Card className="w-full max-w-md border-border/50 bg-card/95 backdrop-blur-sm shadow-xl">
-      <CardHeader className="text-center space-y-4">
+    <Card className="w-full max-w-lg border-border/50 bg-card/95 backdrop-blur-sm shadow-xl">
+      <CardHeader className="text-center space-y-4 px-8 pb-2">
         <motion.div
           className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/5 shadow-sm"
           initial={{ scale: 0, rotate: -180 }}
@@ -81,7 +81,7 @@ function VerifyEmailContent() {
         </motion.div>
       </CardHeader>
 
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-8 px-8 pb-8">
         {/* Mail icon and message */}
         <motion.div
           className="flex flex-col items-center gap-4 py-4"
@@ -162,13 +162,13 @@ function VerifyEmailContent() {
  */
 function VerifyEmailSkeleton() {
   return (
-    <Card className="w-full max-w-md border-border/50 bg-card/95 backdrop-blur-sm shadow-xl">
-      <CardHeader className="text-center space-y-4">
+    <Card className="w-full max-w-lg border-border/50 bg-card/95 backdrop-blur-sm shadow-xl">
+      <CardHeader className="text-center space-y-4 px-8 pb-2">
         <Skeleton className="mx-auto h-14 w-14 rounded-full" />
         <Skeleton className="mx-auto h-8 w-64" />
         <Skeleton className="mx-auto h-4 w-48" />
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-8 px-8 pb-8">
         <div className="flex flex-col items-center gap-4 py-4">
           <Skeleton className="h-20 w-20 rounded-full" />
           <Skeleton className="h-12 w-full" />

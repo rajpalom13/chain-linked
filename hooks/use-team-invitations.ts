@@ -166,21 +166,27 @@ export function useTeamInvitations(options: UseTeamInvitationsOptions): UseTeamI
         body: JSON.stringify({ emails, role }),
       })
 
-      const data = await response.json()
+      let data: Record<string, unknown>
+      try {
+        data = await response.json()
+      } catch {
+        throw new Error(`Server error (${response.status}). Please try again.`)
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to send invitations')
+        throw new Error((data.error as string) || 'Failed to send invitations')
       }
 
       // Refetch invitations after successful send
-      if (data.sent?.length > 0) {
+      const sentEmails = (data.sent as string[]) || []
+      if (sentEmails.length > 0) {
         await fetchInvitations()
       }
 
       return {
-        success: data.success ?? false,
-        sent: data.sent || [],
-        failed: data.failed || [],
+        success: (data.success as boolean) ?? false,
+        sent: sentEmails,
+        failed: (data.failed as { email: string; reason: string }[]) || [],
       }
     } catch (err) {
       console.error('Send invitations error:', err)

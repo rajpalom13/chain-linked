@@ -147,26 +147,36 @@ export function InviteTeamDialog({
       return
     }
 
-    const result = await sendInvitations(allEmails, role)
+    try {
+      const result = await sendInvitations(allEmails, role)
 
-    if (result.sent.length > 0) {
-      toast.success(`Invitations sent to ${result.sent.length} recipient${result.sent.length > 1 ? 's' : ''}`)
-    }
+      if (result.sent.length > 0) {
+        toast.success(`Invitations sent to ${result.sent.length} recipient${result.sent.length > 1 ? 's' : ''}`)
+      }
 
-    if (result.failed.length > 0) {
-      toast.error(`Failed to send ${result.failed.length} invitation${result.failed.length > 1 ? 's' : ''}`, {
-        description: result.failed.map(f => `${f.email}: ${f.reason}`).join(', '),
+      if (result.failed.length > 0) {
+        toast.error(`Failed to send ${result.failed.length} invitation${result.failed.length > 1 ? 's' : ''}`, {
+          description: result.failed.map(f => `${f.email}: ${f.reason}`).join(', '),
+        })
+      }
+
+      onInvited?.(result)
+
+      // Close dialog if at least some invitations were sent
+      if (result.sent.length > 0) {
+        setOpen(false)
+        setEmails([])
+        setEmailInput('')
+        setRole('member')
+      } else if (result.failed.length === 0) {
+        // No sent and no failed means something went wrong
+        setInputError('Failed to send invitations. Please try again.')
+      }
+    } catch (err) {
+      console.error('Send invitations error:', err)
+      toast.error('Failed to send invitations', {
+        description: err instanceof Error ? err.message : 'An unexpected error occurred',
       })
-    }
-
-    onInvited?.(result)
-
-    // Close dialog if at least some invitations were sent
-    if (result.sent.length > 0) {
-      setOpen(false)
-      setEmails([])
-      setEmailInput('')
-      setRole('member')
     }
   }, [emails, emailInput, role, sendInvitations, onInvited])
 

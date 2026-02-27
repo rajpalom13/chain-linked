@@ -178,11 +178,11 @@ function SignupForm() {
   }
 
   return (
-    <CardContent className="space-y-6">
+    <CardContent className="space-y-8 px-8 pb-8">
       {/* Email/Password Form */}
       <motion.form
         onSubmit={handleEmailSignup}
-        className="space-y-4"
+        className="space-y-5"
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4, duration: 0.4 }}
@@ -351,8 +351,8 @@ function SignupForm() {
  */
 function SignupFormSkeleton() {
   return (
-    <CardContent className="space-y-6">
-      <div className="space-y-4">
+    <CardContent className="space-y-8 px-8 pb-8">
+      <div className="space-y-5">
         <Skeleton className="w-full h-11" />
         <Skeleton className="w-full h-11" />
         <Skeleton className="w-full h-11" />
@@ -406,8 +406,8 @@ export default function SignupPage() {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       >
-        <Card className="w-full max-w-md border-border/50 bg-card/95 backdrop-blur-sm shadow-xl">
-          <CardHeader className="text-center space-y-4">
+        <Card className="w-full max-w-lg border-border/50 bg-card/95 backdrop-blur-sm shadow-xl">
+          <CardHeader className="text-center space-y-4 px-8 pb-2">
             <motion.div
               className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/5 shadow-sm"
               initial={{ scale: 0, rotate: -180 }}

@@ -97,10 +97,19 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
     }
   }
 
+  const fromAddr = getFromAddress()
+  console.log(`[Email] Sending email:`)
+  console.log(`[Email]   From: ${fromAddr}`)
+  console.log(`[Email]   To: ${to}`)
+  console.log(`[Email]   Subject: ${subject}`)
+  console.log(`[Email]   Content type: ${react ? 'react' : html ? 'html' : 'text'}`)
+  console.log(`[Email]   API key present: ${!!process.env.RESEND_API_KEY}`)
+  console.log(`[Email]   API key prefix: ${process.env.RESEND_API_KEY?.slice(0, 10)}...`)
+
   try {
     const resend = getResendClient()
     const { data, error } = await resend.emails.send({
-      from: getFromAddress(),
+      from: fromAddr,
       to,
       subject,
       react,
@@ -112,19 +121,20 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
     })
 
     if (error) {
-      console.error('Resend error:', error)
+      console.error('[Email] Resend API error:', JSON.stringify(error, null, 2))
       return {
         success: false,
         error: error.message,
       }
     }
 
+    console.log(`[Email] Sent successfully! Message ID: ${data?.id}`)
     return {
       success: true,
       messageId: data?.id,
     }
   } catch (err) {
-    console.error('Email send error:', err)
+    console.error('[Email] Exception during send:', err)
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Unknown error sending email',

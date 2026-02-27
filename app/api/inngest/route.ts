@@ -16,6 +16,7 @@ import {
   swipeAutoRefill,
   analyticsPipeline,
   analyticsSummaryCompute,
+  analyticsBackfill,
   templateAutoGenerate,
 } from '@/lib/inngest/functions'
 
@@ -35,6 +36,7 @@ export const { GET, POST, PUT } = serve({
     swipeAutoRefill,
     analyticsPipeline,
     analyticsSummaryCompute,
+    analyticsBackfill,
     templateAutoGenerate,
   ],
 })

@@ -194,13 +194,17 @@ export function InviteTeamModal({
       // Call the hook's sendInvitations with teamId, emails array, and role
       const result = await sendInvitations(teamId, validEmails, role)
 
-      if (result.success) {
+      if (result.sent.length > 0) {
+        // At least some invitations were sent - close and report success
         handleOpenChange(false)
         onSuccess?.()
-      } else if (result.failed && result.failed.length > 0) {
+      }
+
+      if (result.failed && result.failed.length > 0 && result.sent.length === 0) {
+        // Only show error if NO invitations were sent
         const failedMessages = result.failed.map(f => `${f.email}: ${f.reason}`).join(', ')
         setError(failedMessages)
-      } else {
+      } else if (result.sent.length === 0 && result.failed.length === 0) {
         setError('Failed to send invitations')
       }
     } catch (err) {

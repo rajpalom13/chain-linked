@@ -6,7 +6,8 @@
 
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
@@ -17,13 +18,22 @@ import { IconLoader2, IconLink, IconMail, IconArrowLeft, IconCheck } from '@tabl
 import { toast } from 'sonner'
 
 /**
- * Forgot password page component
- * @returns Forgot password page JSX
+ * Inner forgot password form that uses useSearchParams
+ * @returns Forgot password form JSX
  */
-export default function ForgotPasswordPage() {
+function ForgotPasswordForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [email, setEmail] = useState('')
   const [emailSent, setEmailSent] = useState(false)
+  const searchParams = useSearchParams()
+
+  // Show error from query params (e.g., redirected from expired recovery link)
+  useEffect(() => {
+    const errorParam = searchParams.get('error')
+    if (errorParam) {
+      toast.error(errorParam)
+    }
+  }, [searchParams])
 
   /**
    * Handle password reset request
@@ -86,8 +96,8 @@ export default function ForgotPasswordPage() {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
         >
-          <Card className="w-full max-w-md border-border/50 bg-card/95 backdrop-blur-sm shadow-xl">
-            <CardHeader className="text-center space-y-4">
+          <Card className="w-full max-w-lg border-border/50 bg-card/95 backdrop-blur-sm shadow-xl">
+            <CardHeader className="text-center space-y-4 px-8 pb-2">
               <motion.div
                 className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/5 shadow-sm"
                 initial={{ scale: 0 }}
@@ -113,7 +123,7 @@ export default function ForgotPasswordPage() {
                 </CardDescription>
               </motion.div>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-5 px-8 pb-8">
               <motion.p
                 className="text-sm text-muted-foreground text-center"
                 initial={{ opacity: 0 }}
@@ -192,8 +202,8 @@ export default function ForgotPasswordPage() {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       >
-        <Card className="w-full max-w-md border-border/50 bg-card/95 backdrop-blur-sm shadow-xl">
-          <CardHeader className="text-center space-y-4">
+        <Card className="w-full max-w-lg border-border/50 bg-card/95 backdrop-blur-sm shadow-xl">
+          <CardHeader className="text-center space-y-4 px-8 pb-2">
             <motion.div
               className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/5 shadow-sm"
               initial={{ scale: 0, rotate: -180 }}
@@ -213,10 +223,10 @@ export default function ForgotPasswordPage() {
               </CardDescription>
             </motion.div>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-8 px-8 pb-8">
             <motion.form
               onSubmit={handleResetRequest}
-              className="space-y-4"
+              className="space-y-5"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4, duration: 0.4 }}
@@ -267,5 +277,18 @@ export default function ForgotPasswordPage() {
         </Card>
       </motion.div>
     </div>
+  )
+}
+
+/**
+ * Forgot password page component
+ * Wraps the form in Suspense for useSearchParams compatibility
+ * @returns Forgot password page JSX
+ */
+export default function ForgotPasswordPage() {
+  return (
+    <Suspense>
+      <ForgotPasswordForm />
+    </Suspense>
   )
 }

@@ -214,7 +214,19 @@ export function useInvitations(options: UseInvitationsOptions = {}): UseInvitati
         body: JSON.stringify({ emails, role }),
       })
 
-      const result = await response.json()
+      let result: Record<string, unknown>
+      try {
+        result = await response.json()
+      } catch {
+        return {
+          success: false,
+          sent: [],
+          failed: emails.map(email => ({
+            email,
+            reason: `Server error (${response.status}). Please try again.`,
+          })),
+        }
+      }
 
       if (!response.ok) {
         return {
@@ -222,20 +234,21 @@ export function useInvitations(options: UseInvitationsOptions = {}): UseInvitati
           sent: [],
           failed: emails.map(email => ({
             email,
-            reason: result.error || 'Failed to send invitation',
+            reason: (result.error as string) || 'Failed to send invitation',
           })),
         }
       }
 
       // Refetch invitations to update the list
-      if (result.sent?.length > 0) {
+      const sentEmails = (result.sent as string[]) || []
+      if (sentEmails.length > 0) {
         await fetchInvitations()
       }
 
       return {
-        success: result.success ?? false,
-        sent: result.sent || [],
-        failed: result.failed || [],
+        success: (result.success as boolean) ?? false,
+        sent: sentEmails,
+        failed: (result.failed as { email: string; reason: string }[]) || [],
       }
     } catch (err) {
       console.error('Send invitations error:', err)

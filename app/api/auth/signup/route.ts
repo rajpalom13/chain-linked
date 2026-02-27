@@ -7,6 +7,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { sendEmail } from '@/lib/email/resend'
+import { EmailVerificationEmail } from '@/components/emails/email-verification'
 
 /**
  * Creates a Supabase admin client with the service role key
@@ -80,6 +82,28 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    // Send welcome email via Resend (fire-and-forget, don't block signup)
+    const userName = name || email.split('@')[0]
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    sendEmail({
+      to: email,
+      subject: 'Welcome to ChainLinked!',
+      react: EmailVerificationEmail({
+        userName,
+        email,
+        verificationLink: `${appUrl}/dashboard`,
+        expiresInHours: 24,
+      }),
+    }).then((result) => {
+      if (result.success) {
+        console.log(`[Signup] Welcome email sent to ${email}, messageId: ${result.messageId}`)
+      } else {
+        console.error(`[Signup] Failed to send welcome email to ${email}:`, result.error)
+      }
+    }).catch((err) => {
+      console.error(`[Signup] Welcome email exception for ${email}:`, err)
+    })
 
     return NextResponse.json({
       success: true,

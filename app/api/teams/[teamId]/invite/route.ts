@@ -133,7 +133,11 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   try {
-    const body = await request.json()
+    const body = await request.json().catch(() => null)
+    if (!body) {
+      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+    }
+
     const { emails, role = 'member' } = body
 
     if (!emails || !Array.isArray(emails) || emails.length === 0) {
@@ -187,6 +191,8 @@ export async function POST(request: Request, context: RouteContext) {
 
     const inviterName = inviterProfile?.full_name || ''
     const inviterEmail = inviterProfile?.email || user.email || ''
+
+    console.log(`[TeamInvite] Sending invitations from ${inviterEmail} for team ${team.name} (${teamId})`)
 
     // Get existing team members' emails
     const { data: existingMembers } = await supabase
@@ -271,32 +277,32 @@ export async function POST(request: Request, context: RouteContext) {
 
       // Send invitation email via Resend
       const inviteLink = `${appUrl}/invite/${token}`
-      const emailResult = await sendEmail({
-        to: normalizedEmail,
-        subject: `You're invited to join ${team.name} on ChainLinked`,
-        react: TeamInvitationEmail({
-          inviterName,
-          inviterEmail,
-          teamName: team.name,
-          companyName: company?.name,
-          companyLogoUrl: company?.logo_url || team.logo_url || undefined,
-          role: role as 'admin' | 'member',
-          inviteLink,
-          expiresAt: format(expiresAt, 'MMMM d, yyyy'),
-        }),
-      })
+      try {
+        const emailResult = await sendEmail({
+          to: normalizedEmail,
+          subject: `You're invited to join ${team.name} on ChainLinked`,
+          react: TeamInvitationEmail({
+            inviterName,
+            inviterEmail,
+            teamName: team.name,
+            companyName: company?.name,
+            companyLogoUrl: company?.logo_url || team.logo_url || undefined,
+            role: role as 'admin' | 'member',
+            inviteLink,
+            expiresAt: format(expiresAt, 'MMMM d, yyyy'),
+          }),
+        })
 
-      if (!emailResult.success) {
-        console.error('Email send error:', emailResult.error)
-        // Mark invitation with email send failure but don't delete it
-        // User can still use the link if shared manually
-        await supabase
-          .from('team_invitations')
-          .update({ status: 'pending' }) // Keep as pending but log the error
-          .eq('token', token)
-
-        result.failed.push({ email: normalizedEmail, reason: 'Failed to send email' })
-        continue
+        if (!emailResult.success) {
+          console.error('Email send error:', emailResult.error)
+          // Invitation was created successfully - still count as sent
+          // The invitation link works even if email delivery fails
+          // User can share the link manually or resend later
+        }
+      } catch (emailErr) {
+        console.error('Email send exception:', emailErr)
+        // Invitation record exists, email failed - still count as sent
+        // The invitation is valid and can be resent later
       }
 
       result.sent.push(normalizedEmail)
