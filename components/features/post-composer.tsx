@@ -36,7 +36,7 @@ import { useDraft } from "@/lib/store/draft-context"
 import { toast } from "sonner"
 import { postToast, showSuccess } from "@/lib/toast-utils"
 import { useAutoSave, formatLastSaved } from "@/hooks/use-auto-save"
-import { fadeSlideUpVariants } from "@/lib/animations"
+import { fadeSlideUpVariants, composeModeVariants } from "@/lib/animations"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -67,6 +67,11 @@ import { MentionPopover, type MentionSuggestion } from "./mention-popover"
 import { CarouselDocumentPreview } from "./carousel-document-preview"
 import { usePostingConfig } from "@/hooks/use-posting-config"
 import { buildMentionToken, countCharactersWithMentions } from "@/lib/linkedin/mentions"
+import { useComposeMode } from "@/hooks/use-compose-mode"
+import { ComposeModeToggle } from "./compose/compose-mode-toggle"
+import { ComposeGradientBackdrop } from "./compose/compose-gradient-backdrop"
+import { ComposeBasicMode } from "./compose/compose-basic-mode"
+import { ComposeAdvancedMode } from "./compose/compose-advanced-mode"
 
 /**
  * Props for the PostComposer component
@@ -240,6 +245,7 @@ export function PostComposer({
   const router = useRouter()
   const { isPostingEnabled, disabledMessage } = usePostingConfig()
   const { draft, setContent: setDraftContent, setScheduledFor, clearDraft, updateDraft } = useDraft()
+  const { mode: composeMode, setMode: setComposeMode, theme: composeTheme } = useComposeMode()
 
   const [content, setContent] = React.useState(() => draft.content || initialContent)
   const [isPosting, setIsPosting] = React.useState(false)
@@ -859,38 +865,48 @@ export function PostComposer({
   return (
     <TooltipProvider>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Left Column — AI Generation Only */}
+        {/* Left Column — Dual-Mode AI Generation */}
         <motion.div
           variants={fadeSlideUpVariants}
           initial="initial"
           animate="animate"
         >
-          <Card className="flex flex-col">
+          <Card className={cn(
+            "relative flex flex-col overflow-hidden transition-colors duration-500",
+            composeTheme.borderColor
+          )}>
+            <ComposeGradientBackdrop mode={composeMode} />
+
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <CardTitle>AI Generation</CardTitle>
                   <LinkedInStatusBadge variant="badge" showReconnect={false} />
                 </div>
-                {/* Auto-save indicator */}
-                {(isSaving || lastSaved) && (
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    {isSaving ? (
-                      <>
-                        <IconLoader2 className="size-3 animate-spin" />
-                        <span>Saving...</span>
-                      </>
-                    ) : lastSaved ? (
-                      <>
-                        <IconCheck className="size-3 text-green-500" />
-                        <span>Saved {formatLastSaved(lastSaved)}</span>
-                      </>
-                    ) : null}
-                  </div>
-                )}
+                <div className="flex items-center gap-3">
+                  {/* Auto-save indicator */}
+                  {(isSaving || lastSaved) && (
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      {isSaving ? (
+                        <>
+                          <IconLoader2 className="size-3 animate-spin" />
+                          <span>Saving...</span>
+                        </>
+                      ) : lastSaved ? (
+                        <>
+                          <IconCheck className="size-3 text-green-500" />
+                          <span>Saved {formatLastSaved(lastSaved)}</span>
+                        </>
+                      ) : null}
+                    </div>
+                  )}
+                  <ComposeModeToggle mode={composeMode} onModeChange={setComposeMode} />
+                </div>
               </div>
               <CardDescription>
-                Generate post content with AI assistance
+                {composeMode === 'basic'
+                  ? 'Generate post content with AI assistance'
+                  : 'Chat with AI to craft your post'}
               </CardDescription>
             </CardHeader>
 
@@ -937,38 +953,52 @@ export function PostComposer({
                 </div>
               )}
 
-              {/* Goal Selector */}
-              <PostGoalSelector
-                selectedGoal={selectedGoal}
-                selectedFormat={selectedFormat}
-                onGoalChange={setSelectedGoal}
-                onFormatChange={setSelectedFormat}
-                excludeGoals={['visual']}
-              />
-
-              {/* AI Inline Panel — always expanded */}
-              <AIInlinePanel
-                isExpanded={true}
-                onToggle={() => {}}
-                onGenerated={(generatedContent) => {
-                  handleContentChange(convertMarkdownToUnicode(generatedContent))
-                  trackFeatureUsed("ai_generation_inline")
-                  showSuccess('Post generated!')
-                  setIsEditing(false)
-                }}
-                hasApiKey={hasApiKey}
-                defaultPostType={selectedFormat}
-                selectedGoal={selectedGoal ? GOAL_LABELS[selectedGoal]?.label : undefined}
-                onAdvancedClick={() => {
-                  setShowAIDialog(true)
-                }}
-                onGenerationContext={onGenerationContext}
-                persistFields={true}
-                initialTopic={aiSuggestion?.topic || (remixMeta ? remixMeta.originalContent.slice(0, 200) : undefined)}
-                initialTone={remixMeta?.tone || aiSuggestion?.tone}
-                initialLength={remixMeta?.length || aiSuggestion?.length}
-                initialContext={remixMeta?.customInstructions || aiSuggestion?.context}
-              />
+              {/* Mode content with animated transitions */}
+              <AnimatePresence mode="wait">
+                {composeMode === 'basic' ? (
+                  <motion.div
+                    key="basic"
+                    variants={composeModeVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                  >
+                    <ComposeBasicMode
+                      onGenerated={(generatedContent) => {
+                        handleContentChange(convertMarkdownToUnicode(generatedContent))
+                        trackFeatureUsed("ai_generation_basic")
+                        showSuccess('Post generated!')
+                        setIsEditing(false)
+                      }}
+                      hasApiKey={hasApiKey}
+                      defaultPostType={selectedFormat}
+                      onGenerationContext={onGenerationContext}
+                      initialTopic={aiSuggestion?.topic || (remixMeta ? remixMeta.originalContent.slice(0, 200) : undefined)}
+                      initialTone={remixMeta?.tone || aiSuggestion?.tone}
+                      initialLength={remixMeta?.length || aiSuggestion?.length}
+                      initialContext={remixMeta?.customInstructions || aiSuggestion?.context}
+                    />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="advanced"
+                    variants={composeModeVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                  >
+                    <ComposeAdvancedMode
+                      onGenerated={(generatedContent) => {
+                        handleContentChange(convertMarkdownToUnicode(generatedContent))
+                        trackFeatureUsed("ai_generation_advanced")
+                        showSuccess('Post generated!')
+                        setIsEditing(false)
+                      }}
+                      hasApiKey={hasApiKey}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </CardContent>
           </Card>
         </motion.div>

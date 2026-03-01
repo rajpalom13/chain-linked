@@ -746,3 +746,57 @@ export const viewportRepeatConfig = {
   threshold: 0.3,
   rootMargin: '-50px',
 }
+
+/* =============================================================================
+   COMPOSE MODE ANIMATIONS
+   ============================================================================= */
+
+/**
+ * Compose mode content transition (basic ↔ advanced swap)
+ */
+export const composeModeVariants: Variants = {
+  initial: { opacity: 0, y: 16, scale: 0.98 },
+  animate: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { duration: 0.4, ease: easings.smooth },
+  },
+  exit: {
+    opacity: 0,
+    y: -8,
+    scale: 0.99,
+    transition: { duration: 0.2 },
+  },
+}
+
+/**
+ * Chat message entrance animation
+ */
+export const chatMessageVariants: Variants = {
+  initial: { opacity: 0, y: 12, scale: 0.95 },
+  animate: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { duration: durations.normal, ease: easings.smooth },
+  },
+}
+
+/**
+ * MCQ option pill entrance animation
+ */
+export const mcqOptionVariants: Variants = {
+  initial: { opacity: 0, scale: 0.8, y: 8 },
+  animate: {
+    opacity: 1,
+    scale: 1,
+    y: 0,
+    transition: { duration: durations.normal, ease: easings.bounce },
+  },
+  exit: {
+    opacity: 0,
+    scale: 0.9,
+    transition: { duration: durations.fast },
+  },
+}
