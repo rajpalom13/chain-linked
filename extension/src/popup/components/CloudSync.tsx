@@ -405,7 +405,7 @@ export function CloudSync() {
                 <p className="text-[11px] font-medium text-slate-700">Auto-Sync Active</p>
                 <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
                   Your LinkedIn data automatically syncs to ChainLinked cloud as you browse.
-                  View your full analytics in the dashboard at chainlinked.app
+                  View your full analytics in the dashboard at chainlinked.ai
                 </p>
               </div>
             </div>

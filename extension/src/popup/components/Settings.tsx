@@ -268,7 +268,7 @@ export function Settings() {
         <p className="text-[10px] text-slate-400 font-medium">LinkedIn Data Extractor v4.0</p>
         <div className="flex items-center justify-center gap-2 mt-1">
           <a
-            href="https://chainlinked.app"
+            href="https://chainlinked.ai"
             target="_blank"
             rel="noopener noreferrer"
             className="text-[9px] text-blue-500 hover:text-blue-600 hover:underline"

@@ -27,6 +27,8 @@ const ALLOWED_ORIGINS = [
   'http://localhost:3000',
   'https://chainlinked.app',
   'https://www.chainlinked.app',
+  'https://chainlinked.ai',
+  'https://www.chainlinked.ai',
 ]
 
 // Listen for mention search requests from the web app

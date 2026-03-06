@@ -39,7 +39,9 @@
       "http://localhost:3002/*",
       "http://localhost:3003/*",
       "http://localhost:3004/*",
-      "https://chain-linked-theta.vercel.app/*"
+      "https://chain-linked-theta.vercel.app/*",
+      "https://chainlinked.ai/*",
+      "https://www.chainlinked.ai/*"
     ]
   },
 
@@ -51,7 +53,9 @@
         "http://localhost:3002/*",
         "http://localhost:3003/*",
         "http://localhost:3004/*",
-        "https://chain-linked-theta.vercel.app/*"
+        "https://chain-linked-theta.vercel.app/*",
+        "https://chainlinked.ai/*",
+        "https://www.chainlinked.ai/*"
       ],
       "js": ["content/webapp-bridge.js"],
       "run_at": "document_start",
@@ -64,7 +68,9 @@
         "http://localhost:3002/*",
         "http://localhost:3003/*",
         "http://localhost:3004/*",
-        "https://chain-linked-theta.vercel.app/*"
+        "https://chain-linked-theta.vercel.app/*",
+        "https://chainlinked.ai/*",
+        "https://www.chainlinked.ai/*"
       ],
       "js": ["content/webapp-relay.js"],
       "run_at": "document_start"
@@ -120,7 +126,9 @@
         "http://localhost:3002/*",
         "http://localhost:3003/*",
         "http://localhost:3004/*",
-        "https://chain-linked-theta.vercel.app/*"
+        "https://chain-linked-theta.vercel.app/*",
+        "https://chainlinked.ai/*",
+        "https://www.chainlinked.ai/*"
       ]
     }
   ],
