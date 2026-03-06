@@ -21,6 +21,7 @@ import {
   IconShare,
   IconSparkles,
   IconChevronRight,
+  IconUserPlus,
 } from "@tabler/icons-react"
 import { formatDistanceToNow } from "date-fns"
 import Link from "next/link"
@@ -32,6 +33,7 @@ import { TeamLeaderboard } from "@/components/features/team-leaderboard"
 import { TeamHeader } from "@/components/features/team-header"
 import { PendingInvitationsCard, type PendingInvitation } from "@/components/features/pending-invitations-card"
 import { NoTeamState } from "@/components/features/no-team-state"
+import { JoinRequestsList } from "@/components/features/join-requests-list"
 import { TeamMemberList } from "@/components/features/team-member-list"
 import { TeamSkeleton } from "@/components/skeletons/page-skeletons"
 import { Button } from "@/components/ui/button"
@@ -41,6 +43,7 @@ import { useTeamPosts } from "@/hooks/use-team-posts"
 import { useTeamLeaderboard } from "@/hooks/use-team-leaderboard"
 import { useTeam } from "@/hooks/use-team"
 import { useTeamInvitations } from "@/hooks/use-team-invitations"
+import { useJoinRequests } from "@/hooks/use-join-requests"
 import { useAuthContext } from "@/lib/auth/auth-provider"
 import { usePageMeta } from "@/lib/dashboard-context"
 import { cn, getInitials, formatMetricNumber } from "@/lib/utils"
@@ -155,6 +158,35 @@ function AnimatedTabBar({
           </button>
         )
       })}
+    </div>
+  )
+}
+
+// ============================================================================
+// Join Requests Banner (only shows when there are pending requests)
+// ============================================================================
+
+/**
+ * Banner for pending join requests - only renders when requests exist
+ * @param props.teamId - Team ID to fetch join requests for
+ */
+function JoinRequestsBanner({ teamId }: { teamId: string }) {
+  const { pendingRequests, isLoading } = useJoinRequests({ teamId })
+
+  // Don't render anything if loading or no requests
+  if (isLoading || pendingRequests.length === 0) return null
+
+  return (
+    <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 shadow-sm overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-500/20">
+        <IconUserPlus className="size-4 text-amber-600 dark:text-amber-400" />
+        <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+          Pending Join Requests ({pendingRequests.length})
+        </h3>
+      </div>
+      <div className="p-4">
+        <JoinRequestsList teamId={teamId} />
+      </div>
     </div>
   )
 }
@@ -670,7 +702,12 @@ function TeamContent() {
 
   // No team state
   if (!currentTeam) {
-    return <NoTeamState onCreateTeam={handleCreateTeam} />
+    return (
+      <NoTeamState
+        onCreateTeam={handleCreateTeam}
+        onboardingType={profile?.onboarding_type}
+      />
+    )
   }
 
   return (
@@ -690,6 +727,13 @@ function TeamContent() {
         onSettingsClick={handleSettingsClick}
         onInvitationsSent={handleInvitationsSent}
       />
+
+      {/* Pending Join Requests (admin/owner only) */}
+      {canManage && currentTeam && (
+        <div className="px-4 md:px-6 pt-4 max-w-5xl mx-auto w-full">
+          <JoinRequestsBanner teamId={currentTeam.id} />
+        </div>
+      )}
 
       {/* Animated Tab Bar - centered */}
       <div className="flex justify-center px-4 md:px-6 pt-5 pb-0">

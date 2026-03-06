@@ -1,18 +1,30 @@
 /**
  * No Team State Component
- * @description Empty state when user has no team
+ * @description Empty state when user has no team. Shows pending join request
+ * status for individual users, and team creation for organization users.
  * @module components/features/no-team-state
  */
 
 'use client'
 
 import { useState } from 'react'
-import { IconUsers, IconUserPlus, IconMail, IconPlus, IconLoader2 } from '@tabler/icons-react'
+import {
+  IconUsers,
+  IconUserPlus,
+  IconMail,
+  IconPlus,
+  IconLoader2,
+  IconClock,
+  IconSearch,
+} from '@tabler/icons-react'
+import { formatDistanceToNow } from 'date-fns'
 import { toast } from 'sonner'
+import Link from 'next/link'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
 import {
   Card,
   CardContent,
@@ -29,6 +41,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { useJoinRequests, type JoinRequest } from '@/hooks/use-join-requests'
 
 /**
  * Props for NoTeamState component
@@ -38,6 +51,8 @@ interface NoTeamStateProps {
   onCreateTeam?: (name: string) => Promise<boolean>
   /** Loading state for creation */
   isCreating?: boolean
+  /** User onboarding type: 'owner' or 'member' */
+  onboardingType?: string | null
 }
 
 /**
@@ -143,14 +158,82 @@ function CreateTeamDialog({
 }
 
 /**
+ * Pending Join Request Banner
+ * @param props.request - The pending join request
+ * @param props.onCancel - Callback to cancel the request
+ */
+function PendingRequestBanner({
+  request,
+  onCancel,
+  isCancelling,
+}: {
+  request: JoinRequest
+  onCancel: () => Promise<void>
+  isCancelling: boolean
+}) {
+  const timeAgo = formatDistanceToNow(new Date(request.created_at), { addSuffix: true })
+
+  return (
+    <div className="w-full max-w-lg mx-auto mb-8">
+      <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-5">
+        <div className="flex items-start gap-3">
+          <div className="rounded-full bg-amber-500/10 p-2 shrink-0">
+            <IconClock className="size-5 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+              Join Request Pending
+            </h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Your request to join <span className="font-medium text-foreground">{request.team_name || 'the team'}</span> is
+              waiting for approval.
+            </p>
+            <div className="flex items-center gap-3 mt-3">
+              <Badge variant="outline" className="text-xs text-amber-700 dark:text-amber-400 border-amber-500/30">
+                <IconClock className="size-3 mr-1" />
+                Submitted {timeAgo}
+              </Badge>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-muted-foreground hover:text-destructive"
+                onClick={onCancel}
+                disabled={isCancelling}
+              >
+                {isCancelling ? (
+                  <IconLoader2 className="size-3 animate-spin mr-1" />
+                ) : null}
+                Cancel Request
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
  * No Team State Component
  *
- * Shows when user doesn't belong to any team with options to create or join.
+ * Shows when user doesn't belong to any team.
+ * - For 'member' users: shows pending request status and option to find a team
+ * - For 'owner' users: shows create team option
  *
  * @param props - Component props
  * @returns No team state JSX
  */
-export function NoTeamState({ onCreateTeam, isCreating }: NoTeamStateProps) {
+export function NoTeamState({ onCreateTeam, isCreating, onboardingType }: NoTeamStateProps) {
+  const { myPendingRequest, isLoading: requestLoading, cancelRequest } = useJoinRequests()
+  const [isCancelling, setIsCancelling] = useState(false)
+  const isMember = onboardingType === 'member'
+
+  const handleCancel = async () => {
+    setIsCancelling(true)
+    await cancelRequest()
+    setIsCancelling(false)
+  }
+
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] p-4">
       <div className="max-w-lg w-full text-center">
@@ -163,29 +246,67 @@ export function NoTeamState({ onCreateTeam, isCreating }: NoTeamStateProps) {
             You&apos;re not part of a team yet
           </h2>
           <p className="text-muted-foreground">
-            Create a team to collaborate with colleagues, track performance together,
-            and share content inspiration.
+            {isMember
+              ? 'Find your organization\u2019s team and request to join, or wait for an invitation from your team admin.'
+              : 'Create a team to collaborate with colleagues, track performance together, and share content inspiration.'
+            }
           </p>
         </div>
 
+        {/* Pending Join Request Banner */}
+        {!requestLoading && myPendingRequest && (
+          <PendingRequestBanner
+            request={myPendingRequest}
+            onCancel={handleCancel}
+            isCancelling={isCancelling}
+          />
+        )}
+
         {/* Actions */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
-          <CreateTeamDialog onCreateTeam={onCreateTeam} isCreating={isCreating} />
+          {!isMember && (
+            <CreateTeamDialog onCreateTeam={onCreateTeam} isCreating={isCreating} />
+          )}
+          {!myPendingRequest && (
+            <Button variant={isMember ? 'default' : 'outline'} size="lg" className="gap-2" asChild>
+              <Link href="/onboarding/join">
+                <IconSearch className="h-5 w-5" />
+                Find Your Team
+              </Link>
+            </Button>
+          )}
         </div>
 
         {/* Info Cards */}
-        <div className="grid gap-4 sm:grid-cols-2 text-left">
+        <div className={`grid gap-4 text-left ${isMember ? 'sm:grid-cols-2' : 'sm:grid-cols-2'}`}>
+          {!isMember && (
+            <Card className="bg-muted/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <IconUserPlus className="h-4 w-4 text-primary" />
+                  Create a Team
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CardDescription>
+                  Start your own team and invite colleagues to join.
+                  You&apos;ll be the team owner with full management access.
+                </CardDescription>
+              </CardContent>
+            </Card>
+          )}
+
           <Card className="bg-muted/50">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <IconUserPlus className="h-4 w-4 text-primary" />
-                Create a Team
+                <IconSearch className="h-4 w-4 text-primary" />
+                Find &amp; Join a Team
               </CardTitle>
             </CardHeader>
             <CardContent>
               <CardDescription>
-                Start your own team and invite colleagues to join.
-                You&apos;ll be the team owner with full management access.
+                Search for your organization&apos;s team and send a join request.
+                A team admin will review and approve your request.
               </CardDescription>
             </CardContent>
           </Card>

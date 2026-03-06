@@ -1,0 +1,375 @@
+/**
+ * Viral Post Ingest Cron Job
+ * @description Inngest cron function that runs every 6 hours (offset) to scrape
+ * trending posts from curated viral LinkedIn creators via Apify
+ * (harvestapi~linkedin-profile-posts), filter with LLM quality assessment,
+ * and store approved posts in the discover_posts table.
+ * @module lib/inngest/functions/viral-post-ingest
+ */
+
+import { inngest } from '../client'
+import { filterPostQualityBatch, type PostForQualityCheck } from '@/lib/ai/post-quality-filter'
+import { createClient } from '@supabase/supabase-js'
+
+/** Apify actor for scraping LinkedIn profile posts (no cookies needed) */
+const APIFY_ACTOR_ID = 'harvestapi~linkedin-profile-posts'
+
+/** Max posts to fetch per profile for viral ingest */
+const LIMIT_PER_PROFILE = 10
+
+/**
+ * Supabase admin client for background jobs
+ */
+function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+  return createClient(url, serviceKey)
+}
+
+/**
+ * Author data from Apify harvestapi~linkedin-profile-posts
+ */
+interface ApifyAuthor {
+  publicIdentifier?: string
+  name?: string
+  info?: string
+  linkedinUrl?: string
+  avatar?: {
+    url?: string
+  }
+}
+
+/**
+ * Raw post data from Apify harvestapi~linkedin-profile-posts
+ */
+interface ApifyLinkedInPost {
+  type?: string
+  id?: string
+  linkedinUrl?: string
+  content?: string
+  author?: ApifyAuthor
+  postedAt?: {
+    timestamp?: number
+    date?: string
+  }
+  engagement?: {
+    likes?: number
+    comments?: number
+    shares?: number
+  }
+  [key: string]: unknown
+}
+
+/**
+ * Topic keyword mapping for auto-classification
+ */
+const TOPIC_KEYWORDS: Record<string, string[]> = {
+  'artificial-intelligence': [
+    'ai', 'artificial intelligence', 'machine learning', 'ml', 'deep learning',
+    'neural network', 'llm', 'chatgpt', 'openai', 'gpt', 'generative ai',
+    'nlp', 'natural language', 'computer vision', 'automation',
+  ],
+  'sales-enablement': [
+    'sales', 'selling', 'revenue', 'crm', 'pipeline', 'leads', 'prospecting',
+    'quota', 'deal', 'close', 'buyer', 'b2b sales', 'outbound', 'inbound',
+  ],
+  'remote-work': [
+    'remote work', 'work from home', 'wfh', 'hybrid work', 'distributed team',
+    'async', 'asynchronous', 'digital nomad', 'coworking', 'remote first',
+  ],
+  'saas-growth': [
+    'saas', 'software as a service', 'mrr', 'arr', 'churn', 'retention',
+    'plg', 'product-led', 'subscription', 'pricing', 'freemium',
+  ],
+  'leadership': [
+    'leadership', 'management', 'ceo', 'cto', 'founder', 'executive',
+    'team building', 'culture', 'hiring', 'mentorship', 'coaching',
+  ],
+  'marketing': [
+    'marketing', 'content marketing', 'seo', 'social media', 'brand',
+    'demand gen', 'growth marketing', 'copywriting', 'funnel', 'conversion',
+  ],
+  'startup': [
+    'startup', 'venture capital', 'vc', 'fundraising', 'series a', 'seed round',
+    'bootstrapping', 'founder', 'entrepreneurship', 'pitch deck', 'investor',
+  ],
+  'product-management': [
+    'product management', 'product manager', 'pm', 'roadmap', 'user research',
+    'feature', 'sprint', 'agile', 'scrum', 'product strategy',
+  ],
+}
+
+/** Pre-compiled regex map for topic classification */
+const TOPIC_REGEX_MAP: Map<string, RegExp> = new Map(
+  Object.entries(TOPIC_KEYWORDS).map(([topic, keywords]) => {
+    const pattern = keywords
+      .map((kw) => kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('|')
+    return [topic, new RegExp(pattern, 'i')]
+  })
+)
+
+/**
+ * Auto-classify topics based on content keywords
+ * @param content - Post content text
+ * @returns Array of matched topic slugs
+ */
+function classifyTopics(content: string): string[] {
+  const matched: string[] = []
+  for (const [topic, regex] of TOPIC_REGEX_MAP) {
+    if (regex.test(content)) {
+      matched.push(topic)
+    }
+  }
+  return matched.length > 0 ? matched : ['general']
+}
+
+/**
+ * Calculate engagement rate from metrics
+ * @param likes - Number of likes
+ * @param comments - Number of comments
+ * @param reposts - Number of reposts
+ * @returns Estimated engagement rate percentage
+ */
+function calculateEngagementRate(likes: number, comments: number, reposts: number): number {
+  const totalEngagement = likes + comments + reposts
+  if (totalEngagement > 500) return 5.0
+  if (totalEngagement > 200) return 3.0
+  if (totalEngagement > 50) return 1.5
+  return 0.5
+}
+
+/**
+ * Viral Post Ingest Cron Function
+ * Runs every 6 hours (offset from influencer scrape) to ingest viral posts
+ */
+export const viralPostIngest = inngest.createFunction(
+  {
+    id: 'viral-post-ingest',
+    name: 'Viral Post Ingest',
+    retries: 2,
+  },
+  { cron: '0 3,9,15,21 * * *' },
+  async ({ step }) => {
+    const supabase = getSupabaseAdmin()
+
+    console.log('[ViralIngest] Starting viral post ingest')
+
+    // Step 1: Fetch source profiles
+    const sourceProfiles = await step.run('fetch-source-profiles', async () => {
+      const { data, error } = await supabase
+        .from('viral_source_profiles')
+        .select('*')
+        .eq('status', 'active')
+
+      if (error) {
+        console.error('[ViralIngest] Failed to fetch source profiles:', error)
+        return []
+      }
+
+      console.log(`[ViralIngest] Found ${data?.length || 0} active source profiles`)
+      return data || []
+    })
+
+    if (sourceProfiles.length === 0) {
+      return { success: true, message: 'No active source profiles', postsIngested: 0 }
+    }
+
+    // Step 2: Scrape via Apify in batches of 5
+    const allScrapedPosts: ApifyLinkedInPost[] = []
+
+    const batches = []
+    for (let i = 0; i < sourceProfiles.length; i += 5) {
+      batches.push(sourceProfiles.slice(i, i + 5))
+    }
+
+    for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+      const batch = batches[batchIdx]
+      const batchPosts = await step.run(`scrape-batch-${batchIdx}`, async () => {
+        const profileUrls = batch.map((p: { linkedin_url: string }) => p.linkedin_url)
+        const token = process.env.APIFY_API_TOKEN
+        if (!token) throw new Error('APIFY_API_TOKEN not set')
+
+        try {
+          const response = await fetch(
+            `https://api.apify.com/v2/acts/${APIFY_ACTOR_ID}/run-sync-get-dataset-items?token=${token}&timeout=180`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                profileUrls,
+                limitPerProfile: LIMIT_PER_PROFILE,
+              }),
+            }
+          )
+
+          if (!response.ok) {
+            const errorText = await response.text()
+            throw new Error(`Apify run failed (${response.status}): ${errorText.slice(0, 200)}`)
+          }
+
+          const items: ApifyLinkedInPost[] = await response.json()
+
+          // Filter to posts from last 24 hours
+          const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000
+          const recentItems = items.filter(item => {
+            if (!item.postedAt?.timestamp && !item.postedAt?.date) return false
+            const postedTime = item.postedAt.timestamp || new Date(item.postedAt.date!).getTime()
+            return postedTime >= oneDayAgo
+          })
+
+          console.log(`[ViralIngest] Batch ${batchIdx}: ${recentItems.length} recent posts from ${profileUrls.length} profiles`)
+          return recentItems
+        } catch (error) {
+          console.error(`[ViralIngest] Batch ${batchIdx} scrape failed:`, error instanceof Error ? error.message : error)
+          return [] as ApifyLinkedInPost[]
+        }
+      })
+
+      allScrapedPosts.push(...batchPosts)
+    }
+
+    // Step 3: LLM quality filter
+    const qualityResults = await step.run('llm-quality-filter', async () => {
+      const postsWithContent = allScrapedPosts.filter(p => p.content && p.content.length > 0)
+
+      if (postsWithContent.length === 0) return []
+
+      const results: Array<{
+        post: ApifyLinkedInPost
+        approved: boolean
+        score: number
+        reason: string | null
+        topics: string[]
+      }> = []
+
+      // Process in batches of 10
+      for (let i = 0; i < postsWithContent.length; i += 10) {
+        const chunk = postsWithContent.slice(i, i + 10)
+        const postsForFilter: PostForQualityCheck[] = chunk.map(post => ({
+          content: post.content || '',
+          author_name: post.author?.name || 'Unknown',
+          metrics: {
+            likes: post.engagement?.likes || 0,
+            comments: post.engagement?.comments || 0,
+            reposts: post.engagement?.shares || 0,
+          },
+        }))
+
+        const filterResults = await filterPostQualityBatch(postsForFilter)
+
+        for (let j = 0; j < chunk.length; j++) {
+          // Merge LLM topics with keyword-based classification
+          const keywordTopics = classifyTopics(chunk[j].content || '')
+          const allTopics = [...new Set([...filterResults[j].topics, ...keywordTopics])]
+
+          results.push({
+            post: chunk[j],
+            approved: filterResults[j].approved,
+            score: filterResults[j].score,
+            reason: filterResults[j].reason,
+            topics: allTopics,
+          })
+        }
+      }
+
+      console.log(`[ViralIngest] Quality filter: ${results.filter(r => r.approved).length}/${results.length} approved`)
+      return results
+    })
+
+    // Step 4: Save to discover_posts
+    const savedCount = await step.run('save-to-discover-posts', async () => {
+      const approvedPosts = qualityResults.filter(r => r.approved)
+
+      if (approvedPosts.length === 0) return 0
+
+      let saved = 0
+      for (const result of approvedPosts) {
+        const post = result.post
+        const likes = post.engagement?.likes || 0
+        const comments = post.engagement?.comments || 0
+        const reposts = post.engagement?.shares || 0
+        const engagementRate = calculateEngagementRate(likes, comments, reposts)
+        const isViral = engagementRate >= 2.0
+
+        const postedAtDate = post.postedAt?.date
+          || (post.postedAt?.timestamp
+            ? new Date(post.postedAt.timestamp).toISOString()
+            : new Date().toISOString())
+
+        const row = {
+          linkedin_url: post.linkedinUrl || `apify-viral-${crypto.randomUUID()}`,
+          author_name: post.author?.name || 'Unknown',
+          author_headline: post.author?.info || '',
+          author_avatar_url: post.author?.avatar?.url || null,
+          author_profile_url: post.author?.linkedinUrl || null,
+          content: post.content || '',
+          post_type: post.type || null,
+          likes_count: likes,
+          comments_count: comments,
+          reposts_count: reposts,
+          posted_at: postedAtDate,
+          scraped_at: new Date().toISOString(),
+          topics: result.topics,
+          is_viral: isViral,
+          engagement_rate: engagementRate,
+          source: 'apify_viral',
+        }
+
+        const { error } = await supabase
+          .from('discover_posts')
+          .upsert(row, { onConflict: 'linkedin_url', ignoreDuplicates: true })
+
+        if (error) {
+          console.error('[ViralIngest] Failed to upsert post:', error.message)
+        } else {
+          saved++
+        }
+      }
+
+      console.log(`[ViralIngest] Saved ${saved} viral posts to discover_posts`)
+      return saved
+    })
+
+    // Step 5: Cleanup stale viral posts
+    const staleRemoved = await step.run('cleanup-stale', async () => {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+
+      const { data, error } = await supabase
+        .from('discover_posts')
+        .delete()
+        .eq('source', 'apify_viral')
+        .lt('scraped_at', thirtyDaysAgo)
+        .select('id')
+
+      if (error) {
+        console.error('[ViralIngest] Stale cleanup failed:', error)
+        return 0
+      }
+
+      const removed = data?.length || 0
+      console.log(`[ViralIngest] Removed ${removed} stale viral posts`)
+      return removed
+    })
+
+    // Step 6: Emit completion
+    await step.sendEvent('viral-ingest-completed', {
+      name: 'viral/ingest.completed',
+      data: {
+        profilesScraped: sourceProfiles.length,
+        postsFound: qualityResults.length,
+        postsApproved: qualityResults.filter(r => r.approved).length,
+        staleRemoved,
+      },
+    })
+
+    return {
+      success: true,
+      profilesScraped: sourceProfiles.length,
+      postsFound: qualityResults.length,
+      postsApproved: qualityResults.filter(r => r.approved).length,
+      postsSaved: savedCount,
+      staleRemoved,
+    }
+  }
+)

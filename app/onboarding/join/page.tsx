@@ -1,9 +1,9 @@
 "use client"
 
 /**
- * Onboarding Join Page
- * @description Member onboarding path: search for organization, submit join request,
- * optionally connect LinkedIn, then redirect to pending approval screen.
+ * Onboarding Join Page (Individual Path)
+ * @description Individual onboarding path: connect LinkedIn (required),
+ * optionally search for a company to join, then complete onboarding.
  * @module app/onboarding/join/page
  */
 
@@ -17,6 +17,7 @@ import {
   IconLoader2,
   IconSearch,
   IconSend,
+  IconBrandLinkedin,
 } from '@tabler/icons-react'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -28,14 +29,16 @@ import { TeamSearch } from '@/components/features/team-search'
 import ConnectTools from '@/components/ConnectTools'
 import { useJoinRequests } from '@/hooks/use-join-requests'
 import { useOnboardingGuard } from '@/hooks/use-onboarding-guard'
+import { completeOnboardingInDatabase } from '@/services/onboarding'
+import { useAuthContext } from '@/lib/auth/auth-provider'
 import type { TeamSearchResult } from '@/components/features/team-search'
 
 // ============================================================================
 // Types
 // ============================================================================
 
-/** Step in the join flow */
-type JoinStep = 'search' | 'request' | 'connect'
+/** Step in the individual join flow */
+type JoinStep = 'connect' | 'search' | 'request'
 
 // ============================================================================
 // Step indicator
@@ -75,27 +78,47 @@ function cn(...classes: (string | undefined | false | null)[]): string {
 // ============================================================================
 
 /**
- * Join onboarding page component
+ * Individual onboarding page component
+ * Flow: Connect LinkedIn (required) → Search company (skippable) → Enter platform
  * @returns Join flow JSX with multi-step UI
  */
 export default function JoinPage() {
   const router = useRouter()
   const { checking } = useOnboardingGuard()
   const { submitRequest } = useJoinRequests()
+  const { refreshProfile } = useAuthContext()
 
-  const [step, setStep] = useState<JoinStep>('search')
+  const [step, setStep] = useState<JoinStep>('connect')
   const [selectedTeam, setSelectedTeam] = useState<TeamSearchResult | null>(null)
   const [message, setMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isCompleting, setIsCompleting] = useState(false)
   const [linkedinConnected, setLinkedinConnected] = useState(false)
 
-  const stepIndex: Record<JoinStep, number> = { search: 0, request: 1, connect: 2 }
+  const stepIndex: Record<JoinStep, number> = { connect: 0, search: 1, request: 2 }
 
+  /**
+   * Handles proceeding from LinkedIn connect to company search step
+   */
+  const handleLinkedInNext = useCallback(() => {
+    if (!linkedinConnected) {
+      toast.error('Please connect your LinkedIn to continue.')
+      return
+    }
+    setStep('search')
+  }, [linkedinConnected])
+
+  /**
+   * Handles selecting a team from search results
+   */
   const handleSelectTeam = useCallback((team: TeamSearchResult) => {
     setSelectedTeam(team)
     setStep('request')
   }, [])
 
+  /**
+   * Handles submitting a join request to the selected team
+   */
   const handleSubmitRequest = useCallback(async () => {
     if (!selectedTeam) return
 
@@ -104,14 +127,37 @@ export default function JoinPage() {
     setIsSubmitting(false)
 
     if (request) {
-      toast.success('Request sent! Connecting LinkedIn next.')
-      setStep('connect')
+      toast.success('Request sent! You can now enter the platform.')
+      await handleCompleteOnboarding()
     }
   }, [selectedTeam, message, submitRequest])
 
-  const handleContinueToPending = useCallback(() => {
-    router.replace('/onboarding/join/pending')
-  }, [router])
+  /**
+   * Completes onboarding and navigates to the dashboard
+   */
+  const handleCompleteOnboarding = useCallback(async () => {
+    setIsCompleting(true)
+    try {
+      const success = await completeOnboardingInDatabase()
+      if (success) {
+        await refreshProfile()
+        router.replace('/dashboard')
+      } else {
+        toast.error('Failed to complete setup. Please try again.')
+        setIsCompleting(false)
+      }
+    } catch {
+      toast.error('Something went wrong. Please try again.')
+      setIsCompleting(false)
+    }
+  }, [refreshProfile, router])
+
+  /**
+   * Skips company search and completes onboarding
+   */
+  const handleSkipCompanySearch = useCallback(async () => {
+    await handleCompleteOnboarding()
+  }, [handleCompleteOnboarding])
 
   if (checking) {
     return (
@@ -123,10 +169,53 @@ export default function JoinPage() {
 
   return (
     <div className="max-w-lg mx-auto py-8">
-      <StepDots current={stepIndex[step]} total={3} />
+      <StepDots current={stepIndex[step]} total={2} />
 
       <AnimatePresence mode="wait">
-        {/* Step 1: Search */}
+        {/* Step 1: Connect LinkedIn */}
+        {step === 'connect' && (
+          <motion.div
+            key="connect"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-6"
+          >
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <div className="rounded-lg bg-primary/10 p-1.5">
+                  <IconBrandLinkedin className="size-4 text-primary" />
+                </div>
+                <h1 className="text-2xl font-bold">Connect your LinkedIn</h1>
+              </div>
+              <p className="text-muted-foreground text-sm mt-1">
+                Link your LinkedIn profile to get started. This is required to personalize your experience.
+              </p>
+            </div>
+
+            <ConnectTools
+              onLinkedInStatusChange={setLinkedinConnected}
+              compact
+            />
+
+            <div className="flex justify-between">
+              <Button variant="ghost" size="sm" onClick={() => router.push('/onboarding')}>
+                <IconArrowLeft className="size-4 mr-1.5" />
+                Back
+              </Button>
+              <Button
+                onClick={handleLinkedInNext}
+                disabled={!linkedinConnected}
+              >
+                Next
+                <IconArrowRight className="size-4 ml-1.5" />
+              </Button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Step 2: Search for company */}
         {step === 'search' && (
           <motion.div
             key="search"
@@ -141,25 +230,37 @@ export default function JoinPage() {
                 <div className="rounded-lg bg-primary/10 p-1.5">
                   <IconSearch className="size-4 text-primary" />
                 </div>
-                <h1 className="text-2xl font-bold">Find your organization</h1>
+                <h1 className="text-2xl font-bold">Find your company</h1>
               </div>
               <p className="text-muted-foreground text-sm mt-1">
-                Search for the organization you want to join. Only discoverable organizations appear here.
+                Search for your company to join their team, or skip this step to get started right away.
               </p>
             </div>
 
             <TeamSearch onSelectTeam={handleSelectTeam} />
 
-            <div className="flex justify-start">
-              <Button variant="ghost" size="sm" onClick={() => router.push('/onboarding')}>
+            <div className="flex justify-between">
+              <Button variant="ghost" size="sm" onClick={() => setStep('connect')}>
                 <IconArrowLeft className="size-4 mr-1.5" />
                 Back
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleSkipCompanySearch}
+                disabled={isCompleting}
+              >
+                {isCompleting ? (
+                  <IconLoader2 className="size-4 mr-1.5 animate-spin" />
+                ) : (
+                  <IconArrowRight className="size-4 mr-1.5" />
+                )}
+                Skip &amp; Enter Platform
               </Button>
             </div>
           </motion.div>
         )}
 
-        {/* Step 2: Send request */}
+        {/* Step 2b: Send join request (shown after selecting a team) */}
         {step === 'request' && selectedTeam && (
           <motion.div
             key="request"
@@ -214,63 +315,24 @@ export default function JoinPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setStep('search')}
+                onClick={() => {
+                  setSelectedTeam(null)
+                  setStep('search')
+                }}
               >
                 <IconArrowLeft className="size-4 mr-1.5" />
                 Back
               </Button>
               <Button
                 onClick={handleSubmitRequest}
-                disabled={isSubmitting}
+                disabled={isSubmitting || isCompleting}
               >
-                {isSubmitting ? (
+                {isSubmitting || isCompleting ? (
                   <IconLoader2 className="size-4 mr-1.5 animate-spin" />
                 ) : (
                   <IconSend className="size-4 mr-1.5" />
                 )}
-                Send Request
-              </Button>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Step 3: Connect LinkedIn */}
-        {step === 'connect' && (
-          <motion.div
-            key="connect"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.2 }}
-            className="space-y-6"
-          >
-            <div>
-              <h1 className="text-2xl font-bold">Connect LinkedIn</h1>
-              <p className="text-muted-foreground text-sm mt-1">
-                Connect your LinkedIn while waiting for approval. This helps us personalize your experience.
-              </p>
-            </div>
-
-            <ConnectTools
-              onLinkedInStatusChange={setLinkedinConnected}
-            />
-
-            <div className="flex justify-between">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleContinueToPending}
-              >
-                Skip for now
-                <IconArrowRight className="size-4 ml-1.5" />
-              </Button>
-              <Button onClick={handleContinueToPending}>
-                {linkedinConnected ? (
-                  <IconCheck className="size-4 mr-1.5" />
-                ) : (
-                  <IconArrowRight className="size-4 mr-1.5" />
-                )}
-                Continue
+                Send Request &amp; Enter Platform
               </Button>
             </div>
           </motion.div>

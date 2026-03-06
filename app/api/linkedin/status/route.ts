@@ -55,7 +55,7 @@ export async function GET() {
       // Also check the profiles table as a fallback
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('linkedin_access_token, linkedin_token_expires_at')
+        .select('linkedin_access_token, linkedin_token_expires_at, linkedin_connected_at')
         .eq('id', user.id)
         .single()
 
@@ -71,6 +71,37 @@ export async function GET() {
           expiresAt: expiresAt || null,
           profileName: null,
           needsReconnect: expired || nearExpiry,
+        } satisfies LinkedInConnectionStatus)
+      }
+
+      // Check linkedin_profiles table as a third fallback (extension syncs here)
+      const { data: linkedinProfile } = await supabase
+        .from('linkedin_profiles')
+        .select('first_name, last_name, profile_urn, updated_at')
+        .eq('user_id', user.id)
+        .single()
+
+      if (linkedinProfile && (linkedinProfile.profile_urn || linkedinProfile.first_name)) {
+        const parts = [linkedinProfile.first_name, linkedinProfile.last_name].filter(Boolean)
+        const profileName = parts.length > 0 ? parts.join(' ') : null
+
+        console.log('[LinkedIn Status] Found extension-synced profile:', profileName)
+
+        return NextResponse.json({
+          connected: true,
+          expiresAt: null,
+          profileName,
+          needsReconnect: false,
+        } satisfies LinkedInConnectionStatus)
+      }
+
+      // Also check if linkedin_connected_at is set on profiles (OAuth connected but token expired/removed)
+      if (profileData?.linkedin_connected_at) {
+        return NextResponse.json({
+          connected: true,
+          expiresAt: null,
+          profileName: null,
+          needsReconnect: true,
         } satisfies LinkedInConnectionStatus)
       }
 

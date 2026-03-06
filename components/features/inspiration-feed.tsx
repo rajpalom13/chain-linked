@@ -11,7 +11,6 @@ import { motion, AnimatePresence } from "framer-motion"
 import {
   IconSearch,
   IconBulb,
-  IconFilter,
   IconBookmark,
   IconBookmarkFilled,
   IconLoader2,
@@ -31,14 +30,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { trackDiscoverAction } from "@/lib/analytics"
 import { cn } from "@/lib/utils"
 import { inspirationToast } from "@/lib/toast-utils"
@@ -214,9 +205,11 @@ function LoadingSkeletonGrid({ count = 6 }: { count?: number }) {
 function EmptyState({
   searchQuery,
   savedOnly,
+  followingOnly,
 }: {
   searchQuery?: string
   savedOnly?: boolean
+  followingOnly?: boolean
 }) {
   return (
     <motion.div
@@ -232,7 +225,9 @@ function EmptyState({
             animate={{ scale: 1 }}
             transition={{ delay: 0.1, duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
           >
-            {savedOnly ? (
+            {followingOnly ? (
+              <IconUsers className="size-8 text-primary" />
+            ) : savedOnly ? (
               <IconBookmark className="size-8 text-primary" />
             ) : (
               <IconBulb className="size-8 text-primary" />
@@ -244,19 +239,25 @@ function EmptyState({
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.4 }}
           >
-            {savedOnly ? "No saved posts" : "No inspiration found"}
+            {followingOnly
+              ? "No posts from followed creators yet"
+              : savedOnly
+                ? "No saved posts"
+                : "No inspiration found"}
           </motion.h3>
           <motion.p
-            className="text-sm text-muted-foreground max-w-[300px]"
+            className="text-sm text-muted-foreground max-w-[360px]"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3, duration: 0.4 }}
           >
-            {savedOnly
-              ? "You haven't saved any posts yet. Browse the feed and click the bookmark icon to save posts for later."
-              : searchQuery
-                ? `No posts match "${searchQuery}". Try adjusting your search or filter.`
-                : "No posts available in this category. Try selecting a different filter."}
+            {followingOnly
+              ? "Posts from creators you follow will appear here automatically. Follow influencers from the feed using the follow button on any post card, and their latest content will be scraped and shown here."
+              : savedOnly
+                ? "You haven't saved any posts yet. Browse the feed and click the bookmark icon to save posts for later."
+                : searchQuery
+                  ? `No posts match "${searchQuery}". Try adjusting your search or filter.`
+                  : "No posts available in this category. Try selecting a different filter."}
           </motion.p>
         </CardContent>
       </Card>
@@ -587,38 +588,39 @@ export function InspirationFeed({
                 className="pl-9"
               />
             </div>
-            {/* Filter Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="shrink-0">
-                  <IconFilter className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>Filters</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuCheckboxItem
-                  checked={savedOnly}
-                  onCheckedChange={handleSavedOnlyChange}
-                >
-                  {savedOnly ? (
-                    <IconBookmarkFilled className="mr-2 size-4 text-primary" />
-                  ) : (
-                    <IconBookmark className="mr-2 size-4" />
-                  )}
-                  Saved posts only
-                </DropdownMenuCheckboxItem>
-                {onFollow && (
-                  <DropdownMenuCheckboxItem
-                    checked={followingOnly}
-                    onCheckedChange={handleFollowingOnlyChange}
-                  >
-                    <IconUsers className="mr-2 size-4" />
-                    Following only
-                  </DropdownMenuCheckboxItem>
+            {/* Quick filter pills */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button
+                variant={savedOnly ? "default" : "outline"}
+                size="sm"
+                className={cn(
+                  "h-8 gap-1.5 text-xs rounded-full px-3",
+                  savedOnly && "bg-primary text-primary-foreground",
                 )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                onClick={() => handleSavedOnlyChange(!savedOnly)}
+              >
+                {savedOnly ? (
+                  <IconBookmarkFilled className="size-3.5" />
+                ) : (
+                  <IconBookmark className="size-3.5" />
+                )}
+                Saved
+              </Button>
+              {onFollow && (
+                <Button
+                  variant={followingOnly ? "default" : "outline"}
+                  size="sm"
+                  className={cn(
+                    "h-8 gap-1.5 text-xs rounded-full px-3",
+                    followingOnly && "bg-primary text-primary-foreground",
+                  )}
+                  onClick={() => handleFollowingOnlyChange(!followingOnly)}
+                >
+                  <IconUsers className="size-3.5" />
+                  Following
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -674,7 +676,7 @@ export function InspirationFeed({
           <LoadingSkeletonGrid count={6} />
         ) : displayPosts.length === 0 ? (
           /* Empty State */
-          <EmptyState searchQuery={searchQuery || undefined} savedOnly={savedOnly} />
+          <EmptyState searchQuery={searchQuery || undefined} savedOnly={savedOnly} followingOnly={followingOnly} />
         ) : (
           /* Posts Grid with Stagger Animation */
           <>

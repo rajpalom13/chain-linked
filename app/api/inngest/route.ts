@@ -18,6 +18,8 @@ import {
   analyticsSummaryCompute,
   analyticsBackfill,
   templateAutoGenerate,
+  influencerPostScrape,
+  viralPostIngest,
 } from '@/lib/inngest/functions'
 
 /**
@@ -38,5 +40,7 @@ export const { GET, POST, PUT } = serve({
     analyticsSummaryCompute,
     analyticsBackfill,
     templateAutoGenerate,
+    influencerPostScrape,
+    viralPostIngest,
   ],
 })

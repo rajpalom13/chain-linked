@@ -7,14 +7,12 @@
 'use client'
 
 import { useCallback } from 'react'
-import { IconUsers, IconSettings, IconUserPlus } from '@tabler/icons-react'
+import { IconUsers, IconSettings } from '@tabler/icons-react'
 
 import { PageContent } from "@/components/shared/page-content"
 import { TeamManagement } from '@/components/features/team-management'
 import { TeamSettingsPanel } from '@/components/features/team-settings-panel'
-import { JoinRequestsList } from '@/components/features/join-requests-list'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { usePageMeta } from '@/lib/dashboard-context'
 import { useTeam } from '@/hooks/use-team'
 
@@ -70,12 +68,6 @@ export default function TeamSettingsPage() {
             <IconUsers className="size-4" />
             Members
           </TabsTrigger>
-          {canManage && (
-            <TabsTrigger value="join-requests" className="gap-2">
-              <IconUserPlus className="size-4" />
-              Join Requests
-            </TabsTrigger>
-          )}
           <TabsTrigger value="settings" className="gap-2">
             <IconSettings className="size-4" />
             Settings
@@ -86,26 +78,6 @@ export default function TeamSettingsPage() {
           <TeamManagement />
         </TabsContent>
 
-        {canManage && currentTeam && (
-          <TabsContent value="join-requests" className="mt-6">
-            <div className="max-w-2xl">
-              <Card className="border-border/50 rounded-xl shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <IconUserPlus className="size-4 text-primary" />
-                    Join Requests
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Review and approve requests from people who want to join your team
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <JoinRequestsList teamId={currentTeam.id} />
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-        )}
 
         <TabsContent value="settings" className="mt-6">
           {currentTeam ? (

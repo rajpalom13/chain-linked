@@ -101,6 +101,8 @@ export interface ProfileData {
   onboarding_current_step: number
   /** Whether the user has completed the dashboard tour */
   dashboard_tour_completed: boolean
+  /** User onboarding type: 'owner' (org) or 'member' (individual) */
+  onboarding_type: string | null
 }
 
 /**
@@ -249,6 +251,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         onboarding_completed: profileData.onboarding_completed ?? false,
         onboarding_current_step: profileData.onboarding_current_step ?? 1,
         dashboard_tour_completed: profileData.dashboard_tour_completed ?? false,
+        onboarding_type: profileData.onboarding_type ?? null,
         linkedin_profile: linkedinProfile ? {
           ...linkedinProfile,
           raw_data: linkedinProfile.raw_data as LinkedInProfile['raw_data'],

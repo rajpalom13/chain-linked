@@ -18,6 +18,7 @@ const ONBOARDING_STEP_PATHS = [
   '/onboarding/step2',
   '/onboarding/step3',
   '/onboarding/step4',
+  '/onboarding/join',
   '/onboarding/company',
   '/onboarding/company-context',
   '/onboarding/invite',
@@ -96,7 +97,7 @@ export async function middleware(request: NextRequest) {
         const { data: inviteProfile } = await Promise.race([
           supabase
             .from('profiles')
-            .select('onboarding_completed, onboarding_current_step, company_onboarding_completed')
+            .select('onboarding_completed, onboarding_current_step, company_onboarding_completed, onboarding_type')
             .eq('id', user.id)
             .single(),
           new Promise<{ data: null; error: null }>((resolve) =>
@@ -105,12 +106,20 @@ export async function middleware(request: NextRequest) {
         ])
 
         if (inviteProfile && inviteProfile.onboarding_completed !== true && inviteProfile.company_onboarding_completed !== true) {
-          // User hasn't completed onboarding - redirect to their current step
-          const rawStep = inviteProfile.onboarding_current_step ?? 1
-          const step = Math.min(Math.max(rawStep, 1), 4)
+          // User hasn't completed onboarding - redirect to role selection or their current path
           const url = request.nextUrl.clone()
-          url.pathname = `/onboarding/step${step}`
           url.search = ''
+
+          if (!inviteProfile.onboarding_type) {
+            // No type chosen yet - go to role selection
+            url.pathname = '/onboarding'
+          } else if (inviteProfile.onboarding_type === 'member') {
+            url.pathname = '/onboarding/join'
+          } else {
+            const rawStep = inviteProfile.onboarding_current_step ?? 1
+            const step = Math.min(Math.max(rawStep, 1), 4)
+            url.pathname = `/onboarding/step${step}`
+          }
           return NextResponse.redirect(url)
         }
       } catch {
@@ -136,6 +145,7 @@ export async function middleware(request: NextRequest) {
     onboarding_completed: boolean | null
     onboarding_current_step: number | null
     company_onboarding_completed: boolean | null
+    onboarding_type: string | null
   } | null = null
 
   const needsProfileCheck =
@@ -146,7 +156,7 @@ export async function middleware(request: NextRequest) {
     try {
       const profileQuery = supabase
         .from('profiles')
-        .select('onboarding_completed, onboarding_current_step, company_onboarding_completed')
+        .select('onboarding_completed, onboarding_current_step, company_onboarding_completed, onboarding_type')
         .eq('id', user.id)
         .single()
 
@@ -173,11 +183,20 @@ export async function middleware(request: NextRequest) {
       profile.company_onboarding_completed === true
 
     if (!isOnboardingDone) {
-      // Redirect to the user's current onboarding step (capped to valid range 1-4)
-      const rawStep = profile.onboarding_current_step ?? 1
-      const step = Math.min(Math.max(rawStep, 1), 4)
       const url = request.nextUrl.clone()
-      url.pathname = `/onboarding/step${step}`
+
+      if (!profile.onboarding_type) {
+        // No type chosen yet - go to role selection
+        url.pathname = '/onboarding'
+      } else if (profile.onboarding_type === 'member') {
+        // Individual path
+        url.pathname = '/onboarding/join'
+      } else {
+        // Company/owner path - go to their current step
+        const rawStep = profile.onboarding_current_step ?? 1
+        const step = Math.min(Math.max(rawStep, 1), 4)
+        url.pathname = `/onboarding/step${step}`
+      }
       return NextResponse.redirect(url)
     }
   }

@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/email/resend'
 import { WelcomeToTeamEmail } from '@/components/emails/welcome-to-team'
+import { copyTeamContextToMember } from '@/lib/team/copy-context'
 
 /**
  * POST accept invitation
@@ -144,6 +145,9 @@ export async function POST(request: Request) {
       console.error('Add team member error:', memberError)
       return NextResponse.json({ error: 'Failed to join team' }, { status: 500 })
     }
+
+    // Copy company context and brand kit from team owner to new member
+    await copyTeamContextToMember(supabase, invitation.team_id, user.id)
 
     // Update invitation status
     await supabase

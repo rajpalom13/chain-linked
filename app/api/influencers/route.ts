@@ -7,6 +7,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { inngest } from '@/lib/inngest/client'
 
 /**
  * Extracts the LinkedIn username from a profile URL.
@@ -93,7 +94,17 @@ export async function POST(request: Request) {
     )
   }
 
-  const linkedin_username = extractLinkedInUsername(linkedin_url)
+  // Normalize and strictly validate LinkedIn URL format
+  const normalizedUrl = linkedin_url.trim().replace(/\/+$/, '').toLowerCase()
+  const linkedInUrlPattern = /^https?:\/\/(www\.)?linkedin\.com\/in\/[\w-]+$/
+  if (!linkedInUrlPattern.test(normalizedUrl)) {
+    return NextResponse.json(
+      { error: 'Invalid LinkedIn URL format. Expected: https://linkedin.com/in/username' },
+      { status: 400 }
+    )
+  }
+
+  const linkedin_username = extractLinkedInUsername(normalizedUrl)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: influencer, error: upsertError } = await (supabase as any)
@@ -101,7 +112,7 @@ export async function POST(request: Request) {
     .upsert(
       {
         user_id: user.id,
-        linkedin_url: linkedin_url.trim(),
+        linkedin_url: normalizedUrl,
         linkedin_username,
         author_name: author_name ?? null,
         author_headline: author_headline ?? null,
@@ -121,6 +132,18 @@ export async function POST(request: Request) {
     console.error('Influencer upsert error:', upsertError)
     return NextResponse.json({ error: 'Failed to follow influencer' }, { status: 500 })
   }
+
+  // Trigger immediate scrape for the new influencer
+  await inngest.send({
+    name: 'influencer/follow',
+    data: {
+      userId: user.id,
+      linkedinUrl: normalizedUrl,
+      linkedinUsername: linkedin_username,
+    },
+  }).catch((err) => {
+    console.error('Failed to trigger influencer scrape:', err)
+  })
 
   return NextResponse.json({ influencer }, { status: 201 })
 }

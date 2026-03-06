@@ -45,6 +45,14 @@ export default function OnboardingLayout({
    * Extracts the current step number from the URL path
    * Falls back to database-backed currentOnboardingStep if URL doesn't contain step
    */
+  /**
+   * Whether to show the 4-step progress bar.
+   * Hidden on role selection page and the individual/join path.
+   */
+  const isStepPath = pathname.match(/step(\d+)/) !== null
+  const isJoinOrRoleSelect = pathname === '/onboarding' || pathname.startsWith('/onboarding/join')
+  const showProgress = isStepPath && !isJoinOrRoleSelect
+
   const step = useMemo(() => {
     const match = pathname.match(/step(\d+)/)
     if (match) {
@@ -62,12 +70,14 @@ export default function OnboardingLayout({
         <OnboardingNavbar />
       </div>
 
-      {/* Progress indicator */}
-      <div className="w-full flex justify-center py-4 px-4">
-        <div className="w-full max-w-2xl">
-          <OnboardingProgress step={step} totalSteps={TOTAL_STEPS} />
+      {/* Progress indicator - only shown for company/owner step flow */}
+      {showProgress && (
+        <div className="w-full flex justify-center py-4 px-4">
+          <div className="w-full max-w-2xl">
+            <OnboardingProgress step={step} totalSteps={TOTAL_STEPS} />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Main content with transition animation */}
       <main

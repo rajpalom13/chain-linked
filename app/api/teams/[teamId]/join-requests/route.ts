@@ -6,6 +6,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { copyTeamContextToMember } from '@/lib/team/copy-context'
 
 /**
  * Route context type
@@ -159,7 +160,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (updateError) throw updateError
 
-    // If approved: create team member record
+    // If approved: create team member record and copy company context
     if (action === 'approve') {
       const { error: memberError } = await supabase
         .from('team_members')
@@ -179,6 +180,9 @@ export async function PATCH(request: Request, context: RouteContext) {
         console.error('[join-requests PATCH] member insert error:', memberError)
         return NextResponse.json({ error: 'Failed to add member' }, { status: 500 })
       }
+
+      // Copy company context and brand kit from team owner to new member
+      await copyTeamContextToMember(supabase, teamId, joinRequest.user_id)
     }
 
     return NextResponse.json({ request: updated })

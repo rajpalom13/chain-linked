@@ -215,15 +215,15 @@ export default function OnboardingPage() {
         {/* Role cards */}
         <div className="space-y-4">
           <RoleCard
-            title="I'm setting up my organization"
-            description="Create your company profile, brand kit, and invite your team members. Perfect for founders and marketing leads."
+            title="I'm setting up a new company"
+            description="Create your company profile, connect LinkedIn, run AI company analysis, build your brand kit, and invite your team."
             icon={IconBuilding}
             isSelected={selected === 'owner'}
             onSelect={() => setSelected('owner')}
           />
           <RoleCard
-            title="I'm joining an existing organization"
-            description="Search for your company and request to join. An admin will approve your request."
+            title="I'm joining as an individual"
+            description="Connect your LinkedIn profile and optionally search for your company to join. Get started in minutes."
             icon={IconUsers}
             isSelected={selected === 'member'}
             onSelect={() => setSelected('member')}

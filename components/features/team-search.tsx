@@ -110,7 +110,7 @@ export function TeamSearch({ onSelectTeam, className }: TeamSearchProps) {
         <Input
           value={query}
           onChange={e => setQuery(e.target.value)}
-          placeholder="Search for your organization..."
+          placeholder="Search by team or company name..."
           className="pl-9"
         />
         {isSearching && (

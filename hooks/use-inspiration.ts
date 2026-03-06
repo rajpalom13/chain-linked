@@ -319,6 +319,58 @@ export function useInspiration(initialLimit = PAGE_SIZE): UseInspirationReturn {
       }
       setError(null)
 
+      // Handle "Following" filter - fetch from influencer posts API
+      if (filters.followingOnly) {
+        try {
+          const res = await fetch(`/api/influencers/posts?page=${page}&limit=${PAGE_SIZE}`)
+          if (!res.ok) throw new Error('Failed to fetch influencer posts')
+
+          const { posts: influencerPosts, totalCount } = await res.json()
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const transformed: InspirationPost[] = (influencerPosts || []).map((post: any) => ({
+            id: post.id,
+            author: {
+              name: post.followed_influencers?.author_name || 'Unknown',
+              headline: post.followed_influencers?.author_headline || '',
+              avatar: post.followed_influencers?.author_profile_picture || undefined,
+            },
+            authorUrl: post.followed_influencers?.linkedin_url || undefined,
+            content: post.content || '',
+            category: 'general',
+            metrics: {
+              reactions: post.likes_count || 0,
+              comments: post.comments_count || 0,
+              reposts: post.reposts_count || 0,
+            },
+            postedAt: post.posted_at || new Date().toISOString(),
+          }))
+
+          if (append) {
+            setPosts(prev => [...prev, ...transformed])
+          } else {
+            setPosts(transformed)
+            setSuggestions([])
+            setRawPosts([])
+          }
+
+          setPagination({
+            page,
+            totalCount,
+            hasMore: (page + 1) * PAGE_SIZE < totalCount,
+            isLoadingMore: false,
+          })
+
+          setIsLoading(false)
+          return
+        } catch (err) {
+          console.error('Influencer posts fetch error:', err)
+          setError('Failed to fetch influencer posts')
+          setIsLoading(false)
+          return
+        }
+      }
+
       // Build query - now using linkedin_research_posts table with viral content
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let query = (supabase as any)

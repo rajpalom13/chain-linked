@@ -6,6 +6,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { sendEmail } from '@/lib/email/resend'
 
 /**
  * GET /api/teams/join-request
@@ -130,6 +131,10 @@ export async function POST(request: Request) {
         .single()
 
       if (updateError) throw updateError
+
+      // Send email notification to team owner(s)
+      await notifyTeamOwners(supabase, team_id, team.name, user)
+
       return NextResponse.json({ request: { ...updated, team_name: team.name } })
     }
 
@@ -149,6 +154,9 @@ export async function POST(request: Request) {
       console.error('[join-request POST] insert error:', insertError)
       return NextResponse.json({ error: 'Failed to create join request' }, { status: 500 })
     }
+
+    // Send email notification to team owner(s)
+    await notifyTeamOwners(supabase, team_id, team.name, user)
 
     return NextResponse.json({ request: { ...joinRequest, team_name: team.name } }, { status: 201 })
   } catch (err) {
@@ -204,5 +212,86 @@ export async function DELETE(request: Request) {
   } catch (err) {
     console.error('[join-request DELETE] error:', err)
     return NextResponse.json({ error: 'Failed to cancel request' }, { status: 500 })
+  }
+}
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * Notify team owners/admins via email about a new join request
+ * @param supabase - Supabase client instance
+ * @param teamId - Team that received the request
+ * @param teamName - Team name for email content
+ * @param requester - The user who submitted the join request
+ */
+async function notifyTeamOwners(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  teamId: string,
+  teamName: string,
+  requester: { id: string; email?: string }
+) {
+  try {
+    // Get team owners and admins
+    const { data: admins } = await supabase
+      .from('team_members')
+      .select('user_id')
+      .eq('team_id', teamId)
+      .in('role', ['owner', 'admin'])
+
+    if (!admins || admins.length === 0) return
+
+    // Get admin profiles for emails
+    const adminIds = admins.map(a => a.user_id)
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, email, full_name')
+      .in('id', adminIds)
+
+    if (!profiles || profiles.length === 0) return
+
+    // Get requester profile
+    const { data: requesterProfile } = await supabase
+      .from('profiles')
+      .select('full_name, email')
+      .eq('id', requester.id)
+      .single()
+
+    const requesterName = requesterProfile?.full_name || requesterProfile?.email || requester.email || 'Someone'
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://chainlinked.ai'
+
+    // Send email to each admin/owner
+    for (const profile of profiles) {
+      if (!profile.email) continue
+
+      await sendEmail({
+        to: profile.email,
+        subject: `${requesterName} wants to join ${teamName}`,
+        html: `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
+            <h2 style="font-size: 18px; font-weight: 600; margin-bottom: 16px;">New Join Request</h2>
+            <p style="color: #555; font-size: 14px; line-height: 1.6;">
+              <strong>${requesterName}</strong> has requested to join <strong>${teamName}</strong>.
+            </p>
+            <p style="color: #555; font-size: 14px; line-height: 1.6;">
+              You can review and approve or decline this request from the Team Activity page.
+            </p>
+            <a href="${appUrl}/dashboard/team/activity"
+               style="display: inline-block; margin-top: 16px; padding: 10px 20px; background: #2563eb; color: white; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 500;">
+              Review Request
+            </a>
+            <p style="color: #888; font-size: 12px; margin-top: 24px;">
+              — ChainLinked
+            </p>
+          </div>
+        `,
+      })
+    }
+
+    console.log(`[join-request] Notified ${profiles.length} admin(s) about join request from ${requesterName}`)
+  } catch (err) {
+    // Don't fail the request if email fails
+    console.error('[join-request] Failed to send owner notification:', err)
   }
 }

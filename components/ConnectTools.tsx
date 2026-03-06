@@ -30,6 +30,8 @@ interface ConnectToolsProps {
   onLinkedInStatusChange?: (connected: boolean) => void
   /** Callback for saving state */
   onSavingChange?: (saving: boolean) => void
+  /** Compact single-column layout for narrow containers (e.g. join flow) */
+  compact?: boolean
 }
 
 /**
@@ -50,6 +52,7 @@ interface LinkedInStatus {
 export default function ConnectTools({
   onLinkedInStatusChange,
   onSavingChange,
+  compact = false,
 }: ConnectToolsProps) {
   const [linkedinStatus, setLinkedinStatus] = useState<LinkedInStatus>({})
   const [isLoadingLinkedIn, setIsLoadingLinkedIn] = useState(true)
@@ -103,6 +106,67 @@ export default function ConnectTools({
     }
   }, [linkedinConnectedParam, linkedinError, fetchLinkedInStatus])
 
+  if (compact) {
+    return (
+      <div className="w-full space-y-4">
+        <Card className="border border-border rounded-xl shadow-xs">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2 text-base font-medium">
+                <Button variant="outline" size="icon" className="w-7 h-7 shrink-0">
+                  <IconBrandLinkedin className="size-4" />
+                </Button>
+                LinkedIn Account
+              </CardTitle>
+              <Badge
+                variant={linkedinStatus.connected ? "default" : "secondary"}
+                className="text-xs shrink-0"
+              >
+                {isLoadingLinkedIn
+                  ? "Checking..."
+                  : linkedinStatus.connected
+                    ? "Connected"
+                    : "Not connected"
+                }
+              </Badge>
+            </div>
+            {linkedinStatus.connected ? (
+              <CardDescription className="text-sm text-muted-foreground mt-1">
+                {linkedinStatus.profileName
+                  ? `Connected as ${linkedinStatus.profileName}`
+                  : "Your LinkedIn account is connected."
+                }
+                {linkedinStatus.needsReconnect && " — Token expiring soon, consider reconnecting."}
+              </CardDescription>
+            ) : (
+              <CardDescription className="text-sm text-muted-foreground mt-1">
+                Connect your LinkedIn account to enable direct posting and analytics.
+              </CardDescription>
+            )}
+          </CardHeader>
+          <CardContent className="flex gap-3">
+            {!linkedinStatus.connected && (
+              <Button size="sm" asChild disabled={isLoadingLinkedIn}>
+                <Link href={linkedinConnectUrl}>
+                  <IconBrandLinkedin className="h-4 w-4 mr-2" />
+                  Connect LinkedIn
+                </Link>
+              </Button>
+            )}
+            {linkedinStatus.connected && linkedinStatus.needsReconnect && (
+              <Button size="sm" variant="outline" asChild disabled={isLoadingLinkedIn}>
+                <Link href={linkedinConnectUrl}>
+                  <IconBrandLinkedin className="h-4 w-4 mr-2" />
+                  Reconnect
+                </Link>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col lg:flex-row gap-6 w-full max-w-6xl mx-auto p-6 bg-background">
       <div className="flex-1 flex flex-col">
@@ -130,7 +194,7 @@ export default function ConnectTools({
                 </div>
                 <Badge
                   variant={linkedinStatus.connected ? "default" : "secondary"}
-                  className="text-xs"
+                  className="text-xs shrink-0"
                 >
                   {isLoadingLinkedIn
                     ? "Checking..."

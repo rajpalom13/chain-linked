@@ -26,6 +26,7 @@ const ALLOWED_HOSTNAMES = [
   'media.licdn.com',
   'img.logo.dev',
   'images.unsplash.com',
+  'cdn.brandfetch.io',
 ]
 
 /**

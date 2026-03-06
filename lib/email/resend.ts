@@ -10,7 +10,7 @@ import { Resend } from 'resend'
 /**
  * Default email configuration
  */
-const DEFAULT_FROM_EMAIL = process.env.EMAIL_FROM_ADDRESS || 'team@omrajpal.tech'
+const DEFAULT_FROM_EMAIL = process.env.EMAIL_FROM_ADDRESS || 'team@chainlinked.ai'
 const DEFAULT_FROM_NAME = process.env.EMAIL_FROM_NAME || 'ChainLinked'
 
 /**

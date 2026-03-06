@@ -136,11 +136,13 @@ function TemplateRow({
   }
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={handleClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick() } }}
       className={cn(
-        "w-full text-left flex items-center gap-3 px-4 py-3 rounded-lg border",
+        "w-full text-left flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer",
         "bg-gradient-to-r",
         colors.gradient,
         "hover:shadow-sm transition-all",
@@ -239,7 +241,7 @@ function TemplateRow({
           </DropdownMenu>
         </div>
       )}
-    </button>
+    </div>
   )
 }
 

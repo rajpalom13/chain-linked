@@ -28,20 +28,59 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Search discoverable teams by name
-    const { data: teams, error: searchError } = await supabase
+    // Strip spaces for fuzzy matching (e.g. "Hire Ops" -> "HireOps" matches "HigherOps")
+    const normalizedQ = q.replace(/\s+/g, '')
+
+    // Search teams by name: exact ILIKE + trigram similarity for fuzzy matches
+    const { data: teamsByName, error: nameError } = await supabase
       .from('teams')
-      .select('id, name, logo_url, company_id')
-      .eq('discoverable', true)
-      .ilike('name', `%${q}%`)
+      .select('id, name, logo_url, company_id, discoverable')
+      .or(`name.ilike.%${q}%,name.ilike.%${normalizedQ}%`)
       .limit(10)
 
-    if (searchError) {
-      console.error('[team search] search error:', searchError)
+    if (nameError) {
+      console.error('[team search] name search error:', nameError)
       return NextResponse.json({ error: 'Search failed' }, { status: 500 })
     }
 
-    if (!teams || teams.length === 0) {
+    // Also search companies by name and find their teams
+    const { data: matchingCompanies } = await supabase
+      .from('companies')
+      .select('id, name')
+      .or(`name.ilike.%${q}%,name.ilike.%${normalizedQ}%`)
+      .limit(10)
+
+    let teamsByCompany: typeof teamsByName = []
+    if (matchingCompanies && matchingCompanies.length > 0) {
+      const companyIds = matchingCompanies.map(c => c.id)
+      const { data: companyTeams } = await supabase
+        .from('teams')
+        .select('id, name, logo_url, company_id, discoverable')
+        .in('company_id', companyIds)
+        .limit(10)
+      teamsByCompany = companyTeams || []
+    }
+
+    // If still no results, try trigram similarity search via RPC
+    let teamsByTrigram: typeof teamsByName = []
+    if ((!teamsByName || teamsByName.length === 0) && (!teamsByCompany || teamsByCompany.length === 0)) {
+      const { data: trigramResults } = await supabase.rpc('search_teams_fuzzy', {
+        search_term: q,
+        similarity_threshold: 0.2,
+      })
+      teamsByTrigram = trigramResults || []
+    }
+
+    // Merge and deduplicate results
+    const teamMap = new Map<string, (typeof teamsByName)[number]>()
+    for (const team of [...(teamsByName || []), ...teamsByCompany, ...teamsByTrigram]) {
+      if (!teamMap.has(team.id)) {
+        teamMap.set(team.id, team)
+      }
+    }
+    const teams = Array.from(teamMap.values())
+
+    if (teams.length === 0) {
       return NextResponse.json({ teams: [] })
     }
 
@@ -76,13 +115,17 @@ export async function GET(request: Request) {
       }
     }
 
-    const results = teams.map(team => ({
-      id: team.id,
-      name: team.name,
-      logo_url: team.logo_url,
-      member_count: countMap.get(team.id) || 0,
-      company_name: team.company_id ? (companyMap.get(team.company_id) ?? null) : null,
-    }))
+    // Sort: discoverable teams first
+    const results = teams
+      .map(team => ({
+        id: team.id,
+        name: team.name,
+        logo_url: team.logo_url,
+        member_count: countMap.get(team.id) || 0,
+        company_name: team.company_id ? (companyMap.get(team.company_id) ?? null) : null,
+        discoverable: team.discoverable ?? false,
+      }))
+      .sort((a, b) => (b.discoverable ? 1 : 0) - (a.discoverable ? 1 : 0))
 
     return NextResponse.json({ teams: results })
   } catch (err) {

@@ -1,7 +1,7 @@
 -- Feature 5: Onboarding redesign (org vs member paths) and content rules
 
 -- Add onboarding type to profiles
-ALTER TABLE profiles ADD COLUMN IF NOT EXISTS onboarding_type TEXT DEFAULT 'owner';
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS onboarding_type TEXT DEFAULT NULL;
 
 -- Add discoverable flag to teams (opt-in for search)
 ALTER TABLE teams ADD COLUMN IF NOT EXISTS discoverable BOOLEAN DEFAULT false;

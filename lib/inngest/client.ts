@@ -222,6 +222,42 @@ export type InngestEvents = {
       categoriesProcessed: number
     }
   }
+
+  // Influencer Post Scrape Events
+  'influencer/follow': {
+    data: {
+      /** User who followed the influencer */
+      userId: string
+      /** LinkedIn URL of the followed influencer */
+      linkedinUrl: string
+      /** LinkedIn username */
+      linkedinUsername: string | null
+    }
+  }
+  'influencer/scrape.completed': {
+    data: {
+      /** Number of unique influencers scraped */
+      influencersScraped: number
+      /** Total posts found across all influencers */
+      postsFound: number
+      /** Posts that passed quality filter */
+      postsApproved: number
+    }
+  }
+
+  // Viral Post Ingest Events
+  'viral/ingest.completed': {
+    data: {
+      /** Number of source profiles scraped */
+      profilesScraped: number
+      /** Total posts found */
+      postsFound: number
+      /** Posts that passed quality filter */
+      postsApproved: number
+      /** Stale posts removed during cleanup */
+      staleRemoved: number
+    }
+  }
 }
 
 /**
