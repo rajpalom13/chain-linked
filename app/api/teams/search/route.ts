@@ -64,11 +64,12 @@ export async function GET(request: Request) {
     // If still no results, try trigram similarity search via RPC
     let teamsByTrigram: typeof teamsByName = []
     if ((!teamsByName || teamsByName.length === 0) && (!teamsByCompany || teamsByCompany.length === 0)) {
-      const { data: trigramResults } = await supabase.rpc('search_teams_fuzzy', {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: trigramResults } = await (supabase.rpc as any)('search_teams_fuzzy', {
         search_term: q,
         similarity_threshold: 0.2,
       })
-      teamsByTrigram = trigramResults || []
+      teamsByTrigram = (trigramResults as typeof teamsByName) || []
     }
 
     // Merge and deduplicate results
