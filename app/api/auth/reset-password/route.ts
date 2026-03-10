@@ -69,14 +69,11 @@ export async function POST(request: NextRequest) {
     // Generate a password reset link via Supabase admin API.
     // Route through /api/auth/callback so the PKCE auth code is exchanged
     // for a session, then the callback redirects to /reset-password.
-    console.log(`[ResetPassword] Generating recovery link with redirectTo: ${appUrl}/api/auth/callback?redirect=/reset-password`)
+    console.log(`[ResetPassword] Generating recovery link for: ${email}`)
 
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: 'recovery',
       email,
-      options: {
-        redirectTo: `${appUrl}/api/auth/callback?redirect=/reset-password`,
-      },
     })
 
     if (error) {
@@ -96,8 +93,8 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    if (!data?.properties?.action_link) {
-      console.log('[ResetPassword] No action_link returned — user may not exist')
+    if (!data?.properties?.hashed_token) {
+      console.log('[ResetPassword] No hashed_token returned — user may not exist')
       // User may not exist — return generic success (don't reveal)
       return NextResponse.json({
         success: true,
@@ -105,7 +102,12 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    console.log(`[ResetPassword] Generated action_link successfully, sending email via Resend`)
+    // Build a direct reset link that bypasses PKCE.
+    // The reset-password page will use verifyOtp() with the token_hash
+    // to establish a session client-side.
+    const resetLink = `${appUrl}/reset-password?token_hash=${encodeURIComponent(data.properties.hashed_token)}&type=recovery`
+
+    console.log(`[ResetPassword] Generated token_hash successfully, sending email via Resend`)
 
     // Send the reset email via Resend
     try {
@@ -114,7 +116,7 @@ export async function POST(request: NextRequest) {
         subject: 'Reset your ChainLinked password',
         react: PasswordResetEmail({
           email,
-          resetLink: data.properties.action_link,
+          resetLink,
           expiresInHours: 1,
         }),
       })

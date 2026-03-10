@@ -52,58 +52,58 @@ export type Database = {
       }
       analytics_summary_cache: {
         Row: {
-          id: string
-          user_id: string
-          metric: string
-          period: string
-          metric_type: string
-          current_total: number
-          current_avg: number
-          current_count: number
-          comp_total: number
+          accumulative_total: number | null
           comp_avg: number
           comp_count: number
-          pct_change: number
-          accumulative_total: number | null
-          timeseries: Json
+          comp_total: number
           computed_at: string
           created_at: string
+          current_avg: number
+          current_count: number
+          current_total: number
+          id: string
+          metric: string
+          metric_type: string
+          pct_change: number
+          period: string
+          timeseries: Json
+          user_id: string
         }
         Insert: {
-          id?: string
-          user_id: string
-          metric: string
-          period: string
-          metric_type?: string
-          current_total?: number
-          current_avg?: number
-          current_count?: number
-          comp_total?: number
+          accumulative_total?: number | null
           comp_avg?: number
           comp_count?: number
-          pct_change?: number
-          accumulative_total?: number | null
-          timeseries?: Json
+          comp_total?: number
           computed_at?: string
           created_at?: string
+          current_avg?: number
+          current_count?: number
+          current_total?: number
+          id?: string
+          metric: string
+          metric_type?: string
+          pct_change?: number
+          period: string
+          timeseries?: Json
+          user_id: string
         }
         Update: {
-          id?: string
-          user_id?: string
-          metric?: string
-          period?: string
-          metric_type?: string
-          current_total?: number
-          current_avg?: number
-          current_count?: number
-          comp_total?: number
+          accumulative_total?: number | null
           comp_avg?: number
           comp_count?: number
-          pct_change?: number
-          accumulative_total?: number | null
-          timeseries?: Json
+          comp_total?: number
           computed_at?: string
           created_at?: string
+          current_avg?: number
+          current_count?: number
+          current_total?: number
+          id?: string
+          metric?: string
+          metric_type?: string
+          pct_change?: number
+          period?: string
+          timeseries?: Json
+          user_id?: string
         }
         Relationships: []
       }
@@ -472,42 +472,6 @@ export type Database = {
         }
         Relationships: []
       }
-      content_rules: {
-        Row: {
-          id: string
-          user_id: string
-          team_id: string | null
-          rule_type: string
-          rule_text: string
-          is_active: boolean
-          priority: number
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          team_id?: string | null
-          rule_type?: string
-          rule_text: string
-          is_active?: boolean
-          priority?: number
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          team_id?: string | null
-          rule_type?: string
-          rule_text?: string
-          is_active?: boolean
-          priority?: number
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       company_context: {
         Row: {
           brand_colors: Json | null
@@ -577,6 +541,42 @@ export type Database = {
         }
         Relationships: []
       }
+      compose_conversations: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          messages: Json
+          mode: string
+          title: string | null
+          tone: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          messages?: Json
+          mode: string
+          title?: string | null
+          tone?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          messages?: Json
+          mode?: string
+          title?: string | null
+          tone?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       connections: {
         Row: {
           connected_at: string | null
@@ -624,6 +624,50 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      content_rules: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          priority: number | null
+          rule_text: string
+          rule_type: string
+          team_id: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          priority?: number | null
+          rule_text: string
+          rule_type: string
+          team_id?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          priority?: number | null
+          rule_text?: string
+          rule_type?: string
+          team_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_rules_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       discover_news_articles: {
         Row: {
@@ -856,6 +900,51 @@ export type Database = {
         }
         Relationships: []
       }
+      followed_influencers: {
+        Row: {
+          author_headline: string | null
+          author_name: string | null
+          author_profile_picture: string | null
+          created_at: string | null
+          id: string
+          last_scraped_at: string | null
+          linkedin_url: string
+          linkedin_username: string | null
+          posts_count: number | null
+          status: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          author_headline?: string | null
+          author_name?: string | null
+          author_profile_picture?: string | null
+          created_at?: string | null
+          id?: string
+          last_scraped_at?: string | null
+          linkedin_url: string
+          linkedin_username?: string | null
+          posts_count?: number | null
+          status?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          author_headline?: string | null
+          author_name?: string | null
+          author_profile_picture?: string | null
+          created_at?: string | null
+          id?: string
+          last_scraped_at?: string | null
+          linkedin_url?: string
+          linkedin_username?: string | null
+          posts_count?: number | null
+          status?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       followers: {
         Row: {
           created_at: string | null
@@ -1023,6 +1112,71 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      influencer_posts: {
+        Row: {
+          comments_count: number | null
+          content: string
+          created_at: string | null
+          id: string
+          influencer_id: string
+          likes_count: number | null
+          linkedin_url: string | null
+          post_type: string | null
+          posted_at: string | null
+          quality_score: number | null
+          quality_status: string | null
+          raw_data: Json | null
+          rejection_reason: string | null
+          reposts_count: number | null
+          scraped_at: string | null
+          user_id: string
+        }
+        Insert: {
+          comments_count?: number | null
+          content: string
+          created_at?: string | null
+          id?: string
+          influencer_id: string
+          likes_count?: number | null
+          linkedin_url?: string | null
+          post_type?: string | null
+          posted_at?: string | null
+          quality_score?: number | null
+          quality_status?: string | null
+          raw_data?: Json | null
+          rejection_reason?: string | null
+          reposts_count?: number | null
+          scraped_at?: string | null
+          user_id: string
+        }
+        Update: {
+          comments_count?: number | null
+          content?: string
+          created_at?: string | null
+          id?: string
+          influencer_id?: string
+          likes_count?: number | null
+          linkedin_url?: string | null
+          post_type?: string | null
+          posted_at?: string | null
+          quality_score?: number | null
+          quality_status?: string | null
+          raw_data?: Json | null
+          rejection_reason?: string | null
+          reposts_count?: number | null
+          scraped_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "influencer_posts_influencer_id_fkey"
+            columns: ["influencer_id"]
+            isOneToOne: false
+            referencedRelation: "followed_influencers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       inspiration_posts: {
         Row: {
@@ -2898,42 +3052,50 @@ export type Database = {
       }
       team_join_requests: {
         Row: {
+          created_at: string | null
           id: string
-          team_id: string
-          user_id: string
-          status: string
           message: string | null
-          admin_note: string | null
-          reviewed_by: string | null
+          review_note: string | null
           reviewed_at: string | null
-          created_at: string
-          updated_at: string
+          reviewed_by: string | null
+          status: string
+          team_id: string
+          updated_at: string | null
+          user_id: string
         }
         Insert: {
+          created_at?: string | null
           id?: string
-          team_id: string
-          user_id: string
-          status?: string
           message?: string | null
-          admin_note?: string | null
-          reviewed_by?: string | null
+          review_note?: string | null
           reviewed_at?: string | null
-          created_at?: string
-          updated_at?: string
+          reviewed_by?: string | null
+          status?: string
+          team_id: string
+          updated_at?: string | null
+          user_id: string
         }
         Update: {
+          created_at?: string | null
           id?: string
-          team_id?: string
-          user_id?: string
-          status?: string
           message?: string | null
-          admin_note?: string | null
-          reviewed_by?: string | null
+          review_note?: string | null
           reviewed_at?: string | null
-          created_at?: string
-          updated_at?: string
+          reviewed_by?: string | null
+          status?: string
+          team_id?: string
+          updated_at?: string | null
+          user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "team_join_requests_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       team_members: {
         Row: {
@@ -3169,6 +3331,36 @@ export type Database = {
           source?: string | null
           updated_at?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      viral_source_profiles: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          display_name: string | null
+          id: string
+          linkedin_url: string
+          linkedin_username: string | null
+          status: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          display_name?: string | null
+          id?: string
+          linkedin_url: string
+          linkedin_username?: string | null
+          status?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          display_name?: string | null
+          id?: string
+          linkedin_url?: string
+          linkedin_username?: string | null
+          status?: string | null
         }
         Relationships: []
       }
@@ -3425,6 +3617,16 @@ export type Database = {
           value: number
         }[]
       }
+      is_company_team_member: {
+        Args: { target_company_id: string }
+        Returns: boolean
+      }
+      is_member_of_team: { Args: { target_team_id: string }; Returns: boolean }
+      is_team_admin_or_owner: {
+        Args: { target_team_id: string }
+        Returns: boolean
+      }
+      is_team_mate: { Args: { target_user_id: string }; Returns: boolean }
       search_connections_mentions: {
         Args: { p_query: string; p_user_id: string }
         Returns: {
@@ -3436,6 +3638,18 @@ export type Database = {
           root_url: string
         }[]
       }
+      search_teams_fuzzy: {
+        Args: { search_term: string; similarity_threshold?: number }
+        Returns: {
+          company_id: string
+          discoverable: boolean
+          id: string
+          logo_url: string
+          name: string
+        }[]
+      }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
       prompt_type:

@@ -80,12 +80,36 @@ export function ComposeBasicMode({
   initialLength,
   initialContext,
 }: ComposeBasicModeProps) {
-  const [topic, setTopic] = React.useState(initialTopic ?? '')
-  const [tone, setTone] = React.useState(initialTone ?? 'professional')
-  const [length, setLength] = React.useState(initialLength ?? 'medium')
-  const [context, setContext] = React.useState(initialContext ?? '')
+  const STORAGE_KEY = 'chainlinked-compose-basic-fields'
+
+  /** Load persisted fields from localStorage (only if no initial values provided) */
+  const loadPersistedFields = React.useCallback(() => {
+    if (typeof window === 'undefined') return null
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY)
+      return stored ? JSON.parse(stored) : null
+    } catch {
+      return null
+    }
+  }, [])
+
+  const persisted = React.useMemo(() => loadPersistedFields(), [loadPersistedFields])
+
+  const [topic, setTopic] = React.useState(initialTopic ?? persisted?.topic ?? '')
+  const [tone, setTone] = React.useState(initialTone ?? persisted?.tone ?? 'professional')
+  const [length, setLength] = React.useState(initialLength ?? persisted?.length ?? 'medium')
+  const [context, setContext] = React.useState(initialContext ?? persisted?.context ?? '')
   const [isGenerating, setIsGenerating] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+
+  /** Persist field values to localStorage on change */
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ topic, tone, length, context }))
+    } catch {
+      // Silently fail
+    }
+  }, [topic, tone, length, context])
 
   /** Sync initial values when they change (e.g. template loaded) */
   React.useEffect(() => {

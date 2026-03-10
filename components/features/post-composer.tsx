@@ -69,10 +69,14 @@ import { usePostingConfig } from "@/hooks/use-posting-config"
 import { useApiKeys } from "@/hooks/use-api-keys"
 import { buildMentionToken, countCharactersWithMentions } from "@/lib/linkedin/mentions"
 import { useComposeMode } from "@/hooks/use-compose-mode"
+import { useTextSelectionPopup } from "@/hooks/use-text-selection-popup"
+import { useConversationPersistence } from "@/hooks/use-conversation-persistence"
 import { ComposeModeToggle } from "./compose/compose-mode-toggle"
 import { ComposeGradientBackdrop } from "./compose/compose-gradient-backdrop"
 import { ComposeBasicMode } from "./compose/compose-basic-mode"
 import { ComposeAdvancedMode } from "./compose/compose-advanced-mode"
+import { EditWithAIPopup } from "./compose/edit-with-ai-popup"
+import { InlineDiffView } from "./compose/inline-diff-view"
 
 /**
  * Props for the PostComposer component
@@ -286,6 +290,28 @@ export function PostComposer({
     // Only run once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Edit with AI popup state
+  const selectionPopup = useTextSelectionPopup(textareaRef, content, isEditing)
+  const [isEditingWithAI, setIsEditingWithAI] = React.useState(false)
+  const [pendingSuggestion, setPendingSuggestion] = React.useState<{
+    suggestion: string
+    selectionStart: number
+    selectionEnd: number
+  } | null>(null)
+
+  // Conversation persistence for advanced mode
+  const {
+    persistedMessages,
+    conversationId: persistedConvoId,
+    saveMessages: saveConvoMessages,
+    clearConversation: clearConvo,
+    isLoading: convoLoading,
+  } = useConversationPersistence('advanced')
+
+  // Save Draft button state
+  const [isSavingDraft, setIsSavingDraft] = React.useState(false)
+  const [draftSaved, setDraftSaved] = React.useState(false)
 
   // Auto-save status indicator
   const { isSaving, lastSaved } = useAutoSave(content, 1500)
@@ -835,6 +861,113 @@ export function PostComposer({
   }
 
   /**
+   * Handles AI editing of selected text.
+   * Sends selected text + instruction to /api/ai/edit-selection, replaces selection with result.
+   * @param instruction - The user's editing instruction
+   */
+  const handleEditWithAI = async (instruction: string) => {
+    const { selectedText, selectionRange } = selectionPopup
+    if (!selectedText.trim()) return
+
+    setIsEditingWithAI(true)
+    try {
+      const res = await fetch('/api/ai/edit-selection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          selectedText,
+          instruction,
+          fullPostContent: content,
+        }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Failed to edit selection')
+      }
+
+      const { editedText } = await res.json()
+
+      // Preserve leading/trailing whitespace from original selection
+      const leadingWS = selectedText.match(/^(\s*)/)?.[1] || ''
+      const trailingWS = selectedText.match(/(\s*)$/)?.[1] || ''
+      const trimmedEdit = editedText.trim()
+      const preservedEdit = leadingWS + trimmedEdit + trailingWS
+
+      // Store suggestion for inline diff preview instead of applying immediately
+      setPendingSuggestion({
+        suggestion: preservedEdit,
+        selectionStart: selectionRange.start,
+        selectionEnd: selectionRange.end,
+      })
+      selectionPopup.dismiss()
+    } catch (err) {
+      console.error('Edit with AI error:', err)
+      toast.error(err instanceof Error ? err.message : 'Failed to edit selection')
+    } finally {
+      setIsEditingWithAI(false)
+    }
+  }
+
+  /** Accept the AI suggestion and apply it to the content */
+  const handleAcceptSuggestion = () => {
+    if (!pendingSuggestion) return
+    const { suggestion, selectionStart, selectionEnd } = pendingSuggestion
+    const newContent =
+      content.slice(0, selectionStart) +
+      suggestion +
+      content.slice(selectionEnd)
+    handleContentChange(newContent)
+    setPendingSuggestion(null)
+    showSuccess('AI edit applied')
+  }
+
+  /** Reject the AI suggestion and go back to editing */
+  const handleRejectSuggestion = () => {
+    setPendingSuggestion(null)
+  }
+
+  /**
+   * Saves the current content as a draft to Supabase
+   */
+  const handleSaveDraft = async () => {
+    if (!content.trim()) return
+    setIsSavingDraft(true)
+    setDraftSaved(false)
+
+    try {
+      const wordCount = content.trim().split(/\s+/).filter(Boolean).length
+      const res = await fetch('/api/drafts/auto-save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: content.trim(),
+          postType: 'general',
+          wordCount,
+          draftId: draft.savedDraftId || undefined,
+        }),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        if (data.id) {
+          updateDraft({ savedDraftId: data.id })
+        }
+        setDraftSaved(true)
+        showSuccess('Draft saved')
+        // Reset saved indicator after 3 seconds
+        setTimeout(() => setDraftSaved(false), 3000)
+      } else {
+        toast.error('Failed to save draft')
+      }
+    } catch {
+      toast.error('Failed to save draft')
+    } finally {
+      setIsSavingDraft(false)
+    }
+  }
+
+  /**
    * Enters edit mode on the right-side preview
    */
   const enterEditMode = () => {
@@ -878,6 +1011,17 @@ export function PostComposer({
                         </>
                       ) : null}
                     </div>
+                  )}
+                  {composeMode === 'advanced' && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearConvo}
+                      className="text-xs text-muted-foreground gap-1"
+                    >
+                      <IconX className="size-3" />
+                      New Chat
+                    </Button>
                   )}
                   <ComposeModeToggle mode={composeMode} onModeChange={setComposeMode} />
                 </div>
@@ -974,6 +1118,10 @@ export function PostComposer({
                         setIsEditing(false)
                       }}
                       hasApiKey={hasApiKey}
+                      persistedMessages={persistedMessages.length > 0 ? persistedMessages as unknown as import("ai").UIMessage[] : undefined}
+                      conversationId={persistedConvoId}
+                      onMessagesChange={(msgs) => saveConvoMessages(msgs as unknown as Array<{ id: string; role: string; parts: Array<{ type: string; text?: string; [key: string]: unknown }> }>)}
+                      onNewChat={clearConvo}
                     />
                   </motion.div>
                 )}
@@ -1038,7 +1186,17 @@ export function PostComposer({
                 <div ref={editingZoneRef}>
                   {/* Post Content — dual mode */}
                   <div className="px-4 pb-3">
-                    {isEditing ? (
+                    {pendingSuggestion ? (
+                      /* Inline diff view: show AI suggestion with accept/reject */
+                      <InlineDiffView
+                        content={content}
+                        selectionStart={pendingSuggestion.selectionStart}
+                        selectionEnd={pendingSuggestion.selectionEnd}
+                        suggestion={pendingSuggestion.suggestion}
+                        onAccept={handleAcceptSuggestion}
+                        onReject={handleRejectSuggestion}
+                      />
+                    ) : isEditing ? (
                       /* Edit mode: borderless textarea styled to match preview */
                       <div className="relative">
                         <textarea
@@ -1078,6 +1236,16 @@ export function PostComposer({
                           position={mentionPosition}
                           onSelect={handleMentionSelect}
                           onClose={() => setMentionOpen(false)}
+                        />
+                        {/* Edit with AI floating popup */}
+                        <EditWithAIPopup
+                          isVisible={selectionPopup.showPopup && !mentionOpen}
+                          position={selectionPopup.popupPosition}
+                          selectedText={selectionPopup.selectedText}
+                          onSubmit={handleEditWithAI}
+                          isLoading={isEditingWithAI}
+                          onClose={selectionPopup.dismiss}
+                          popupRef={selectionPopup.popupRef}
                         />
                       </div>
                     ) : (
@@ -1586,6 +1754,22 @@ export function PostComposer({
               </div>
 
               <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSaveDraft}
+                  disabled={isSavingDraft || !content.trim()}
+                  className="gap-1.5"
+                >
+                  {isSavingDraft ? (
+                    <IconLoader2 className="size-3.5 animate-spin" />
+                  ) : draftSaved ? (
+                    <IconCheck className="size-3.5 text-green-500" />
+                  ) : (
+                    <IconFile className="size-3.5" />
+                  )}
+                  {draftSaved ? 'Saved' : 'Save Draft'}
+                </Button>
                 <Button
                   variant="outline"
                   onClick={handleScheduleClick}

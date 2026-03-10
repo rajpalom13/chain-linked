@@ -354,13 +354,13 @@ ${ctaInstruction}
 ${JSON.stringify(slotList, null, 2)}
 
 Remember:
-1. Slide 1 must STOP THE SCROLL — make it impossible to ignore
+1. Slide 1 must STOP THE SCROLL:make it impossible to ignore
 2. Each middle slide should deliver on the hook's promise
 3. Final slide should drive maximum engagement
 4. Stay within character limits for each slot
 5. Return ONLY the JSON object with slot content${additionalContext?.trim() ? `
 
-IMPORTANT — The user has given these specific instructions. You MUST follow them exactly, even if they override the default formatting rules above:
+IMPORTANT:The user has given these specific instructions. You MUST follow them exactly, even if they override the default formatting rules above:
 
 ${additionalContext.trim()}` : ''}`
 

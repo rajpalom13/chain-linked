@@ -1,11 +1,10 @@
 "use client"
 
 /**
- * Compose Advanced Mode
- * @description Conversation-first chat interface for AI post generation.
- * Uses useChat from @ai-sdk/react for streaming, renders tool call results
- * as MCQ options and post preview cards.
- * @module components/features/compose/compose-advanced-mode
+ * Compose Series Mode
+ * @description Chat interface for generating a series of related posts.
+ * Uses useChat with the compose-series API endpoint and tools.
+ * @module components/features/compose/compose-series-mode
  */
 
 import * as React from "react"
@@ -31,30 +30,26 @@ import {
   mcqOptionVariants,
   staggerFastContainerVariants,
 } from "@/lib/animations"
-import type { McqOption } from "@/types/compose"
+import type { McqOption, SeriesPost } from "@/types/compose"
 
 /**
- * Props for ComposeAdvancedMode
+ * Props for ComposeSeriesMode
  */
-interface ComposeAdvancedModeProps {
-  /** Callback when a post is generated and user wants to use it */
-  onGenerated: (content: string) => void
-  /** Whether the user has an API key configured */
+interface ComposeSeriesModeProps {
+  /** Callback when series is generated */
+  onSeriesGenerated: (posts: SeriesPost[]) => void
+  /** Whether user has API key */
   hasApiKey: boolean
-  /** Persisted messages from database (for conversation persistence) */
+  /** Persisted messages from database */
   persistedMessages?: UIMessage[]
-  /** Current conversation ID */
-  conversationId?: string | null
-  /** Callback when messages change (for persistence) */
+  /** Callback when messages change */
   onMessagesChange?: (messages: UIMessage[]) => void
-  /** Callback to start a new chat */
+  /** Callback to start new chat */
   onNewChat?: () => void
 }
 
 /**
  * Extracts text content from a UIMessage's parts array
- * @param parts - The message parts array
- * @returns Combined text content
  */
 function getTextFromParts(parts: Array<{ type: string; text?: string }>): string {
   return parts
@@ -64,32 +59,30 @@ function getTextFromParts(parts: Array<{ type: string; text?: string }>): string
 }
 
 /**
- * Advanced compose mode with a streaming chat interface.
- * AI asks contextual MCQ questions via tool calls before generating a post.
+ * Series mode chat interface with streaming AI conversation
  * @param props - Component props
- * @returns Advanced mode chat JSX element
+ * @returns Series mode chat JSX element
  */
-export function ComposeAdvancedMode({
-  onGenerated,
+export function ComposeSeriesMode({
+  onSeriesGenerated,
   hasApiKey,
   persistedMessages: persistedMsgs,
-  conversationId,
   onMessagesChange,
   onNewChat,
-}: ComposeAdvancedModeProps) {
+}: ComposeSeriesModeProps) {
   const [tone, setTone] = React.useState('professional')
   const [showToneSelector, setShowToneSelector] = React.useState(false)
   const [input, setInput] = React.useState('')
   const [customInputId, setCustomInputId] = React.useState<string | null>(null)
   const [customInputValue, setCustomInputValue] = React.useState('')
-  const [hasGeneratedPost, setHasGeneratedPost] = React.useState(false)
+  const [hasGeneratedSeries, setHasGeneratedSeries] = React.useState(false)
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const inputRef = React.useRef<HTMLInputElement>(null)
   const customInputRef = React.useRef<HTMLInputElement>(null)
 
   const transport = React.useMemo(
     () => new DefaultChatTransport({
-      api: '/api/ai/compose-chat',
+      api: '/api/ai/compose-series',
       body: { tone },
     }),
     [tone]
@@ -99,7 +92,7 @@ export function ComposeAdvancedMode({
     {
       id: 'greeting',
       role: 'assistant',
-      parts: [{ type: 'text', text: 'What do you want to post about today?' }],
+      parts: [{ type: 'text', text: 'What theme would you like your post series to cover?' }],
     },
   ], [])
 
@@ -116,47 +109,41 @@ export function ComposeAdvancedMode({
     messages: initialMessages,
   })
 
-  /** Notify parent when messages change (for persistence) */
+  React.useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [messages])
+
   React.useEffect(() => {
     if (onMessagesChange && messages.length > 1) {
       onMessagesChange(messages)
     }
   }, [messages, onMessagesChange])
 
-  /** Detect when a post has been generated */
+  /** Detect series generation */
   React.useEffect(() => {
-    const hasPost = messages.some((m) =>
+    const hasSeries = messages.some((m) =>
       m.parts?.some((p) => {
         const part = p as { type: string; state?: string }
-        return part.type === 'tool-generatePost' && part.state === 'output-available'
+        return part.type === 'tool-generateSeries' && part.state === 'output-available'
       })
     )
-    setHasGeneratedPost(hasPost)
+    setHasGeneratedSeries(hasSeries)
   }, [messages])
 
-  /** Auto-scroll to bottom when messages change */
-  React.useEffect(() => {
-    if (scrollRef.current) {
-      const el = scrollRef.current
-      el.scrollTop = el.scrollHeight
-    }
-  }, [messages])
-
-  /** Handle MCQ option selection */
   const handleOptionSelect = (option: McqOption) => {
     setCustomInputId(null)
     setCustomInputValue('')
     sendMessage({ text: option.label })
   }
 
-  /** Handle "Type your own" button click — shows inline text input */
   const handleTypeYourOwn = (toolCallId: string) => {
     setCustomInputId(toolCallId)
     setCustomInputValue('')
     setTimeout(() => customInputRef.current?.focus(), 50)
   }
 
-  /** Handle custom input submission */
   const handleCustomSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!customInputValue.trim() || status !== 'ready') return
@@ -165,12 +152,6 @@ export function ComposeAdvancedMode({
     setCustomInputValue('')
   }
 
-  /** Handle "Use This Post" button click */
-  const handleUsePost = (postContent: string) => {
-    onGenerated(postContent)
-  }
-
-  /** Handle form submit */
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim() || status !== 'ready') return
@@ -180,7 +161,6 @@ export function ComposeAdvancedMode({
 
   return (
     <div className="flex flex-col h-full min-h-[400px]">
-      {/* Chat area */}
       <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto space-y-3 pr-1 mb-3 max-h-[500px]"
@@ -209,7 +189,6 @@ export function ComposeAdvancedMode({
           if (message.role === 'assistant') {
             return (
               <div key={message.id} className="space-y-2">
-                {/* Render message parts */}
                 {message.parts?.map((part, partIndex) => {
                   if (part.type === 'text' && part.text) {
                     return (
@@ -231,19 +210,12 @@ export function ComposeAdvancedMode({
                     )
                   }
 
-                  // Tool parts rendered by type name: 'tool-presentOptions' or 'tool-generatePost'
-                  // Per AI SDK v6 docs, tool part.type is `tool-${toolName}`, with
-                  // part.state, part.input, part.output directly on the part object.
-                  // States: input-streaming → input-available → output-available | output-error
-                  if (part.type === 'tool-presentOptions' || part.type === 'tool-generatePost') {
+                  if (part.type === 'tool-presentOptions' || part.type === 'tool-generateSeries') {
                     const toolPart = part as { type: string; state: string; input?: unknown; output?: unknown; toolCallId: string }
 
-                    // presentOptions — MCQ pill buttons + "Type your own" option
+                    // presentOptions — MCQ buttons
                     if (part.type === 'tool-presentOptions' && toolPart.state === 'output-available') {
-                      const result = toolPart.output as {
-                        question: string
-                        options: McqOption[]
-                      }
+                      const result = toolPart.output as { question: string; options: McqOption[] }
                       const isCustomOpen = customInputId === toolPart.toolCallId
                       return (
                         <div key={`${message.id}-tool-${partIndex}`} className="space-y-2">
@@ -282,7 +254,6 @@ export function ComposeAdvancedMode({
                                 )}
                               </motion.button>
                             ))}
-                            {/* Type your own option */}
                             <motion.button
                               variants={mcqOptionVariants}
                               onClick={() => handleTypeYourOwn(toolPart.toolCallId)}
@@ -301,7 +272,6 @@ export function ComposeAdvancedMode({
                               </span>
                             </motion.button>
                           </motion.div>
-                          {/* Inline custom input */}
                           <AnimatePresence>
                             {isCustomOpen && (
                               <motion.form
@@ -346,11 +316,11 @@ export function ComposeAdvancedMode({
                       )
                     }
 
-                    // generatePost — post preview card
-                    if (part.type === 'tool-generatePost' && toolPart.state === 'output-available') {
+                    // generateSeries — series preview
+                    if (part.type === 'tool-generateSeries' && toolPart.state === 'output-available') {
                       const result = toolPart.output as {
-                        post: string
-                        summary: string
+                        posts: SeriesPost[]
+                        seriesTheme: string
                       }
                       return (
                         <motion.div
@@ -362,26 +332,35 @@ export function ComposeAdvancedMode({
                         >
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <IconSparkles className="size-3.5 text-destructive" />
-                            <span>{result.summary}</span>
+                            <span>Series: {result.seriesTheme} ({result.posts.length} posts)</span>
                           </div>
-                          <div className="text-sm whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-y-auto">
-                            {result.post}
+                          <div className="space-y-2">
+                            {result.posts.map((post, i) => (
+                              <div key={i} className="rounded-md border border-border/50 p-2.5">
+                                <p className="text-xs font-medium text-muted-foreground mb-1">
+                                  Post {i + 1}: {post.subtopic}
+                                </p>
+                                <p className="text-xs text-muted-foreground line-clamp-2">
+                                  {post.summary}
+                                </p>
+                              </div>
+                            ))}
                           </div>
                           <div className="flex flex-wrap gap-2">
                             <Button
                               size="sm"
-                              onClick={() => handleUsePost(result.post)}
+                              onClick={() => onSeriesGenerated(result.posts)}
                               className="gap-1.5 bg-destructive hover:bg-destructive/90"
                             >
                               <IconCheck className="size-3.5" />
-                              Use This Post
+                              Use These Posts
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() => {
-                                setHasGeneratedPost(false)
-                                sendMessage({ text: 'Generate another version with the same approach' })
+                                setHasGeneratedSeries(false)
+                                sendMessage({ text: 'Generate another version of this series' })
                               }}
                               disabled={status !== 'ready'}
                               className="gap-1.5"
@@ -393,7 +372,7 @@ export function ComposeAdvancedMode({
                               size="sm"
                               variant="ghost"
                               onClick={() => {
-                                setHasGeneratedPost(false)
+                                setHasGeneratedSeries(false)
                                 setMessages(defaultGreeting)
                                 if (onNewChat) onNewChat()
                               }}
@@ -407,7 +386,7 @@ export function ComposeAdvancedMode({
                       )
                     }
 
-                    // Loading state while tool is executing
+                    // Loading state
                     if (toolPart.state === 'input-streaming' || toolPart.state === 'input-available') {
                       return (
                         <motion.div
@@ -419,7 +398,7 @@ export function ComposeAdvancedMode({
                         >
                           <IconLoader2 className="size-3.5 animate-spin" />
                           <span>
-                            {part.type === 'tool-generatePost' ? 'Writing your post...' : 'Thinking...'}
+                            {part.type === 'tool-generateSeries' ? 'Writing your series...' : 'Thinking...'}
                           </span>
                         </motion.div>
                       )
@@ -435,7 +414,6 @@ export function ComposeAdvancedMode({
           return null
         })}
 
-        {/* Loading indicator when waiting for stream to start */}
         {status === 'submitted' && (
           <motion.div
             variants={chatMessageVariants}
@@ -449,14 +427,13 @@ export function ComposeAdvancedMode({
         )}
       </div>
 
-      {/* Error */}
       {error && (
         <div className="flex items-start gap-2 rounded-md border border-destructive/20 bg-destructive/10 p-2.5 text-xs text-destructive mb-3">
           <span>{error.message || 'Something went wrong. Please try again.'}</span>
         </div>
       )}
 
-      {/* Tone selector (collapsible) */}
+      {/* Tone selector */}
       <div className="mb-3">
         <button
           onClick={() => setShowToneSelector(!showToneSelector)}
@@ -490,14 +467,14 @@ export function ComposeAdvancedMode({
         </AnimatePresence>
       </div>
 
-      {/* Chat input — hidden after post generation (use Try Again / New Topic instead) */}
-      {!hasGeneratedPost && (
+      {/* Chat input */}
+      {!hasGeneratedSeries && (
         <form onSubmit={onSubmit} className="flex items-center gap-2">
           <input
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={hasApiKey ? "Type your message..." : "API key required"}
+            placeholder={hasApiKey ? "Describe your series theme..." : "API key required"}
             disabled={status !== 'ready' || !hasApiKey}
             className={cn(
               "flex-1 rounded-full border border-destructive/30 bg-background px-4 py-2.5 text-sm",

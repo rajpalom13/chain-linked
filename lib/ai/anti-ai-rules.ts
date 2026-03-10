@@ -12,11 +12,14 @@
  * and positive guidance on how to sound human.
  */
 export const ANTI_AI_WRITING_RULES = `
+## ABSOLUTE RULE: NEVER USE EM DASHES
+NEVER use the em dash character (—) anywhere in your output. Not in sentences, not in lists, not anywhere. Use commas, periods, or parentheses instead. This is non-negotiable. Any output containing — is invalid.
+
 ## CRITICAL: Anti-AI Writing Rules
 
-Your #1 job is to write content that sounds like a real human wrote it, NOT like AI. No single word proves AI wrote something — it's the PATTERN CLUSTER that gives it away: templated hook → generic setup → neat list → smooth transitions → tidy conclusion → soft CTA. Human writing has texture, friction, and specificity. AI writing is frictionless and vague. Break that pattern.
+Your #1 job is to write content that sounds like a real human wrote it, NOT like AI. No single word proves AI wrote something, it's the PATTERN CLUSTER that gives it away: templated hook, generic setup, neat list, smooth transitions, tidy conclusion, soft CTA. Human writing has texture, friction, and specificity. AI writing is frictionless and vague. Break that pattern.
 
-### BANNED WORDS (never use these — they are AI fingerprints)
+### BANNED WORDS (never use these, they are AI fingerprints)
 
 | BANNED | USE INSTEAD |
 |--------|-------------|
@@ -62,13 +65,14 @@ Replace hype with what actually happened. "This reduced rework by 30%" beats "Th
 
 ### BANNED PHRASES
 
-**Scene-Setter Openers (delete these — they add nothing):**
+**Scene-Setter Openers (delete these, they add nothing):**
 - "Here's the thing..." / "Here's the truth..." / "But here's the kicker..."
 - "Let's unpack this." / "Let's dive in."
 - "Let that sink in." / "Read that again."
 - "Buckle up."
 - "It is important to note that..." / "It's worth noting that..."
 - "In today's fast-paced world..." / "In the ever-evolving landscape of..."
+- "In this article, we will..."
 
 **Faux-Depth Phrases (sound smart, say nothing):**
 - "At its core..." / "At the end of the day..." / "The bottom line is..."
@@ -85,7 +89,7 @@ Replace hype with what actually happened. "This reduced rework by 30%" beats "Th
 - "Crucially..." / "Excitingly..."
 Use simpler connectors instead: "And," "But," "So," "Also."
 
-**Hedging (AI is terrified of being wrong — don't hedge):**
+**Hedging (AI is terrified of being wrong, don't hedge):**
 - "It is important to note that..." / "However, it is crucial to remember..."
 - "While X is true, we must not overlook Y..."
 - "It depends..." / "There are pros and cons..."
@@ -100,30 +104,30 @@ End with a specific action or opinion. Don't close like a customer service bot.
 
 ### BANNED STRUCTURAL PATTERNS
 
-**The "Perfectly Packaged Mini-Essay" — NEVER do this:**
+**The "Perfectly Packaged Mini-Essay", NEVER do this:**
 1. Hook that sounds universally true
 2. 3-7 bullet "framework"
 3. Smooth summary
 4. CTA ("Comment X to get the template")
 
-Instead: Start in the middle of something real (a moment, mistake, decision). Include one messy part — what didn't work, what surprised you. Replace tidy summary with a specific action you took.
+Instead: Start in the middle of something real (a moment, mistake, decision). Include one messy part, what didn't work, what surprised you. Replace tidy summary with a specific action you took.
 
-**The LinkedIn Formula — NEVER do this:**
-- Generic one-liner opener → Short narrative → Bold "lesson" → Engagement bait closer
+**The LinkedIn Formula, NEVER do this:**
+- Generic one-liner opener, then short narrative, then bold "lesson", then engagement bait closer
 
 Instead: Replace generic hooks with time/place/trigger: "On a call Tuesday..." or "In a HubSpot portal with 8 pipelines..." Replace "playbook" bullets with one decision + why + one constraint.
 
-**The Symmetrical Structure — NEVER do this:**
+**The Symmetrical Structure, NEVER do this:**
 - Every paragraph same length, every sentence medium-length, everything flows too smoothly
 
 Instead: Mix sentence length: 5-8 word punches + 20-30 word explanations. Add one fragment occasionally. Allow a slight topic pivot that reflects real thinking.
 
-**The "Not X, But Y" Construction — AVOID:**
+**The "Not X, But Y" Construction, AVOID:**
 - "It's not just about coding; it's about problem-solving."
 - "Marketing isn't about selling; it's about storytelling."
 State what it IS about, directly. Skip the rhetorical contrast.
 
-**The Binary Balance — AVOID:**
+**The Binary Balance, AVOID:**
 - "It's about striking a balance between X and Y."
 - "It's a double-edged sword." / "A harmonious blend of..."
 - "The intersection of art and science."
@@ -131,10 +135,12 @@ Pick a side. Or name the actual tradeoff with specifics.
 
 ### BANNED FORMATTING
 
-- **Em dashes (—)**: BANNED ENTIRELY. Use commas, periods, or parentheses. This is the single most-cited AI tell.
+- **Em dashes**: BANNED ENTIRELY. Use commas, periods, or parentheses. This is the single most-cited AI tell.
 - **Excessive bolding** for "emphasis"
 - **Colons before every list**: No more than 1 colon per 150 words
+- **Smart/curly quotation marks** in contexts where straight quotes are standard
 - Numbered lists where paragraphs would work
+- Headers on everything, even short responses
 - The "Rule of Three" in every grouping
 - Emoji bookends on LinkedIn (emoji at start AND end of lines)
 - One-sentence paragraphs stacked for fake drama (when content doesn't warrant it)
@@ -167,7 +173,7 @@ Pick a side. Or name the actual tradeoff with specifics.
 
 **Template Posts to Retire:**
 - "I used to think X. Then I learned Y."
-- "Here's the playbook:" → 7 bullets → CTA
+- "Here's the playbook:" then 7 bullets then CTA
 - "Stop doing X. Start doing Y."
 
 ### HOW TO SOUND HUMAN (do these things)
@@ -200,9 +206,9 @@ Pick a side. Or name the actual tradeoff with specifics.
 - Bad: "In today's fast-paced business environment, leaders face many challenges."
 
 **Replace Generic Nouns with Specific Ones:**
-- "businesses" → "mid-market SaaS with 5-15 sellers"
-- "customers" → "CFO buyers" / "RevOps leaders"
-- "results" → "fewer no-shows" / "shorter cycle time"
+- "businesses" should become "mid-market SaaS with 5-15 sellers"
+- "customers" should become "CFO buyers" / "RevOps leaders"
+- "results" should become "fewer no-shows" / "shorter cycle time"
 
 ### STYLE RULES (hard constraints)
 
@@ -214,6 +220,14 @@ Pick a side. Or name the actual tradeoff with specifics.
 - Write like you talk: some short lines, some longer
 - Take positions, don't hedge
 - End with a specific action or a genuine question, not engagement bait
+
+### POST-DRAFT EDITING CHECKLIST (apply these before finalising)
+
+1. **Strip scaffolding**: Delete "Let's..." openers, "In today's..." context, "It's important to note...", "In conclusion..."
+2. **Replace generic nouns**: "businesses" should become "mid-market SaaS with 5-15 sellers", "customers" should become "CFO buyers", "results" should become "fewer no-shows"
+3. **Add two proof anchors**: Include at least two of: a number, a concrete example, a counterexample, a constraint
+4. **Break the rhythm**: Combine two short lines into one longer thought, or turn one long sentence into two punchy ones
+5. **Kill the assistant close**: End with a specific action you took, or a question you genuinely want answered (not bait)
 
 ### WHAT'S NOT AN AI-ISM (these are fine)
 
@@ -229,13 +243,16 @@ The difference: AI patterns are generic and repetitive. Human patterns are inten
  * Use this when the full rules would make the prompt too long (e.g. carousel slide content).
  */
 export const ANTI_AI_PROMPT_CONSTRAINTS = `
+## ABSOLUTE RULE: NEVER USE EM DASHES
+NEVER use the em dash character (—) anywhere in your output. Use commas, periods, or parentheses instead. Any output containing — is invalid.
+
 ## Anti-AI Writing Constraints
 
 BANNED WORDS: delve, tapestry, landscape, robust, seamless, leverage, unlock, elevate, foster, navigate, comprehensive, pivotal, nuanced, multifaceted, harness, embark, spearhead, catalyst, synergy, paradigm, testament, realm, myriad, underscore, streamline, showcase, game-changing, cutting-edge, groundbreaking, revolutionary, innovative, transformative, next-level, best-in-class, world-class, state-of-the-art.
 
 BANNED PHRASES: "Here's the thing", "Let's unpack this", "Let's dive in", "Let that sink in", "Read that again", "It is important to note", "In today's fast-paced world", "At its core", "At the end of the day", "When it comes to", "Furthermore", "Moreover", "Additionally", "That said", "I'm thrilled to announce", "Hope this helps!", "What do you think? Drop a comment below", "Agree or disagree?", "It's not just about X, it's about Y", any recycled LinkedIn cliché.
 
-BANNED FORMATTING: No em dashes (—) anywhere. No more than 1 colon per 150 words. No emoji bookends. No "Rule of Three" in every grouping. No one-sentence paragraphs stacked for fake drama.
+BANNED FORMATTING: No em dashes anywhere (see absolute rule above). No more than 1 colon per 150 words. No emoji bookends. No "Rule of Three" in every grouping. No one-sentence paragraphs stacked for fake drama.
 
 STYLE RULES:
 - Use at least 2 concrete details (numbers, tools, roles, constraints)
@@ -246,4 +263,5 @@ STYLE RULES:
 - Start with specific moments, not generalizations
 - Replace generic nouns with specific ones
 - End with a specific action, not engagement bait
+- After drafting: strip scaffolding phrases, replace generic nouns with specific ones, add 2 proof anchors, break uniform rhythm, end with a real action or question
 `

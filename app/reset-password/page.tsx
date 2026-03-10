@@ -1,15 +1,15 @@
 /**
  * Reset Password Page
  * @description Password reset form for users arriving via the recovery link.
- * After the auth callback exchanges the PKCE code for a session, the user
- * lands here with a valid session and can set a new password.
+ * Receives a token_hash query param and uses verifyOtp to establish a session,
+ * then allows the user to set a new password.
  * @module app/reset-password
  */
 
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -20,10 +20,10 @@ import { IconLoader2, IconLink, IconLock, IconCheck } from '@tabler/icons-react'
 import { toast } from 'sonner'
 
 /**
- * Reset password page component
- * @returns Reset password page JSX
+ * Inner reset password form that uses useSearchParams
+ * @returns Reset password form JSX
  */
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -31,6 +31,7 @@ export default function ResetPasswordPage() {
   const [hasSession, setHasSession] = useState(false)
   const [isCheckingSession, setIsCheckingSession] = useState(true)
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   /**
    * Calculate password strength
@@ -70,12 +71,34 @@ export default function ResetPasswordPage() {
 
   const passwordStrength = getPasswordStrength(password)
 
-  // Check if user has a valid session (from the auth callback code exchange).
-  // Also listen for PASSWORD_RECOVERY auth state change in case Supabase fires it.
+  // Verify the recovery token from the URL and establish a session.
+  // Falls back to checking an existing session (e.g. if the user was
+  // already redirected via the auth callback).
   useEffect(() => {
     const supabase = createClient()
+    const tokenHash = searchParams.get('token_hash')
+    const type = searchParams.get('type')
 
-    const checkSession = async () => {
+    const verifyToken = async () => {
+      // If we have a token_hash in the URL, verify it to establish a session
+      if (tokenHash && type === 'recovery') {
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: 'recovery',
+        })
+
+        if (error) {
+          console.error('[ResetPassword] Token verification failed:', error.message)
+          setIsCheckingSession(false)
+          return
+        }
+
+        setHasSession(true)
+        setIsCheckingSession(false)
+        return
+      }
+
+      // Fallback: check for an existing session (e.g. from auth callback flow)
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
         setHasSession(true)
@@ -83,26 +106,8 @@ export default function ResetPasswordPage() {
       setIsCheckingSession(false)
     }
 
-    // Listen for auth state changes -- Supabase emits PASSWORD_RECOVERY
-    // when the user arrives with a valid recovery token
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (event === 'PASSWORD_RECOVERY' && session) {
-          setHasSession(true)
-          setIsCheckingSession(false)
-        } else if (event === 'SIGNED_IN' && session) {
-          setHasSession(true)
-          setIsCheckingSession(false)
-        }
-      }
-    )
-
-    checkSession()
-
-    return () => {
-      subscription.unsubscribe()
-    }
-  }, [])
+    verifyToken()
+  }, [searchParams])
 
   /**
    * Handle password update
@@ -167,9 +172,9 @@ export default function ResetPasswordPage() {
           <CardContent className="px-8 pb-8">
             <Button
               className="w-full h-11 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-sm"
-              onClick={() => router.push('/dashboard')}
+              onClick={() => router.push('/login')}
             >
-              Continue to Dashboard
+              Continue to Sign In
             </Button>
           </CardContent>
         </Card>
@@ -312,5 +317,18 @@ export default function ResetPasswordPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+/**
+ * Reset password page component
+ * Wraps the form in Suspense for useSearchParams compatibility
+ * @returns Reset password page JSX
+ */
+export default function ResetPasswordPage() {
+  return (
+    <Suspense>
+      <ResetPasswordForm />
+    </Suspense>
   )
 }

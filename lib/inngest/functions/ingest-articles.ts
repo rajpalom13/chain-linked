@@ -231,7 +231,7 @@ async function searchTopicsWithPerplexity(
   resultsPerTopic: number,
   logPrefix: string
 ): Promise<IngestedArticle[]> {
-  const systemPrompt = `You are a news research assistant for a LinkedIn content platform. Your job is to find the most recent, relevant, and noteworthy news stories for a given topic. Return structured data only — no commentary, no filler. Every story MUST include real, working source URLs. Prioritize stories that would spark professional discussion on LinkedIn.`
+  const systemPrompt = `You are a news research assistant for a LinkedIn content platform. Your job is to find the most recent, relevant, and noteworthy news stories for a given topic. Return structured data only, no commentary, no filler. Every story MUST include real, working source URLs. Prioritize stories that would spark professional discussion on LinkedIn.`
 
   const searchPromises = topics.map(async (topicSlug: string) => {
     const topicDisplayName = getTopicDisplayName(topicSlug)
@@ -239,11 +239,11 @@ async function searchTopicsWithPerplexity(
     const userPrompt = `Find the top ${resultsPerTopic} breaking or trending news stories about "${topicDisplayName}" from the last 14 days. Today's date is ${new Date().toISOString().split('T')[0]}
 For each story, return:
 
-1. **headline**: A concise, attention-grabbing headline (max 15 words). Do NOT copy the original article headline verbatim — write a clear, neutral summary headline.
+1. **headline**: A concise, attention-grabbing headline (max 15 words). Do NOT copy the original article headline verbatim. Write a clear, neutral summary headline.
 
 2. **summary**: Two short paragraphs (3-4 sentences total) explaining:
-   - Paragraph 1: What happened — the core facts and context.
-   - Paragraph 2: Why it matters — the professional/industry impact or what to watch next.
+   - Paragraph 1: What happened. The core facts and context.
+   - Paragraph 2: Why it matters. The professional/industry impact or what to watch next.
 
 3. **source_url**: The direct URL to the primary source article.
 

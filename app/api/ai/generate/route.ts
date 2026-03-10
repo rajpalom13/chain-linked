@@ -148,7 +148,7 @@ function buildUserMessage(
   message += `5. Include a call-to-action question\n`
 
   if (context?.trim()) {
-    message += `\nIMPORTANT — The user has given these specific instructions. You MUST follow them exactly, even if they override the default formatting rules above:\n\n`
+    message += `\nIMPORTANT: The user has given these specific instructions. You MUST follow them exactly, even if they override the default formatting rules above:\n\n`
     message += `${context.trim()}\n`
   }
 
@@ -309,15 +309,8 @@ export async function POST(request: NextRequest) {
       promptSource = 'default'
     }
 
-    // Inject additional context into the system prompt as a strict mandatory rule
-    if (context?.trim()) {
-      systemPrompt += `\n\n## MANDATORY USER INSTRUCTIONS (MUST FOLLOW)
-The user has provided the following specific instructions and context. You MUST strictly follow these instructions. They override any conflicting default behavior. This is non-negotiable:
-
-${context.trim()}`
-    }
-
-    // Inject active content rules from database
+    // Inject content rules from database BEFORE user instructions
+    // (user instructions go last for highest weight)
     try {
       const [{ data: personalRules }, { data: teamMember }] = await Promise.all([
         supabase
@@ -351,6 +344,16 @@ ${context.trim()}`
       }
     } catch {
       // Content rules injection is non-blocking
+    }
+
+    // Inject additional context at END of system prompt (highest weight position)
+    if (context?.trim()) {
+      systemPrompt += `\n\n=== CRITICAL USER INSTRUCTIONS (MANDATORY) ===
+The user has provided the following specific instructions. These OVERRIDE all other guidelines above. Follow them exactly, even if they contradict previous formatting rules, tone guidance, or structural suggestions. This is non-negotiable:
+
+${context.trim()}
+
+If additional instructions exist above, they override all other guidelines.`
     }
 
     const userMessage = buildUserMessage(topic, length, context)

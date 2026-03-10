@@ -38,3 +38,22 @@ export interface ComposeTheme {
   /** Gradient end color (oklch) */
   gradientTo: string
 }
+
+/**
+ * Available compose page tabs
+ * - single: create a single post
+ * - series: create a series of related posts
+ */
+export type ComposeTab = 'single' | 'series'
+
+/**
+ * A single post within a series
+ */
+export interface SeriesPost {
+  /** The complete post content */
+  post: string
+  /** The subtopic this post covers */
+  subtopic: string
+  /** Brief summary of the post */
+  summary: string
+}

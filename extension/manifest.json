@@ -140,7 +140,5 @@
       "https://www.googleapis.com/auth/userinfo.email",
       "https://www.googleapis.com/auth/userinfo.profile"
     ]
-  },
-
-  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqi1/89ZqYNbFnLug/11KVrELpZ+EqV77qeA71gZNk4b4LUZaCYjiIZZiMbLzy0vxxqtQrwPeIXY9S21wjw04YsGZRFyetx/sWpvSeUBzR6/vFYgQOPHH7KduR7EdbLj1FIjnW8l9wLrktiTGR92NpEVy4mpZzJvbQDnt9faUbbI7OnRfsKd+RN349GTEjl/K59t7uiexaeo1/2X7OngNj5Nqg3DHoGFKyASRzcf+K1fjhVksG3DqfYP+inDaupALF8rz4ZqlgDnBmsM1bSM1ldbFSNltfVOnfg0/41x4p/nXHKO07KDZML26KEhpt4ClJALbr68RX2Bh6LD5AxPMewIDAQAB"
+  }
 }
