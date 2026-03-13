@@ -1,5 +1,5 @@
 /**
- * LinkedIn Data Extractor - Content Script
+ * ChainLinked Data Connector - Content Script
  * TypeScript Version
  *
  * Main orchestrator for content scripts.
@@ -412,7 +412,7 @@ function initialize(): void {
   if (window.__linkedInContentScriptLoaded) return;
   window.__linkedInContentScriptLoaded = true;
 
-  console.log('[ContentScript] LinkedIn Data Extractor content script loading (TypeScript)...');
+  console.log('[ContentScript] ChainLinked Data Connector content script loading (TypeScript)...');
 
   if (window.LinkedInDOMExtractor) {
     initialize();

@@ -1,5 +1,5 @@
 /**
- * LinkedIn Data Extractor - Auto-Capture Controller
+ * ChainLinked Data Connector - Auto-Capture Controller
  * TypeScript Version
  *
  * Enhanced with retry mechanism and validation

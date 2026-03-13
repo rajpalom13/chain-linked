@@ -10,7 +10,6 @@ import {
   IconBrandLinkedin,
   IconCalendar,
   IconCheck,
-  IconClipboardCopy,
   IconFile,
   IconHash,
   IconItalic,
@@ -418,6 +417,16 @@ export function PostComposer({
   }
 
   /**
+   * Memoized callback for passing messages to conversation persistence (advanced mode)
+   */
+  const handleAdvancedMessagesChange = React.useCallback(
+    (msgs: import("ai").UIMessage[]) => {
+      saveConvoMessages(msgs as unknown as Array<{ id: string; role: string; parts: Array<{ type: string; text?: string; [key: string]: unknown }> }>)
+    },
+    [saveConvoMessages]
+  )
+
+  /**
    * Detect @mention trigger in the textarea.
    * Called on every content change and cursor move while editing.
    * Opens the mention popover when "@" is typed, closes when the trigger disappears.
@@ -690,31 +699,6 @@ export function PostComposer({
       postToast.failed(error instanceof Error ? error.message : undefined)
     } finally {
       setIsPosting(false)
-    }
-  }
-
-  /**
-   * Copies content to clipboard and shows a toast with an "Open LinkedIn" action button
-   */
-  const handleCopyToLinkedIn = async () => {
-    if (!content.trim()) return
-
-    try {
-      await navigator.clipboard.writeText(content)
-      toast.success("Content copied!", {
-        description: "Paste it into a new LinkedIn post.",
-        action: {
-          label: "Open LinkedIn",
-          onClick: () => {
-            window.open("https://www.linkedin.com/feed/", "_blank", "noopener,noreferrer")
-          },
-        },
-        duration: 6000,
-      })
-    } catch {
-      toast.error("Failed to copy", {
-        description: "Please select the text and copy manually.",
-      })
     }
   }
 
@@ -1068,11 +1052,6 @@ export function PostComposer({
                       </span>
                     )}
                   </div>
-                  {draft.sourceAuthor && (
-                    <p className="text-xs text-muted-foreground mt-1.5">
-                      Inspired by <span className="font-medium">{draft.sourceAuthor}</span>
-                    </p>
-                  )}
                 </div>
               )}
 
@@ -1120,7 +1099,7 @@ export function PostComposer({
                       hasApiKey={hasApiKey}
                       persistedMessages={persistedMessages.length > 0 ? persistedMessages as unknown as import("ai").UIMessage[] : undefined}
                       conversationId={persistedConvoId}
-                      onMessagesChange={(msgs) => saveConvoMessages(msgs as unknown as Array<{ id: string; role: string; parts: Array<{ type: string; text?: string; [key: string]: unknown }> }>)}
+                      onMessagesChange={handleAdvancedMessagesChange}
                       onNewChat={clearConvo}
                     />
                   </motion.div>
@@ -1682,6 +1661,25 @@ export function PostComposer({
                     Send
                   </Button>
                 </div>
+
+                {/* Post Now — inside preview card */}
+                <div className="border-t px-4 py-3">
+                  <Button
+                    onClick={handlePost}
+                    disabled={isPosting || isScheduling || isOverLimit || !content.trim()}
+                    variant={isPostingEnabled ? "default" : "secondary"}
+                    className="w-full"
+                  >
+                    {isPosting ? (
+                      <IconLoader2 className="size-4 animate-spin" />
+                    ) : isPostingEnabled ? (
+                      <IconSend className="size-4" />
+                    ) : (
+                      <IconFile className="size-4" />
+                    )}
+                    {isPostingEnabled ? "Post Now" : "Save as Draft"}
+                  </Button>
+                </div>
               </div>
 
               {/* Character Counter — always visible below preview card */}
@@ -1728,29 +1726,10 @@ export function PostComposer({
               )}
             </CardContent>
 
-            {/* Action Buttons — moved from left footer */}
+            {/* Action Buttons */}
             <CardFooter className="flex justify-between gap-2 border-t pt-4">
               <div className="flex items-center gap-2">
                 <PostActionsMenu content={content} variant="ghost" />
-                {/* Copy & Post to LinkedIn fallback button */}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleCopyToLinkedIn}
-                      disabled={!content.trim()}
-                      className="gap-1.5"
-                    >
-                      <IconClipboardCopy className="size-4" />
-                      <IconBrandLinkedin className="size-4 text-[#0077b5]" />
-                      Copy & Post
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    Copy content to clipboard and open LinkedIn to paste
-                  </TooltipContent>
-                </Tooltip>
               </div>
 
               <div className="flex gap-2">
@@ -1781,20 +1760,6 @@ export function PostComposer({
                     <IconCalendar className="size-4" />
                   )}
                   Schedule
-                </Button>
-                <Button
-                  onClick={handlePost}
-                  disabled={isPosting || isScheduling || isOverLimit || !content.trim()}
-                  variant={isPostingEnabled ? "default" : "secondary"}
-                >
-                  {isPosting ? (
-                    <IconLoader2 className="size-4 animate-spin" />
-                  ) : isPostingEnabled ? (
-                    <IconSend className="size-4" />
-                  ) : (
-                    <IconFile className="size-4" />
-                  )}
-                  {isPostingEnabled ? "Post Now" : "Save as Draft"}
                 </Button>
               </div>
             </CardFooter>

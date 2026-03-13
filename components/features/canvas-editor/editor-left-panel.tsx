@@ -30,8 +30,7 @@ interface EditorLeftPanelProps {
   // AI panel props
   currentTemplate: CanvasTemplate | null;
   currentSlides: CanvasSlide[];
-  onAiGenerated: (slides: CanvasSlide[]) => void;
-  onOpenAdvancedAi: () => void;
+  onAiGenerated: (slides: CanvasSlide[], caption?: string) => void;
   // Graphics panel props
   onInsertImage: (src: string, width: number, height: number) => void;
   onInsertShape: (config: ShapeElementConfig) => void;
@@ -58,7 +57,6 @@ export function EditorLeftPanel({
   currentTemplate,
   currentSlides,
   onAiGenerated,
-  onOpenAdvancedAi,
   onInsertImage,
   onInsertShape,
   slides,
@@ -110,8 +108,7 @@ export function EditorLeftPanel({
                 <PanelAiGenerate
                   currentTemplate={currentTemplate}
                   currentSlides={currentSlides}
-                  onGenerated={onAiGenerated}
-                  onOpenAdvanced={onOpenAdvancedAi}
+                  onGenerated={(slides, caption) => onAiGenerated(slides, caption)}
                 />
               </motion.div>
             )}

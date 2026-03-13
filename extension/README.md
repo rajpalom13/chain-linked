@@ -1,4 +1,4 @@
-# LinkedIn Data Extractor
+# ChainLinked Data Connector
 
 A Chrome extension for extracting your LinkedIn profile data, analytics, and network insights. Built with Manifest V3.
 

@@ -160,7 +160,7 @@ export function PanelSlides({
                           style={{ backgroundColor: slide.backgroundColor }}
                         >
                           <div className="relative h-full w-full scale-[0.24] transform-gpu origin-top-left">
-                            {slide.elements.map((element) => {
+                            {(slide.elements || []).map((element) => {
                               if (element.type === 'text') {
                                 return (
                                   <div
@@ -217,30 +217,36 @@ export function PanelSlides({
                             >
                               <IconGripVertical className="h-4 w-4 text-muted-foreground" />
                             </div>
-                            <button
-                              type="button"
-                              className="flex h-7 w-7 items-center justify-center rounded-full bg-background/90 shadow-sm hover:bg-accent"
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              className={cn(
+                                'flex h-7 w-7 items-center justify-center rounded-full bg-background/90 shadow-sm hover:bg-accent',
+                                !canAddSlide && 'pointer-events-none opacity-50'
+                              )}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onDuplicateSlide(index);
                               }}
                               title="Duplicate"
-                              disabled={!canAddSlide}
                             >
                               <IconCopy className="h-3.5 w-3.5 text-muted-foreground" />
-                            </button>
-                            <button
-                              type="button"
-                              className="flex h-7 w-7 items-center justify-center rounded-full bg-background/90 shadow-sm hover:bg-destructive/10"
+                            </div>
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              className={cn(
+                                'flex h-7 w-7 items-center justify-center rounded-full bg-background/90 shadow-sm hover:bg-destructive/10',
+                                !canDeleteSlide && 'pointer-events-none opacity-50'
+                              )}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onDeleteSlide(index);
                               }}
                               title="Delete"
-                              disabled={!canDeleteSlide}
                             >
                               <IconTrash className="h-3.5 w-3.5 text-destructive" />
-                            </button>
+                            </div>
                           </div>
                         </div>
                       </button>

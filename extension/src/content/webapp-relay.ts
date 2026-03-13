@@ -12,6 +12,25 @@
 window.addEventListener('message', (event: MessageEvent) => {
   if (event.source !== window) return
 
+  // Relay auth session from the extension-callback page to the service worker
+  if (event.data?.type === '__CL_AUTH_SESSION__' && event.data?.payload) {
+    const session = event.data.payload
+    console.log('[ChainLinked Relay] Received auth session, forwarding to service worker')
+
+    chrome.runtime.sendMessage(
+      { type: 'EXTENSION_AUTH_SESSION', data: session },
+      (response: unknown) => {
+        const error = chrome.runtime?.lastError
+        if (error) {
+          console.error('[ChainLinked Relay] Failed to send auth session:', error.message)
+          return
+        }
+        console.log('[ChainLinked Relay] Auth session forwarded successfully:', response)
+      }
+    )
+    return
+  }
+
   // Relay mention search requests to the service worker
   if (event.data?.type === '__CL_MENTION_SEARCH__' && event.data?.payload) {
     const { query, requestId } = event.data.payload

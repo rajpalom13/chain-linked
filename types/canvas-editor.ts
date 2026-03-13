@@ -190,6 +190,7 @@ export type CanvasEditorAction =
   | { type: 'REORDER_SLIDES'; payload: { fromIndex: number; toIndex: number } }
   | { type: 'UPDATE_SLIDE_BACKGROUND'; payload: { slideIndex: number; color: string } }
   | { type: 'APPLY_TEMPLATE'; payload: CanvasTemplate }
+  | { type: 'SET_TEMPLATE'; payload: CanvasTemplate }
   | { type: 'SET_ZOOM'; payload: number }
   | { type: 'TOGGLE_GRID' }
   | { type: 'SET_EXPORTING'; payload: boolean }

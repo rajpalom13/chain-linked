@@ -9,19 +9,31 @@
 
 import * as React from "react"
 import { motion } from "framer-motion"
-import { IconSparkles, IconPlus, IconX } from "@tabler/icons-react"
+import {
+  IconSparkles,
+  IconPlus,
+  IconX,
+  IconCopy,
+  IconCheck,
+  IconCalendar,
+  IconBrandLinkedin,
+  IconFile,
+  IconLoader2,
+} from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
 import { fadeSlideUpVariants } from "@/lib/animations"
 import { useConversationPersistence } from "@/hooks/use-conversation-persistence"
 import { useApiKeys } from "@/hooks/use-api-keys"
+import { showSuccess } from "@/lib/toast-utils"
 import { ComposeSeriesMode } from "./compose-series-mode"
 import { SeriesPostCarousel } from "./series-post-carousel"
 import type { SeriesPost } from "@/types/compose"
@@ -75,6 +87,14 @@ export function PostSeriesComposer({
     setCurrentPostIndex(0)
   }, [])
 
+  /** Memoized callback for passing messages to persistence */
+  const handleMessagesChange = React.useCallback(
+    (msgs: UIMessage[]) => {
+      saveMessages(msgs as unknown as Array<{ id: string; role: string; parts: Array<{ type: string; text?: string; [key: string]: unknown }> }>)
+    },
+    [saveMessages]
+  )
+
   /**
    * Handle content change for a specific post
    */
@@ -94,6 +114,51 @@ export function PostSeriesComposer({
     setPosts([])
     setCurrentPostIndex(0)
   }, [clearConversation])
+
+  const [copied, setCopied] = React.useState(false)
+
+  /**
+   * Copy the current post to clipboard
+   */
+  const handleCopyCurrentPost = React.useCallback(async () => {
+    const currentPost = posts[currentPostIndex]
+    if (!currentPost) return
+    try {
+      await navigator.clipboard.writeText(currentPost.post)
+      setCopied(true)
+      showSuccess("Post copied to clipboard!")
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      console.error("Failed to copy")
+    }
+  }, [posts, currentPostIndex])
+
+  /**
+   * Copy all posts in the series to clipboard
+   */
+  const handleCopyAllPosts = React.useCallback(async () => {
+    if (posts.length === 0) return
+    try {
+      const allText = posts
+        .map((p, i) => `--- Post ${i + 1}: ${p.subtopic} ---\n\n${p.post}`)
+        .join("\n\n\n")
+      await navigator.clipboard.writeText(allText)
+      setCopied(true)
+      showSuccess(`All ${posts.length} posts copied to clipboard!`)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      console.error("Failed to copy")
+    }
+  }, [posts])
+
+  /**
+   * Copy current post and open LinkedIn
+   */
+  const handleCopyAndOpenLinkedIn = React.useCallback(async () => {
+    await handleCopyCurrentPost()
+    window.open("https://www.linkedin.com/feed/", "_blank")
+    showSuccess("LinkedIn opened! Paste your post (Ctrl+V)")
+  }, [handleCopyCurrentPost])
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -130,7 +195,7 @@ export function PostSeriesComposer({
               onSeriesGenerated={handleSeriesGenerated}
               hasApiKey={hasApiKey}
               persistedMessages={persistedMessages.length > 0 ? persistedMessages as unknown as UIMessage[] : undefined}
-              onMessagesChange={(msgs) => saveMessages(msgs as unknown as Array<{ id: string; role: string; parts: Array<{ type: string; text?: string; [key: string]: unknown }> }>)}
+              onMessagesChange={handleMessagesChange}
               onNewChat={handleNewChat}
             />
           </CardContent>
@@ -184,6 +249,59 @@ export function PostSeriesComposer({
               </div>
             )}
           </CardContent>
+
+          {/* Action Buttons — only shown when posts exist */}
+          {posts.length > 0 && (
+            <CardFooter className="flex justify-between gap-2 border-t pt-4">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCopyCurrentPost}
+                  className="gap-1.5 text-xs"
+                >
+                  {copied ? (
+                    <IconCheck className="size-3.5 text-green-500" />
+                  ) : (
+                    <IconCopy className="size-3.5" />
+                  )}
+                  {copied ? "Copied!" : "Copy Post"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCopyAllPosts}
+                  className="gap-1.5 text-xs"
+                >
+                  <IconFile className="size-3.5" />
+                  Copy All
+                </Button>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCopyAndOpenLinkedIn}
+                  className="gap-1.5 text-xs"
+                >
+                  <IconBrandLinkedin className="size-3.5 text-[#0A66C2]" />
+                  Open LinkedIn
+                </Button>
+                {onScheduleConfirm && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onScheduleConfirm(posts)}
+                    className="gap-1.5"
+                  >
+                    <IconCalendar className="size-3.5" />
+                    Schedule Series
+                  </Button>
+                )}
+              </div>
+            </CardFooter>
+          )}
         </Card>
       </motion.div>
     </div>

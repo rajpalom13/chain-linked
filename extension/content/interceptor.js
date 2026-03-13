@@ -1,5 +1,5 @@
 /**
- * LinkedIn Data Extractor - Network Interceptor
+ * ChainLinked Data Connector - Network Interceptor
  *
  * Intercepts fetch() and XMLHttpRequest to capture LinkedIn Voyager API responses.
  * This script runs at document_start to ensure we patch before LinkedIn's code loads.

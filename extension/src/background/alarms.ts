@@ -1,5 +1,5 @@
 /**
- * Chrome Alarms Management for LinkedIn Data Extractor
+ * Chrome Alarms Management for ChainLinked Data Connector
  * Handles scheduled backups, maintenance, and alert checking
  */
 

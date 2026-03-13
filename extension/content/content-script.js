@@ -1,5 +1,5 @@
 /**
- * LinkedIn Data Extractor - Content Script
+ * ChainLinked Data Connector - Content Script
  *
  * Main orchestrator for the content scripts.
  * Coordinates between interceptor, DOM extractor, and background service worker.
@@ -12,7 +12,7 @@
   if (window.__linkedInContentScriptLoaded) return;
   window.__linkedInContentScriptLoaded = true;
 
-  console.log('[ContentScript] LinkedIn Data Extractor content script loading...');
+  console.log('[ContentScript] ChainLinked Data Connector content script loading...');
 
   // ============================================
   // MAIN WORLD INTERCEPTOR LOADED VIA MANIFEST

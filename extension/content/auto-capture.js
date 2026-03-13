@@ -1,11 +1,11 @@
 /**
- * LinkedIn Data Extractor - Auto-Capture Controller
+ * ChainLinked Data Connector - Auto-Capture Controller
  *
  * Automatically captures analytics data when user navigates to
  * LinkedIn analytics pages. No manual action required.
  *
  * @version 1.0.0
- * @author LinkedIn Data Extractor
+ * @author ChainLinked Data Connector
  */
 
 (function() {

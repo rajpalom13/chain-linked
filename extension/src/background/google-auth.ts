@@ -1,5 +1,5 @@
 /**
- * LinkedIn Data Extractor - Google OAuth Authentication
+ * ChainLinked Data Connector - Google OAuth Authentication
  * Handles Google OAuth flow for Drive API access
  */
 

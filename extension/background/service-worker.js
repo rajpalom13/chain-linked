@@ -2685,6 +2685,32 @@
           }
           break;
         }
+        case "SUPABASE_AUTH_GOOGLE": {
+          console.log("[ServiceWorker] SUPABASE_AUTH_GOOGLE received");
+          try {
+            const supabaseAuth = self.supabaseAuth;
+            if (!supabaseAuth) {
+              response = { success: false, error: "Supabase auth not initialized" };
+              break;
+            }
+            const result = await supabaseAuth.signInWithGoogle();
+            if (result.success && result.user) {
+              setCurrentUserId(result.user.id);
+              const migrationCheck = await chrome.storage.local.get([
+                "supabase_migration_complete",
+                "supabase_migration_user"
+              ]);
+              if (!migrationCheck.supabase_migration_complete || migrationCheck.supabase_migration_user !== result.user.id) {
+                console.log("[ServiceWorker] First Google sign-in - running data migration");
+                await migrateExistingData();
+              }
+            }
+            response = { success: result.success, data: result, error: result.error };
+          } catch (error) {
+            response = { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+          }
+          break;
+        }
         case "SUPABASE_AUTH_SIGN_OUT": {
           console.log("[ServiceWorker] SUPABASE_AUTH_SIGN_OUT received");
           try {
@@ -3345,6 +3371,6 @@
       console.error("[ServiceWorker] Initialization error:", error);
     }
   })();
-  console.log("[ServiceWorker] LinkedIn Data Extractor service worker loaded (TypeScript v4.0)");
+  console.log("[ServiceWorker] ChainLinked Data Connector service worker loaded (TypeScript v4.0)");
 })();
 //# sourceMappingURL=service-worker.js.map

@@ -20,7 +20,41 @@ import type {
 } from '@/types/canvas-editor';
 
 const STORAGE_KEY = 'chainlinked-carousel-draft';
+const TEMPLATE_STORAGE_KEY = 'chainlinked-carousel-template';
 const MAX_HISTORY = 50;
+
+/**
+ * Serializable property whitelist for canvas elements
+ * Strips DOM refs, React fibers, and other non-serializable values
+ */
+const ELEMENT_KEYS = new Set([
+  'id', 'type', 'x', 'y', 'width', 'height', 'rotation',
+  'text', 'fontSize', 'fontFamily', 'fontWeight', 'fontStyle',
+  'fill', 'align', 'lineHeight', 'letterSpacing', 'textDecoration',
+  'stroke', 'strokeWidth', 'opacity', 'cornerRadius',
+  'shapeType', 'src', 'alt', 'scaleX', 'scaleY',
+]);
+
+/**
+ * Deep clone slides safely, stripping non-serializable properties
+ * Prevents "Converting circular structure to JSON" errors caused by
+ * DOM elements or React fiber refs leaking into state
+ */
+function safeCloneSlides(slides: CanvasSlide[]): CanvasSlide[] {
+  return slides.map((slide) => ({
+    id: slide.id,
+    backgroundColor: slide.backgroundColor,
+    elements: (slide.elements || []).map((el) => {
+      const clean: Record<string, unknown> = {};
+      for (const key of Object.keys(el)) {
+        if (ELEMENT_KEYS.has(key)) {
+          clean[key] = el[key as keyof typeof el];
+        }
+      }
+      return clean as unknown as CanvasElement;
+    }),
+  }));
+}
 
 /**
  * Generate a unique ID for elements and slides
@@ -244,14 +278,15 @@ function canvasEditorReducer(
       return { ...state, slides: newSlides };
     }
 
-    case 'APPLY_TEMPLATE':
+    case 'APPLY_TEMPLATE': {
+      const clonedSlides = safeCloneSlides(action.payload.defaultSlides || []);
       return {
         ...state,
-        slides: action.payload.defaultSlides.map((slide) => ({
-          ...JSON.parse(JSON.stringify(slide)),
+        slides: clonedSlides.map((slide) => ({
+          ...slide,
           id: generateId(),
-          elements: slide.elements.map((el) => ({
-            ...JSON.parse(JSON.stringify(el)),
+          elements: (slide.elements || []).map((el) => ({
+            ...el,
             id: generateId(),
           })),
         })),
@@ -259,6 +294,10 @@ function canvasEditorReducer(
         currentSlideIndex: 0,
         selectedElementId: null,
       };
+    }
+
+    case 'SET_TEMPLATE':
+      return { ...state, template: action.payload };
 
     case 'SET_ZOOM':
       return { ...state, zoom: action.payload };
@@ -296,7 +335,7 @@ export function useCanvasEditor() {
     }
 
     const entry: HistoryEntry = {
-      slides: JSON.parse(JSON.stringify(state.slides)),
+      slides: safeCloneSlides(state.slides),
       currentSlideIndex: state.currentSlideIndex,
       selectedElementId: state.selectedElementId,
     };
@@ -321,7 +360,8 @@ export function useCanvasEditor() {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state.slides));
+        const cleanSlides = safeCloneSlides(state.slides);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(cleanSlides));
       } catch (e) {
         console.warn('Failed to save carousel draft to localStorage');
       }
@@ -331,7 +371,25 @@ export function useCanvasEditor() {
   }, [state.slides]);
 
   /**
-   * Load from localStorage on mount
+   * Persist full template to localStorage so session can be fully restored
+   * (needed for AI Generate to work after page reload)
+   */
+  useEffect(() => {
+    try {
+      if (state.template) {
+        const safeTemplate = {
+          ...state.template,
+          defaultSlides: safeCloneSlides(state.template.defaultSlides || []),
+        };
+        localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(safeTemplate));
+      }
+    } catch (e) {
+      console.warn('Failed to save template info to localStorage');
+    }
+  }, [state.template]);
+
+  /**
+   * Load from localStorage on mount (slides + template)
    */
   useEffect(() => {
     try {
@@ -339,7 +397,22 @@ export function useCanvasEditor() {
       if (saved) {
         const slides = JSON.parse(saved) as CanvasSlide[];
         if (Array.isArray(slides) && slides.length > 0) {
-          dispatch({ type: 'SET_SLIDES', payload: slides });
+          // Ensure each slide has an elements array
+          const sanitized = slides.map((s) => ({
+            ...s,
+            elements: Array.isArray(s.elements) ? s.elements : [],
+          }));
+          dispatch({ type: 'SET_SLIDES', payload: sanitized });
+        }
+      }
+
+      // Restore template reference (without overwriting slides)
+      // so AI Generate works after page reload
+      const savedTemplate = localStorage.getItem(TEMPLATE_STORAGE_KEY);
+      if (savedTemplate) {
+        const template = JSON.parse(savedTemplate) as CanvasTemplate;
+        if (template && template.id) {
+          dispatch({ type: 'SET_TEMPLATE', payload: template });
         }
       }
     } catch (e) {
@@ -367,8 +440,19 @@ export function useCanvasEditor() {
 
   const addSlide = useCallback((slide?: CanvasSlide) => {
     saveToHistory();
-    dispatch({ type: 'ADD_SLIDE', payload: slide });
-  }, [saveToHistory]);
+    if (!slide && state.template) {
+      // Inherit background and structure from the last template slide
+      const lastTemplateSlide = state.template.defaultSlides[state.template.defaultSlides.length - 1];
+      const newSlide: CanvasSlide = {
+        id: generateId(),
+        elements: [],
+        backgroundColor: lastTemplateSlide?.backgroundColor || '#ffffff',
+      };
+      dispatch({ type: 'ADD_SLIDE', payload: newSlide });
+    } else {
+      dispatch({ type: 'ADD_SLIDE', payload: slide });
+    }
+  }, [saveToHistory, state.template]);
 
   const deleteSlide = useCallback((index: number) => {
     saveToHistory();
@@ -536,6 +620,7 @@ export function useCanvasEditor() {
   const clearDraft = useCallback(() => {
     try {
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(TEMPLATE_STORAGE_KEY);
     } catch (e) {
       console.warn('Failed to clear carousel draft');
     }
@@ -552,7 +637,7 @@ export function useCanvasEditor() {
   const currentSlide = state.slides[state.currentSlideIndex];
 
   // Get selected element
-  const selectedElement = currentSlide?.elements.find(
+  const selectedElement = currentSlide?.elements?.find(
     (el) => el.id === state.selectedElementId
   ) || null;
 

@@ -1,5 +1,5 @@
 /**
- * LinkedIn Data Extractor - Company Page Extractor
+ * ChainLinked Data Connector - Company Page Extractor
  * Extracts company page analytics and information
  */
 

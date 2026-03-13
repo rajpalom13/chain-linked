@@ -359,7 +359,7 @@ function TemplateCard({
       {/* Slide count badge - visible when not selected */}
       {!isSelected && (
         <div className="absolute right-2.5 top-2.5 z-20">
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-background/80 backdrop-blur-sm shadow-sm">
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-white text-black shadow-sm">
             {template.defaultSlides.length} slides
           </Badge>
         </div>
@@ -618,7 +618,7 @@ function SavedTemplateCard({
       {/* Slide count badge */}
       {!isSelected && (
         <div className="absolute right-2.5 top-2.5 z-20">
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-background/80 backdrop-blur-sm shadow-sm">
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-white text-black shadow-sm">
             {template.defaultSlides.length} slides
           </Badge>
         </div>

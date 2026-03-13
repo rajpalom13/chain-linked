@@ -1,4 +1,4 @@
-// LinkedIn Data Extractor - Storage Utilities
+// ChainLinked Data Connector - Storage Utilities
 
 import type { StorageKey, ExtensionSettings, CaptureLog, TrendDataPoint } from './types';
 

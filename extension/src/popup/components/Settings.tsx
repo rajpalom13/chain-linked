@@ -265,7 +265,7 @@ export function Settings() {
 
       {/* Version Info */}
       <div className="text-center pt-2 pb-1">
-        <p className="text-[10px] text-slate-400 font-medium">LinkedIn Data Extractor v4.0</p>
+        <p className="text-[10px] text-slate-400 font-medium">ChainLinked Data Connector v4.1</p>
         <div className="flex items-center justify-center gap-2 mt-1">
           <a
             href="https://chainlinked.ai"

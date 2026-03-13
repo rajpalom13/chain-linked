@@ -888,9 +888,24 @@ function DraftsContent() {
     }
   }, [selectedIds, filteredDrafts, confirm, bulkDeleteDrafts, clearSelection])
 
-  /** Load draft into composer */
+  /** Load draft into composer or carousel editor */
   const handleEdit = React.useCallback(
     (d: SavedDraft) => {
+      // Carousel drafts: restore slide data and navigate to carousel editor
+      if (d.source === "carousel" && d.additionalContext) {
+        try {
+          const slides = JSON.parse(d.additionalContext)
+          if (Array.isArray(slides) && slides.length > 0) {
+            localStorage.setItem("chainlinked-carousel-draft", d.additionalContext)
+            toast.success("Carousel loaded into editor")
+            router.push("/dashboard/carousels")
+            return
+          }
+        } catch {
+          // Fall through to compose if slide data is invalid
+        }
+      }
+
       clearDraft()
       updateDraft({
         content: d.content,

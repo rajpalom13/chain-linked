@@ -174,6 +174,33 @@ class SupabaseAuth {
   }
 
   /**
+   * Sign in with Google by opening the platform login page.
+   * The platform handles Google OAuth via Supabase, then redirects to
+   * /auth/extension-callback which transfers the session to the extension
+   * via the webapp-relay content script.
+   * @returns {Promise<{success: boolean, pending: boolean, error: string|null}>}
+   */
+  async signInWithGoogle() {
+    try {
+      console.log('[SupabaseAuth] Opening platform login for Google sign-in...');
+
+      // Open the platform login page which redirects to extension-callback after auth
+      // Use localhost for development, production URL for deployed extension
+      const baseUrl = 'http://localhost:3000';
+      const loginUrl = `${baseUrl}/login?redirect=/auth/extension-callback`;
+      await chrome.tabs.create({ url: loginUrl });
+
+      // Return pending - the session will be received via EXTENSION_AUTH_SESSION
+      // message from the webapp-relay content script after the user authenticates
+      return { success: true, pending: true, error: null };
+
+    } catch (error) {
+      console.error('[SupabaseAuth] Google sign-in error:', error);
+      return { success: false, pending: false, error: error.message || 'Google sign-in failed' };
+    }
+  }
+
+  /**
    * Get the current session
    */
   async getSession() {

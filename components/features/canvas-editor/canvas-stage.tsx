@@ -318,7 +318,7 @@ export const CanvasStage = forwardRef<CanvasStageRef, CanvasStageProps>(
               {renderGrid()}
 
               {/* Elements (sorted by z-index if needed) */}
-              {slide.elements.map(renderElement)}
+              {(slide.elements || []).map(renderElement)}
             </Layer>
           </Stage>
         </div>

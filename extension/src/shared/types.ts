@@ -1,4 +1,4 @@
-// LinkedIn Data Extractor - Shared Types
+// ChainLinked Data Connector - Shared Types
 
 // Profile Data Types
 export interface ProfileData {

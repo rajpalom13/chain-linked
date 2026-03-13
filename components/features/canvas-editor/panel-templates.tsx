@@ -287,8 +287,8 @@ function MiniTemplateCard({
 
         {/* Slide count badge - top right */}
         <div className="absolute right-1.5 top-1.5">
-          <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-background/80 backdrop-blur-sm shadow-sm">
-            {template.defaultSlides.length}
+          <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-white text-black shadow-sm">
+            {template.defaultSlides.length} slides
           </Badge>
         </div>
       </div>

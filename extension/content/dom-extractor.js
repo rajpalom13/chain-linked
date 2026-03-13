@@ -1,5 +1,5 @@
 /**
- * LinkedIn Data Extractor - DOM Extractor
+ * ChainLinked Data Connector - DOM Extractor
  *
  * Extracts data directly from LinkedIn's rendered DOM elements.
  * Provides fallback data when API interception doesn't capture everything.

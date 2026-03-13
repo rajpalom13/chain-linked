@@ -1,5 +1,5 @@
 /**
- * LinkedIn Data Extractor - Google Drive Sync
+ * ChainLinked Data Connector - Google Drive Sync
  * Handles backup/restore to Google Drive appdata folder
  */
 

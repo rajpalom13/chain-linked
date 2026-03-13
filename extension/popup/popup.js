@@ -1,5 +1,5 @@
 /**
- * LinkedIn Analytics Pro - Popup Script
+ * ChainLinked Data Connector - Popup Script
  * Enhanced dashboard with insights and analytics
  */
 
@@ -111,6 +111,7 @@
       supabaseNotConfigured: $('#supabase-not-configured'),
       btnSupabaseSignin: $('#btn-supabase-signin'),
       btnSupabaseSignup: $('#btn-supabase-signup'),
+      btnGoogleSignin: $('#btn-google-signin'),
       btnSupabaseSignout: $('#btn-supabase-signout'),
       btnSyncNow: $('#btn-sync-now'),
       btnFullSync: $('#btn-full-sync'),
@@ -1597,6 +1598,10 @@
       elements.btnSupabaseSignup.addEventListener('click', handleSupabaseSignUp);
     }
 
+    if (elements.btnGoogleSignin) {
+      elements.btnGoogleSignin.addEventListener('click', handleGoogleSignIn);
+    }
+
     if (elements.btnSupabaseSignout) {
       elements.btnSupabaseSignout.addEventListener('click', handleSupabaseSignOut);
     }
@@ -1718,6 +1723,29 @@
     } catch (error) {
       console.error('[Popup] Sign up error:', error);
       showAuthError('Failed to create account. Please try again.');
+    } finally {
+      hideLoading();
+    }
+  }
+
+  async function handleGoogleSignIn() {
+    try {
+      clearAuthError();
+      showLoading('Signing in with Google...');
+
+      const response = await sendMessage({
+        type: 'SUPABASE_AUTH_GOOGLE'
+      });
+
+      if (response.success) {
+        showToast('Signed in with Google successfully!', 'success');
+        await updateSyncUI();
+      } else {
+        showAuthError(response.error || 'Google sign-in failed');
+      }
+    } catch (error) {
+      console.error('[Popup] Google sign-in error:', error);
+      showAuthError('Failed to sign in with Google. Please try again.');
     } finally {
       hideLoading();
     }
@@ -1923,7 +1951,7 @@
   }
 
   async function initialize() {
-    console.log('[Popup] Initializing LinkedIn Data Extractor v4.1...');
+    console.log('[Popup] Initializing ChainLinked Data Connector v4.1...');
     console.log('[Popup] Document readyState:', document.readyState);
 
     // Initialize DOM elements first (after DOM is ready)

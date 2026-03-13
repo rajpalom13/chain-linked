@@ -84,12 +84,24 @@ export function CanvasEditor({
 }: CanvasEditorProps) {
   const stageRef = useRef<CanvasStageRef>(null);
   const [activeLeftTab, setActiveLeftTab] = useState<LeftPanelTab | null>(null);
-  const [showTemplateModal, setShowTemplateModal] = useState(!initialTemplate);
+  const [showTemplateModal, setShowTemplateModal] = useState(() => {
+    if (initialTemplate) return false;
+    // Don't show template modal if there's an existing draft in localStorage
+    try {
+      const saved = localStorage.getItem('chainlinked-carousel-draft');
+      if (saved) {
+        const slides = JSON.parse(saved);
+        if (Array.isArray(slides) && slides.length > 0) return false;
+      }
+    } catch { /* ignore */ }
+    return true;
+  });
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [showAiGenerator, setShowAiGenerator] = useState(false);
   const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
   const [showPostDialog, setShowPostDialog] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
+  const [generatedCaption, setGeneratedCaption] = useState<string | undefined>(undefined);
 
   // Carousel template persistence
   const {
@@ -208,12 +220,85 @@ export function CanvasEditor({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [undo, redo, deleteElement, selectElement, selectedElementId]);
 
+  // Track saved draft ID for carousel auto-save deduplication
+  const carouselDraftIdRef = useRef<string | null>(null);
+
+  /**
+   * Build the carousel auto-save payload
+   * Includes text preview as content and full slide JSON in context field
+   */
+  const buildCarouselSavePayload = useCallback(() => {
+    const combinedText = slides
+      .flatMap((slide) => (slide.elements || []))
+      .filter((el): el is import('@/types/canvas-editor').CanvasTextElement => el?.type === 'text')
+      .map((el) => el.text)
+      .filter(Boolean)
+      .join('\n');
+
+    if (combinedText.length < 10) return null;
+
+    // Read the safely-serialized slides from localStorage
+    const slideJson = localStorage.getItem('chainlinked-carousel-draft') || undefined;
+
+    return {
+      content: combinedText,
+      postType: 'carousel',
+      source: 'carousel',
+      context: slideJson,
+      draftId: carouselDraftIdRef.current || undefined,
+    };
+  }, [slides]);
+
+  /**
+   * Auto-save carousel draft to Supabase on page leave
+   * Uses navigator.sendBeacon for reliable saves during unload
+   */
+  useEffect(() => {
+    const saveCarouselDraft = () => {
+      const payload = buildCarouselSavePayload();
+      if (!payload) return;
+      navigator.sendBeacon('/api/drafts/auto-save', JSON.stringify(payload));
+    };
+
+    window.addEventListener('beforeunload', saveCarouselDraft);
+    return () => window.removeEventListener('beforeunload', saveCarouselDraft);
+  }, [buildCarouselSavePayload]);
+
+  /**
+   * Periodic auto-save to Supabase every 30 seconds
+   */
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const payload = buildCarouselSavePayload();
+      if (!payload) return;
+
+      try {
+        const res = await fetch('/api/drafts/auto-save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.id) {
+            carouselDraftIdRef.current = data.id;
+          }
+        }
+      } catch {
+        // Silently ignore periodic save failures
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [buildCarouselSavePayload]);
+
   /**
    * Handle template selection (from inline panel or modal)
    */
   const handleSelectTemplate = useCallback(
     (selectedTemplate: CanvasTemplate) => {
       applyTemplate(selectedTemplate);
+      setActiveLeftTab('slides');
     },
     [applyTemplate]
   );
@@ -222,8 +307,11 @@ export function CanvasEditor({
    * Handle AI-generated slides
    */
   const handleAiGenerated = useCallback(
-    (generatedSlides: CanvasSlide[]) => {
+    (generatedSlides: CanvasSlide[], caption?: string) => {
       setSlides(generatedSlides);
+      if (caption) {
+        setGeneratedCaption(caption);
+      }
     },
     [setSlides]
   );
@@ -283,7 +371,31 @@ export function CanvasEditor({
           const pdfBlob = await exportCarouselToPDF(dataUrls, options);
           const filename = options.fileName || generateFilename('carousel', 'pdf');
           downloadBlob(pdfBlob, filename);
+        } else if (slides.length > 1) {
+          // Multi-slide PNG export: bundle all slides into a ZIP
+          const { default: JSZip } = await import('jszip');
+          const zip = new JSZip();
+          const originalSlideIndex = currentSlideIndex;
+
+          for (let i = 0; i < slides.length; i++) {
+            setCurrentSlide(i);
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+            await new Promise((resolve) => setTimeout(resolve, 100));
+
+            const dataUrl = exportSlideToDataUrl(stage, options.pixelRatio);
+            const res = await fetch(dataUrl);
+            const blob = await res.blob();
+            zip.file(`slide-${i + 1}.png`, blob);
+            setExportProgress((i + 1) / slides.length);
+          }
+
+          setCurrentSlide(originalSlideIndex);
+
+          const zipBlob = await zip.generateAsync({ type: 'blob' });
+          const filename = options.fileName || generateFilename('carousel-slides', 'zip');
+          downloadBlob(zipBlob, filename);
         } else {
+          // Single slide PNG export
           const dataUrl = exportSlideToDataUrl(stage, options.pixelRatio);
           const response = await fetch(dataUrl);
           const blob = await response.blob();
@@ -294,23 +406,13 @@ export function CanvasEditor({
 
         setShowExportDialog(false);
 
-        // Save carousel text content as a draft (fire-and-forget)
-        const combinedTextContent = slides
-          .flatMap((slide) => slide.elements)
-          .filter((el): el is import('@/types/canvas-editor').CanvasTextElement => el.type === 'text')
-          .map((el) => el.text)
-          .filter(Boolean)
-          .join('\n');
-
-        if (combinedTextContent.length > 10) {
+        // Save carousel as a draft with full slide data (fire-and-forget)
+        const exportPayload = buildCarouselSavePayload();
+        if (exportPayload) {
           fetch('/api/drafts/auto-save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              content: combinedTextContent,
-              postType: 'carousel',
-              source: 'carousel',
-            }),
+            body: JSON.stringify(exportPayload),
           })
             .then((res) => {
               if (res.ok) {
@@ -475,7 +577,6 @@ export function CanvasEditor({
         currentTemplate={template}
         currentSlides={slides}
         onAiGenerated={handleAiGenerated}
-        onOpenAdvancedAi={() => setShowAiGenerator(true)}
         onInsertImage={handleInsertGraphicImage}
         onInsertShape={handleInsertGraphicShape}
         slides={slides}
@@ -504,7 +605,7 @@ export function CanvasEditor({
           )}
         </div>
 
-        {/* Floating toolbar (bottom-center) */}
+        {/* Floating toolbar (top-center) */}
         <EditorFloatingToolbar
           zoom={zoom}
           showGrid={showGrid}
@@ -516,6 +617,12 @@ export function CanvasEditor({
           onZoomOut={handleZoomOut}
           onZoomReset={handleZoomReset}
           onToggleGrid={toggleGrid}
+          onPrevSlide={() => setCurrentSlide(Math.max(0, currentSlideIndex - 1))}
+          onNextSlide={() => setCurrentSlide(Math.min(slides.length - 1, currentSlideIndex + 1))}
+          canGoPrev={currentSlideIndex > 0}
+          canGoNext={currentSlideIndex < slides.length - 1}
+          currentSlide={currentSlideIndex}
+          totalSlides={slides.length}
         />
 
         {/* Top actions (top-right) */}
@@ -600,6 +707,7 @@ export function CanvasEditor({
         stageRef={stageRef}
         currentSlideIndex={currentSlideIndex}
         setCurrentSlide={setCurrentSlide}
+        initialCaption={generatedCaption}
       />
     </div>
   );

@@ -16,6 +16,7 @@ import {
   IconLoader2,
   IconCheck,
   IconAlertTriangle,
+  IconSparkles,
   IconBold,
   IconItalic,
   IconList,
@@ -36,6 +37,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -93,6 +95,8 @@ interface PostToLinkedInDialogProps {
   currentSlideIndex: number;
   /** Function to set the current slide index */
   setCurrentSlide: (index: number) => void;
+  /** Pre-filled caption from AI carousel generation */
+  initialCaption?: string;
 }
 
 /**
@@ -119,10 +123,12 @@ export function PostToLinkedInDialog({
   stageRef,
   currentSlideIndex,
   setCurrentSlide,
+  initialCaption,
 }: PostToLinkedInDialogProps) {
   const { user, profile } = useAuthContext();
 
-  const [caption, setCaption] = useState('');
+  const [caption, setCaption] = useState(initialCaption ?? '');
+  const [captionFromAi, setCaptionFromAi] = useState(!!initialCaption);
   const [visibility, setVisibility] = useState<LinkedInVisibility>('PUBLIC');
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -188,8 +194,8 @@ export function PostToLinkedInDialog({
    */
   const extractSlideText = useCallback((): string => {
     return slides
-      .flatMap((slide) => slide.elements)
-      .filter((el): el is Extract<typeof el, { type: 'text' }> => el.type === 'text')
+      .flatMap((slide) => slide.elements || [])
+      .filter((el): el is Extract<typeof el, { type: 'text' }> => el?.type === 'text')
       .map((el) => el.text)
       .filter(Boolean)
       .join('\n');
@@ -246,12 +252,21 @@ export function PostToLinkedInDialog({
     }
   }, [open, pdfBlob, isGeneratingPdf, generatePdf]);
 
+  // Pre-fill caption from AI when dialog opens
+  useEffect(() => {
+    if (open && initialCaption && !caption) {
+      setCaption(initialCaption);
+      setCaptionFromAi(true);
+    }
+  }, [open, initialCaption]);
+
   // Reset state when dialog closes
   useEffect(() => {
     if (!open) {
       setPdfBlob(null);
       setSlideImages([]);
       setCaption('');
+      setCaptionFromAi(false);
       setVisibility('PUBLIC');
       setActiveFontStyle('normal');
       setShowEmojiPicker(false);
@@ -485,6 +500,7 @@ export function PostToLinkedInDialog({
   const handleAIGenerated = (content: string) => {
     const converted = convertMarkdownToUnicode(content);
     setCaption(converted);
+    setCaptionFromAi(true);
     setIsEditing(false);
   };
 
@@ -585,7 +601,8 @@ export function PostToLinkedInDialog({
               onGenerated={handleAIGenerated}
               hasApiKey={hasApiKey}
               persistFields
-              initialContext={(() => {
+              topicLabel="What is your caption?"
+              systemContext={(() => {
                 const slideText = extractSlideText();
                 const contextParts = [
                   'IMPORTANT CONTEXT: The user is posting a LinkedIn carousel document (PDF) alongside this caption.',
@@ -661,6 +678,16 @@ export function PostToLinkedInDialog({
 
               {/* Editing zone — caption + formatting toolbar */}
               <div ref={editingZoneRef}>
+                {/* AI generated badge */}
+                {captionFromAi && caption.trim() && (
+                  <div className="px-4 pt-1">
+                    <Badge variant="secondary" className="text-[10px] gap-1">
+                      <IconSparkles className="size-3" />
+                      AI generated caption
+                    </Badge>
+                  </div>
+                )}
+
                 {/* Caption area — dual mode (edit / preview) */}
                 <div className="px-4 pb-3">
                   {isEditing ? (

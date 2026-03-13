@@ -1,5 +1,5 @@
 /**
- * Chrome Notifications for LinkedIn Data Extractor
+ * Chrome Notifications for ChainLinked Data Connector
  * Handles capture notifications, alerts, and backup notifications
  */
 

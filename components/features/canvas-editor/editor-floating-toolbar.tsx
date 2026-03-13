@@ -12,6 +12,8 @@ import {
   IconZoomIn,
   IconZoomOut,
   IconGridDots,
+  IconChevronLeft,
+  IconChevronRight,
 } from '@tabler/icons-react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -39,6 +41,12 @@ interface EditorFloatingToolbarProps {
   onZoomOut: () => void;
   onZoomReset: () => void;
   onToggleGrid: () => void;
+  onPrevSlide?: () => void;
+  onNextSlide?: () => void;
+  canGoPrev?: boolean;
+  canGoNext?: boolean;
+  currentSlide?: number;
+  totalSlides?: number;
 }
 
 /**
@@ -99,6 +107,12 @@ export function EditorFloatingToolbar({
   onZoomOut,
   onZoomReset,
   onToggleGrid,
+  onPrevSlide,
+  onNextSlide,
+  canGoPrev,
+  canGoNext,
+  currentSlide,
+  totalSlides,
 }: EditorFloatingToolbarProps) {
   return (
     <TooltipProvider delayDuration={300}>
@@ -106,7 +120,7 @@ export function EditorFloatingToolbar({
         variants={fadeSlideUpVariants}
         initial="initial"
         animate="animate"
-        className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-full border bg-background/90 px-2 shadow-lg backdrop-blur-sm"
+        className="absolute top-16 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-full border bg-background/90 px-2 shadow-lg backdrop-blur-sm"
       >
         {/* Undo / Redo */}
         <ToolbarBtn
@@ -161,6 +175,28 @@ export function EditorFloatingToolbar({
           onClick={onToggleGrid}
           active={showGrid}
         />
+
+        {/* Slide navigation */}
+        {totalSlides && totalSlides > 1 && (
+          <>
+            <Separator orientation="vertical" className="mx-1 h-5" />
+            <ToolbarBtn
+              icon={<IconChevronLeft className="h-4 w-4" />}
+              label="Previous Slide"
+              onClick={onPrevSlide ?? (() => {})}
+              disabled={!canGoPrev}
+            />
+            <span className="h-8 min-w-[2.5rem] flex items-center justify-center text-xs font-medium tabular-nums">
+              {(currentSlide ?? 0) + 1}/{totalSlides}
+            </span>
+            <ToolbarBtn
+              icon={<IconChevronRight className="h-4 w-4" />}
+              label="Next Slide"
+              onClick={onNextSlide ?? (() => {})}
+              disabled={!canGoNext}
+            />
+          </>
+        )}
       </motion.div>
     </TooltipProvider>
   );

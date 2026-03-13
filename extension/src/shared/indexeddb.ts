@@ -1,5 +1,5 @@
 /**
- * IndexedDB Wrapper for LinkedIn Data Extractor
+ * IndexedDB Wrapper for ChainLinked Data Connector
  * Provides persistent storage for trend data, capture logs, and backup metadata
  */
 

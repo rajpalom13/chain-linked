@@ -1,5 +1,5 @@
 /**
- * LinkedIn Data Extractor - Main World Interceptor v3.0
+ * ChainLinked Data Connector - Main World Interceptor v3.0
  *
  * This script runs in the MAIN world at document_start, ensuring it executes
  * before LinkedIn's code can cache references to fetch/XHR.

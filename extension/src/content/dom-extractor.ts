@@ -1,5 +1,5 @@
 /**
- * LinkedIn Data Extractor - DOM Extractor
+ * ChainLinked Data Connector - DOM Extractor
  * TypeScript Version
  *
  * Extracts data directly from LinkedIn DOM when API data isn't available.

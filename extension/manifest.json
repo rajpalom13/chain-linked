@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "LinkedIn Data Extractor",
+  "name": "ChainLinked Data Connector",
   "version": "4.1.0",
   "description": "Extract your LinkedIn profile data, analytics, and network insights with cloud sync",
   "author": "AGI Ready",
@@ -103,7 +103,7 @@
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     },
-    "default_title": "LinkedIn Data Extractor"
+    "default_title": "ChainLinked Data Connector"
   },
 
   "icons": {

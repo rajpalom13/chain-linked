@@ -80,6 +80,7 @@ interface GenerationResponse {
     slotId: string
     content: string
   }>
+  caption?: string
   metadata: {
     tokensUsed: number
     generationTime: number
@@ -331,11 +332,36 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    // Generate a LinkedIn caption for the carousel (non-blocking secondary call)
+    let caption: string | undefined
+    try {
+      const captionCompletion = await client.chat.completions.create({
+        model: 'openai/gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a LinkedIn content expert. Write a compelling LinkedIn post caption to accompany a carousel document. The caption should hook readers and encourage them to swipe through the slides. Keep it under 500 characters. Do NOT repeat slide content verbatim — tease key insights. Include relevant hashtags at the end.'
+          },
+          {
+            role: 'user',
+            content: `Topic: ${input.topic}\nTone: ${input.tone}\nSlide content summary:\n${slots.map(s => s.content).join('\n')}`
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 300
+      })
+      caption = captionCompletion.choices[0]?.message?.content || undefined
+    } catch (captionError) {
+      // Caption generation is best-effort; don't fail the whole request
+      console.warn('[Carousel] Caption generation failed:', captionError)
+    }
+
     const generationTime = Date.now() - startTime
 
     const response: GenerationResponse = {
       success: true,
       slots,
+      caption,
       metadata: {
         tokensUsed: completion.usage?.total_tokens || 0,
         generationTime,

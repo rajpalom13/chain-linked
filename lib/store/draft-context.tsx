@@ -247,12 +247,8 @@ export function DraftProvider({ children }: { children: React.ReactNode }) {
 
   const loadForRemix = React.useCallback(
     (postId: string, content: string, authorName?: string, aiSuggestion?: AISuggestion, remixMeta?: RemixMeta) => {
-      const remixContent = authorName
-        ? `Inspired by ${authorName}:\n\n${content}`
-        : content
-
       setDraft({
-        content: remixContent,
+        content,
         mediaFiles: [],
         scheduledFor: undefined,
         templateId: undefined,

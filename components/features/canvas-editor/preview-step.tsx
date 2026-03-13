@@ -55,7 +55,7 @@ function SlidePreview({
   onClick: () => void
 }) {
   // Get text elements for preview
-  const textElements = slide.elements.filter(el => el.type === 'text') as CanvasTextElement[]
+  const textElements = (slide.elements || []).filter(el => el.type === 'text') as CanvasTextElement[]
 
   // Find the main title (largest font or first element)
   const sortedBySize = [...textElements].sort((a, b) =>
@@ -113,7 +113,7 @@ function isDarkBackground(color?: string): boolean {
  * Large slide preview component
  */
 function LargeSlidePreview({ slide }: { slide: CanvasSlide }) {
-  const textElements = slide.elements.filter(el => el.type === 'text') as CanvasTextElement[]
+  const textElements = (slide.elements || []).filter(el => el.type === 'text') as CanvasTextElement[]
   const isDark = isDarkBackground(slide.backgroundColor)
 
   return (

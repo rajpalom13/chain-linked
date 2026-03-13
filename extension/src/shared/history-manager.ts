@@ -1,5 +1,5 @@
 /**
- * History Manager for LinkedIn Data Extractor
+ * History Manager for ChainLinked Data Connector
  * Manages trend data collection, aggregation, and export
  */
 

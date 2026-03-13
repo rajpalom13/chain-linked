@@ -1,5 +1,5 @@
 /**
- * LinkedIn Data Extractor - Service Worker (Background Script)
+ * ChainLinked Data Connector - Service Worker (Background Script)
  * TypeScript Version - v4.0
  */
 
@@ -2873,6 +2873,98 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
         break;
       }
 
+      case 'SUPABASE_AUTH_GOOGLE': {
+        console.log('[ServiceWorker] SUPABASE_AUTH_GOOGLE received');
+        try {
+          const supabaseAuth = (self as unknown as { supabaseAuth?: {
+            signInWithGoogle: () => Promise<{ success: boolean; pending?: boolean; error?: string | null }>;
+          } }).supabaseAuth;
+
+          if (!supabaseAuth) {
+            response = { success: false, error: 'Supabase auth not initialized' };
+            break;
+          }
+
+          const result = await supabaseAuth.signInWithGoogle();
+          // signInWithGoogle now opens a tab to the platform login page.
+          // The session will arrive asynchronously via EXTENSION_AUTH_SESSION.
+          response = { success: result.success, pending: result.pending, error: result.error };
+        } catch (error) {
+          response = { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+        }
+        break;
+      }
+
+      case 'EXTENSION_AUTH_SESSION': {
+        console.log('[ServiceWorker] EXTENSION_AUTH_SESSION received from webapp relay');
+        try {
+          const sessionData = message.data;
+          if (!sessionData?.access_token) {
+            response = { success: false, error: 'No session data provided' };
+            break;
+          }
+
+          // Save the session to chrome.storage.local (same format as SupabaseAuth)
+          await chrome.storage.local.set({
+            supabase_session: {
+              access_token: sessionData.access_token,
+              refresh_token: sessionData.refresh_token,
+              expires_in: sessionData.expires_in,
+              expires_at: sessionData.expires_at,
+              token_type: sessionData.token_type,
+              user: sessionData.user,
+            },
+          });
+
+          // Update the Supabase client auth state
+          const supabaseClient = (self as unknown as { supabase?: { setAuth: (token: string, userId: string) => void } }).supabase;
+          if (supabaseClient) {
+            supabaseClient.setAuth(sessionData.access_token, sessionData.user?.id);
+          }
+
+          // Update the auth module state
+          const supabaseAuth = (self as unknown as { supabaseAuth?: {
+            session: unknown;
+            currentUser: { id: string; email: string } | null;
+            notifyListeners: (event: string, user: unknown) => void;
+            ensureUserRecord: (user: unknown) => Promise<void>;
+          } }).supabaseAuth;
+
+          if (supabaseAuth) {
+            supabaseAuth.session = sessionData;
+            supabaseAuth.currentUser = {
+              id: sessionData.user?.id,
+              email: sessionData.user?.email,
+            };
+            supabaseAuth.notifyListeners('SIGNED_IN', supabaseAuth.currentUser);
+            await supabaseAuth.ensureUserRecord(sessionData.user);
+          }
+
+          setCurrentUserId(sessionData.user?.id);
+
+          // Check if data migration is needed
+          const migrationCheck = await chrome.storage.local.get([
+            'supabase_migration_complete',
+            'supabase_migration_user',
+          ]);
+
+          if (
+            !migrationCheck.supabase_migration_complete ||
+            migrationCheck.supabase_migration_user !== sessionData.user?.id
+          ) {
+            console.log('[ServiceWorker] First extension sign-in - running data migration');
+            await migrateExistingData();
+          }
+
+          console.log('[ServiceWorker] Extension auth session saved for:', sessionData.user?.email);
+          response = { success: true, data: { userId: sessionData.user?.id, email: sessionData.user?.email } };
+        } catch (error) {
+          console.error('[ServiceWorker] EXTENSION_AUTH_SESSION error:', error);
+          response = { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+        }
+        break;
+      }
+
       case 'SUPABASE_AUTH_SIGN_OUT': {
         console.log('[ServiceWorker] SUPABASE_AUTH_SIGN_OUT received');
         try {
@@ -3557,7 +3649,7 @@ chrome.runtime.onStartup.addListener(async () => {
   }
 })();
 
-console.log('[ServiceWorker] LinkedIn Data Extractor service worker loaded (TypeScript v4.2)');
+console.log('[ServiceWorker] ChainLinked Data Connector service worker loaded (TypeScript v4.2)');
 
 // Expose diagnostic utilities on the global scope for service worker console debugging.
 // Usage: In the service worker DevTools console, type:

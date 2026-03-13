@@ -58,6 +58,7 @@
     "date-fns": "^4.1.0",
     "framer-motion": "^12.26.2",
     "inngest": "^3.49.3",
+    "jszip": "^3.10.1",
     "konva": "^10.2.0",
     "lexical": "^0.39.0",
     "lottie-react": "^2.4.1",

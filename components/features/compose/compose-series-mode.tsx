@@ -115,11 +115,14 @@ export function ComposeSeriesMode({
     }
   }, [messages])
 
+  const onMessagesChangeRef = React.useRef(onMessagesChange)
+  onMessagesChangeRef.current = onMessagesChange
+
   React.useEffect(() => {
-    if (onMessagesChange && messages.length > 1) {
-      onMessagesChange(messages)
+    if (onMessagesChangeRef.current && messages.length > 1) {
+      onMessagesChangeRef.current(messages)
     }
-  }, [messages, onMessagesChange])
+  }, [messages])
 
   /** Detect series generation */
   React.useEffect(() => {
@@ -467,37 +470,41 @@ export function ComposeSeriesMode({
         </AnimatePresence>
       </div>
 
-      {/* Chat input */}
-      {!hasGeneratedSeries && (
-        <form onSubmit={onSubmit} className="flex items-center gap-2">
-          <input
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={hasApiKey ? "Describe your series theme..." : "API key required"}
-            disabled={status !== 'ready' || !hasApiKey}
-            className={cn(
-              "flex-1 rounded-full border border-destructive/30 bg-background px-4 py-2.5 text-sm",
-              "placeholder:text-muted-foreground",
-              "focus:outline-none focus:ring-2 focus:ring-destructive/20 focus:border-destructive/50",
-              "disabled:opacity-50 disabled:cursor-not-allowed",
-              "transition-colors"
-            )}
-          />
-          <Button
-            type="submit"
-            size="icon"
-            disabled={status !== 'ready' || !input.trim() || !hasApiKey}
-            className="shrink-0 rounded-full bg-destructive hover:bg-destructive/90 size-10"
-          >
-            {status !== 'ready' ? (
-              <IconLoader2 className="size-4 animate-spin" />
-            ) : (
-              <IconSend className="size-4" />
-            )}
-          </Button>
-        </form>
-      )}
+      {/* Chat input — always visible so user can iterate after generation */}
+      <form onSubmit={onSubmit} className="flex items-center gap-2">
+        <input
+          ref={inputRef}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder={
+            !hasApiKey
+              ? "API key required"
+              : hasGeneratedSeries
+                ? "Ask to adjust tone, length, add examples..."
+                : "Describe your series theme..."
+          }
+          disabled={status !== 'ready' || !hasApiKey}
+          className={cn(
+            "flex-1 rounded-full border border-destructive/30 bg-background px-4 py-2.5 text-sm",
+            "placeholder:text-muted-foreground",
+            "focus:outline-none focus:ring-2 focus:ring-destructive/20 focus:border-destructive/50",
+            "disabled:opacity-50 disabled:cursor-not-allowed",
+            "transition-colors"
+          )}
+        />
+        <Button
+          type="submit"
+          size="icon"
+          disabled={status !== 'ready' || !input.trim() || !hasApiKey}
+          className="shrink-0 rounded-full bg-destructive hover:bg-destructive/90 size-10"
+        >
+          {status !== 'ready' ? (
+            <IconLoader2 className="size-4 animate-spin" />
+          ) : (
+            <IconSend className="size-4" />
+          )}
+        </Button>
+      </form>
     </div>
   )
 }

@@ -72,6 +72,10 @@ export interface AIInlinePanelProps {
   initialLength?: string
   /** Initial context value (e.g. from template AI suggestion) */
   initialContext?: string
+  /** Custom label for the topic/prompt field */
+  topicLabel?: string
+  /** Hidden system context sent to API but not shown in UI */
+  systemContext?: string
 }
 
 /**
@@ -126,6 +130,8 @@ export function AIInlinePanel({
   initialTone,
   initialLength,
   initialContext,
+  topicLabel,
+  systemContext,
 }: AIInlinePanelProps) {
   const [topic, setTopic] = React.useState(initialTopic ?? '')
   const [tone, setTone] = React.useState(initialTone ?? 'professional')
@@ -205,7 +211,7 @@ export function AIInlinePanel({
           topic: topic.trim(),
           tone,
           length,
-          context: context.trim() || undefined,
+          context: [systemContext, context.trim()].filter(Boolean).join('\n\n') || undefined,
           postType: defaultPostType || undefined,
         }),
       })
@@ -303,7 +309,7 @@ export function AIInlinePanel({
               {/* Topic / Prompt */}
               <div className="space-y-1.5">
                 <Label htmlFor="ai-topic" className="text-xs">
-                  Prompt for the topic <span className="text-destructive">*</span>
+                  {topicLabel ?? 'Prompt for the topic'} <span className="text-destructive">*</span>
                 </Label>
                 <Textarea
                   id="ai-topic"

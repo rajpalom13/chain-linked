@@ -1,5 +1,5 @@
 /**
- * LinkedIn Data Extractor - Injected Script
+ * ChainLinked Data Connector - Injected Script
  *
  * This script is injected directly into the page context (not content script sandbox)
  * to intercept fetch/XHR network requests made by LinkedIn.
@@ -14,7 +14,7 @@
   if (window.__linkedInInjectedLoaded) return;
   window.__linkedInInjectedLoaded = true;
 
-  console.log('[Injected] LinkedIn Data Extractor - Main world script loading...');
+  console.log('[Injected] ChainLinked Data Connector - Main world script loading...');
 
   // ============================================
   // CONFIGURATION
@@ -663,6 +663,6 @@
     }, 1000);
   });
 
-  console.log('[Injected] LinkedIn Data Extractor - Main world script initialized successfully');
+  console.log('[Injected] ChainLinked Data Connector - Main world script initialized successfully');
 
 })();
