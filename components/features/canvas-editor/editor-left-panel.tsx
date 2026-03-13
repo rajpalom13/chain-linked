@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { EditorIconRail } from './editor-icon-rail';
 import { PanelTemplates } from './panel-templates';
 import { PanelAiGenerate } from './panel-ai-generate';
+import type { AiGenerationState } from './panel-ai-generate';
 import { PanelGraphics } from './panel-graphics';
 import { PanelUploads } from './panel-uploads';
 import { PanelSlides } from './panel-slides';
@@ -31,6 +32,8 @@ interface EditorLeftPanelProps {
   currentTemplate: CanvasTemplate | null;
   currentSlides: CanvasSlide[];
   onAiGenerated: (slides: CanvasSlide[], caption?: string) => void;
+  aiState: AiGenerationState;
+  onAiStateChange: (state: AiGenerationState) => void;
   // Graphics panel props
   onInsertImage: (src: string, width: number, height: number) => void;
   onInsertShape: (config: ShapeElementConfig) => void;
@@ -57,6 +60,8 @@ export function EditorLeftPanel({
   currentTemplate,
   currentSlides,
   onAiGenerated,
+  aiState,
+  onAiStateChange,
   onInsertImage,
   onInsertShape,
   slides,
@@ -109,6 +114,9 @@ export function EditorLeftPanel({
                   currentTemplate={currentTemplate}
                   currentSlides={currentSlides}
                   onGenerated={(slides, caption) => onAiGenerated(slides, caption)}
+                  onSwitchTab={onTabChange}
+                  aiState={aiState}
+                  onAiStateChange={onAiStateChange}
                 />
               </motion.div>
             )}

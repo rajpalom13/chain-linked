@@ -14,6 +14,8 @@ import { useCanvasEditor } from '@/hooks/use-canvas-editor';
 import { useCarouselTemplates } from '@/hooks/use-carousel-templates';
 import { useTemplateCategories } from '@/hooks/use-template-categories';
 import { EditorLeftPanel } from './editor-left-panel';
+import { DEFAULT_AI_GENERATION_STATE } from './panel-ai-generate';
+import type { AiGenerationState } from './panel-ai-generate';
 import { EditorFloatingToolbar } from './editor-floating-toolbar';
 import { EditorTopActions } from './editor-top-actions';
 import { PropertyPanel } from './property-panel';
@@ -102,6 +104,7 @@ export function CanvasEditor({
   const [showPostDialog, setShowPostDialog] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [generatedCaption, setGeneratedCaption] = useState<string | undefined>(undefined);
+  const [aiGenerationState, setAiGenerationState] = useState<AiGenerationState>(DEFAULT_AI_GENERATION_STATE);
 
   // Carousel template persistence
   const {
@@ -577,6 +580,8 @@ export function CanvasEditor({
         currentTemplate={template}
         currentSlides={slides}
         onAiGenerated={handleAiGenerated}
+        aiState={aiGenerationState}
+        onAiStateChange={setAiGenerationState}
         onInsertImage={handleInsertGraphicImage}
         onInsertShape={handleInsertGraphicShape}
         slides={slides}

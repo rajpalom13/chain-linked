@@ -19,6 +19,7 @@ import {
   IconBrandLinkedin,
   IconFile,
   IconLoader2,
+  IconSend,
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -78,6 +79,32 @@ export function PostSeriesComposer({
     clearConversation,
     isLoading: convoLoading,
   } = useConversationPersistence('series')
+
+  /**
+   * Restore generated posts from persisted messages on load
+   * Extracts the last generateSeries tool output from the chat history
+   */
+  React.useEffect(() => {
+    if (persistedMessages.length === 0 || posts.length > 0) return
+
+    // Find the last generateSeries output in persisted messages
+    for (let i = persistedMessages.length - 1; i >= 0; i--) {
+      const msg = persistedMessages[i]
+      if (msg.role !== 'assistant' || !msg.parts) continue
+
+      for (const part of msg.parts) {
+        const p = part as { type: string; state?: string; output?: unknown }
+        if (p.type === 'tool-generateSeries' && p.state === 'output-available' && p.output) {
+          const result = p.output as { posts?: SeriesPost[] }
+          if (result.posts && result.posts.length > 0) {
+            setPosts(result.posts)
+            setCurrentPostIndex(0)
+            return
+          }
+        }
+      }
+    }
+  }, [persistedMessages, posts.length])
 
   /**
    * Handle series generation from AI
@@ -287,6 +314,14 @@ export function PostSeriesComposer({
                 >
                   <IconBrandLinkedin className="size-3.5 text-[#0A66C2]" />
                   Open LinkedIn
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleCopyAndOpenLinkedIn}
+                  className="gap-1.5 bg-[#0A66C2] hover:bg-[#004182] text-white"
+                >
+                  <IconSend className="size-3.5" />
+                  Post Now
                 </Button>
                 {onScheduleConfirm && (
                   <Button

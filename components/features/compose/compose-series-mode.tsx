@@ -21,6 +21,8 @@ import {
   IconPencil,
   IconRefresh,
   IconPlus,
+  IconChevronLeft,
+  IconChevronRight,
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -56,6 +58,125 @@ function getTextFromParts(parts: Array<{ type: string; text?: string }>): string
     .filter((p) => p.type === 'text' && p.text)
     .map((p) => p.text)
     .join('')
+}
+
+/**
+ * Slidable series preview card shown in the chat
+ * Displays one post at a time with navigation dots
+ */
+function SeriesPreviewSlider({
+  result,
+  onUse,
+  onRetry,
+  onNewTopic,
+  isReady,
+}: {
+  result: { posts: SeriesPost[]; seriesTheme: string }
+  onUse: () => void
+  onRetry: () => void
+  onNewTopic: () => void
+  isReady: boolean
+}) {
+  const [slideIndex, setSlideIndex] = React.useState(0)
+  const post = result.posts[slideIndex]
+
+  return (
+    <motion.div
+      variants={chatMessageVariants}
+      initial="initial"
+      animate="animate"
+      className="rounded-lg border border-destructive/20 bg-background p-4 space-y-3"
+    >
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <IconSparkles className="size-3.5 text-destructive" />
+        <span>Series: {result.seriesTheme} ({result.posts.length} posts)</span>
+      </div>
+
+      {/* Slidable post card */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-6 shrink-0"
+            onClick={() => setSlideIndex(Math.max(0, slideIndex - 1))}
+            disabled={slideIndex === 0}
+          >
+            <IconChevronLeft className="size-3.5" />
+          </Button>
+
+          <div className="flex-1 rounded-md border border-border/50 p-2.5 min-h-[80px]">
+            <p className="text-xs font-medium text-destructive mb-1">
+              Post {slideIndex + 1}: {post?.subtopic}
+            </p>
+            <p className="text-xs text-muted-foreground line-clamp-3">
+              {post?.summary}
+            </p>
+            <p className="text-[11px] text-muted-foreground/70 mt-1.5 line-clamp-2 whitespace-pre-wrap">
+              {post?.post.slice(0, 150)}{(post?.post.length ?? 0) > 150 ? '...' : ''}
+            </p>
+          </div>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-6 shrink-0"
+            onClick={() => setSlideIndex(Math.min(result.posts.length - 1, slideIndex + 1))}
+            disabled={slideIndex === result.posts.length - 1}
+          >
+            <IconChevronRight className="size-3.5" />
+          </Button>
+        </div>
+
+        {/* Dot indicators */}
+        <div className="flex items-center justify-center gap-1.5">
+          {result.posts.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setSlideIndex(i)}
+              className={cn(
+                "size-1.5 rounded-full transition-colors",
+                i === slideIndex
+                  ? "bg-destructive"
+                  : "bg-muted-foreground/30 hover:bg-muted-foreground/50"
+              )}
+              aria-label={`Go to post ${i + 1}`}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          onClick={onUse}
+          className="gap-1.5 bg-destructive hover:bg-destructive/90"
+        >
+          <IconCheck className="size-3.5" />
+          Use These Posts
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onRetry}
+          disabled={!isReady}
+          className="gap-1.5"
+        >
+          <IconRefresh className="size-3.5" />
+          Try Again
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onNewTopic}
+          className="gap-1.5 text-muted-foreground"
+        >
+          <IconPlus className="size-3.5" />
+          New Topic
+        </Button>
+      </div>
+    </motion.div>
+  )
 }
 
 /**
@@ -319,73 +440,28 @@ export function ComposeSeriesMode({
                       )
                     }
 
-                    // generateSeries — series preview
+                    // generateSeries — slidable series preview
                     if (part.type === 'tool-generateSeries' && toolPart.state === 'output-available') {
                       const result = toolPart.output as {
                         posts: SeriesPost[]
                         seriesTheme: string
                       }
                       return (
-                        <motion.div
+                        <SeriesPreviewSlider
                           key={`${message.id}-tool-${partIndex}`}
-                          variants={chatMessageVariants}
-                          initial="initial"
-                          animate="animate"
-                          className="rounded-lg border border-destructive/20 bg-background p-4 space-y-3"
-                        >
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <IconSparkles className="size-3.5 text-destructive" />
-                            <span>Series: {result.seriesTheme} ({result.posts.length} posts)</span>
-                          </div>
-                          <div className="space-y-2">
-                            {result.posts.map((post, i) => (
-                              <div key={i} className="rounded-md border border-border/50 p-2.5">
-                                <p className="text-xs font-medium text-muted-foreground mb-1">
-                                  Post {i + 1}: {post.subtopic}
-                                </p>
-                                <p className="text-xs text-muted-foreground line-clamp-2">
-                                  {post.summary}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              size="sm"
-                              onClick={() => onSeriesGenerated(result.posts)}
-                              className="gap-1.5 bg-destructive hover:bg-destructive/90"
-                            >
-                              <IconCheck className="size-3.5" />
-                              Use These Posts
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setHasGeneratedSeries(false)
-                                sendMessage({ text: 'Generate another version of this series' })
-                              }}
-                              disabled={status !== 'ready'}
-                              className="gap-1.5"
-                            >
-                              <IconRefresh className="size-3.5" />
-                              Try Again
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                setHasGeneratedSeries(false)
-                                setMessages(defaultGreeting)
-                                if (onNewChat) onNewChat()
-                              }}
-                              className="gap-1.5 text-muted-foreground"
-                            >
-                              <IconPlus className="size-3.5" />
-                              New Topic
-                            </Button>
-                          </div>
-                        </motion.div>
+                          result={result}
+                          onUse={() => onSeriesGenerated(result.posts)}
+                          onRetry={() => {
+                            setHasGeneratedSeries(false)
+                            sendMessage({ text: 'Generate another version of this series' })
+                          }}
+                          onNewTopic={() => {
+                            setHasGeneratedSeries(false)
+                            setMessages(defaultGreeting)
+                            if (onNewChat) onNewChat()
+                          }}
+                          isReady={status === 'ready'}
+                        />
                       )
                     }
 

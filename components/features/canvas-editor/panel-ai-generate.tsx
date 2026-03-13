@@ -33,6 +33,7 @@ import {
   IconItalic,
   IconChevronDown,
   IconChevronUp,
+  IconLayoutList,
 } from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -44,6 +45,7 @@ import { toast } from 'sonner';
 import { transformSelection, isTextStyled, stripUnicodeFont } from '@/lib/unicode-fonts';
 import type { CarouselTone, CtaType } from '@/lib/ai/carousel-prompts';
 import type { CanvasTemplate, CanvasSlide, CanvasTextElement } from '@/types/canvas-editor';
+import type { LeftPanelTab } from '@/types/canvas-editor';
 
 /**
  * Editable text entry for a single text element within a slide
@@ -253,15 +255,52 @@ const PROGRESS_MESSAGES = [
 ];
 
 /**
+ * Persisted AI generation state that survives tab switches
+ * Lifted up to the parent so the component can remount without losing data
+ */
+export interface AiGenerationState {
+  pendingSlides: CanvasSlide[] | null;
+  pendingCaption: string | undefined;
+  editableTexts: EditableTextEntry[][];
+  generatedPreview: string | null;
+  hasGenerated: boolean;
+  wasApplied: boolean;
+  topic: string;
+  tone: CarouselTone;
+  ctaType: string;
+}
+
+/**
+ * Default/initial AI generation state
+ */
+export const DEFAULT_AI_GENERATION_STATE: AiGenerationState = {
+  pendingSlides: null,
+  pendingCaption: undefined,
+  editableTexts: [],
+  generatedPreview: null,
+  hasGenerated: false,
+  wasApplied: false,
+  topic: '',
+  tone: 'professional',
+  ctaType: 'follow',
+};
+
+/**
  * Props for the PanelAiGenerate component
  * @property currentTemplate - The currently selected canvas template
  * @property currentSlides - Current slides in the canvas
  * @property onGenerated - Callback invoked with generated slides
+ * @property onSwitchTab - Callback to switch the left panel tab (e.g. to slides)
+ * @property aiState - Persisted AI generation state from parent
+ * @property onAiStateChange - Callback to update persisted AI state
  */
 interface PanelAiGenerateProps {
   currentTemplate: CanvasTemplate | null;
   currentSlides: CanvasSlide[];
   onGenerated: (slides: CanvasSlide[], caption?: string) => void;
+  onSwitchTab?: (tab: LeftPanelTab) => void;
+  aiState: AiGenerationState;
+  onAiStateChange: (state: AiGenerationState) => void;
 }
 
 /**
@@ -342,25 +381,32 @@ export function PanelAiGenerate({
   currentTemplate,
   currentSlides,
   onGenerated,
+  onSwitchTab,
+  aiState,
+  onAiStateChange,
 }: PanelAiGenerateProps) {
-  const [topic, setTopic] = useState('');
-  const [tone, setTone] = useState<CarouselTone>('professional');
-  const [ctaType, setCtaType] = useState<string>('follow');
+  // Local UI state (doesn't need persistence)
   const [additionalContext, setAdditionalContext] = useState('');
   const [showContext, setShowContext] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // Derive from persisted state
+  const { pendingSlides, pendingCaption, editableTexts, generatedPreview, hasGenerated, wasApplied, topic, tone, ctaType } = aiState;
+
+  /** Helper to update persisted state */
+  const updateState = useCallback((partial: Partial<AiGenerationState>) => {
+    onAiStateChange({ ...aiState, ...partial });
+  }, [aiState, onAiStateChange]);
+
+  const setTopic = useCallback((t: string) => updateState({ topic: t }), [updateState]);
+  const setTone = useCallback((t: CarouselTone) => updateState({ tone: t }), [updateState]);
+  const setCtaType = useCallback((c: string) => updateState({ ctaType: c }), [updateState]);
 
   useEffect(() => {
-    if (currentTemplate?.defaultTone) {
-      setTone(currentTemplate.defaultTone as CarouselTone);
+    if (currentTemplate?.defaultTone && !hasGenerated) {
+      updateState({ tone: currentTemplate.defaultTone as CarouselTone });
     }
   }, [currentTemplate]);
-
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedPreview, setGeneratedPreview] = useState<string | null>(null);
-  const [pendingSlides, setPendingSlides] = useState<CanvasSlide[] | null>(null);
-  const [pendingCaption, setPendingCaption] = useState<string | undefined>(undefined);
-  const [hasGenerated, setHasGenerated] = useState(false);
-  const [editableTexts, setEditableTexts] = useState<EditableTextEntry[][]>([]);
 
   /**
    * Generate carousel content from the API
@@ -391,8 +437,7 @@ export function PanelAiGenerate({
     }
 
     setIsGenerating(true);
-    setGeneratedPreview(null);
-    setPendingSlides(null);
+    updateState({ generatedPreview: null, pendingSlides: null, wasApplied: false });
 
     try {
       const { analyzeTemplate } = await import('@/lib/ai/template-analyzer');
@@ -429,11 +474,14 @@ export function PanelAiGenerate({
       }));
 
       const result = buildSlidesFromContent(effectiveTemplate, templateAnalysis, slots);
-      setPendingSlides(result.slides);
-      setPendingCaption(data.caption || undefined);
-      setEditableTexts(extractEditableTexts(result.slides));
-      setGeneratedPreview(`${result.slides.length} slides generated`);
-      setHasGenerated(true);
+      updateState({
+        pendingSlides: result.slides,
+        pendingCaption: data.caption || undefined,
+        editableTexts: extractEditableTexts(result.slides),
+        generatedPreview: `${result.slides.length} slides generated`,
+        hasGenerated: true,
+        wasApplied: false,
+      });
       toast.success('Content generated! Edit the text below before applying.');
     } catch (error) {
       console.error('AI generation error:', error);
@@ -441,22 +489,20 @@ export function PanelAiGenerate({
     } finally {
       setIsGenerating(false);
     }
-  }, [currentTemplate, topic, tone, ctaType, additionalContext]);
+  }, [currentTemplate, topic, tone, ctaType, additionalContext, updateState, currentSlides]);
 
   /**
    * Handle text changes from the slide editors
    */
   const handleTextChange = useCallback(
     (slideIndex: number, elementId: string, newText: string) => {
-      setEditableTexts((prev) => {
-        const updated = [...prev];
-        updated[slideIndex] = updated[slideIndex].map((entry) =>
-          entry.elementId === elementId ? { ...entry, text: newText } : entry
-        );
-        return updated;
-      });
+      const updated = [...editableTexts];
+      updated[slideIndex] = updated[slideIndex].map((entry) =>
+        entry.elementId === elementId ? { ...entry, text: newText } : entry
+      );
+      updateState({ editableTexts: updated });
     },
-    []
+    [editableTexts, updateState]
   );
 
   /**
@@ -487,12 +533,9 @@ export function PanelAiGenerate({
     });
 
     onGenerated(finalSlides, pendingCaption);
-    setGeneratedPreview(null);
-    setPendingSlides(null);
-    setEditableTexts([]);
-    setPendingCaption(undefined);
+    updateState({ wasApplied: true });
     toast.success('Content applied to carousel!');
-  }, [pendingSlides, editableTexts, pendingCaption, onGenerated]);
+  }, [pendingSlides, editableTexts, pendingCaption, onGenerated, updateState]);
 
   return (
     <div className="flex h-full flex-col">
@@ -643,14 +686,43 @@ export function PanelAiGenerate({
             {generatedPreview && pendingSlides && !isGenerating && (
               <div className="space-y-3">
                 {/* Success header */}
-                <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-2.5 dark:border-green-900/50 dark:bg-green-950/20">
-                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500/20">
-                    <IconCheck className="h-3 w-3 text-green-600 dark:text-green-400" />
+                <div className={cn(
+                  'flex items-center gap-2 rounded-lg border p-2.5',
+                  wasApplied
+                    ? 'border-blue-200 bg-blue-50 dark:border-blue-900/50 dark:bg-blue-950/20'
+                    : 'border-green-200 bg-green-50 dark:border-green-900/50 dark:bg-green-950/20'
+                )}>
+                  <div className={cn(
+                    'flex h-5 w-5 items-center justify-center rounded-full',
+                    wasApplied ? 'bg-blue-500/20' : 'bg-green-500/20'
+                  )}>
+                    <IconCheck className={cn(
+                      'h-3 w-3',
+                      wasApplied ? 'text-blue-600 dark:text-blue-400' : 'text-green-600 dark:text-green-400'
+                    )} />
                   </div>
-                  <span className="text-[11px] font-medium text-green-700 dark:text-green-400">
-                    {generatedPreview} — edit below, then apply
+                  <span className={cn(
+                    'text-[11px] font-medium',
+                    wasApplied ? 'text-blue-700 dark:text-blue-400' : 'text-green-700 dark:text-green-400'
+                  )}>
+                    {wasApplied
+                      ? `${generatedPreview} — applied to canvas`
+                      : `${generatedPreview} — edit below, then apply`}
                   </span>
                 </div>
+
+                {/* View Slides button */}
+                {onSwitchTab && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => onSwitchTab('slides')}
+                  >
+                    <IconLayoutList className="mr-2 h-3.5 w-3.5" />
+                    View Slides
+                  </Button>
+                )}
 
                 {/* Formatting hint */}
                 <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
@@ -675,9 +747,10 @@ export function PanelAiGenerate({
                   onClick={handleApply}
                   size="sm"
                   className="w-full"
+                  variant={wasApplied ? 'outline' : 'default'}
                 >
                   <IconCheck className="mr-2 h-3.5 w-3.5" />
-                  Apply to Canvas
+                  {wasApplied ? 'Re-apply to Canvas' : 'Apply to Canvas'}
                 </Button>
               </div>
             )}

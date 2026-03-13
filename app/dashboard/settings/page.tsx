@@ -67,10 +67,20 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
 
 import { usePageMeta } from "@/lib/dashboard-context"
 import { useAuthContext } from "@/lib/auth/auth-provider"
 import { useSettings } from "@/hooks/use-settings"
+import { createClient } from "@/lib/supabase/client"
 import { ContentRulesEditor } from "@/components/features/content-rules-editor"
 
 /* =============================================================================
@@ -287,7 +297,7 @@ function SaveIndicator({ status }: { status: "idle" | "saving" | "saved" }) {
  * @returns Full settings page JSX
  */
 function SettingsContent() {
-  const { profile, signOut } = useAuthContext()
+  const { profile, signOut, user: authUser } = useAuthContext()
   const {
     user,
     linkedinConnected,
@@ -338,6 +348,19 @@ function SettingsContent() {
   // Save state
   const [isSaving, setIsSaving] = React.useState(false)
   const [saveStatus, setSaveStatus] = React.useState<"idle" | "saving" | "saved">("idle")
+
+  // Company context edit dialog state
+  const [showCompanyDialog, setShowCompanyDialog] = React.useState(false)
+  const [companyForm, setCompanyForm] = React.useState({
+    companyName: "",
+    companyWebsite: "",
+    companyDescription: "",
+    industry: "",
+    targetAudience: "",
+  })
+  const [isLoadingCompanyContext, setIsLoadingCompanyContext] = React.useState(false)
+  const [isSavingCompany, setIsSavingCompany] = React.useState(false)
+  const [isReanalyzing, setIsReanalyzing] = React.useState(false)
 
   // Transform LinkedIn profile for display
   const linkedinProfile = React.useMemo(() => {
@@ -487,6 +510,176 @@ function SettingsContent() {
       setTimeout(() => setSaveStatus("idle"), 3000)
     }
   }
+
+  /**
+   * Opens the company context edit dialog and loads existing data
+   */
+  const handleOpenCompanyDialog = React.useCallback(async () => {
+    setShowCompanyDialog(true)
+    setIsLoadingCompanyContext(true)
+
+    // Pre-fill from profile
+    setCompanyForm({
+      companyName: profile?.company_name || "",
+      companyWebsite: profile?.company_website || "",
+      companyDescription: ((profile as unknown as Record<string, unknown>)?.company_description as string) || "",
+      industry: "",
+      targetAudience: "",
+    })
+
+    // Load full company context from database
+    try {
+      const supabase = createClient()
+      const { data: ctx } = await supabase
+        .from("company_context")
+        .select("company_name, website_url, industry, target_audience_input, company_summary, value_proposition")
+        .eq("user_id", authUser?.id ?? "")
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .single()
+
+      if (ctx) {
+        setCompanyForm({
+          companyName: ctx.company_name || profile?.company_name || "",
+          companyWebsite: ctx.website_url || profile?.company_website || "",
+          companyDescription: ctx.company_summary || ctx.value_proposition || "",
+          industry: ctx.industry || "",
+          targetAudience: ctx.target_audience_input || "",
+        })
+      }
+    } catch {
+      // No company context found — keep profile defaults
+    } finally {
+      setIsLoadingCompanyContext(false)
+    }
+  }, [profile, authUser?.id])
+
+  /**
+   * Save company context changes to both the users table and company_context table
+   */
+  const handleSaveCompanyContext = React.useCallback(async () => {
+    setIsSavingCompany(true)
+    try {
+      const supabase = createClient()
+
+      // Update users profile
+      await supabase
+        .from("profiles")
+        .update({
+          company_name: companyForm.companyName,
+          company_website: companyForm.companyWebsite,
+        })
+        .eq("id", authUser?.id ?? "")
+
+      // Update company_context (upsert the most recent one)
+      const { data: existing } = await supabase
+        .from("company_context")
+        .select("id")
+        .eq("user_id", authUser?.id ?? "")
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .single()
+
+      if (existing) {
+        await supabase
+          .from("company_context")
+          .update({
+            company_name: companyForm.companyName,
+            website_url: companyForm.companyWebsite,
+            company_summary: companyForm.companyDescription,
+            industry: companyForm.industry,
+            target_audience_input: companyForm.targetAudience,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id)
+      }
+
+      // Refresh the profile in auth context
+      await refetch()
+      setShowCompanyDialog(false)
+      setSaveStatus("saved")
+      setTimeout(() => setSaveStatus("idle"), 3000)
+    } catch (err) {
+      console.error("Failed to save company context:", err)
+    } finally {
+      setIsSavingCompany(false)
+    }
+  }, [companyForm, authUser?.id, refetch])
+
+  /**
+   * Re-analyze company website to refresh AI context
+   * Triggers the same Inngest workflow used in onboarding
+   */
+  const handleReanalyze = React.useCallback(async () => {
+    if (!companyForm.companyWebsite || !companyForm.companyName) return
+
+    setIsReanalyzing(true)
+    try {
+      const res = await fetch("/api/company-context/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyName: companyForm.companyName,
+          companyLink: companyForm.companyWebsite,
+          industry: companyForm.industry,
+          targetAudience: companyForm.targetAudience,
+        }),
+      })
+
+      if (!res.ok) {
+        throw new Error("Failed to start analysis")
+      }
+
+      // Poll for completion
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusRes = await fetch("/api/company-context/status")
+          if (!statusRes.ok) return
+
+          const data = await statusRes.json()
+          if (data.status === "completed") {
+            clearInterval(pollInterval)
+            setIsReanalyzing(false)
+
+            // Reload the context data into the form
+            const supabase = createClient()
+            const { data: ctx } = await supabase
+              .from("company_context")
+              .select("company_name, website_url, industry, target_audience_input, company_summary, value_proposition")
+              .eq("user_id", authUser?.id ?? "")
+              .order("updated_at", { ascending: false })
+              .limit(1)
+              .single()
+
+            if (ctx) {
+              setCompanyForm({
+                companyName: ctx.company_name || "",
+                companyWebsite: ctx.website_url || "",
+                companyDescription: ctx.company_summary || ctx.value_proposition || "",
+                industry: ctx.industry || "",
+                targetAudience: ctx.target_audience_input || "",
+              })
+            }
+            await refetch()
+          } else if (data.status === "failed") {
+            clearInterval(pollInterval)
+            setIsReanalyzing(false)
+          }
+        } catch {
+          // Continue polling
+        }
+      }, 3000)
+
+      // Auto-stop polling after 5 min
+      setTimeout(() => {
+        clearInterval(pollInterval)
+        setIsReanalyzing(false)
+      }, 300_000)
+    } catch (err) {
+      console.error("Failed to re-analyze:", err)
+      setIsReanalyzing(false)
+    }
+  }, [companyForm, authUser?.id, refetch])
 
   // Error state
   if (error) {
@@ -980,15 +1173,7 @@ function SettingsContent() {
               </div>
             </div>
 
-            {/* Re-extract link */}
-            <div className="flex items-center gap-2 pt-2">
-              <Button variant="ghost" size="sm" asChild>
-                <a href="/onboarding/step3">
-                  <IconRefresh className="size-4" />
-                  Re-extract from website
-                </a>
-              </Button>
-            </div>
+            {/* Re-extract link — brand kit is editable inline above */}
 
             {/* Save */}
             <div className="flex justify-end pt-4 border-t">
@@ -1044,14 +1229,105 @@ function SettingsContent() {
               </div>
             </div>
           )}
-          <Button variant="outline" asChild>
-            <a href="/onboarding/step2">
-              <IconSettings className="size-4" />
-              Edit AI Context & Company Info
-            </a>
+          <Button variant="outline" onClick={handleOpenCompanyDialog}>
+            <IconSettings className="size-4" />
+            Edit AI Context & Company Info
           </Button>
         </CardContent>
       </Card>
+
+      {/* Edit Company Context Dialog */}
+      <Dialog open={showCompanyDialog} onOpenChange={setShowCompanyDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit AI Context & Company Info</DialogTitle>
+            <DialogDescription>
+              Update your company information used by AI to generate on-brand content.
+            </DialogDescription>
+          </DialogHeader>
+          {isLoadingCompanyContext ? (
+            <div className="flex items-center justify-center py-8">
+              <IconLoader2 className="size-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="edit-company-name">Company Name</Label>
+                <Input
+                  id="edit-company-name"
+                  value={companyForm.companyName}
+                  onChange={(e) => setCompanyForm((prev) => ({ ...prev, companyName: e.target.value }))}
+                  placeholder="Enter your company name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-company-website">Website URL</Label>
+                <Input
+                  id="edit-company-website"
+                  value={companyForm.companyWebsite}
+                  onChange={(e) => setCompanyForm((prev) => ({ ...prev, companyWebsite: e.target.value }))}
+                  placeholder="https://yourcompany.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-industry">Industry</Label>
+                <Input
+                  id="edit-industry"
+                  value={companyForm.industry}
+                  onChange={(e) => setCompanyForm((prev) => ({ ...prev, industry: e.target.value }))}
+                  placeholder="e.g. Technology / SaaS"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-target-audience">Target Audience</Label>
+                <Textarea
+                  id="edit-target-audience"
+                  value={companyForm.targetAudience}
+                  onChange={(e) => setCompanyForm((prev) => ({ ...prev, targetAudience: e.target.value }))}
+                  placeholder="Describe your ideal customers..."
+                  rows={2}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-company-desc">Company Description / Summary</Label>
+                <Textarea
+                  id="edit-company-desc"
+                  value={companyForm.companyDescription}
+                  onChange={(e) => setCompanyForm((prev) => ({ ...prev, companyDescription: e.target.value }))}
+                  placeholder="Brief description of what your company does..."
+                  rows={3}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="secondary"
+              onClick={handleReanalyze}
+              disabled={isReanalyzing || !companyForm.companyWebsite || !companyForm.companyName}
+              className="sm:mr-auto gap-1.5"
+            >
+              {isReanalyzing ? (
+                <IconLoader2 className="size-4 animate-spin" />
+              ) : (
+                <IconRefresh className="size-4" />
+              )}
+              {isReanalyzing ? "Analyzing..." : "Re-analyze Website"}
+            </Button>
+            <Button variant="outline" onClick={() => setShowCompanyDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveCompanyContext} disabled={isSavingCompany || isLoadingCompanyContext}>
+              {isSavingCompany ? (
+                <IconLoader2 className="size-4 animate-spin" />
+              ) : (
+                <IconCheck className="size-4" />
+              )}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 
