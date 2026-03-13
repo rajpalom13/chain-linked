@@ -1215,7 +1215,33 @@ async function processMyPostsData(data: unknown): Promise<void> {
       : [];
 
     // Extract new posts from the API response (from included/elements arrays)
-    const newPosts = extractBasicPosts(raw);
+    const allExtracted = extractBasicPosts(raw);
+
+    // ── Verify post ownership ──
+    // Read the stored profile URN and filter out posts by other users.
+    // The myPosts endpoint should only return the current user's posts,
+    // but reposts and feed contamination can cause foreign posts to slip in.
+    const storedProfile = await getStoredProfileInfo();
+    const myUrn = storedProfile?.profileUrn || '';
+
+    const newPosts = myUrn
+      ? allExtracted.filter((post) => {
+          const actorUrn = (post.actor_urn as string) || '';
+          // If we can't determine the actor, keep it (benefit of the doubt)
+          if (!actorUrn) return true;
+          // Check if the actor URN contains the user's member ID
+          // LinkedIn URNs: urn:li:fsd_profile:XXX or urn:li:member:XXX
+          const myId = myUrn.split(':').pop() || '';
+          return actorUrn.includes(myId);
+        })
+      : allExtracted;
+
+    if (newPosts.length !== allExtracted.length) {
+      console.log(
+        `${LOG_PREFIX} MyPosts: filtered out ${allExtracted.length - newPosts.length} foreign posts ` +
+        `(kept ${newPosts.length}/${allExtracted.length})`,
+      );
+    }
 
     if (newPosts.length === 0) {
       console.log(`${LOG_PREFIX} MyPosts: no posts extracted from response`);
@@ -2002,6 +2028,19 @@ function extractBasicPosts(responseData: Record<string, unknown>): Record<string
     ) as string;
     if (!urn || seenUrns.has(urn)) return;
 
+    // ── Extract actor URN for author verification ──
+    // LinkedIn Update entities have an actor (or *actor) field referencing
+    // the profile URN of the post author. We store this so the web app can
+    // verify it matches the authenticated user.
+    let actorUrn = '';
+    const actorField = item.actor ?? item['*actor'] ?? item.authorUrn;
+    if (typeof actorField === 'string') {
+      actorUrn = actorField;
+    } else if (actorField && typeof actorField === 'object') {
+      const actorObj = actorField as Record<string, unknown>;
+      actorUrn = (actorObj.urn || actorObj.entityUrn || '') as string;
+    }
+
     // Resolve commentary (inline or *reference)
     let commentary: Record<string, unknown> | undefined;
     if (item.commentary && typeof item.commentary === 'object') {
@@ -2037,7 +2076,38 @@ function extractBasicPosts(responseData: Record<string, unknown>): Record<string
       }
     }
 
-    // Extract text content
+    // ── Detect reposts ──
+    // LinkedIn reposts have a resharedUpdate reference pointing to the original.
+    // The user's own commentary (if any) is in `commentary`, while the original
+    // post's text is inside the reshared entity.
+    let isRepost = false;
+    let originalContent = '';
+    const resharedRef = item.resharedUpdate ?? item['*resharedUpdate'];
+    if (resharedRef) {
+      isRepost = true;
+      // Resolve the original post to extract its text for context
+      const originalPost = typeof resharedRef === 'string'
+        ? urnMap.get(resharedRef)
+        : (typeof resharedRef === 'object' ? resharedRef as Record<string, unknown> : undefined);
+      if (originalPost) {
+        let origCommentary: Record<string, unknown> | undefined;
+        if (originalPost.commentary && typeof originalPost.commentary === 'object') {
+          origCommentary = originalPost.commentary as Record<string, unknown>;
+        } else if (typeof originalPost['*commentary'] === 'string') {
+          origCommentary = urnMap.get(originalPost['*commentary'] as string);
+        }
+        if (origCommentary) {
+          if (typeof origCommentary.text === 'string') {
+            originalContent = origCommentary.text;
+          } else if (origCommentary.text && typeof origCommentary.text === 'object') {
+            const textObj = origCommentary.text as Record<string, unknown>;
+            originalContent = (textObj.text as string) || '';
+          }
+        }
+      }
+    }
+
+    // Extract text content — use the user's own commentary
     let content = '';
     if (commentary) {
       if (typeof commentary.text === 'string') {
@@ -2046,6 +2116,11 @@ function extractBasicPosts(responseData: Record<string, unknown>): Record<string
         const textObj = commentary.text as Record<string, unknown>;
         content = (textObj.text as string) || '';
       }
+    }
+
+    // For reposts without user commentary, use a label + original content preview
+    if (isRepost && !content && originalContent) {
+      content = `[Repost] ${originalContent}`;
     }
 
     // Skip items with no content and no social metrics
@@ -2140,6 +2215,9 @@ function extractBasicPosts(responseData: Record<string, unknown>): Record<string
       media_urls: mediaUrls.length > 0 ? mediaUrls : null,
       posted_at: postedAt,
       source: 'background_sync',
+      is_repost: isRepost,
+      original_content: isRepost ? originalContent : null,
+      actor_urn: actorUrn || null,
     });
   }
 
