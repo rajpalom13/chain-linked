@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     // Send welcome email via Resend (fire-and-forget, don't block signup)
     const userName = name || email.split('@')[0]
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://chainlinked.ai'
     sendEmail({
       to: email,
       subject: 'Welcome to ChainLinked!',

@@ -17,7 +17,7 @@ interface AuthState {
 }
 
 /** Dashboard URL */
-const DASHBOARD_URL = 'https://chain-linked-theta.vercel.app/login';
+const DASHBOARD_URL = 'https://chainlinked.ai/login';
 
 /**
  * Main App component - Minimal auth-focused UI with auto-capture status

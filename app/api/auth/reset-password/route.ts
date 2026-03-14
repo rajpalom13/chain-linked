@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://chainlinked.ai'
 
     // Generate a password reset link via Supabase admin API.
     // Route through /api/auth/callback so the PKCE auth code is exchanged

@@ -183,7 +183,7 @@ export async function POST(request: Request) {
       .single()
 
     // Send welcome email
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://chainlinked.ai'
     const dashboardUrl = `${appUrl}/dashboard`
 
     await sendEmail({

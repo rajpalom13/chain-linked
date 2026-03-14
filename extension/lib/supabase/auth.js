@@ -185,8 +185,7 @@ class SupabaseAuth {
       console.log('[SupabaseAuth] Opening platform login for Google sign-in...');
 
       // Open the platform login page which redirects to extension-callback after auth
-      // Use localhost for development, production URL for deployed extension
-      const baseUrl = 'http://localhost:3000';
+      const baseUrl = 'https://chainlinked.ai';
       const loginUrl = `${baseUrl}/login?redirect=/auth/extension-callback`;
       await chrome.tabs.create({ url: loginUrl });
 

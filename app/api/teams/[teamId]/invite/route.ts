@@ -228,7 +228,7 @@ export async function POST(request: Request, context: RouteContext) {
       failed: [] as { email: string; reason: string }[],
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://chainlinked.ai'
 
     for (const email of emails) {
       const normalizedEmail = email.trim().toLowerCase()
@@ -467,7 +467,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     // Send new invitation email
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://chainlinked.ai'
     const inviteLink = `${appUrl}/invite/${newToken}`
 
     const emailResult = await sendEmail({

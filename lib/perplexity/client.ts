@@ -145,7 +145,7 @@ export class PerplexityClient {
     }
 
     if (this.viaOpenRouter) {
-      headers['HTTP-Referer'] = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+      headers['HTTP-Referer'] = process.env.NEXT_PUBLIC_APP_URL || 'https://chainlinked.ai'
       headers['X-Title'] = 'ChainLinked'
     }
 

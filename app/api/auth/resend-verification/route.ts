@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     }
 
     const supabaseAdmin = getSupabaseAdmin()
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://chainlinked.ai'
 
     // Generate a magic link (acts as email verification) via Supabase admin API
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({

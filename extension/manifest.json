@@ -39,7 +39,6 @@
       "http://localhost:3002/*",
       "http://localhost:3003/*",
       "http://localhost:3004/*",
-      "https://chain-linked-theta.vercel.app/*",
       "https://chainlinked.ai/*",
       "https://www.chainlinked.ai/*"
     ]
@@ -53,7 +52,6 @@
         "http://localhost:3002/*",
         "http://localhost:3003/*",
         "http://localhost:3004/*",
-        "https://chain-linked-theta.vercel.app/*",
         "https://chainlinked.ai/*",
         "https://www.chainlinked.ai/*"
       ],
@@ -68,7 +66,6 @@
         "http://localhost:3002/*",
         "http://localhost:3003/*",
         "http://localhost:3004/*",
-        "https://chain-linked-theta.vercel.app/*",
         "https://chainlinked.ai/*",
         "https://www.chainlinked.ai/*"
       ],
@@ -126,7 +123,6 @@
         "http://localhost:3002/*",
         "http://localhost:3003/*",
         "http://localhost:3004/*",
-        "https://chain-linked-theta.vercel.app/*",
         "https://chainlinked.ai/*",
         "https://www.chainlinked.ai/*"
       ]

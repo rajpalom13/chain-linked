@@ -319,7 +319,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [fetchProfile, safeSetProfile])
 
   /**
-   * Sign out the current user
+   * Sign out the current user and redirect to login page
    */
   const signOut = useCallback(async () => {
     await supabase.auth.signOut()
@@ -327,6 +327,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setUser(null)
     setProfile(null)
     setSession(null)
+    // Redirect to login page
+    window.location.href = '/login'
   }, [supabase])
 
   /**

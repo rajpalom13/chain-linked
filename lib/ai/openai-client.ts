@@ -111,7 +111,7 @@ export function createOpenAIClient(config: OpenAIClientConfig): OpenAI {
     timeout: config.timeout ?? 30000,
     maxRetries: config.maxRetries ?? 2,
     defaultHeaders: {
-      'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+      'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'https://chainlinked.ai',
       'X-Title': 'ChainLinked',
     },
   })
