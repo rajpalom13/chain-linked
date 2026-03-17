@@ -191,9 +191,12 @@ export const viralPostIngest = inngest.createFunction(
     for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
       const batch = batches[batchIdx]
       const batchPosts = await step.run(`scrape-batch-${batchIdx}`, async () => {
-        const profileUrls = batch.map((p: { linkedin_url: string }) => p.linkedin_url)
+        const urls = batch.map((p: { linkedin_url: string }) => p.linkedin_url)
         const token = process.env.APIFY_API_TOKEN
-        if (!token) throw new Error('APIFY_API_TOKEN not set')
+        if (!token) {
+          console.error('[ViralIngest] APIFY_API_TOKEN not set!')
+          throw new Error('APIFY_API_TOKEN not set')
+        }
 
         try {
           const response = await fetch(
@@ -202,7 +205,8 @@ export const viralPostIngest = inngest.createFunction(
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                profileUrls,
+                targetUrls: urls,
+                profileUrls: urls,
                 maxPosts: LIMIT_PER_PROFILE,
               }),
             }
@@ -225,7 +229,7 @@ export const viralPostIngest = inngest.createFunction(
             return postedTime >= threeDaysAgo
           })
 
-          console.log(`[ViralIngest] Batch ${batchIdx}: ${recentItems.length}/${items.length} passed date filter from ${profileUrls.length} profiles`)
+          console.log(`[ViralIngest] Batch ${batchIdx}: ${recentItems.length}/${items.length} passed date filter from ${urls.length} profiles`)
           return recentItems
         } catch (error) {
           console.error(`[ViralIngest] Batch ${batchIdx} scrape failed:`, error instanceof Error ? error.message : error)

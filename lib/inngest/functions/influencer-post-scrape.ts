@@ -170,30 +170,63 @@ export const influencerPostScrape = inngest.createFunction(
     for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
       const batch = batches[batchIdx]
       const batchResults = await step.run(`scrape-batch-${batchIdx}`, async () => {
-        const profileUrls = batch.map(g => g.linkedin_url)
+        const urls = batch.map(g => g.linkedin_url)
+        const usernames = batch.map(g => g.linkedin_username).filter(Boolean) as string[]
         const token = process.env.APIFY_API_TOKEN
-        if (!token) throw new Error('APIFY_API_TOKEN not set')
+        if (!token) {
+          console.error('[InfluencerScrape] APIFY_API_TOKEN not set!')
+          throw new Error('APIFY_API_TOKEN not set')
+        }
+
+        console.log(`[InfluencerScrape] Batch ${batchIdx}: calling Apify for ${urls.length} profiles: ${urls.join(', ')}`)
 
         try {
-          // Use run-sync-get-dataset-items for simplicity — blocks until done & returns items
+          // Use both targetUrls (documented) and profileUrls (legacy) for maximum compatibility
+          const input = {
+            targetUrls: urls,
+            profileUrls: urls,
+            profilePublicIdentifiers: usernames,
+            maxPosts: LIMIT_PER_PROFILE,
+          }
+
+          console.log(`[InfluencerScrape] Apify input: ${JSON.stringify(input)}`)
+
           const response = await fetch(
             `https://api.apify.com/v2/acts/${APIFY_ACTOR_ID}/run-sync-get-dataset-items?token=${token}&timeout=180`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                profileUrls,
-                maxPosts: LIMIT_PER_PROFILE,
-              }),
+              body: JSON.stringify(input),
             }
           )
 
           if (!response.ok) {
             const errorText = await response.text()
+            console.error(`[InfluencerScrape] Apify HTTP ${response.status}: ${errorText.slice(0, 500)}`)
             throw new Error(`Apify run failed (${response.status}): ${errorText.slice(0, 200)}`)
           }
 
-          const items: ApifyLinkedInPost[] = await response.json()
+          const rawText = await response.text()
+          let items: ApifyLinkedInPost[]
+          try {
+            items = JSON.parse(rawText)
+          } catch {
+            console.error(`[InfluencerScrape] Failed to parse Apify response (${rawText.length} chars): ${rawText.slice(0, 300)}`)
+            throw new Error(`Apify returned invalid JSON (${rawText.length} chars)`)
+          }
+
+          if (!Array.isArray(items)) {
+            console.error(`[InfluencerScrape] Apify returned non-array: ${typeof items}`, JSON.stringify(items).slice(0, 300))
+            items = []
+          }
+
+          console.log(`[InfluencerScrape] Apify returned ${items.length} raw items`)
+
+          // Log first item's structure for debugging
+          if (items.length > 0) {
+            const first = items[0]
+            console.log(`[InfluencerScrape] First item: author=${first.author?.publicIdentifier}, query=${first.query?.slice(0, 80)}, postedAt=${JSON.stringify(first.postedAt)}`)
+          }
 
           // Filter to posts from last 14 days; accept posts with no date
           const fourteenDaysAgo = Date.now() - 14 * 24 * 60 * 60 * 1000
@@ -203,9 +236,7 @@ export const influencerPostScrape = inngest.createFunction(
             return postedTime >= fourteenDaysAgo
           })
 
-          console.log(`[InfluencerScrape] Apify returned ${items.length} raw items, ${recentItems.length} passed date filter`)
-
-          console.log(`[InfluencerScrape] Batch ${batchIdx}: ${recentItems.length} recent posts (of ${items.length} total) from ${profileUrls.length} profiles`)
+          console.log(`[InfluencerScrape] Date filter: ${recentItems.length}/${items.length} passed (14-day window)`)
 
           // Map posts back to their influencer groups by author publicIdentifier or URL
           return batch.map(group => {
@@ -220,7 +251,7 @@ export const influencerPostScrape = inngest.createFunction(
                      authorUrl.includes(username) ||
                      queryUrl.includes(profileUrl)
             })
-            console.log(`[InfluencerScrape] Influencer ${group.linkedin_username}: ${groupPosts.length} posts matched`)
+            console.log(`[InfluencerScrape] Match ${group.linkedin_username}: ${groupPosts.length}/${recentItems.length} posts`)
             return { influencerGroup: group, posts: groupPosts }
           })
         } catch (error) {
