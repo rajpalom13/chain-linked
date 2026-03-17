@@ -103,18 +103,25 @@ export const influencerPostScrape = inngest.createFunction(
 
     // Step 1: Fetch active influencers, grouped by username to deduplicate
     const influencerGroups = await step.run('fetch-active-influencers', async () => {
-      // If triggered by event (follow/fetch-latest), only scrape that specific influencer
-      const eventData = event?.data as { userId?: string; linkedinUrl?: string; linkedinUsername?: string } | undefined
+      // Check if triggered by influencer/follow event (not cron)
+      const isEventTriggered = event?.name === 'influencer/follow'
+      const eventData = isEventTriggered ? event?.data as { userId?: string; linkedinUrl?: string; linkedinUsername?: string } : undefined
+
+      console.log(`[InfluencerScrape] Trigger: ${isEventTriggered ? 'event' : 'cron'}, eventName=${event?.name || 'none'}, linkedinUrl=${eventData?.linkedinUrl || 'all'}`)
 
       let query = supabase
         .from('followed_influencers')
         .select('id, user_id, linkedin_url, linkedin_username')
         .eq('status', 'active')
 
-      // Filter to specific influencer if event-triggered
+      // Filter to specific influencer if event-triggered with a URL
       if (eventData?.linkedinUrl) {
         query = query.eq('linkedin_url', eventData.linkedinUrl)
         console.log(`[InfluencerScrape] Event-triggered: scraping only ${eventData.linkedinUrl}`)
+      } else if (eventData?.userId) {
+        // If no URL but has userId, scrape all influencers for that user
+        query = query.eq('user_id', eventData.userId)
+        console.log(`[InfluencerScrape] Event-triggered: scraping all influencers for user ${eventData.userId.substring(0, 8)}...`)
       }
 
       const { data: influencers, error } = await query
@@ -203,13 +210,18 @@ export const influencerPostScrape = inngest.createFunction(
 
           console.log(`[InfluencerScrape] Batch ${batchIdx}: ${recentItems.length} recent posts (of ${items.length} total) from ${profileUrls.length} profiles`)
 
-          // Map posts back to their influencer groups by author publicIdentifier
+          // Map posts back to their influencer groups by author publicIdentifier or URL
           return batch.map(group => {
             const groupPosts = recentItems.filter(item => {
-              const authorId = item.author?.publicIdentifier || ''
-              const queryUrl = item.query || ''
-              return authorId === group.linkedin_username ||
-                     queryUrl.includes(group.linkedin_username || '__none__')
+              const authorId = (item.author?.publicIdentifier || '').toLowerCase()
+              const authorUrl = (item.author?.linkedinUrl || '').toLowerCase()
+              const queryUrl = (item.query || '').toLowerCase()
+              const username = (group.linkedin_username || '__none__').toLowerCase()
+              const profileUrl = group.linkedin_url.toLowerCase()
+              return authorId === username ||
+                     queryUrl.includes(username) ||
+                     authorUrl.includes(username) ||
+                     queryUrl.includes(profileUrl)
             })
             console.log(`[InfluencerScrape] Influencer ${group.linkedin_username}: ${groupPosts.length} posts matched`)
             return { influencerGroup: group, posts: groupPosts }
