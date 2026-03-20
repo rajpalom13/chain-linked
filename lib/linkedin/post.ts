@@ -48,7 +48,7 @@ export function validatePostContent(content: string): void {
     throw new Error('Post content cannot be empty')
   }
 
-  if (content.length > MAX_POST_LENGTH) {
+  if ([...content].length > MAX_POST_LENGTH) {
     throw new Error(`Post content exceeds maximum length of ${MAX_POST_LENGTH} characters`)
   }
 }

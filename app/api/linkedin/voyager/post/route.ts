@@ -14,7 +14,10 @@ import { isPostingEnabled, POSTING_DISABLED_MESSAGE, DISABLED_DRAFT_STATUS } fro
  * Request body validation schema
  */
 const postRequestSchema = z.object({
-  content: z.string().min(1, 'Content is required').max(3000, 'Content too long'),
+  content: z.string().min(1, 'Content is required').refine(
+    (val) => [...val].length <= 3000,
+    { message: 'Content too long' }
+  ),
   visibility: z.enum(['PUBLIC', 'CONNECTIONS', 'LOGGED_IN']).optional().default('PUBLIC'),
   mediaUrls: z.array(z.string()).optional(),
   articleUrl: z.string().url().optional(),
