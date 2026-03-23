@@ -11,6 +11,7 @@ import { createOpenAIClient, chatCompletion, OpenAIError, getErrorMessage, DEFAU
 import { getSystemPromptForType } from '@/lib/ai/prompt-templates'
 import { ANTI_AI_WRITING_RULES } from '@/lib/ai/anti-ai-rules'
 import { PromptService, PromptType, mapPostTypeToPromptType } from '@/lib/prompts'
+import { trackAIEvent } from '@/lib/posthog-server'
 
 /**
  * Request body schema for post generation
@@ -364,6 +365,9 @@ If additional instructions exist above, they override all other guidelines.`
     // Create OpenAI client with API key
     const openai = createOpenAIClient({ apiKey: openAIApiKey })
 
+    // Track AI generation start
+    try { trackAIEvent(user.id, 'ai_generation_started', { feature: 'generate', topic, tone, length, postType: postType ?? null }) } catch {}
+
     // Generate post with GPT-4.1 via OpenRouter for best quality
     const response = await chatCompletion(openai, {
       systemPrompt,
@@ -403,6 +407,9 @@ If additional instructions exist above, they override all other guidelines.`
       }
     }
 
+    // Track AI generation completed
+    try { trackAIEvent(user.id, 'ai_generation_completed', { feature: 'generate', topic, tone, length, postType: postType ?? null, model: response.model, tokens: response.totalTokens, response_time_ms: responseTimeMs }) } catch {}
+
     // Return generated content
     return NextResponse.json({
       content: response.content,
@@ -421,6 +428,9 @@ If additional instructions exist above, they override all other guidelines.`
     })
   } catch (error) {
     console.error('Post generation error:', error)
+
+    // Track AI generation failure
+    try { trackAIEvent('anonymous', 'ai_generation_failed', { feature: 'generate', error: error instanceof Error ? error.message : 'Unknown error' }) } catch {}
 
     // Handle typed OpenAI errors
     if (error instanceof OpenAIError) {
