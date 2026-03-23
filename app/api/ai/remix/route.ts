@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createOpenAIClient, chatCompletion, DEFAULT_MODEL } from '@/lib/ai/openai-client'
 import { decrypt } from '@/lib/crypto'
 import { PromptService, PromptType, mapToneToPromptType } from '@/lib/prompts'
+import { trackAIEvent } from '@/lib/posthog-server'
 
 /**
  * Request body schema for post remix
@@ -483,6 +484,9 @@ export async function POST(request: NextRequest) {
     // Create OpenAI client with user's API key and explicit timeout
     const openai = createOpenAIClient({ apiKey: openAIApiKey, timeout: 45000 })
 
+    // Track AI generation start
+    try { trackAIEvent(user.id, 'ai_generation_started', { feature: 'remix', tone, length }) } catch {}
+
     // Generate remixed post with GPT-4.1 via OpenRouter
     const response = await chatCompletion(openai, {
       systemPrompt,
@@ -518,6 +522,9 @@ export async function POST(request: NextRequest) {
       console.error('[Remix] Failed to log usage:', logError)
     }
 
+    // Track AI generation completed
+    try { trackAIEvent(user.id, 'ai_generation_completed', { feature: 'remix', tone, length, model: response.model, tokens: response.totalTokens, response_time_ms: responseTimeMs }) } catch {}
+
     // Return remixed content with metadata
     return NextResponse.json({
       content: response.content,
@@ -538,6 +545,9 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error('Post remix error:', error)
+
+    // Track AI generation failure
+    try { trackAIEvent('anonymous', 'ai_generation_failed', { feature: 'remix', error: error instanceof Error ? error.message : 'Unknown error' }) } catch {}
 
     // Handle OpenAI errors
     if (error instanceof Error) {
