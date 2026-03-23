@@ -12,6 +12,7 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { buildComposeConversationPrompt } from '@/lib/ai/compose-system-prompt'
+import { trackAIEvent } from '@/lib/posthog-server'
 
 /**
  * Safely parses a JSON column value into a string array
@@ -259,6 +260,9 @@ export async function POST(request: Request) {
       }),
     }
 
+    // Track AI generation start
+    try { trackAIEvent(user.id, 'ai_generation_started', { feature: 'compose-chat', tone, message_count: messages.length }) } catch {}
+
     const result = streamText({
       model: provider('openai/gpt-4.1'),
       system: systemPrompt,
@@ -269,9 +273,16 @@ export async function POST(request: Request) {
       stopWhen: stepCountIs(8),
     })
 
+    // Track AI generation completed (stream created, not finished)
+    try { trackAIEvent(user.id, 'ai_generation_completed', { feature: 'compose-chat', tone, message_count: messages.length, model: 'openai/gpt-4.1' }) } catch {}
+
     return result.toUIMessageStreamResponse()
   } catch (error) {
     console.error('Compose chat error:', error)
+
+    // Track AI generation failure
+    try { trackAIEvent('anonymous', 'ai_generation_failed', { feature: 'compose-chat', error: error instanceof Error ? error.message : 'Unknown error' }) } catch {}
+
     return new Response(
       JSON.stringify({ error: 'Failed to process chat message.' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
