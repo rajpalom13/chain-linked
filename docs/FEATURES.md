@@ -1,669 +1,856 @@
-# ChainLinked Feature Guide
+# ChainLinked -- Comprehensive Feature Documentation
 
-Complete feature documentation for the ChainLinked LinkedIn content management platform.
+Complete feature documentation for the ChainLinked LinkedIn content management platform. This guide is intended for both clients evaluating the platform and developers building or extending it.
 
 ---
 
 ## Table of Contents
 
-1. [Authentication & Onboarding](#1-authentication--onboarding)
+1. [Dashboard](#1-dashboard)
 2. [Post Composer](#2-post-composer)
-3. [Post Scheduling](#3-post-scheduling)
-4. [Analytics Dashboard](#4-analytics-dashboard)
-5. [Team Management](#5-team-management)
-6. [Discover & Inspiration](#6-discover--inspiration)
-7. [Swipe Interface](#7-swipe-interface)
-8. [Carousel Creator](#8-carousel-creator)
-9. [Template Library](#9-template-library)
-10. [Brand Kit](#10-brand-kit)
-11. [AI Content Generation](#11-ai-content-generation)
-12. [Deep Research](#12-deep-research)
-13. [Chrome Extension](#13-chrome-extension)
+3. [Analytics Dashboard](#3-analytics-dashboard)
+4. [Team Management](#4-team-management)
+5. [Template Library](#5-template-library)
+6. [Carousel Creator](#6-carousel-creator)
+7. [Discover and Inspiration](#7-discover-and-inspiration)
+8. [Swipe Interface](#8-swipe-interface)
+9. [Scheduling](#9-scheduling)
+10. [Drafts](#10-drafts)
+11. [My Posts](#11-my-posts)
+12. [AI Features](#12-ai-features)
+13. [Brand Kit](#13-brand-kit)
 14. [Settings](#14-settings)
+15. [Onboarding](#15-onboarding)
+16. [Chrome Extension](#16-chrome-extension)
+17. [Prompt Playground](#17-prompt-playground)
 
 ---
 
-## 1. Authentication & Onboarding
+## 1. Dashboard
 
-### What It Does
+### Description
 
-Users sign up via email/password or Google OAuth through Supabase Auth. After signup, a dual-path onboarding flow guides users based on their role:
+The Dashboard is the main landing page after login. It provides a high-level overview of the user's LinkedIn activity, upcoming scheduled content, recent posts, and a getting-started checklist for new users. The layout is designed for quick orientation and fast navigation into deeper features.
 
-- **Owner path** (4 steps): Company setup, company context analysis, invite teammates, review & complete.
-- **Member path**: Join an existing team by searching for discoverable teams or accepting an invitation.
+### Key Capabilities
 
-The middleware enforces onboarding completion before granting dashboard access. Users who have not finished onboarding are redirected back to their current step.
+- **Getting Started Checklist** -- A progress-tracked onboarding widget shown to new users. Steps include connecting LinkedIn, installing the Chrome extension, creating a first post, and scheduling content. Users can dismiss it once all steps are complete or at any time.
+- **Quick Stat Metric Cards** -- Four animated cards displaying key LinkedIn metrics (impressions, followers, reactions, engagement rate) with percentage change compared to the previous period. Each card is color-coded by accent theme and uses animated number transitions.
+- **Schedule Calendar** -- A full-size interactive calendar displaying all scheduled posts as color-coded indicators. Clicking a date with no posts navigates to the compose page pre-filled with that date. Clicking a date with one post opens it for editing. Clicking a date with multiple posts opens a picker dialog.
+- **Upcoming Scheduled Posts** -- A panel showing the next batch of scheduled posts with content previews, scheduled times, and quick edit/delete actions.
+- **My Recent Posts** -- A section listing the user's most recently published LinkedIn posts with engagement metrics (impressions, reactions, comments, reposts).
+- **Extension Install Prompt** -- A contextual banner prompting users to install the ChainLinked Chrome extension if it is not detected.
 
-### Key Files
+### User Workflow
 
-| Layer | File |
-|-------|------|
-| Middleware | `middleware.ts` |
-| Auth pages | `app/login/`, `app/signup/`, `app/forgot-password/`, `app/reset-password/`, `app/verify-email/` |
-| Auth API | `app/api/auth/callback/route.ts`, `app/api/auth/signup/route.ts`, `app/api/auth/google-token/route.ts`, `app/api/auth/resend-verification/route.ts`, `app/api/auth/reset-password/route.ts` |
-| Onboarding pages | `app/onboarding/page.tsx` (role selection), `app/onboarding/step1/` through `step4/`, `app/onboarding/join/`, `app/onboarding/company/`, `app/onboarding/company-context/`, `app/onboarding/invite/`, `app/onboarding/brand-kit/` |
-| Onboarding API | `app/api/onboarding/` |
-| Components | `components/signup-form.tsx`, `components/features/company-onboarding-form.tsx`, `components/features/company-setup-form.tsx`, `components/features/invite-teammates-form.tsx`, `components/OnboardingProgress.tsx`, `components/onboarding-navbar.tsx` |
-| Hooks | `hooks/use-auth.ts`, `hooks/use-onboarding-guard.ts` |
-| Auth library | `lib/auth/` |
-| Services | `services/onboarding.ts` |
-| Invite handling | `app/invite/` |
+1. User logs in and lands on the Dashboard.
+2. New users see the Getting Started checklist and follow the steps.
+3. Metric cards provide an at-a-glance view of recent LinkedIn performance.
+4. The calendar shows upcoming content at a glance; clicking a date opens compose or edit flows.
+5. Recent posts allow quick review of published content and its performance.
 
-### Technical Flow
+### Pages and Components
 
-1. User lands on `/signup` or `/login`.
-2. Supabase Auth handles credential validation or Google OAuth callback via `app/api/auth/callback/route.ts`.
-3. A database trigger (`handle_new_user`) creates a `profiles` row on first signup.
-4. Middleware checks `profiles.onboarding_completed` and `profiles.onboarding_type` on every protected route request.
-5. **Owner path**: Step 1 creates a company and team, Step 2 triggers the `company/analyze` Inngest workflow (Firecrawl + Perplexity + OpenAI), Step 3 sends team invitations via email, Step 4 is review.
-6. **Member path**: User searches for discoverable teams or enters via an invitation link. A `team_join_requests` row is created if the team requires approval.
-7. Once onboarding is marked complete, the middleware allows access to `/dashboard`.
-
-### Database Tables
-
-- `profiles` -- User profile with onboarding state (`onboarding_completed`, `onboarding_current_step`, `onboarding_type`, `company_onboarding_completed`)
-- `companies` -- Company entity (name, slug, website, owner_id)
-- `teams` -- Teams linked to companies (`discoverable` flag for member search)
-- `team_members` -- User-team membership with role (owner/admin/member)
-- `team_invitations` -- Email-based invitations with token and expiry
-- `team_join_requests` -- Pending join requests for team approval
-- `company_context` -- AI-analyzed company data from onboarding
+- `app/dashboard/page.tsx` -- Main dashboard page
+- `components/features/schedule-calendar.tsx` -- Calendar component
+- `components/features/my-recent-posts.tsx` -- Recent posts section
+- `components/features/extension-install-prompt.tsx` -- Extension prompt banner
+- `components/skeletons/page-skeletons.tsx` -- Loading skeleton (DashboardSkeleton)
 
 ---
 
 ## 2. Post Composer
 
-### What It Does
+### Description
 
-A rich text composer for creating LinkedIn posts with:
+The Post Composer is the primary content creation interface. It supports writing, formatting, previewing, and publishing or scheduling LinkedIn posts. The composer operates in two major modes: Single Post and Post Series.
 
-- AI-powered compose chat (conversational post generation with OpenRouter)
-- `@mention` support with a search popover that resolves LinkedIn profile URNs
-- Unicode font styling (bold, italic, etc.) for LinkedIn-compatible formatting
-- Default hashtag insertion from user settings
-- Draft auto-save with conversation persistence
-- Media upload (images up to 9 per post)
-- Post type selection (text, image, document/carousel)
-- Real-time character count with 3,000-character LinkedIn limit (code-point counting)
-- AI inline panel for editing selected text
-- Content rules enforcement
+### Key Capabilities
 
-### Key Files
+- **Two Compose Tabs** -- "Single Post" for individual posts and "Post Series" for creating a sequence of related posts.
+- **Rich Text Editor** -- A full-featured text editor with formatting toolbar supporting bold, italic, lists, and Unicode font styles. Character count uses Unicode code-point counting for accuracy with emoji and special characters.
+- **AI Chat-Based Generation** -- An inline AI panel (chat interface) that generates post content based on user-provided topics, tone, context, and post type. The conversation is persisted across sessions.
+- **Tone Selector** -- Choose the tone of AI-generated content (professional, casual, inspirational, humorous, etc.).
+- **Post Types** -- Select the type of post (thought leadership, how-to, story, list, question, etc.) to guide AI generation.
+- **Character Limit Indicator** -- Real-time character count with visual indicator against LinkedIn's 3,000-character limit. Uses code-point-based counting to handle emoji correctly.
+- **Emoji Picker** -- Integrated emoji selection interface for inserting emoji into post content.
+- **@Mention Tagging** -- Mention other LinkedIn users in posts with an autocomplete popover. Mentions are tokenized for LinkedIn API compatibility.
+- **Default Hashtags** -- Automatically append saved default hashtags to posts. Hashtags are persisted per user in Supabase.
+- **Media Upload** -- Upload images to include with posts. Supports multiple image files converted to base64 for the LinkedIn API.
+- **LinkedIn Preview** -- Live preview showing how the post will appear on LinkedIn, including the user's profile photo, name, headline, and post content.
+- **Post Goal Selector** -- Tag posts with a content goal category (awareness, engagement, conversion, etc.) for tracking purposes.
+- **Font Picker** -- Apply Unicode font styles (serif, sans-serif, monospace, script, etc.) to selected text for visual variety within LinkedIn's plain-text format.
+- **Scheduling** -- Schedule a post for a future date and time with timezone support. The schedule modal allows picking date, time, and timezone, with proper UTC conversion.
+- **Post to LinkedIn** -- Directly publish content to LinkedIn via the API with image support.
+- **Edit Scheduled Posts** -- Open an existing scheduled post for editing, with the ability to reschedule or save changes without re-picking the time.
+- **Auto-Save Drafts** -- Content is automatically saved as a draft every 30 seconds, on page navigation, and on browser close (via `navigator.sendBeacon`). Draft status is shown with a saving/saved indicator.
+- **Remix from My Posts** -- A collapsible section showing the user's 10 most recent posts with a "Remix" button that feeds the content into AI for generating a fresh version.
+- **Compose Mode** -- The composer supports both basic and advanced modes, toggling the visibility of AI features and additional controls.
 
-| Layer | File |
-|-------|------|
-| Page | `app/dashboard/compose/` |
-| Components | `components/features/compose/` (directory), `components/features/post-composer.tsx`, `components/features/mention-popover.tsx`, `components/features/emoji-picker.tsx`, `components/features/media-upload.tsx`, `components/features/post-type-selector.tsx`, `components/features/ai-inline-panel.tsx` |
-| Hooks | `hooks/use-compose-mode.ts`, `hooks/use-auto-save.ts`, `hooks/use-conversation-persistence.ts`, `hooks/use-linkedin-post.ts`, `hooks/use-linkedin-document-post.ts`, `hooks/use-posting-config.ts`, `hooks/use-text-selection-popup.ts`, `hooks/use-drafts.ts` |
-| API routes | `app/api/ai/compose-chat/route.ts`, `app/api/ai/edit-selection/route.ts`, `app/api/ai/compose-series/route.ts`, `app/api/mentions/`, `app/api/drafts/`, `app/api/linkedin/post/route.ts`, `app/api/linkedin/post-document/route.ts`, `app/api/linkedin/voyager/post/route.ts` |
-| Libraries | `lib/linkedin/post.ts`, `lib/linkedin/mentions.ts`, `lib/linkedin/document-post.ts`, `lib/unicode-fonts.ts`, `lib/ai/compose-system-prompt.ts` |
-| Types | `types/compose.ts` |
+### User Workflow
 
-### Technical Flow
+1. Navigate to Compose from the sidebar or dashboard.
+2. Choose "Single Post" or "Post Series" tab.
+3. Type content directly or use the AI panel to generate content by providing a topic, tone, and post type.
+4. Use the formatting toolbar to add bold, italic, or other styles.
+5. Insert emoji, @mentions, or hashtags as needed.
+6. Preview the post in the LinkedIn preview panel.
+7. Choose to "Post" (publish immediately), "Schedule" (pick a future date/time), or let the auto-save handle draft persistence.
+8. Optionally remix an existing post from the collapsible section.
 
-1. User opens the compose page. The `use-compose-mode` hook manages the current mode (write, AI chat, preview).
-2. AI compose chat sends messages to `/api/ai/compose-chat` which streams responses from OpenRouter (GPT-4.1) using the compose system prompt and company context.
-3. Mentions are triggered by typing `@` -- the popover queries `/api/mentions` which searches LinkedIn connections.
-4. Unicode fonts are applied via `lib/unicode-fonts.ts` which maps characters to their Unicode mathematical bold/italic equivalents.
-5. Drafts auto-save to `compose_conversations` via the `use-auto-save` hook.
-6. On publish, the post is sent via the LinkedIn Official API (`lib/linkedin/post.ts`) using UGC Posts endpoint, or via the Voyager API for advanced features.
-7. Mention tokens (`@[Name](URN)`) are converted to plain text + UGC mention attributes before posting.
+### Pages and Components
 
-### Database Tables
-
-- `compose_conversations` -- Chat history, mode, tone, auto-save state
-- `user_default_hashtags` -- User's default hashtags appended to posts
-- `content_rules` -- Rules that constrain AI-generated content
-- `writing_style_profiles` -- User's analyzed writing style for AI personalization
-- `scheduled_posts` -- If the user schedules instead of publishing immediately
-- `my_posts` -- Record of published posts
-
----
-
-## 3. Post Scheduling
-
-### What It Does
-
-Users can schedule LinkedIn posts for future publication with timezone-aware scheduling. A cron-based Inngest pipeline runs every 2 minutes to find and publish pending posts. Features include:
-
-- Calendar view for scheduled posts
-- Timezone selection per post
-- Queue management (edit, reschedule, cancel)
-- Status tracking (pending, posting, posted, failed)
-- Posting goals integration
-
-### Key Files
-
-| Layer | File |
-|-------|------|
-| Page | `app/dashboard/schedule/` |
-| Components | `components/features/schedule-calendar.tsx`, `components/features/schedule-modal.tsx`, `components/features/scheduled-posts.tsx`, `components/features/goals-tracker.tsx`, `components/features/post-goal-selector.tsx` |
-| Hooks | `hooks/use-scheduled-posts.ts`, `hooks/use-posting-goals.ts` |
-| Inngest function | `lib/inngest/functions/publish-scheduled-posts.ts` |
-| LinkedIn posting | `lib/linkedin/post.ts`, `lib/linkedin/posting-config.ts` |
-| Crypto | `lib/crypto.ts` (token encryption/decryption) |
-
-### Technical Flow
-
-1. User creates a post in the composer and selects "Schedule" instead of "Post Now."
-2. A `scheduled_posts` row is created with `status = 'pending'` and the `scheduled_for` timestamp (stored in UTC).
-3. The `publish-scheduled-posts` Inngest cron function runs every 2 minutes (`*/2 * * * *`).
-4. It queries `scheduled_posts` for rows where `status = 'pending'` and `scheduled_for <= now()`.
-5. For each post, it: fetches and decrypts LinkedIn tokens from `linkedin_tokens`, creates a LinkedIn API client with auto-refresh, calls `createPost()`, and updates the status to `posted` or `failed`.
-6. Successfully posted content is also logged to `my_posts` with `source = 'scheduled'`.
-7. A global posting killswitch (`lib/linkedin/posting-config.ts`) can disable all posting.
-
-### Database Tables
-
-- `scheduled_posts` -- Queue of scheduled posts (content, scheduled_for, timezone, status, linkedin_post_id, error_message)
-- `linkedin_tokens` -- Encrypted OAuth tokens for LinkedIn API access
-- `my_posts` -- Published post records
-- `posting_goals` -- User's posting frequency targets (period, target_posts, current_posts)
+- `app/dashboard/compose/page.tsx` -- Compose page with tab switching, auto-save logic, edit mode, and remix section
+- `components/features/post-composer.tsx` -- Core PostComposer component with editor, formatting, preview, and actions
+- `components/features/compose/post-series-composer.tsx` -- Post series mode
+- `components/features/ai-inline-panel.tsx` -- AI chat panel for content generation
+- `components/features/ai-generation-dialog.tsx` -- AI generation dialog
+- `components/features/emoji-picker.tsx` -- Emoji picker
+- `components/features/media-upload.tsx` -- Media upload handler
+- `components/features/schedule-modal.tsx` -- Schedule date/time picker
+- `components/features/remix-post-button.tsx` -- Remix button component
+- `components/features/font-picker.tsx` -- Unicode font style picker
+- `components/features/mention-popover.tsx` -- @mention autocomplete
+- `components/features/default-hashtags-editor.tsx` -- Default hashtags management
+- `components/features/post-goal-selector.tsx` -- Post goal tagging
+- `components/features/post-actions-menu.tsx` -- Actions dropdown
+- `components/features/carousel-document-preview.tsx` -- Document/carousel preview in composer
+- `hooks/use-compose-mode.ts` -- Basic/Advanced mode toggle
+- `hooks/use-auto-save.ts` -- Auto-save logic
+- `hooks/use-conversation-persistence.ts` -- AI conversation persistence
+- `hooks/use-text-selection-popup.ts` -- Text selection popup for formatting
+- `lib/store/draft-context.tsx` -- Draft state management context
+- `lib/unicode-fonts.ts` -- Unicode font transformation utilities
+- `lib/linkedin/mentions.ts` -- Mention token building and character counting
 
 ---
 
-## 4. Analytics Dashboard
+## 3. Analytics Dashboard
 
-### What It Does
+### Description
 
-A comprehensive analytics dashboard showing personal LinkedIn performance metrics:
+The Analytics Dashboard provides detailed LinkedIn performance tracking with interactive charts, metric cards, and data tables. Users can filter by time period, metric type, content type, and granularity, with optional comparison overlays to visualize trends.
 
-- Summary cards (impressions, engagement rate, followers, profile views) with period comparison
-- Interactive trend charts (area, line) for key metrics over time
-- Data tables with sortable post-level analytics
-- CSV export of analytics data
-- Comparison mode (week-over-week, month-over-month)
-- Analytics filter bar (date range, metric type)
-- Profile analytics (follower growth, search appearances)
+### Key Capabilities
 
-### Key Files
+- **Filter Bar** -- Select the primary metric (impressions, reactions, comments, reposts, engagement rate), time period (7d, 14d, 30d, 90d, custom date range), content type filter, granularity (daily, weekly, monthly), and comparison toggle.
+- **Summary Bar** -- Displays aggregated summary metrics for the selected period with trend indicators showing percentage change.
+- **Trend Chart** -- Interactive Recharts-powered line/area chart showing the selected metric over time. When comparison mode is enabled, an overlay of the previous period is shown for visual benchmarking. Multi-metric overlays are supported.
+- **Analytics Charts Section** -- Additional chart grids showing breakdowns such as engagement by content type, posting frequency, and audience demographics.
+- **Data Table** -- Tabular view of the analytics data with sortable columns, granularity switching (daily/weekly/monthly), and the ability to drill into specific data points.
+- **URL-Based Filter Hydration** -- Filter state can be hydrated from URL search params, making it possible to share or bookmark specific analytics views.
 
-| Layer | File |
-|-------|------|
-| Page | `app/dashboard/analytics/` |
-| Components | `components/features/analytics-cards.tsx`, `components/features/analytics-chart.tsx`, `components/features/analytics-charts.tsx`, `components/features/analytics-data-table.tsx`, `components/features/analytics-filter-bar.tsx`, `components/features/analytics-summary-bar.tsx`, `components/features/analytics-trend-chart.tsx`, `components/features/post-performance.tsx` |
-| Hooks | `hooks/use-analytics.ts`, `hooks/use-analytics-v2.ts`, `hooks/use-post-analytics.ts` |
-| API routes | `app/api/analytics/route.ts`, `app/api/analytics/v2/route.ts`, `app/api/analytics/v2/profile/route.ts` |
-| Inngest functions | `lib/inngest/functions/analytics-pipeline.ts`, `lib/inngest/functions/analytics-summary-compute.ts`, `lib/inngest/functions/analytics-backfill.ts` |
-| Library | `lib/analytics.ts` |
+### User Workflow
 
-### Technical Flow
+1. Navigate to Analytics from the sidebar.
+2. Use the filter bar to select the desired metric, time period, and granularity.
+3. Review summary metrics at a glance in the summary bar.
+4. Examine trends in the interactive chart; toggle comparison mode to see period-over-period changes.
+5. Scroll to the data table for detailed row-by-row data.
+6. Adjust granularity in the data table for different levels of aggregation.
 
-1. The Chrome extension captures raw LinkedIn analytics data and syncs it to `linkedin_analytics`, `post_analytics`, `audience_data`, and `audience_history`.
-2. The `analytics-pipeline` Inngest cron job runs daily to:
-   - Snapshot profile-level metrics into `profile_analytics_daily` and `profile_analytics_accumulative`.
-   - Snapshot post-level metrics into `post_analytics_daily` and `post_analytics_accumulative`.
-   - Roll up daily data into weekly (`post_analytics_wk`), monthly (`post_analytics_mth`), quarterly (`post_analytics_qtr`), and yearly (`post_analytics_yr`) aggregates.
-3. The `analytics-summary-compute` function pre-computes summary metrics into `analytics_summary_cache` for fast dashboard loading.
-4. The v2 API endpoints read from the pipeline-computed tables and return time-series and summary data.
-5. The dashboard renders charts using Recharts and data tables using TanStack React Table.
+### Pages and Components
 
-### Database Tables
-
-- `linkedin_analytics` -- Raw analytics snapshots from extension
-- `post_analytics` -- Raw per-post analytics from extension
-- `post_analytics_daily` -- Daily deltas per post (Inngest-managed)
-- `post_analytics_accumulative` -- Running totals per post (Inngest-managed)
-- `post_analytics_wk`, `post_analytics_mth`, `post_analytics_qtr`, `post_analytics_yr` -- Period rollups (Inngest-managed)
-- `profile_analytics_daily` -- Daily profile metric deltas (Inngest-managed)
-- `profile_analytics_accumulative` -- Running profile totals (Inngest-managed)
-- `analytics_summary_cache` -- Pre-computed summary metrics (Inngest-managed)
-- `analytics_tracking_status` -- Tracking status enum (tracking, paused, etc.)
-- `analytics_history` -- Legacy analytics history
-- `audience_data` -- Audience demographics snapshot
-- `audience_history` -- Historical follower counts
-- `my_posts` -- Source of truth for user's published posts
+- `app/dashboard/analytics/page.tsx` -- Analytics page with filters, summary, chart, and table
+- `components/features/analytics-filter-bar.tsx` -- Filter bar
+- `components/features/analytics-summary-bar.tsx` -- Summary metrics bar
+- `components/features/analytics-trend-chart.tsx` -- Trend chart with comparison overlay
+- `components/features/analytics-data-table.tsx` -- Data table with granularity switching
+- `components/features/analytics-charts.tsx` -- Additional analytics chart grid
+- `hooks/use-analytics-v2.ts` -- Analytics data fetching and processing hook
+- `hooks/use-analytics.ts` -- Dashboard-level analytics hook
 
 ---
 
-## 5. Team Management
+## 4. Team Management
 
-### What It Does
+### Description
 
-Teams allow multiple users to collaborate on LinkedIn content:
+Team Management enables organizations to collaborate on LinkedIn content. Team members can view each other's posts, track performance on a leaderboard, manage membership and roles, and coordinate content strategy.
 
-- Team creation during onboarding (linked to a company)
-- Email-based invitations with unique tokens and expiry
-- Join request workflow for discoverable teams
-- Role-based access control (owner, admin, member)
-- Team activity feed showing teammates' posts and metrics
-- Team leaderboard with performance rankings
-- Team settings management
+### Key Capabilities
 
-### Key Files
+- **Team Creation** -- Create a new team from the team page. If the user selected "owner" during onboarding, the team is auto-created.
+- **Member Invitations** -- Invite team members by email. Invitations are tracked with status (pending, accepted, expired) and can be resent or cancelled by admins/owners.
+- **Join Requests** -- Users can search for and request to join existing teams. Admins and owners can approve or reject join requests.
+- **Team Search** -- When joining as a member, users can search for teams by name.
+- **Animated Tab Bar** -- The team page features Overview and Members tabs with a Framer Motion-powered sliding capsule indicator.
+- **Team Leaderboard** -- Ranked list of team members by LinkedIn engagement metrics (impressions, reactions, comments). Supports time range filtering (7d, 14d, 30d). Highlights the current user's position.
+- **Recent Team Activity Feed** -- A responsive 3-column grid of team member posts with author info, content preview, engagement metrics, and post date. Cards feature stagger animations on load and hover effects.
+- **Post Detail Popup** -- Click any post card to open a full-detail modal showing complete post content, media, engagement metrics, and action buttons (React, Comment, Repost, Remix).
+- **Member Filtering** -- Filter the activity feed by specific team members via a dropdown.
+- **Remix Team Posts** -- Each post card includes a Remix button that loads the content into the AI remix workflow.
+- **Member List** -- View all team members with their roles, avatars, and join dates. Admins can change roles or remove members.
+- **Pending Invitations Card** -- Displays all outstanding invitations with resend and cancel actions.
+- **Team Header** -- Shows team name, member count, brand kit logo (if set), and settings/invite actions.
+- **Role Management** -- Supports three roles: owner, admin, and member. Owners and admins can manage members and invitations.
+- **No-Team State** -- When the user has no team, a prompt to create or join a team is shown with contextual guidance based on onboarding type.
 
-| Layer | File |
-|-------|------|
-| Page | `app/dashboard/team/` |
-| Components | `components/features/team-management.tsx`, `components/features/team-header.tsx`, `components/features/team-member-list.tsx`, `components/features/team-members-preview.tsx`, `components/features/team-activity-feed.tsx`, `components/features/team-leaderboard.tsx`, `components/features/team-settings-panel.tsx`, `components/features/team-search.tsx`, `components/features/invite-team-dialog.tsx`, `components/features/invite-team-modal.tsx`, `components/features/join-requests-list.tsx`, `components/features/pending-invitations.tsx`, `components/features/pending-invitations-card.tsx`, `components/features/pending-approval-screen.tsx`, `components/features/no-team-state.tsx` |
-| Hooks | `hooks/use-team.ts`, `hooks/use-team-invitations.ts`, `hooks/use-invitations.ts`, `hooks/use-join-requests.ts`, `hooks/use-team-leaderboard.ts`, `hooks/use-team-posts.ts` |
-| API routes | `app/api/teams/route.ts`, `app/api/teams/[teamId]/`, `app/api/teams/accept-invite/`, `app/api/teams/join-request/`, `app/api/teams/search/` |
-| Library | `lib/team/` |
-| Email | `lib/email/resend.ts`, `lib/email/index.ts`, `components/emails/` |
+### User Workflow
 
-### Technical Flow
+1. Navigate to Team from the sidebar.
+2. If no team exists, create one or search and join an existing team.
+3. The Overview tab shows the leaderboard and recent team posts.
+4. Filter posts by member or view all.
+5. Click a post card to see full details and remix content.
+6. Switch to the Members tab to manage team membership, approve join requests, or view pending invitations.
+7. Use the invite feature to bring in new team members by email.
 
-1. During owner onboarding, a `companies` row and `teams` row are created. The owner is added to `team_members` with `role = 'owner'`.
-2. Invitations are sent via Resend email with a unique token. The `team_invitations` row tracks status (pending, accepted, expired).
-3. The invite link (`/invite/[token]`) validates the token and adds the user to the team.
-4. For discoverable teams, the member onboarding path lets users search teams via `/api/teams/search` and submit a `team_join_requests` entry.
-5. Owners/admins review join requests and approve or reject them.
-6. The team activity feed and leaderboard aggregate data from `my_posts` and analytics tables for all team members.
+### Pages and Components
 
-### Database Tables
-
-- `teams` -- Team entity (name, logo, owner_id, company_id, discoverable)
-- `team_members` -- Membership records (team_id, user_id, role)
-- `team_invitations` -- Email invitations (token, status, expires_at)
-- `team_join_requests` -- Join requests (status, reviewed_by)
-- `companies` -- Parent company entity
-- `invitations` -- LinkedIn invitations captured by extension (separate from team invitations)
-
----
-
-## 6. Discover & Inspiration
-
-### What It Does
-
-A content discovery hub with multiple content sources:
-
-- **Viral post feed**: Curated high-engagement LinkedIn posts from viral creators, scraped via Apify and quality-filtered by AI.
-- **News articles**: Industry news ingested daily via Perplexity research, categorized by topic.
-- **Influencer tracking**: Follow specific LinkedIn influencers and see their latest posts.
-- **Topic-based discovery**: Content organized by user-selected topics.
-- **Saved inspirations**: Bookmark posts for later reference.
-- **Remix**: Generate new post variations from any discovered content.
-
-### Key Files
-
-| Layer | File |
-|-------|------|
-| Page | `app/dashboard/discover/` |
-| Components | `components/features/discover-content-card.tsx`, `components/features/discover-news-card.tsx`, `components/features/discover-news-item.tsx`, `components/features/discover-trending-sidebar.tsx`, `components/features/article-detail-dialog.tsx`, `components/features/follow-influencer-dialog.tsx`, `components/features/followed-influencers-panel.tsx`, `components/features/manage-topics-modal.tsx`, `components/features/topic-selection-overlay.tsx`, `components/features/remix-dialog.tsx`, `components/features/remix-modal.tsx`, `components/features/remix-post-button.tsx` |
-| Hooks | `hooks/use-discover.ts`, `hooks/use-discover-news.ts`, `hooks/use-inspiration.ts`, `hooks/use-followed-influencers.ts`, `hooks/use-remix.ts` |
-| API routes | `app/api/discover/`, `app/api/influencers/`, `app/api/inspiration/`, `app/api/remix/` |
-| Inngest functions | `lib/inngest/functions/daily-content-ingest.ts`, `lib/inngest/functions/on-demand-content-ingest.ts`, `lib/inngest/functions/viral-post-ingest.ts`, `lib/inngest/functions/influencer-post-scrape.ts`, `lib/inngest/functions/ingest-articles.ts` |
-| Libraries | `lib/apify/client.ts`, `lib/ai/post-quality-filter.ts`, `lib/ai/remix-prompts.ts` |
-
-### Technical Flow
-
-1. **Viral post ingest** (daily cron at 5 AM UTC): Scrapes posts from curated `viral_source_profiles` via Apify's `harvestapi~linkedin-profile-posts` actor, filters through LLM quality assessment, classifies tags/clusters, and stores up to 20 approved posts per day in `discover_posts`.
-2. **Influencer post scrape** (daily cron at 6 AM UTC): Scrapes posts from user-followed influencers via Apify, applies the same quality filter, and stores in `influencer_posts`.
-3. **Daily content ingest**: Searches user-selected topics, processes results, and populates `discover_posts` and `discover_news_articles`.
-4. **On-demand ingest**: Triggered when a user manually requests fresh content.
-5. **Remix flow**: User selects a post, chooses remix options, and the `/api/remix` endpoint uses OpenRouter to generate a new variation using prompts from `lib/ai/remix-prompts.ts`.
-
-### Database Tables
-
-- `discover_posts` -- Curated content feed (viral posts, research results, ingested content)
-- `discover_news_articles` -- News articles with topic tags and freshness
-- `inspiration_posts` -- High-quality posts for the inspiration feed
-- `saved_inspirations` -- User's bookmarked posts
-- `followed_influencers` -- Influencers a user follows (linkedin_url, status, posts_count)
-- `influencer_posts` -- Posts scraped from followed influencers (with quality_score, quality_status)
-- `viral_source_profiles` -- Curated list of viral LinkedIn creators
-- `linkedin_research_posts` -- Research posts from Apify LinkedIn scraping
-- `tag_cluster_mappings` -- Maps content tags to topic clusters
+- `app/dashboard/team/page.tsx` -- Team page with tabs, leaderboard, post grid, member management
+- `components/features/team-leaderboard.tsx` -- Ranked member leaderboard
+- `components/features/team-header.tsx` -- Team header with actions
+- `components/features/team-activity-feed.tsx` -- Activity feed types
+- `components/features/team-member-list.tsx` -- Member list with role management
+- `components/features/pending-invitations-card.tsx` -- Pending invitations display
+- `components/features/no-team-state.tsx` -- No-team empty state
+- `components/features/remix-post-button.tsx` -- Remix button on post cards
+- `hooks/use-team.ts` -- Team data and operations hook
+- `hooks/use-team-posts.ts` -- Team posts fetching
+- `hooks/use-team-leaderboard.ts` -- Leaderboard data
+- `hooks/use-team-invitations.ts` -- Invitation management
+- `hooks/use-join-requests.ts` -- Join request management
 
 ---
 
-## 7. Swipe Interface
+## 5. Template Library
 
-### What It Does
+### Description
 
-A Tinder-style card interface for reviewing AI-generated post suggestions:
+The Template Library is a collection of reusable LinkedIn post templates. Users can create, edit, delete, and use templates to speed up content creation. Templates can be filtered by category and searched.
 
-- Swipe right to save to wishlist, left to dismiss
-- AI-generated suggestions based on company context and user preferences
-- Wishlist management with collections
-- Schedule directly from wishlist
-- Auto-refill when suggestions run low (cron job)
+### Key Capabilities
 
-### Key Files
+- **Create Templates** -- Build new templates with a title, content body, and category tag.
+- **Edit Templates** -- Modify existing templates in-place.
+- **Delete Templates** -- Remove templates that are no longer needed.
+- **Category Filtering** -- Filter templates by category to find relevant formats quickly.
+- **Search** -- Full-text search across template titles and content.
+- **Use Template** -- Select a template to load it into the composer. Usage count is tracked for analytics.
+- **AI Auto-Generated Templates** -- Templates can be generated by AI based on user context and company information.
+- **Template Preview** -- Preview the template content before using it.
+- **Error and Loading States** -- Proper skeleton loading, error display with retry, and empty states.
 
-| Layer | File |
-|-------|------|
-| Page | `app/dashboard/swipe/` |
-| Components | `components/features/swipe-card.tsx`, `components/features/swipe-interface.tsx` |
-| Hooks | `hooks/use-swipe-actions.ts`, `hooks/use-swipe-suggestions.ts`, `hooks/use-generated-suggestions.ts` |
-| API routes | `app/api/swipe/` |
-| Inngest functions | `lib/inngest/functions/generate-suggestions.ts`, `lib/inngest/functions/suggestions-ready.ts`, `lib/inngest/functions/swipe-auto-refill.ts` |
-| AI prompts | `lib/ai/suggestion-prompts.ts` |
+### User Workflow
 
-### Technical Flow
+1. Navigate to Templates from the sidebar.
+2. Browse or search for templates by keyword or category.
+3. Click "Use" on a template to load it into the Post Composer.
+4. Create new templates from scratch or let AI generate them.
+5. Edit or delete templates as needed.
 
-1. The `generate-suggestions` Inngest workflow is triggered during onboarding or on demand.
-2. It fetches the user's `company_context`, generates content ideas via OpenRouter, then expands each idea into a full LinkedIn post.
-3. Generated suggestions are stored in `generated_suggestions` with metadata (post_type, category, estimated_engagement).
-4. The swipe interface presents cards. User actions are recorded in `swipe_preferences`.
-5. Right-swiped posts go to `swipe_wishlist`. Users can organize them into `wishlist_collections`.
-6. The `swipe-auto-refill` cron job monitors suggestion counts and triggers new generation when a user's active suggestions drop below the threshold (max 10 active).
-7. The `suggestions-ready` handler notifies the UI when new suggestions are available.
+### Pages and Components
 
-### Database Tables
-
-- `generated_suggestions` -- AI-generated post suggestions (content, post_type, category, estimated_engagement, status)
-- `suggestion_generation_runs` -- Tracks generation batches (status, suggestions_generated, company_context_id)
-- `swipe_preferences` -- User swipe actions (post_id, action: like/dislike/skip)
-- `swipe_wishlist` -- Saved suggestions with notes and scheduling status
-- `wishlist_collections` -- Named collections for organizing wishlist items
-- `company_context` -- Company data used for personalized generation
+- `app/dashboard/templates/page.tsx` -- Templates page
+- `components/features/template-library.tsx` -- Template browsing, search, create, edit, delete
+- `hooks/use-templates.ts` -- Template CRUD operations hook
+- `components/skeletons/page-skeletons.tsx` -- TemplatesSkeleton
 
 ---
 
-## 8. Carousel Creator
+## 6. Carousel Creator
 
-### What It Does
+### Description
 
-A visual canvas editor for creating LinkedIn carousel posts (document posts):
+The Carousel Creator is a full-featured canvas-based editor for designing multi-slide LinkedIn carousel posts. It follows a Canva/Figma-inspired interface with drag-and-drop elements, AI-powered content generation, template support, and PDF export for posting as a LinkedIn document.
 
-- Slide-by-slide canvas editor with drag-and-drop elements
-- Brand kit integration (auto-apply colors, fonts, logos)
-- Pre-built carousel templates
-- AI-generated carousel content and captions
-- PDF export for LinkedIn document posts
-- Thumbnail preview generation
+### Key Capabilities
 
-### Key Files
+- **Canvas-Based Editor** -- A full-height, Konva.js-powered interactive canvas for designing slides visually. Supports selection, drag, resize, and layering of elements.
+- **Slide Management** -- Add, duplicate, reorder, and delete slides. The left panel includes a slide navigator with thumbnails.
+- **Text Elements** -- Add text blocks with configurable font family, size, weight, color, alignment, and line height. Inline editing is supported.
+- **Image Elements** -- Upload and place images on slides with drag, resize, and crop capabilities.
+- **Shape Elements** -- Add geometric shapes (rectangles, circles, lines, etc.) with customizable fill, stroke, and opacity.
+- **AI Content Generation** -- Generate carousel content using AI. The workflow consists of multiple steps: topic input, tone and CTA selection, template selection, content preview, and final generation. An enhanced AI generator provides more sophisticated multi-slide content.
+- **Template System** -- Browse and apply pre-built carousel templates. Templates define default slide layouts, colors, and element positions. Users can save their own creations as templates. Template categories help organize the library.
+- **Brand Kit Integration** -- Pull colors, fonts, and logos from the user's brand kit to maintain visual consistency.
+- **Property Panel** -- A right-side panel for editing properties of the selected element (position, size, color, font, etc.).
+- **Floating Toolbar** -- Contextual toolbar that appears when an element is selected, providing quick access to common actions (duplicate, delete, layer order, alignment).
+- **Export to PDF** -- Export the entire carousel as a multi-page PDF for uploading to LinkedIn as a document post. Export options include format, quality, and filename configuration.
+- **Export Slides as Images** -- Export individual slides as PNG/JPG images.
+- **Post to LinkedIn** -- Directly post the carousel to LinkedIn from within the editor via a publishing dialog.
+- **Save Template Dialog** -- Save the current carousel design as a reusable template with name and category.
+- **Graphics Library** -- A panel with pre-built graphic shapes that can be dragged onto slides.
+- **Uploads Panel** -- Manage and insert previously uploaded images.
+- **Icon Rail** -- Quick-access icon strip for switching between left panel sections (templates, elements, AI, uploads, graphics, slides).
+- **Top Actions Bar** -- Undo, redo, zoom controls, export, save, and post actions.
 
-| Layer | File |
-|-------|------|
-| Page | `app/dashboard/carousels/` |
-| Components | `components/features/canvas-editor/` (directory), `components/features/carousel-creator.tsx`, `components/features/carousel-document-preview.tsx`, `components/features/brand-kit-preview.tsx`, `components/features/font-picker.tsx` |
-| Hooks | `hooks/use-canvas-editor.ts`, `hooks/use-carousel.ts`, `hooks/use-carousel-templates.ts`, `hooks/use-brand-kit-templates.ts` |
-| API routes | `app/api/ai/carousel/generate/route.ts`, `app/api/ai/carousel-caption/route.ts`, `app/api/carousel-templates/` |
-| Libraries | `lib/canvas-pdf-export.ts`, `lib/pdf-export.ts`, `lib/canvas-templates/`, `lib/ai/carousel-builder.ts`, `lib/ai/carousel-prompts.ts` |
-| LinkedIn posting | `lib/linkedin/document-post.ts`, `app/api/linkedin/post-document/route.ts` |
-| Types | `types/canvas-editor.ts`, `types/carousel.ts` |
+### User Workflow
 
-### Technical Flow
+1. Navigate to Carousels from the sidebar.
+2. Start with a blank carousel or select a template.
+3. Add and arrange text, images, and shapes on each slide.
+4. Use the AI generator to create slide content based on a topic and tone.
+5. Customize colors and fonts using the property panel, optionally pulling from the brand kit.
+6. Preview the carousel by navigating through slides.
+7. Export as PDF for LinkedIn document posts, or post directly to LinkedIn.
 
-1. User opens the carousel creator and selects a template or starts from scratch.
-2. The canvas editor (`use-canvas-editor` hook) manages slide state, element positioning, and styling.
-3. Brand kit colors/fonts are auto-applied from `brand_kits` table.
-4. AI can generate carousel slide content via `/api/ai/carousel/generate` using `lib/ai/carousel-builder.ts`.
-5. AI can generate captions for the entire carousel via `/api/ai/carousel-caption`.
-6. PDF export uses `lib/canvas-pdf-export.ts` to render slides as a PDF document.
-7. The document is posted to LinkedIn via the document post API (`lib/linkedin/document-post.ts`), which registers an upload, uploads the PDF binary, and creates the post.
+### Pages and Components
 
-### Database Tables
-
-- `carousel_templates` -- Saved carousel templates (slides JSON, brand_colors, fonts, thumbnail)
-- `brand_kits` -- Brand colors, fonts, and logos for styling
-- `my_posts` -- Published carousel posts tracked here
-
----
-
-## 9. Template Library
-
-### What It Does
-
-A CRUD interface for managing reusable post templates:
-
-- Create, edit, delete templates
-- Categorize templates with custom categories
-- Favorite templates for quick access
-- Usage tracking (how many times each template has been used)
-- AI-recommended templates based on context
-- AI auto-generation of templates (Inngest cron)
-- Team-shared templates
-
-### Key Files
-
-| Layer | File |
-|-------|------|
-| Page | `app/dashboard/templates/` |
-| Components | `components/features/template-library/` (directory) |
-| Hooks | `hooks/use-templates.ts`, `hooks/use-template-categories.ts` |
-| API routes | `app/api/templates/` |
-| Inngest function | `lib/inngest/functions/template-auto-generate.ts` |
-| AI | `lib/ai/template-analyzer.ts` |
-
-### Technical Flow
-
-1. Users create templates with content, category, and tags. Templates can be personal or team-shared (`team_id`).
-2. Categories are user-defined via `template_categories`.
-3. Users can favorite templates (`template_favorites`), and usage count increments on each use.
-4. The `template-auto-generate` Inngest cron job analyzes user patterns and generates new templates using OpenRouter, marking them with `is_ai_generated = true`.
-5. Templates can be loaded into the composer for quick post creation.
-
-### Database Tables
-
-- `templates` -- Template content (name, content, category, tags, usage_count, is_public, team_id, is_ai_generated)
-- `template_categories` -- User-defined categories
-- `template_favorites` -- User favorites (user_id, template_id)
+- `app/dashboard/carousels/page.tsx` -- Carousels page wrapper
+- `components/features/canvas-editor/canvas-editor.tsx` -- Main orchestrating editor component
+- `components/features/canvas-editor/canvas-stage.tsx` -- Konva canvas stage
+- `components/features/canvas-editor/canvas-text-element.tsx` -- Text element renderer
+- `components/features/canvas-editor/canvas-image-element.tsx` -- Image element renderer
+- `components/features/canvas-editor/canvas-shape-element.tsx` -- Shape element renderer
+- `components/features/canvas-editor/editor-left-panel.tsx` -- Left sidebar with tabs
+- `components/features/canvas-editor/editor-floating-toolbar.tsx` -- Floating context toolbar
+- `components/features/canvas-editor/editor-top-actions.tsx` -- Top action bar
+- `components/features/canvas-editor/editor-icon-rail.tsx` -- Icon strip for panel switching
+- `components/features/canvas-editor/property-panel.tsx` -- Element property editor
+- `components/features/canvas-editor/panel-slides.tsx` -- Slide navigator panel
+- `components/features/canvas-editor/panel-templates.tsx` -- Template browser panel
+- `components/features/canvas-editor/panel-ai-generate.tsx` -- AI generation panel
+- `components/features/canvas-editor/panel-graphics.tsx` -- Graphics library panel
+- `components/features/canvas-editor/panel-uploads.tsx` -- Uploads panel
+- `components/features/canvas-editor/ai-content-generator.tsx` -- AI content generator workflow
+- `components/features/canvas-editor/ai-carousel-generator.tsx` -- Basic AI carousel generator
+- `components/features/canvas-editor/enhanced-ai-carousel-generator.tsx` -- Enhanced AI generator
+- `components/features/canvas-editor/topic-input-step.tsx` -- Topic input step for AI workflow
+- `components/features/canvas-editor/tone-cta-step.tsx` -- Tone and CTA selection step
+- `components/features/canvas-editor/template-selection-step.tsx` -- Template selection step
+- `components/features/canvas-editor/preview-step.tsx` -- AI content preview step
+- `components/features/canvas-editor/template-selector-modal.tsx` -- Full template selector modal
+- `components/features/canvas-editor/export-dialog.tsx` -- PDF/image export dialog
+- `components/features/canvas-editor/post-to-linkedin-dialog.tsx` -- LinkedIn posting dialog
+- `components/features/canvas-editor/save-template-dialog.tsx` -- Save as template dialog
+- `components/features/canvas-editor/enhanced-color-picker.tsx` -- Color picker with brand kit colors
+- `hooks/use-canvas-editor.ts` -- Canvas state management hook
+- `hooks/use-carousel-templates.ts` -- Template fetching hook
+- `hooks/use-template-categories.ts` -- Template category management
+- `lib/canvas-pdf-export.ts` -- PDF export utilities
+- `types/canvas-editor.ts` -- TypeScript types for canvas elements, slides, templates
+- `types/graphics-library.ts` -- Graphics shape types
 
 ---
 
-## 10. Brand Kit
+## 7. Discover and Inspiration
 
-### What It Does
+### Description
 
-Automated brand asset extraction and management:
+Discover and Inspiration is a unified content discovery hub that combines three tabs into a single interface: Viral Posts (Inspiration), Discover Topics (News), and Swipe (AI Suggestions). It helps users find trending content, follow influencers, and remix high-performing posts into their own LinkedIn content.
 
-- Auto-extraction of brand colors, fonts, and logos from a website URL using Firecrawl
-- Fallback to Brandfetch API for logo/color data
-- Manual editing of brand elements
-- Brand kit integration with carousel creator and templates
-- Per-team brand kits
+### Key Capabilities
 
-### Key Files
+#### Inspiration Tab (Viral Posts)
+- **Curated Viral Posts Feed** -- Browse high-performing LinkedIn posts from across the platform with engagement metrics.
+- **Influencer Following** -- Follow specific LinkedIn influencers to see their content in your feed.
+- **Followed Influencers Panel** -- View and manage followed influencers.
+- **Post Detail Dialog** -- Click a post to see full content, author info, metrics, and media.
+- **Bookmark Posts** -- Save inspiring posts for later reference.
+- **Remix Posts** -- Remix any viral post through the AI remix workflow, which adjusts tone, length, and adds custom instructions.
 
-| Layer | File |
-|-------|------|
-| Page | `app/onboarding/brand-kit/` |
-| Components | `components/features/brand-kit-preview.tsx` |
-| Hooks | `hooks/use-brand-kit.ts`, `hooks/use-brand-kit-templates.ts` |
-| API routes | `app/api/brand-kit/route.ts`, `app/api/brand-kit/extract/route.ts` |
-| Libraries | `lib/firecrawl/brand-extractor.ts`, `lib/firecrawl/client.ts`, `lib/firecrawl/scraper.ts`, `lib/logo-dev.ts` |
-| Types | `types/brand-kit.ts` |
+#### Discover Tab (News)
+- **Perplexity-Powered News Feed** -- Industry news articles fetched and organized by topic using Perplexity AI.
+- **Topic Selection** -- First-time users are shown a topic selection overlay to personalize their feed. Topics can be managed via a modal.
+- **Topic Pills** -- Horizontal scrollable pill-based filters to switch between selected topics.
+- **Two-Column Layout** -- Main feed with featured "Top Stories" (3-card grid) and compact "Latest" article list, plus a trending sidebar.
+- **Article Detail Dialog** -- Click any article to read the full summary, view source info, and access remix/read-original actions.
+- **Trending Sidebar** -- Shows trending articles and topic navigation on large screens.
+- **Search** -- Debounced search across article headlines and summaries.
+- **Infinite Scroll** -- Automatically loads more articles as the user scrolls down.
+- **Deep Research Mode** -- Toggle a research section that provides in-depth analysis powered by AI.
+- **Seeding Banner** -- Shows a progress indicator when the Inngest ingest workflow is populating the feed with fresh articles.
+- **Manage Topics Modal** -- Add, remove, or reorder topics to customize the news feed.
+- **Remix Articles** -- Remix any news article into a LinkedIn post with tone, length, and custom instruction controls.
 
-### Technical Flow
+#### Swipe Tab
+- See [Swipe Interface](#8-swipe-interface) below (also accessible as a standalone page).
 
-1. During onboarding (or in settings), user provides their website URL.
-2. The `/api/brand-kit/extract` endpoint calls Firecrawl to scrape the website HTML.
-3. `lib/firecrawl/brand-extractor.ts` parses CSS for primary colors (checking `--primary`, `--brand`, `--accent` variables), extracts font families, and finds logo URLs.
-4. Colors are ranked by frequency and position in CSS. The primary color is the most prominent brand-associated color.
-5. The extracted data is saved to `brand_kits` with raw extraction data for debugging.
-6. The carousel creator and template system reference the active brand kit for consistent styling.
+### User Workflow
 
-### Database Tables
+1. Navigate to Inspiration from the sidebar.
+2. The capsule tab bar lets you switch between Viral Posts, Discover Topics, and Swipe.
+3. On the Viral Posts tab, browse high-performing posts, follow influencers, and bookmark or remix content.
+4. On the Discover tab, select topics of interest, browse news articles, search for specific topics, and remix articles into posts.
+5. On the Swipe tab, review AI-generated suggestions by swiping.
 
-- `brand_kits` -- Brand assets (primary_color, secondary_color, accent_color, font_primary, font_secondary, logo_url, raw_extraction, team_id)
+### Pages and Components
 
----
-
-## 11. AI Content Generation
-
-### What It Does
-
-AI-powered content generation across the platform via OpenRouter:
-
-- **Compose chat**: Conversational post generation with streaming responses
-- **Post generation**: Direct post creation with post-type-specific prompts
-- **Remix**: Generate variations of existing posts
-- **Edit selection**: AI editing of selected text within the composer
-- **Series generation**: Multi-post series creation
-- **Carousel content**: AI-generated slide content
-- **Playground**: Admin prompt testing and iteration
-- **Anti-AI detection**: Writing rules to make content sound more human
-
-### Key Files
-
-| Layer | File |
-|-------|------|
-| API routes | `app/api/ai/compose-chat/route.ts`, `app/api/ai/generate/route.ts`, `app/api/ai/remix/route.ts`, `app/api/ai/edit-selection/route.ts`, `app/api/ai/compose-series/route.ts`, `app/api/ai/carousel/generate/route.ts`, `app/api/ai/carousel-caption/route.ts`, `app/api/ai/playground/route.ts`, `app/api/ai/analyze-company/route.ts` |
-| Client | `lib/ai/openai-client.ts` -- OpenRouter client (BYOK support) |
-| Prompts | `lib/ai/compose-system-prompt.ts`, `lib/ai/suggestion-prompts.ts`, `lib/ai/remix-prompts.ts`, `lib/ai/carousel-prompts.ts`, `lib/ai/series-system-prompt.ts`, `lib/ai/prompt-templates.ts`, `lib/ai/anti-ai-rules.ts` |
-| Style | `lib/ai/style-analyzer.ts` -- Analyzes user's writing style from past posts |
-| Quality | `lib/ai/post-quality-filter.ts` -- LLM-based quality assessment |
-| Post types | `lib/ai/post-types.ts` |
-| Components | `components/features/ai-generation-dialog.tsx`, `components/features/ai-inline-panel.tsx`, `components/features/generation-progress.tsx`, `components/features/remix-dialog.tsx` |
-| Hooks | `hooks/use-remix.ts` |
-| Prompt management | `app/dashboard/prompts/`, `hooks/use-prompts.ts`, `hooks/use-prompt-editor.ts`, `hooks/use-prompt-versions.ts`, `hooks/use-prompt-analytics.ts`, `hooks/use-prompt-history.ts` |
-
-### Technical Flow
-
-1. All AI requests route through `lib/ai/openai-client.ts`, which wraps OpenAI SDK configured for OpenRouter (`https://openrouter.ai/api/v1`).
-2. The default model is `openai/gpt-4.1`. Users can bring their own API key (BYOK) stored encrypted in `user_api_keys`.
-3. Each feature has dedicated system prompts. For compose chat, the system prompt includes company context, content rules, writing style profile, and anti-AI-detection rules.
-4. The style analyzer (`lib/ai/style-analyzer.ts`) examines the user's past posts to extract patterns (sentence length, vocabulary level, hook patterns, CTA patterns, signature phrases).
-5. Post quality filtering (`lib/ai/post-quality-filter.ts`) runs batch LLM assessments on scraped content to determine if it meets quality thresholds.
-6. Prompt management (admin feature) supports versioning, A/B testing, and usage analytics via `system_prompts`, `prompt_versions`, `prompt_usage_logs`, and `prompt_test_results`.
-
-### Database Tables
-
-- `user_api_keys` -- Encrypted user API keys for BYOK (provider, encrypted_key, key_hint)
-- `system_prompts` -- Managed system prompts (type, content, variables, version)
-- `prompt_versions` -- Version history for prompts
-- `prompt_usage_logs` -- Token usage and cost tracking per prompt invocation
-- `prompt_test_results` -- A/B test results for prompt iterations
-- `writing_style_profiles` -- Analyzed writing patterns
-- `content_rules` -- User/team content constraints
-- `company_context` -- Company data for context injection
-- `generated_posts` -- AI-generated post outputs
+- `app/dashboard/inspiration/page.tsx` -- Unified inspiration page with three tabs
+- `app/dashboard/discover/page.tsx` -- Standalone Discover page (also embedded in inspiration)
+- `components/features/inspiration-feed.tsx` -- Viral posts feed
+- `components/features/followed-influencers-panel.tsx` -- Influencer management panel
+- `components/features/discover-news-card.tsx` -- News article card (featured and compact variants)
+- `components/features/discover-trending-sidebar.tsx` -- Trending articles sidebar
+- `components/features/article-detail-dialog.tsx` -- Full article detail modal
+- `components/features/topic-selection-overlay.tsx` -- First-time topic selection
+- `components/features/manage-topics-modal.tsx` -- Topic management modal
+- `components/features/remix-dialog.tsx` -- AI remix dialog with tone/length/instructions
+- `components/features/research-section.tsx` -- Deep research mode section
+- `hooks/use-discover-news.ts` -- News fetching, topic management, infinite scroll
+- `hooks/use-inspiration.ts` -- Inspiration/viral posts hook
+- `hooks/use-followed-influencers.ts` -- Influencer following hook
+- `hooks/use-api-keys.ts` -- API key status for remix availability
 
 ---
 
-## 12. Deep Research
+## 8. Swipe Interface
 
-### What It Does
+### Description
 
-A Perplexity-powered research pipeline that discovers trending content and generates LinkedIn posts from research findings:
+The Swipe Interface presents AI-generated post suggestions in a Tinder-style card stack. Users swipe right to save a suggestion as a draft, swipe left to skip it, or use action buttons for more nuanced interactions like editing, remixing, or generating fresh ideas.
 
-- Topic-based research with configurable depth (basic/deep)
-- Cross-topic synthesis for unique content angles
-- Optional "My Style" writing integration
-- Research session tracking with real-time progress
-- Generated posts saved as drafts
+### Key Capabilities
 
-### Key Files
+- **Card Stack** -- Visually stacked cards with the current suggestion on top. Background cards are slightly offset and scaled for depth effect.
+- **Swipe Gestures** -- Drag/touch-based swiping with a configurable threshold (100px). Supports both mouse and touch events.
+- **Keyboard Navigation** -- Arrow keys (left/right) trigger swipe actions for accessibility.
+- **Swipe Right (Like)** -- Saves the suggestion as a draft via the auto-save API. Shows a success toast.
+- **Swipe Left (Skip)** -- Dismisses the suggestion and marks it as not interesting.
+- **Edit and Post** -- Load the current suggestion directly into the Post Composer for editing and publishing.
+- **Remix with AI** -- Opens the remix dialog to adjust tone, length, and add custom instructions before loading into the composer.
+- **Category Filtering** -- Filter suggestions by category (e.g., thought-leadership, how-to, storytelling). Auto-resets to "all" when a filtered category runs out of cards.
+- **AI Generation** -- Generate new personalized suggestions on demand. Shows generation progress with a progress bar. Maximum of 10 active suggestions at a time.
+- **Session Stats Card** -- Tracks session statistics including likes, skips, total reviewed, like rate, and capture rate (percentage of liked posts). Displays contextual tips based on session behavior.
+- **Exit Animations** -- Cards animate off-screen in the swipe direction with rotation and fade effects.
+- **Estimated Engagement** -- Each suggestion card displays an AI-estimated engagement score.
+- **Post Type Badge** -- Cards show the type of post (thought-leadership, story, etc.).
+- **Personalization** -- Suggestions are tailored based on the user's company context, audience, and content preferences.
+- **Empty State** -- When no suggestions remain, users can generate more or refresh the queue.
 
-| Layer | File |
-|-------|------|
-| Components | `components/features/research-section.tsx` |
-| Hooks | `hooks/use-research.ts` |
-| API routes | `app/api/research/` |
-| Inngest function | `lib/inngest/functions/deep-research.ts` |
-| Libraries | `lib/research/tavily-client.ts`, `lib/perplexity/client.ts`, `lib/ai/research-synthesizer.ts`, `lib/ai/style-analyzer.ts` |
+### User Workflow
 
-### Technical Flow
+1. Navigate to Swipe from the sidebar or the Inspiration page's Swipe tab.
+2. Review the top card's content, estimated engagement, and post type.
+3. Swipe right (or click the heart button) to save as draft.
+4. Swipe left (or click the X button) to skip.
+5. Click "Edit & Post" to load into the composer, or "Remix" to adjust with AI.
+6. Filter by category to focus on specific content types.
+7. Generate new suggestions when the queue runs low.
+8. Track session progress in the stats card.
 
-1. User selects topics (up to 5), research depth, and post types to generate.
-2. A `research_sessions` row is created and the `discover/research` Inngest event is fired.
-3. **Step 1 (Initialize)**: Session status set to `initializing`.
-4. **Step 2 (Search + Enrich)**: All topics are searched concurrently via Tavily API. For each result, Perplexity (`perplexity/sonar-pro` via OpenRouter) provides deeper analysis with key insights, trend analysis, and expert opinions.
-5. **Step 3 (Synthesize)**: The `research-synthesizer` identifies cross-topic themes and unique angles using OpenRouter.
-6. **Step 4 (Save Discover Posts)**: Enriched results are deduplicated and saved to `discover_posts`.
-7. **Step 5 (Generate Posts)**: For each top result and selected post type, OpenRouter generates LinkedIn posts using type-specific prompts (thought-leadership, storytelling, educational, contrarian, data-driven, how-to, listicle). User writing style is optionally injected.
-8. **Step 6 (Save Generated Posts)**: Posts saved to `generated_posts` as drafts.
-9. **Step 7 (Finalize)**: Session marked complete with metrics.
+### Pages and Components
 
-### Database Tables
-
-- `research_sessions` -- Research session state (topics, depth, status, posts_discovered, posts_generated, error_message)
-- `discover_posts` -- Research results stored as discover content
-- `generated_posts` -- AI-generated posts from research (linked via research_session_id)
+- `app/dashboard/swipe/page.tsx` -- Standalone swipe page
+- `components/features/swipe-card.tsx` -- SwipeCard, SwipeCardStack, SwipeCardEmpty components
+- `components/features/generation-progress.tsx` -- Generation progress indicator
+- `components/features/remix-dialog.tsx` -- AI remix dialog
+- `hooks/use-generated-suggestions.ts` -- Suggestion data and generation hook
+- `hooks/use-swipe-actions.ts` -- Swipe session tracking hook
+- `lib/toast-utils.ts` -- Custom toast helpers (swipeToast, inspirationToast)
 
 ---
 
-## 13. Chrome Extension
+## 9. Scheduling
 
-### What It Does
+### Description
 
-A Chrome extension that captures LinkedIn data directly from the browser:
+The Scheduling page provides a content calendar view and list management for scheduled LinkedIn posts. Users can visualize their posting cadence, manage upcoming posts, and schedule new content.
 
-- Automatic capture of LinkedIn analytics, feed posts, profile data, and messaging data
-- Profile sync (LinkedIn profile data to Supabase)
-- Auto-login from webapp session (extension reads webapp cookies to authenticate)
-- Configurable capture settings (toggle analytics, feed, profile, messaging capture)
-- Sync status tracking
+### Key Capabilities
 
-### Key Files
+- **Content Calendar** -- Full interactive calendar displaying scheduled posts as indicators on their respective dates. Posts are color-coded by status (pending, posting, failed).
+- **Quick Stats Row** -- Four stat cards showing: Scheduled (pending count), Published (posted count), This Month (total count), and a Best Times tip card suggesting optimal posting windows (Tue-Thu, 8-10 AM).
+- **Scheduled Posts List** -- Below the calendar, a list view of all pending/scheduled posts with content preview, scheduled time, and actions.
+- **Date Click Interaction** -- Clicking an empty date navigates to compose with that date pre-filled. Clicking a date with one post opens it for editing. Clicking a date with multiple posts shows a picker dialog.
+- **Edit Scheduled Posts** -- Open any scheduled post in the composer for content editing and optional rescheduling.
+- **Delete Posts** -- Remove scheduled posts with confirmation.
+- **Post Now** -- Immediately queue a scheduled post for publishing (bypasses the scheduled time).
+- **Posting Configuration** -- Respects the posting enabled/disabled flag, showing appropriate warnings when posting is disabled.
+- **Status Mapping** -- Database statuses (pending, scheduled, posting, processing, failed, error) are mapped to display statuses.
 
-| Layer | File |
-|-------|------|
-| Extension root | `extension/` |
-| Background script | `extension/background/` |
-| Content scripts | `extension/content/` |
-| Popup UI | `extension/popup/` |
-| Extension source | `extension/src/` |
-| Extension lib | `extension/lib/` |
-| Extension Supabase | `extension/supabase/` |
-| Manifest | `extension/manifest.json` |
-| Build config | `extension/esbuild.config.js`, `extension/vite.config.ts` |
-| Webapp callback | `app/auth/extension-callback/` |
-| Webapp API | `app/api/sync/` |
-| Library | `lib/extension/` |
+### User Workflow
 
-### Technical Flow
+1. Navigate to Schedule from the sidebar.
+2. View the calendar to see upcoming scheduled posts.
+3. Click the "Schedule Post" button to create new scheduled content via the composer.
+4. Click a date on the calendar to create, view, or edit posts for that day.
+5. Use the list below the calendar to manage individual posts (edit, delete, post now).
+6. Review stats cards for a quick overview of scheduling activity.
 
-1. User installs the Chrome extension and logs in (or auto-logs in via webapp session).
-2. Content scripts inject into LinkedIn pages and intercept API responses.
-3. Captured data categories:
-   - **Analytics**: Impressions, engagement, follower data from LinkedIn analytics pages.
-   - **Feed posts**: Posts from the LinkedIn feed with engagement metrics.
-   - **Profile data**: User's own profile information.
-   - **Comments, connections, followers**: Social graph data.
-4. Data is synced to Supabase tables: `linkedin_analytics`, `post_analytics`, `feed_posts`, `my_posts`, `comments`, `connections`, `followers`, `audience_data`, `linkedin_profiles`.
-5. `capture_stats` tracks daily capture volumes. `sync_metadata` tracks last sync timestamps per table.
-6. `extension_settings` stores per-user capture preferences.
+### Pages and Components
 
-### Database Tables
+- `app/dashboard/schedule/page.tsx` -- Schedule page with calendar, stats, and post list
+- `components/features/schedule-calendar.tsx` -- Interactive calendar with post indicators
+- `components/features/scheduled-posts.tsx` -- Scheduled posts list component
+- `hooks/use-scheduled-posts.ts` -- Scheduled posts data hook
+- `hooks/use-posting-config.ts` -- Posting enabled/disabled configuration
 
-- `linkedin_analytics` -- Raw analytics snapshots
-- `post_analytics` -- Per-post analytics data
-- `feed_posts` -- Captured feed posts
-- `my_posts` -- User's own posts
-- `comments` -- Post comments
-- `connections` -- LinkedIn connections
-- `followers` -- LinkedIn followers
-- `audience_data` -- Audience demographics
-- `linkedin_profiles` -- LinkedIn profile data
-- `capture_stats` -- Daily capture volume tracking
-- `captured_apis` -- Raw API response captures
-- `sync_metadata` -- Sync timestamps per table
-- `extension_settings` -- Per-user extension configuration
-- `linkedin_credentials` -- Voyager API cookies (li_at, JSESSIONID, liap, csrf_token)
+---
+
+## 10. Drafts
+
+### Description
+
+The Drafts page manages all auto-saved and manually saved draft posts. Drafts are created from multiple sources (compose auto-save, swipe likes, discover remixes, inspiration remixes, research outputs) and are organized with source-colored badges for easy identification.
+
+### Key Capabilities
+
+- **Source-Colored Badges** -- Each draft is tagged with its source (Compose, Swipe, Discover, Inspiration, Research) using distinct color-coded badges with corresponding gradient card backgrounds.
+- **Card and List Views** -- Toggle between a visual card grid view and a compact list view.
+- **Search** -- Full-text search across draft content.
+- **Source Filtering** -- Filter drafts by their source (compose, swipe, discover, inspiration, research).
+- **Sorting** -- Sort drafts by most recent, oldest, or word count.
+- **Bulk Selection** -- Select multiple drafts for bulk operations. Includes select-all functionality.
+- **Bulk Delete** -- Delete multiple selected drafts at once with confirmation.
+- **Edit Draft** -- Open a draft in the Post Composer for editing and publishing.
+- **Copy Content** -- Copy draft content to clipboard.
+- **Remix Draft** -- Load a draft into the AI remix workflow.
+- **Individual Delete** -- Delete a single draft with confirmation.
+- **Word Count Display** -- Each draft card shows the word count.
+- **Relative Timestamps** -- Display how long ago each draft was saved.
+- **Empty State** -- When no drafts exist, a friendly prompt guides users to create content.
+
+### User Workflow
+
+1. Navigate to Drafts from the sidebar.
+2. Browse drafts in card or list view.
+3. Use search, source filter, or sorting to find specific drafts.
+4. Click a draft to open it in the composer for editing and posting.
+5. Use the context menu for quick actions (copy, remix, delete).
+6. Select multiple drafts for bulk deletion when cleaning up.
+
+### Pages and Components
+
+- `app/dashboard/drafts/page.tsx` -- Drafts page with views, search, filter, sort, bulk actions
+- `hooks/use-drafts.ts` -- Drafts CRUD and filtering hook
+- `lib/store/draft-context.tsx` -- Draft state context
+- `components/features/remix-post-button.tsx` -- Remix action on draft cards
+
+---
+
+## 11. My Posts
+
+### Description
+
+The My Posts page displays the user's published LinkedIn posts with engagement metrics, search, filtering, and sorting capabilities. It serves as a historical view of all content the user has posted.
+
+### Key Capabilities
+
+- **Post Cards** -- Each post is displayed as a card with content preview, media thumbnails, engagement metrics (impressions, reactions, comments, reposts), and posted date.
+- **Engagement Metrics** -- Visual display of impressions, reactions, comments, and reposts with formatted numbers.
+- **Media Preview** -- Posts with images show thumbnail previews.
+- **Content Type Tabs** -- Filter posts by content type (all, text-only, with media, articles).
+- **Search** -- Search across post content.
+- **Sorting** -- Sort by most recent, most impressions, most reactions, or most comments.
+- **Remix** -- Each post includes a Remix button for generating new content based on an existing post.
+- **Summary Statistics** -- Overview stats for total posts and aggregate engagement.
+- **Expandable Content** -- Toggle between truncated and full post content.
+- **Author Profiles** -- For team views, posts show the author's profile information.
+
+### User Workflow
+
+1. Navigate to Posts from the sidebar.
+2. Browse published posts sorted by recency or engagement.
+3. Use tabs to filter by content type.
+4. Search for specific posts.
+5. Click Remix on any post to create a fresh version in the composer.
+
+### Pages and Components
+
+- `app/dashboard/posts/page.tsx` -- Posts page with cards, search, filter, sort
+- `components/features/remix-post-button.tsx` -- Remix action
+- `hooks/use-analytics.ts` -- Post analytics data
+
+---
+
+## 12. AI Features
+
+### Description
+
+AI is deeply integrated across ChainLinked's feature set. Multiple AI-powered capabilities help users generate, refine, and optimize LinkedIn content.
+
+### Key Capabilities
+
+- **Post Generation (Compose Chat)** -- The AI inline panel in the Post Composer uses a chat interface where users provide a topic, tone, context, and post type. The AI generates LinkedIn-ready content that can be iterated upon through conversation.
+- **Remix Posts** -- Available on My Posts, Team Posts, Inspiration Posts, Discover Articles, Swipe Suggestions, and Drafts. Opens a dialog where users set tone (professional, casual, etc.), length (shorter, same, longer), and custom instructions. The AI produces a remixed version.
+- **Edit with AI** -- Select text in the composer and use AI to rewrite, expand, shorten, or change the tone of specific sections.
+- **Carousel AI Content** -- The carousel creator's AI generator creates multi-slide content with a step-by-step workflow: topic input, tone and CTA selection, template matching, content preview, and final slide population.
+- **Enhanced Carousel AI** -- An advanced carousel generation mode that produces richer, more structured content for each slide.
+- **Company Analysis** -- During onboarding (Step 2), the system analyzes the user's company website using Firecrawl (scraping), Perplexity (research), and OpenAI (structured extraction) to build a company context profile.
+- **Suggestion Generation (Swipe)** -- The swipe interface generates personalized post suggestions based on the user's company context, audience, and content goals. Generation progress is streamed to the UI.
+- **Deep Research Mode** -- Available on the Discover page, this mode provides in-depth AI-powered analysis on a topic, generating detailed research briefs.
+- **Content Rules** -- Users can define AI writing guidelines (content rules) in Settings that are applied to all AI-generated content.
+- **Prompt Playground** -- A dedicated testing surface for iterating on AI prompts (see section 17).
+
+### Pages and Components
+
+- `components/features/ai-inline-panel.tsx` -- Compose chat AI panel
+- `components/features/ai-generation-dialog.tsx` -- AI generation dialog
+- `components/features/remix-dialog.tsx` -- Remix dialog with settings
+- `components/features/canvas-editor/ai-content-generator.tsx` -- Carousel AI generator
+- `components/features/canvas-editor/enhanced-ai-carousel-generator.tsx` -- Enhanced carousel AI
+- `components/features/research-section.tsx` -- Deep research mode
+- `components/features/content-rules-editor.tsx` -- AI content rules
+- `lib/ai/post-types.ts` -- Post type definitions and goal categories
+
+---
+
+## 13. Brand Kit
+
+### Description
+
+The Brand Kit captures a company's visual identity -- colors, fonts, and logo -- and makes it available across the platform for consistent content creation. Brand kit data is extracted automatically during onboarding and can be edited in Settings.
+
+### Key Capabilities
+
+- **Automatic Extraction via Brandfetch** -- During onboarding Step 3, the system automatically extracts brand colors, fonts, and logo from the company website URL provided in Step 2 using Brandfetch integration.
+- **Color Palette** -- Primary, secondary, accent, background, and text colors are stored and applied to carousel templates and AI-generated content.
+- **Font Configuration** -- Primary and secondary font families are captured for use in carousel slides and template designs.
+- **Logo URL** -- The company logo is extracted and stored. It appears in the team header and can be used in carousel designs.
+- **Website URL** -- The source website is stored for reference and re-extraction.
+- **Brand Kit Preview** -- A visual preview component shows the extracted brand kit during onboarding for user review before saving.
+- **Settings Editing** -- Colors, fonts, and logo can be modified in the Settings page's Brand Kit and AI section.
+- **Carousel Integration** -- The carousel editor's color picker includes brand kit colors for quick access to on-brand color choices.
+
+### User Workflow
+
+1. During onboarding Step 2, provide the company website URL.
+2. In Step 3, the brand kit is automatically extracted and displayed for review.
+3. Confirm or edit the extracted brand kit.
+4. Brand colors appear in the carousel editor's color picker.
+5. Modify the brand kit at any time from Settings > Brand Kit and AI.
+
+### Pages and Components
+
+- `app/onboarding/step3/page.tsx` -- Brand kit extraction and review during onboarding
+- `components/features/brand-kit-preview.tsx` -- Brand kit visual preview
+- `components/features/canvas-editor/enhanced-color-picker.tsx` -- Color picker with brand kit integration
+- `hooks/use-brand-kit.ts` -- Brand kit data hook
+- `types/brand-kit.ts` -- Brand kit TypeScript types
 
 ---
 
 ## 14. Settings
 
-### What It Does
+### Description
 
-Comprehensive settings management covering:
+The Settings page provides a comprehensive configuration interface with sidebar navigation and section cards. It covers profile management, LinkedIn connection status, brand kit and AI context, content rules, team settings, notifications, and account management.
 
-- **Profile settings**: Name, avatar, LinkedIn connection status
-- **API keys**: BYOK management for OpenRouter (encrypted storage)
-- **Default hashtags**: Persist default hashtags to Supabase for auto-insertion in composer
-- **Content rules**: Custom rules that constrain AI-generated content (e.g., "never use emojis", "always include a CTA")
-- **Writing style**: View and refresh analyzed writing style profile
-- **LinkedIn status**: Connection status badge, connect/disconnect
+### Key Capabilities
 
-### Key Files
+#### Profile Section
+- Edit personal information: name, headline, location, education, bio.
+- Upload and manage avatar/profile photo.
+- View email address.
 
-| Layer | File |
-|-------|------|
-| Page | `app/dashboard/settings/` |
-| Components | `components/features/settings.tsx`, `components/features/api-key-settings.tsx`, `components/features/default-hashtags-editor.tsx`, `components/features/content-rules-editor.tsx`, `components/features/linkedin-status-badge.tsx` |
-| Hooks | `hooks/use-settings.ts`, `hooks/use-api-keys.tsx`, `hooks/use-content-rules.ts`, `hooks/use-writing-style.ts` |
-| API routes | `app/api/settings/`, `app/api/settings/api-keys/` |
+#### LinkedIn Section
+- View LinkedIn connection status with a status badge.
+- Connect or reconnect LinkedIn account.
+- View LinkedIn profile information.
 
-### Technical Flow
+#### Brand Kit and AI Section
+- View and edit brand kit colors (primary, secondary, accent, background, text).
+- Configure primary and secondary fonts.
+- Set or update logo URL.
+- Manage website URL for brand extraction.
 
-1. Settings page loads user profile, API keys, hashtags, content rules, and writing style data.
-2. **API keys**: Keys are encrypted client-side before storage. The `user_api_keys` table stores encrypted keys with a `key_hint` (last 4 characters) for display.
-3. **Default hashtags**: Stored in `user_default_hashtags` and automatically appended when composing posts.
-4. **Content rules**: Rules are stored in `content_rules` with type, text, priority, and active status. They are injected into AI system prompts to constrain generation.
-5. **Writing style**: The `writing_style_profiles` table stores analyzed patterns. Users can trigger a refresh which re-analyzes their recent posts.
+#### Content Rules Section
+- Define AI writing guidelines that are applied to all AI-generated content.
+- Set rules for tone, formatting, topics to avoid, and preferred style.
 
-### Database Tables
+#### Default Hashtags
+- Manage a list of default hashtags that are automatically appended to posts.
+- Hashtags are persisted to Supabase per user.
 
-- `profiles` -- Core user profile
-- `user_api_keys` -- Encrypted API keys (provider, encrypted_key, key_hint, is_valid)
-- `user_default_hashtags` -- Default hashtags array
-- `content_rules` -- Content constraint rules (rule_type, rule_text, is_active, priority)
-- `writing_style_profiles` -- Analyzed writing patterns (avg_sentence_length, vocabulary_level, tone, hook_patterns, etc.)
-- `linkedin_tokens` -- LinkedIn OAuth token state
-- `user_niches` -- User's content niches
+#### API Keys Section
+- Configure API keys for AI services (OpenAI, etc.).
+- Status indicators showing whether keys are set.
+
+#### Team Section
+- View current team information.
+- Manage team settings (for admins/owners).
+
+#### Notifications Section
+- Toggle email notifications on/off.
+- Configure notification preferences: post published, post scheduled, weekly digest, team activity, system updates.
+
+#### Account Section
+- Theme selection: light, dark, or system.
+- Data export functionality.
+- Delete account with confirmation.
+
+### User Workflow
+
+1. Navigate to Settings from the sidebar.
+2. Use the sidebar navigation to jump between sections.
+3. Edit profile information, LinkedIn connection, brand kit, content rules, hashtags, or API keys.
+4. Configure notification preferences.
+5. Manage account settings including theme and data.
+
+### Pages and Components
+
+- `app/dashboard/settings/page.tsx` -- Settings page with sidebar navigation and section cards
+- `components/features/api-key-settings.tsx` -- API key management
+- `components/features/linkedin-status-badge.tsx` -- LinkedIn connection status
+- `components/features/content-rules-editor.tsx` -- Content rules editor
+- `components/features/default-hashtags-editor.tsx` -- Default hashtags management
+- `hooks/use-settings.ts` -- Settings data and persistence hook
+
+---
+
+## 15. Onboarding
+
+### Description
+
+The onboarding flow guides new users through initial setup with a multi-step process. Users first select their role (organization owner or joining member), then proceed through role-specific steps to connect tools, set up their company context, extract a brand kit, and review AI-generated company analysis.
+
+### Key Capabilities
+
+- **Role Selection** -- The entry page presents two paths: "I'm setting up my organization" (owner) or "I'm joining an existing team" (member). The selection determines the subsequent steps.
+- **Step 1: Connect** -- Connect LinkedIn tools and the Chrome extension. Saves progress to the database.
+- **Step 2: Company Context** -- Enter company name, website URL, industry, and description. Triggers an Inngest-powered analysis workflow using Firecrawl (website scraping), Perplexity (company research), and OpenAI (structured extraction) to build a comprehensive company profile.
+- **Step 3: Brand Kit** -- Automatically extracts brand colors, fonts, and logo from the company website URL provided in Step 2 using Brandfetch. Displays the results for review and editing before saving.
+- **Step 4: Review and Complete** -- Review the AI-extracted company context (mission, products, target audience, value propositions, tone guidelines). Edit any field inline with compose-style textareas. Confirm and complete onboarding.
+- **Join Flow** -- Members who select the joining path can search for teams, send join requests, and wait for approval on a pending page.
+- **Invite Flow** -- Users who arrive via an email invitation are guided through an invite-specific onboarding path.
+- **Progress Persistence** -- Onboarding step progress is saved to the database, allowing users to resume from where they left off.
+- **Onboarding Guard** -- A hook ensures users are on the correct step and redirects them if they try to skip ahead.
+
+### User Workflow
+
+#### Owner Path
+1. Select "I'm setting up my organization."
+2. Step 1: Connect LinkedIn and extension.
+3. Step 2: Enter company details; wait for AI analysis.
+4. Step 3: Review and edit the extracted brand kit.
+5. Step 4: Review and edit AI-generated company context; complete onboarding.
+
+#### Member Path
+1. Select "I'm joining an existing team."
+2. Search for a team and send a join request.
+3. Wait for admin approval on the pending page.
+4. Once approved, complete remaining setup steps.
+
+### Pages and Components
+
+- `app/onboarding/page.tsx` -- Role selection entry page
+- `app/onboarding/step1/page.tsx` -- Step 1: Connect LinkedIn tools
+- `app/onboarding/step2/page.tsx` -- Step 2: Company context and AI analysis
+- `app/onboarding/step3/page.tsx` -- Step 3: Brand kit extraction and review
+- `app/onboarding/step4/page.tsx` -- Step 4: Review and complete
+- `app/onboarding/join/page.tsx` -- Team search and join request
+- `app/onboarding/join/pending/page.tsx` -- Pending approval page
+- `app/onboarding/invite/page.tsx` -- Invite-based onboarding
+- `app/onboarding/company/page.tsx` -- Company setup
+- `app/onboarding/company-context/page.tsx` -- Company context collection
+- `app/onboarding/brand-kit/page.tsx` -- Brand kit step
+- `app/onboarding/layout.tsx` -- Onboarding layout wrapper
+- `components/ConnectTools.tsx` -- LinkedIn connection tools component
+- `hooks/use-onboarding-guard.ts` -- Step guard and redirect hook
+- `services/onboarding.ts` -- Onboarding database operations
+
+---
+
+## 16. Chrome Extension
+
+### Description
+
+The ChainLinked Chrome Extension runs in the background on LinkedIn pages to capture analytics data, post metrics, audience information, and profile data. It syncs this data to Supabase for use in the web application's analytics and team features.
+
+### Key Capabilities
+
+- **LinkedIn Data Capture** -- Intercepts LinkedIn API responses to capture post impressions, reactions, comments, reposts, follower counts, profile views, and audience demographics.
+- **Background Sync** -- Periodically syncs captured data to Supabase in the background.
+- **Auto-Login** -- When a user is logged into the ChainLinked webapp, the extension automatically authenticates using the same session, eliminating the need for separate login.
+- **Extension Detection** -- The webapp detects whether the extension is installed and prompts for installation if not.
+- **Capture Statistics** -- Tracks what data has been captured and when, stored in the `capture_stats` table.
+- **Extension Settings** -- Per-user extension configuration stored in `extension_settings`.
+- **Sync Metadata** -- Tracks sync status and timing via `sync_metadata`.
+
+### User Workflow
+
+1. Install the Chrome extension from the provided link.
+2. The extension auto-logs in using the webapp session.
+3. Browse LinkedIn normally; the extension captures data in the background.
+4. Data appears in the ChainLinked analytics dashboard and team activity feed.
+5. The webapp's dashboard prompts for extension installation if not detected.
+
+### Related Database Tables
+
+- `linkedin_analytics` -- Aggregated LinkedIn analytics data
+- `analytics_history` -- Historical analytics snapshots
+- `post_analytics` -- Per-post engagement data
+- `audience_data` -- Audience demographic data
+- `audience_history` -- Historical audience snapshots
+- `connections` -- LinkedIn connections
+- `feed_posts` -- LinkedIn feed posts
+- `my_posts` -- User's own LinkedIn posts
+- `comments` -- Post comments
+- `followers` -- Follower data
+- `captured_apis` -- Raw captured API responses
+- `capture_stats` -- Capture statistics
+- `extension_settings` -- Extension configuration
+- `sync_metadata` -- Sync status tracking
+
+### Pages and Components
+
+- `components/features/extension-install-prompt.tsx` -- Installation banner and prompt
+- `lib/extension/detect.ts` -- Extension detection utilities
+
+---
+
+## 17. Prompt Playground
+
+### Description
+
+The Prompt Playground is a developer-oriented tool for testing, iterating, and managing AI prompts. It provides a full-featured testing surface with variable management, response comparison, model parameter controls, run history, and database integration for prompt versioning.
+
+### Key Capabilities
+
+- **Prompt Editor** -- A large text area for writing and editing AI prompts with syntax highlighting.
+- **Variable Management** -- Define variables (e.g., `{{topic}}`, `{{tone}}`) in prompts and provide values for testing. Variables are extracted automatically from the prompt text.
+- **Model Parameter Controls** -- Adjust temperature, max tokens, top-p, and other model parameters via sliders and inputs.
+- **Run Prompt** -- Execute the prompt against the configured AI model and view the response.
+- **Response Display** -- View AI responses with formatted output. Toggle between rendered and raw JSON views.
+- **Side-by-Side Comparison** -- Compare responses from different prompts or parameter settings in a split-column view.
+- **Run History** -- A side sheet displaying previous prompt runs with timestamps, token usage, and cost estimates. Click any historical run to reload its prompt and response.
+- **Template Library Integration** -- Browse and load prompt templates for common use cases.
+- **Save Prompts** -- Save prompts to the database with versioning support.
+- **Version History** -- Track prompt versions and roll back to previous iterations.
+- **Activate Prompts** -- Mark a prompt version as the active/production version.
+- **Export** -- Download prompt configurations and responses.
+- **Copy to Clipboard** -- Quick copy of prompts or responses.
+- **Search** -- Search through saved prompts.
+- **Bookmarks** -- Bookmark prompts for quick access.
+
+### User Workflow
+
+1. Navigate to Prompt Playground from the sidebar.
+2. Write or load a prompt template.
+3. Define variables and set model parameters.
+4. Run the prompt and review the response.
+5. Iterate by adjusting the prompt, variables, or parameters.
+6. Compare multiple responses side by side.
+7. Save successful prompts with version tracking.
+8. Review run history for previous experiments.
+
+### Pages and Components
+
+- `app/dashboard/prompts/page.tsx` -- Prompt playground page
+- `components/features/prompt-playground.tsx` -- Full prompt playground component with editor, variables, parameters, history, and versioning
+
+---
+
+## Architecture Notes
+
+### Technology Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 16 with App Router |
+| UI Library | React 19 |
+| Components | shadcn/ui (new-york style) |
+| Styling | Tailwind CSS v4 with CSS variables |
+| Charts | Recharts |
+| Animations | Framer Motion |
+| Canvas | Konva.js (carousel editor) |
+| Database | Supabase PostgreSQL |
+| Auth | Supabase Auth (email/password, Google OAuth) |
+| Icons | Tabler Icons + Lucide React |
+| State | React hooks (useState, useContext, useRef) |
+| Form Validation | Zod |
+| Tables | TanStack React Table |
+
+### Key Design Patterns
+
+- **Server Components by default** -- Pages use `"use client"` directive only when interactivity is needed.
+- **Custom hooks for data** -- Each feature has dedicated hooks (e.g., `use-analytics-v2`, `use-team-posts`) that encapsulate data fetching, caching, and error handling.
+- **Context providers** -- Auth state (`AuthProvider`), draft state (`DraftContext`), and dashboard metadata (`DashboardContext`) are managed via React Context.
+- **Auto-save with sendBeacon** -- The compose page uses `navigator.sendBeacon` for reliable draft saving on page close and `fetch` for periodic saves.
+- **Framer Motion animations** -- Stagger containers, fade/slide variants, and spring-based transitions are used throughout for polished UI interactions.
+- **Error boundaries** -- Feature sections are wrapped in error boundaries to prevent cascading failures.
+- **Skeleton loading** -- Every page has a dedicated skeleton component for smooth loading states.
+- **Toast notifications** -- Sonner-based toast system with feature-specific helpers (swipeToast, postToast, inspirationToast).

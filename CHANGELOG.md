@@ -1,172 +1,238 @@
 # Changelog
 
-All notable changes to the ChainLinked project will be documented in this file.
+All notable changes to ChainLinked are documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [0.3.0] - 2026-01-12
-
-### Added
-
-#### Analytics Dashboard Completion (AGI-55)
-- **Team Leaderboard** - Ranked team member performance with time range filters (week/month/all-time)
-  - Position badges (gold/silver/bronze for top 3)
-  - Rank change indicators (up/down arrows)
-  - Current user highlighting
-- **Post Performance Drill-down** - Individual post analytics view
-  - Line chart showing impressions and engagements over 7 days
-  - Engagement breakdown (likes, comments, shares, clicks)
-  - Remix action from performance view
-
-#### Post Scheduling Completion (AGI-46)
-- **Schedule Calendar View** - Monthly calendar showing scheduled posts
-  - Color-coded post indicators (pending/posted/failed)
-  - Month navigation with today button
-  - Click to view posts on specific dates
-- **Schedule Post Modal** - Date/time picker for scheduling
-  - Mini calendar for date selection
-  - Time picker with AM/PM
-  - Timezone selector (10 common timezones)
-  - Optimal time suggestions
-
-#### Inspiration Tab Completion (AGI-53)
-- **Post Detail Modal** - Expanded view of inspiration posts
-  - Full content display with author info
-  - Engagement metrics and category
-  - Remix and Save actions
-
-#### Post Composer Completion (AGI-47)
-- **Emoji Picker** - Custom popover emoji selector
-  - 8 category tabs with 30+ emojis each
-  - Search functionality
-  - Recently used emojis (localStorage persistence)
-- **Media Upload Handler** - Drag-and-drop file uploads
-  - Image preview grid
-  - Progress indicators per file
-  - Validation (LinkedIn limits: 9 images/1 video, 10MB/200MB)
-
-#### Carousel Creator Completion (AGI-48)
-- **PDF Export** - Generate carousel PDFs using pdf-lib
-  - 4 template styles (bold, minimalist, data, story)
-  - 3 format options (square, portrait, landscape)
-  - Brand kit color application
-  - Slide numbering
-
-### Dependencies Added
-- `pdf-lib` - PDF generation library
-
-### UI Components Added
-- `components/ui/dialog.tsx` - Modal dialog component
-- `components/ui/popover.tsx` - Popover component
-- `components/ui/progress.tsx` - Progress bar component
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## [0.2.0] - 2026-01-12
+## [Unreleased] - 2026-03-24
 
 ### Added
+- Server-side analytics support via PostHog Node SDK
 
-#### Analytics Dashboard (AGI-55)
-- **Analytics Cards** - 4 metric cards displaying impressions, engagement rate, followers, and profile views
-- **Analytics Chart** - Interactive area chart with 7d/30d/90d time range filters showing impressions and engagements
-- **Goals Tracker** - Weekly/monthly posting goals with progress visualization and streak tracking
+### Fixed
+- Authentication flow improvements including team auto-creation on signup, account deletion handling, and data sync reliability
+- Miscellaneous stability updates
 
-#### Team Activity Feed (AGI-50)
-- Real-time team posts feed with author info and engagement metrics
-- Content preview with expand/collapse functionality
-- "Remix" button for repurposing team content
-- Relative timestamps (e.g., "2 hours ago")
+---
 
-#### Post Composer (AGI-47)
-- Two-column layout with rich text editor and LinkedIn preview
-- Character counter with 3000 character limit
-- Formatting toolbar (bold, italic, lists, hashtags)
-- Media attachment placeholders
-- "Post Now" and "Schedule" actions
+## 2026-03-20
 
-#### Post Queue & Scheduling (AGI-46)
-- Scheduled posts list with date grouping (Today, Tomorrow, This Week, Later)
-- Status badges (Pending, Posting, Failed)
-- Post actions (Edit, Delete, Post Now)
-- Empty state and loading skeletons
+### Added
+- Default hashtags settings now persist to Supabase so they carry across sessions
+- Auto-login for the Chrome extension using the webapp session, eliminating double sign-in
+- Compose persistence, schedule pipeline enhancements, and a major scraping overhaul across multiple features
+- Privacy policy page at `/privacy`
 
-#### Swipe Interface (AGI-52)
-- Tinder-style swipe cards for AI post suggestions
-- Swipe left (dislike) / right (like) with animations
-- Keyboard support (arrow keys)
-- Engagement prediction indicators
-- "Edit & Post" quick action
+### Fixed
+- Character limit validation now uses Unicode code-point counting instead of `.length`, correctly handling emoji and multi-byte characters
 
-#### Inspiration Feed (AGI-53)
-- Curated viral posts from 6 categories
-- Category tabs with filtering
-- Search functionality
-- Post metrics and "Remix" action
-- Responsive grid layout (1/2/3 columns)
+### Changed
+- Privacy page redesigned to match the platform's visual theme
 
-#### Settings (AGI-56)
-- **Profile Settings** - Name, email, avatar management
-- **LinkedIn Connection** - Connection status and refresh
-- **API Keys** - BYOK OpenAI key management
-- **Brand Kit** - Color picker for primary/secondary colors
-- **Team Management** - Member list, invite, role assignment
-- **Notifications** - Toggle switches for all notification types
+---
 
-#### Template Library (AGI-49)
-- Grid/List view toggle
-- Search and category filtering
-- Create/Edit template modal
-- Template cards with usage count
-- Public/Private visibility toggle
-- 5 template categories
+## 2026-03-17
 
-#### Carousel Creator (AGI-48)
-- Slide editor with add/remove functionality
-- 4 template styles (Bold, Minimalist, Data-focused, Story-style)
-- Brand kit integration with color customization
-- Live carousel preview with navigation
-- Export PDF placeholder
+### Added
+- Inspiration tab redesign with smart search, analytics pipeline fixes, and an overhauled scraping system
+
+### Fixed
+- Apify scraper now uses the `targetUrls` parameter with diagnostic logging for better debugging
+- Influencer scraping fetches all of a user's tracked influencers on event trigger instead of only the first
+- Improved influencer matching logic and event-trigger filtering to reduce missed or duplicate scrapes
+
+---
+
+## 2026-03-13 - 2026-03-14
+
+### Added
+- AI state retention across sessions: series chat persistence and a new Settings AI Context dialog
+- Carousel AI editor with draft persistence, circular JSON fix, and session restore
+- Compose series mode with inline edit-with-AI capability
+
+### Fixed
+- Logout now properly redirects to the login page; all hardcoded localhost and Vercel URLs replaced with `chainlinked.ai`
+- Extension background sync correctly handles reposts and verifies post ownership before attributing analytics
+
+---
+
+## 2026-03-06
+
+### Added
+- Apify-powered influencer scraping pipeline for inspiration content
+- Team join flow improvements and miscellaneous UI fixes
+- Extension now recognizes `chainlinked.ai` domain for detection
+
+### Fixed
+- `search_teams_fuzzy` RPC return type resolved, unblocking production builds
+
+---
+
+## 2026-03-01
+
+### Added
+- Dual-mode compose experience with multi-question AI chat and rich context injection
+
+---
+
+## 2026-02-27
+
+### Added
+- Lottie-based empty state illustrations throughout the app
+- Resend-powered transactional email pipeline for invites and notifications
+- Remix settings retention so AI regeneration keeps prior style choices
+- Inngest analytics cron job for background data processing
+- Smart AI template auto-generation cron with a unified template UI
+- Saves and sends columns in analytics; engagement rate now calculated from actual metrics
+- Complete analytics pipeline with auto-sync, nine new database tables, Inngest cron, and a redesigned analytics dashboard
+
+### Fixed
+- Auth flow hardening: improved invite acceptance, extension detection, and analytics backfill reliability
+
+---
+
+## 2026-02-24
+
+### Fixed
+- Comprehensive codebase audit addressing security vulnerabilities, bugs, performance bottlenecks, and code quality issues
+
+---
+
+## 2026-02-20 - 2026-02-21
+
+### Added
+- `@mention` tagging in the composer powered by extension-based LinkedIn profile search
+- Brand kit extraction via Brandfetch API and redesigned team management pages
+- Template library redesign with modular architecture and custom category support
+- Dashboard restructured with a LinkedIn-style three-column layout, sidebar navigation overhaul, and email verification prompt
+- Analytics and Goals page redesign with metric selector and goal tracker
+- Team Activity page with animated capsule tabs and post grid with popup detail view
+- Saved Drafts page with grid layout and quick actions
+- Unified Inspiration / Discover / Swipe tabbed page replacing three separate routes
+- Settings page redesigned with sidebar navigation; template library gains AI-generated templates
+- Swipe auto-refill Inngest cron job to keep the swipe deck populated
+- Auto-save drafts on navigate-away with AI context persistence
+- Schedule calendar integrated into the dashboard layout with inline greeting
+- AI generation context persistence and discover content improvements
+- Extension banner capture, auto-capture UI, and Vercel environment detection
+
+### Fixed
+- Emoji picker button click handling and popover integration in the composer
+- Removed `lottie-react` dependency that caused build failures
+- Discover article ingest pipeline and Inngest event routing corrected
+- Dashboard updated to use theme tokens; Goals widget removed; layout polished
+- Drafts page now uses theme colors with fixed card heights
+- Sidebar no longer references a stale compose route; "Views" renamed to "Impressions" in analytics cards
+
+### Changed
+- Authentication pages updated with the ChainLinked logo replacing placeholder icons; server-side signup added
+
+---
+
+## 2026-02-19
 
 ### Infrastructure
-- **Supabase Integration** - Client configuration for browser and server
-- **Database Types** - Complete TypeScript types for 16+ tables
-- **Environment Setup** - .env.local with Supabase credentials
-
-### Navigation
-- Updated sidebar for ChainLinked branding
-- 8 new dashboard routes:
-  - `/dashboard` - Main dashboard
-  - `/dashboard/analytics` - Full analytics view
-  - `/dashboard/compose` - Post composer
-  - `/dashboard/schedule` - Scheduled posts
-  - `/dashboard/team` - Team activity
-  - `/dashboard/templates` - Template library
-  - `/dashboard/inspiration` - Inspiration feed + swipe
-  - `/dashboard/carousels` - Carousel creator
-  - `/dashboard/settings` - All settings
-
-### Developer Experience
-- **CLAUDE.md** - Development rules and standards
-- **JSDoc** - Comprehensive documentation on all components
-- **TypeScript** - Strict typing throughout
-
-### Fixed (QA Pass)
-- **sidebar.tsx** - Replace Math.random() with static value to fix ESLint impure function error
-- **swipe-interface.tsx** - Fix useEffect dependency array for keyboard handler
-- **carousel-creator.tsx** - Replace img tags with next/image component for optimization
-- **settings.tsx** - Add API key validation with error feedback UI
-- **template-library.tsx** - Fix undefined template reference in delete handler
-- **post-composer.tsx** - Fix Safari regex incompatibility with lookbehind assertions
+- Repository cleanup: removed screenshots, planning documents, and updated `.gitignore`
 
 ---
 
-## [0.1.0] - 2026-01-12
+## 2026-02-13 - 2026-02-16
 
 ### Added
-- Initial Next.js 16 project scaffold
-- Dashboard page with sample components
-- shadcn/ui components (22 total)
-- Recharts integration for data visualization
-- TanStack Table for data display
-- Tailwind CSS v4 with CSS variables theming
+- Media gallery, compose redesign, canvas editor refactor, and full platform polish pass
+
+### Fixed
+- Extension popup freeze resolved; AI context override in compose and carousel editors fixed
+
+---
+
+## 2026-02-07 - 2026-02-10
+
+### Added
+- Posts page with chart color fixes, improved Discover page, and QA asset updates
+- Database migrations for collections, carousels, and extension tables
+- PostHog client-side analytics integration, sidebar updates, and type improvements
+- Brand kit settings tab connected to saved API data
+- Five-step onboarding flow with brand kit extraction
+- Enhanced Chrome extension with robust data capture and sync pipeline
+- Chrome extension installation prompt for new users
+- `PartialLoader` component with staggered loading animations
+
+### Fixed
+- Data sync, auth batching, CORS proxy, and company context lookup issues resolved
+- Viral tags removed from Discover; content card display improved
+
+### Documentation
+- Front-end quality audit completed
+- Extension capture completeness verified and documented
+- Development task list and workflow rules added
+- Development task list and QA testing checklist created
+
+---
+
+## [1.0.0] - 2026-01-31 — v1 Complete
+
+### Added
+- Deep research feature with generated posts display
+- Chrome extension for LinkedIn data capture
+- Complete v1 platform milestone reached
+
+---
+
+## 2026-01-17
+
+### Fixed
+- Auth session configured to use `localStorage` for reliable persistence
+- `INITIAL_SESSION` event handling restored for page-reload auth restoration
+- Page reload no longer shows only skeleton loaders indefinitely
+- Auth race condition in `useAuthContext` eliminated
+- Skeleton flash on initial load removed with instant demo data hydration
+- Demo data fallbacks added to prevent endless skeleton loading states
+
+### Added
+- Complete ChainLinked platform features (analytics, scheduling, team management, and more)
+
+### Infrastructure
+- Auth debugging logs added to diagnose session persistence issues
+
+---
+
+## 2026-01-14 - 2026-01-16
+
+### Added
+- Complete authentication integration (sign-up, sign-in, session management)
+- Core Supabase infrastructure and API routes
+- Schedule page connected to real Supabase data
+- Dashboard connected to real Supabase data
+- Analytics dashboard connected to real Supabase data
+
+### Changed
+- Mock data fallbacks removed from Dashboard and Team pages, replaced with live Supabase queries
+
+---
+
+## 2026-01-12 — Initial Build
+
+### Added
+- Phase 5: Mobile polish improvements (responsive design, touch interactions)
+- Phase 4: Accessibility improvements (focus management, ARIA labels, keyboard navigation)
+- Phase 3: Core PostComposer features (rich text editing, LinkedIn preview, character counter)
+- Phase 2: Connected user flows (navigation between features, shared state)
+- Phase 1: UX feedback infrastructure (toasts, loading indicators, transitions)
+- Skeleton loading screens for all nine dashboard pages
+- Sidebar navigation with differentiated dashboard vs. analytics routes
+- Complete LinkedIn content management platform v0.2.0 (dashboard, team activity, analytics, scheduling, inspiration, settings)
+- All remaining frontend components v0.3.0
+
+### Fixed
+- Lint errors in new components resolved
+- QA issues in feature components addressed
+- Sidebar navigation corrected to properly distinguish dashboard from analytics
+
+---
+
+## 2026-01-12 — Project Init
+
+- Initial commit from Create Next App
