@@ -74,6 +74,51 @@ export async function copyTeamContextToMember(
       }
     }
 
+    // Copy owner's company_context to the new member
+    // This is where the actual company data lives (from onboarding step 2)
+    const { data: ownerContext } = await supabase
+      .from('company_context')
+      .select('company_name, website_url, industry, target_audience_input, value_proposition, company_summary, products_and_services, target_audience, tone_of_voice, brand_colors, status')
+      .eq('user_id', ownerId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (ownerContext) {
+      // Check if the new user already has a company_context
+      const { data: existingContext } = await supabase
+        .from('company_context')
+        .select('id')
+        .eq('user_id', newUserId)
+        .limit(1)
+        .maybeSingle()
+
+      if (!existingContext) {
+        const { error: contextError } = await supabase
+          .from('company_context')
+          .insert({
+            user_id: newUserId,
+            company_name: ownerContext.company_name,
+            website_url: ownerContext.website_url,
+            industry: ownerContext.industry,
+            target_audience_input: ownerContext.target_audience_input,
+            value_proposition: ownerContext.value_proposition,
+            company_summary: ownerContext.company_summary,
+            products_and_services: ownerContext.products_and_services,
+            target_audience: ownerContext.target_audience,
+            tone_of_voice: ownerContext.tone_of_voice,
+            brand_colors: ownerContext.brand_colors,
+            status: ownerContext.status,
+          })
+
+        if (contextError) {
+          console.error('[copyTeamContext] Failed to copy company_context:', contextError)
+        } else {
+          console.log(`[copyTeamContext] Copied company_context to member ${newUserId}`)
+        }
+      }
+    }
+
     // Copy owner's active brand kit to the new member
     const { data: ownerBrandKit } = await supabase
       .from('brand_kits')

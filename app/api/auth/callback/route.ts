@@ -116,16 +116,18 @@ export async function GET(request: Request) {
       // Get user data to ensure profile exists
       const { data: { user } } = await supabase.auth.getUser()
 
+      let redirectTo = next
+
       if (user) {
         // Check if user profile exists (trigger should auto-create, but fallback here)
         const { data: existingProfile } = await supabase
           .from('profiles')
-          .select('id')
+          .select('id, onboarding_completed, company_onboarding_completed, onboarding_type, onboarding_current_step')
           .eq('id', user.id)
           .single()
 
-        // Create profile record if not exists
         if (!existingProfile) {
+          // Create profile record for new users
           const { error: insertError } = await supabase.from('profiles').insert({
             id: user.id,
             email: user.email ?? '',
@@ -137,11 +139,29 @@ export async function GET(request: Request) {
             console.error('Profile creation error:', insertError)
             // Don't fail the auth - profile might already exist or will be created by trigger
           }
+
+          // New user — send to onboarding
+          redirectTo = '/onboarding'
+        } else if (
+          redirectTo === '/dashboard' &&
+          existingProfile.onboarding_completed !== true &&
+          existingProfile.company_onboarding_completed !== true
+        ) {
+          // Existing user who hasn't completed onboarding — send to the right onboarding step
+          if (!existingProfile.onboarding_type) {
+            redirectTo = '/onboarding'
+          } else if (existingProfile.onboarding_type === 'member') {
+            redirectTo = '/onboarding/join'
+          } else {
+            const rawStep = existingProfile.onboarding_current_step ?? 1
+            const step = Math.min(Math.max(rawStep, 1), 4)
+            redirectTo = `/onboarding/step${step}`
+          }
         }
       }
 
       // Always use origin for the redirect to avoid trusting x-forwarded-host
-      return NextResponse.redirect(`${origin}${next}`)
+      return NextResponse.redirect(`${origin}${redirectTo}`)
     } catch (err) {
       console.error('Auth callback exception:', err)
       const userMessage = getErrorMessage(err, isRecovery)

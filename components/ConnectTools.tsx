@@ -7,7 +7,6 @@
  */
 
 import React, { useEffect, useState, useCallback } from "react"
-import Link from "next/link"
 import { useSearchParams, usePathname } from "next/navigation"
 import {
   Card,
@@ -147,18 +146,18 @@ export default function ConnectTools({
           <CardContent className="flex gap-3">
             {!linkedinStatus.connected && (
               <Button size="sm" asChild disabled={isLoadingLinkedIn}>
-                <Link href={linkedinConnectUrl}>
+                <a href={linkedinConnectUrl}>
                   <IconBrandLinkedin className="h-4 w-4 mr-2" />
                   Connect LinkedIn
-                </Link>
+                </a>
               </Button>
             )}
             {linkedinStatus.connected && linkedinStatus.needsReconnect && (
               <Button size="sm" variant="outline" asChild disabled={isLoadingLinkedIn}>
-                <Link href={linkedinConnectUrl}>
+                <a href={linkedinConnectUrl}>
                   <IconBrandLinkedin className="h-4 w-4 mr-2" />
                   Reconnect
-                </Link>
+                </a>
               </Button>
             )}
           </CardContent>
@@ -206,10 +205,10 @@ export default function ConnectTools({
               </CardHeader>
               <CardContent className="flex gap-3">
                 <Button size="sm" asChild disabled={isLoadingLinkedIn}>
-                  <Link href={linkedinConnectUrl}>
+                  <a href={linkedinConnectUrl}>
                     <IconBrandLinkedin className="h-4 w-4 mr-2" />
                     {linkedinStatus.connected ? "Reconnect" : "Connect LinkedIn"}
-                  </Link>
+                  </a>
                 </Button>
               </CardContent>
             </Card>

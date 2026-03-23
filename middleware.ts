@@ -8,6 +8,17 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 /**
+ * Creates a redirect response that preserves any refreshed session cookies
+ */
+function redirectWithCookies(url: URL, supabaseResponse: NextResponse): NextResponse {
+  const redirect = NextResponse.redirect(url)
+  supabaseResponse.cookies.getAll().forEach(cookie => {
+    redirect.cookies.set(cookie.name, cookie.value)
+  })
+  return redirect
+}
+
+/**
  * All paths that are part of the onboarding flow (step-based and legacy)
  * Users are allowed to access these even if onboarding is not complete
  * Step 4 is the final step (Review & Complete)
@@ -68,6 +79,22 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
 
+  // Handle stray OAuth ?code= parameters that landed on the wrong page.
+  // This happens when Supabase redirects to the site URL instead of /api/auth/callback
+  // (e.g., if the callback URL is not in the Supabase redirect URL allowlist).
+  // We forward the code to the proper callback route so it can be exchanged for a session.
+  if (
+    pathname !== '/api/auth/callback' &&
+    !pathname.startsWith('/api/') &&
+    request.nextUrl.searchParams.has('code') &&
+    !user
+  ) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/api/auth/callback'
+    // Preserve the code and any other OAuth-related params
+    return redirectWithCookies(url, supabaseResponse)
+  }
+
   // Protected routes - redirect to login if not authenticated
   const protectedPaths = ['/dashboard', '/composer', '/schedule', '/team', '/templates', '/settings', '/onboarding']
   const isProtectedPath = protectedPaths.some(path =>
@@ -78,14 +105,12 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.searchParams.set('redirect', pathname)
-    return NextResponse.redirect(url)
+    return redirectWithCookies(url, supabaseResponse)
   }
 
-  // Auth pages that should redirect logged-in users
-  const authPaths = ['/login', '/signup']
-  const isAuthPath = authPaths.some(path =>
-    pathname === path
-  )
+  // Auth pages that should redirect logged-in users (exact match only to avoid
+  // catching sub-routes like /login-callback or /signup/verify)
+  const isAuthPath = pathname === '/login' || pathname === '/signup'
 
   if (isAuthPath && user) {
     // Check if there's a redirect param (e.g., for invitation acceptance)
@@ -120,7 +145,7 @@ export async function middleware(request: NextRequest) {
             const step = Math.min(Math.max(rawStep, 1), 4)
             url.pathname = `/onboarding/step${step}`
           }
-          return NextResponse.redirect(url)
+          return redirectWithCookies(url, supabaseResponse)
         }
       } catch {
         // Fail-open: if the profile check fails, allow the invite redirect
@@ -130,7 +155,7 @@ export async function middleware(request: NextRequest) {
       const url = request.nextUrl.clone()
       url.pathname = redirectParam
       url.search = ''
-      return NextResponse.redirect(url)
+      return redirectWithCookies(url, supabaseResponse)
     }
 
     // Allow redirect to extension callback (extension Google sign-in flow)
@@ -138,13 +163,13 @@ export async function middleware(request: NextRequest) {
       const url = request.nextUrl.clone()
       url.pathname = redirectParam
       url.search = ''
-      return NextResponse.redirect(url)
+      return redirectWithCookies(url, supabaseResponse)
     }
 
     // Default redirect to dashboard
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
-    return NextResponse.redirect(url)
+    return redirectWithCookies(url, supabaseResponse)
   }
 
   // Cache profile data to avoid duplicate queries
@@ -205,7 +230,7 @@ export async function middleware(request: NextRequest) {
         const step = Math.min(Math.max(rawStep, 1), 4)
         url.pathname = `/onboarding/step${step}`
       }
-      return NextResponse.redirect(url)
+      return redirectWithCookies(url, supabaseResponse)
     }
   }
 
@@ -219,7 +244,7 @@ export async function middleware(request: NextRequest) {
     if (isOnboardingDone) {
       const url = request.nextUrl.clone()
       url.pathname = '/dashboard'
-      return NextResponse.redirect(url)
+      return redirectWithCookies(url, supabaseResponse)
     }
   }
 

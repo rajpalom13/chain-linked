@@ -429,6 +429,14 @@ export function prepareForSupabase(
     return prepareForSupabase(data[0] as Record<string, unknown>, table, userId);
   }
 
+  // If data is an array-like object with numeric keys ({"0": {...}, "1": {...}}),
+  // unwrap the first element. This can happen with multi-record tables like feed_posts.
+  const dataKeys = Object.keys(data);
+  if (dataKeys.length > 0 && dataKeys.every(k => /^\d+$/.test(k)) && typeof data[dataKeys[0]] === 'object' && data[dataKeys[0]] !== null) {
+    console.log(`[SYNC][PREPARE] Unwrapping array-like object with ${dataKeys.length} items for ${table}`);
+    return prepareForSupabase(data[dataKeys[0]] as Record<string, unknown>, table, userId);
+  }
+
   // Log input data for debugging
   console.log(`[SYNC][PREPARE] Input data for ${table}:`, JSON.stringify(data, null, 2));
 
@@ -705,6 +713,25 @@ export async function queueForSync(
   if (!table) {
     console.log(`[SyncBridge] No table mapping for key: ${localKey}`);
     return;
+  }
+
+  // Multi-record tables (feed_posts, my_posts, comments, connections, followers)
+  // may receive data as an array-like object with numeric keys: {"0": {...}, "1": {...}}
+  // or as an actual Array. Detect this and queue each record individually.
+  const multiRecordTables = ['feed_posts', 'my_posts', 'comments', 'connections', 'followers', 'post_analytics'];
+  if (multiRecordTables.includes(table)) {
+    const keys = Object.keys(data);
+    const isArrayLike = keys.length > 0 && keys.every(k => /^\d+$/.test(k)) && typeof data[keys[0]] === 'object' && data[keys[0]] !== null;
+    if (isArrayLike || Array.isArray(data)) {
+      const items = Array.isArray(data) ? data : keys.map(k => data[k]);
+      console.log(`[SyncBridge] Splitting ${items.length} records for ${table} into individual queue entries`);
+      for (const item of items) {
+        if (item && typeof item === 'object') {
+          await queueForSync(localKey, item as Record<string, unknown>, operation);
+        }
+      }
+      return;
+    }
   }
 
   // Strip large fields before queueing to prevent storage quota issues

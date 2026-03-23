@@ -245,6 +245,16 @@ export type InngestEvents = {
     }
   }
 
+  // First Sync Backfill Events (triggered when extension syncs data for the first time)
+  'sync/first-data': {
+    data: {
+      /** User whose data was synced for the first time */
+      userId: string
+      /** Which data type triggered the first sync */
+      dataType: string
+    }
+  }
+
   // Viral Post Ingest Events
   'viral/ingest.completed': {
     data: {

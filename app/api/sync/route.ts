@@ -7,6 +7,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { inngest } from '@/lib/inngest/client'
 
 /** Zod schema for validated profile fields in full_backup */
 const backupProfileSchema = z.object({
@@ -244,6 +245,16 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: `Unknown sync type: ${type}` }, { status: 400 })
     }
 
+    // Check if this is the user's very first sync (no prior sync_metadata records)
+    // If so, trigger immediate analytics backfill via inngest
+    const { data: existingMetadata } = await supabase
+      .from('sync_metadata')
+      .select('id')
+      .eq('user_id', user.id)
+      .limit(1)
+
+    const isFirstSync = !existingMetadata || existingMetadata.length === 0
+
     // Update sync metadata
     await supabase
       .from('sync_metadata')
@@ -256,6 +267,23 @@ export async function POST(request: Request) {
       }, {
         onConflict: 'user_id,table_name',
       })
+
+    // Trigger immediate backfill for first-time users so dashboard shows data instantly
+    if (isFirstSync) {
+      try {
+        await inngest.send({
+          name: 'sync/first-data',
+          data: {
+            userId: user.id,
+            dataType: type,
+          },
+        })
+        console.log(`[Sync] First sync detected for user ${user.id} — triggered immediate backfill`)
+      } catch (err) {
+        // Non-fatal: backfill cron will catch up within 5 minutes
+        console.error('[Sync] Failed to send first-sync inngest event:', err)
+      }
+    }
 
     return NextResponse.json({ success: true, results })
   } catch (error) {
