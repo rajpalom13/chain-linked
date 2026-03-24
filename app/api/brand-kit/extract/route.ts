@@ -11,20 +11,79 @@ import { createClient } from '@/lib/supabase/server'
 import { createFirecrawlClient, normalizeUrl, isValidUrl } from '@/lib/firecrawl/client'
 import { extractBrand, type BrandExtractionResult } from '@/lib/firecrawl/brand-extractor'
 import { extractBrandFromBrandfetch } from '@/lib/brandfetch/client'
+import { getLogoUrlsWithFallback } from '@/lib/logo-dev'
 import type { BrandfetchExtractedData } from '@/lib/brandfetch/types'
 import type { ExtractBrandKitResponse } from '@/types/brand-kit'
 
+/** Timeout in milliseconds for logo validation HEAD requests */
+const LOGO_VALIDATION_TIMEOUT_MS = 5000
+
 /**
- * Merges Firecrawl and Brandfetch results, preferring Brandfetch for logos
- * and brand colors, Firecrawl for CSS-level details like background/text colors.
+ * Validates a list of logo URLs by making HEAD requests and checking that
+ * each returns HTTP 200 with an image/* content-type. Returns the first
+ * URL that passes validation, or null if none do.
+ *
+ * Google favicon URLs are skipped because they always return something
+ * (often a generic globe icon) and should only be used as a last resort.
+ *
+ * @param urls - Ordered list of logo URLs to try
+ * @returns The first validated logo URL, or null
+ */
+async function tryFetchLogo(urls: string[]): Promise<string | null> {
+  for (const url of urls) {
+    // Skip Google favicon URLs — they always return *something*, even a
+    // generic icon, so they aren't useful for server-side validation.
+    if (url.includes('google.com/s2/favicons')) {
+      continue
+    }
+
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), LOGO_VALIDATION_TIMEOUT_MS)
+
+      const response = await fetch(url, {
+        method: 'HEAD',
+        signal: controller.signal,
+        redirect: 'follow',
+      })
+
+      clearTimeout(timeout)
+
+      if (response.ok) {
+        const contentType = response.headers.get('content-type') || ''
+        if (contentType.startsWith('image/')) {
+          return url
+        }
+      }
+    } catch {
+      // Network error or timeout — try the next URL
+      continue
+    }
+  }
+
+  return null
+}
+
+/**
+ * Merges Firecrawl, Brandfetch, and logo.dev/unavatar results.
+ * Prefers Brandfetch for logos and brand colors, logo.dev/unavatar as a
+ * reliable fallback for logos, and Firecrawl for CSS-level details.
+ *
+ * Logo priority:
+ *   1. Brandfetch logo (highest quality, curated brand asset)
+ *   2. logo.dev / unavatar.io validated logo (purpose-built domain logo APIs)
+ *   3. Firecrawl detected logo (may be og:image or a random img tag)
+ *
  * @param firecrawl - Firecrawl extraction result (may be null if scraping failed)
  * @param brandfetch - Brandfetch extraction result (may be null if API unavailable)
+ * @param logoDevUrl - Validated logo URL from logo.dev/unavatar fallback chain (may be null)
  * @param url - Source URL
  * @returns Merged brand kit data
  */
 function mergeBrandResults(
   firecrawl: BrandExtractionResult | null,
   brandfetch: BrandfetchExtractedData | null,
+  logoDevUrl: string | null,
   url: string
 ) {
   // Start with Firecrawl as base (has CSS-level detail)
@@ -49,7 +108,13 @@ function mergeBrandResults(
     },
   }
 
-  if (!brandfetch) return base
+  if (!brandfetch) {
+    // Prefer logo.dev/unavatar over Firecrawl's logo (which is often an og:image banner)
+    if (logoDevUrl) {
+      base.logoUrl = logoDevUrl
+    }
+    return base
+  }
 
   // Brandfetch has higher-quality curated brand data — prefer it where available
   return {
@@ -62,8 +127,8 @@ function mergeBrandResults(
     textColor: base.textColor || brandfetch.darkColor,
     fontPrimary: brandfetch.fontPrimary || base.fontPrimary,
     fontSecondary: brandfetch.fontSecondary || base.fontSecondary,
-    // Prefer Brandfetch logo (higher quality, proper brand asset)
-    logoUrl: brandfetch.logoUrl || brandfetch.iconUrl || base.logoUrl,
+    // Logo priority: Brandfetch > logo.dev/unavatar > Firecrawl
+    logoUrl: brandfetch.logoUrl || brandfetch.iconUrl || logoDevUrl || base.logoUrl,
     rawExtraction: {
       ...base.rawExtraction,
       // Append Brandfetch colors to the extraction data for reference
@@ -136,8 +201,8 @@ export async function POST(request: Request): Promise<NextResponse<ExtractBrandK
       )
     }
 
-    // Run Firecrawl and Brandfetch in parallel
-    const [firecrawlResult, brandfetchResult] = await Promise.all([
+    // Run Firecrawl, Brandfetch, and logo.dev/unavatar validation in parallel
+    const [firecrawlResult, brandfetchResult, logoDevResult] = await Promise.all([
       // Firecrawl: scrape HTML and extract CSS-level brand data
       (async (): Promise<BrandExtractionResult | null> => {
         const firecrawl = createFirecrawlClient()
@@ -167,6 +232,25 @@ export async function POST(request: Request): Promise<NextResponse<ExtractBrandK
           return null
         }
       })(),
+
+      // logo.dev / unavatar.io: validate domain-based logo URLs as fallback
+      (async (): Promise<string | null> => {
+        try {
+          const logoUrls = getLogoUrlsWithFallback({ website: url })
+          if (logoUrls.length === 0) {
+            console.warn('[BrandKit] No logo.dev/unavatar URLs to try')
+            return null
+          }
+          const validatedUrl = await tryFetchLogo(logoUrls)
+          if (validatedUrl) {
+            console.log('[BrandKit] logo.dev/unavatar validated logo:', validatedUrl)
+          }
+          return validatedUrl
+        } catch (err) {
+          console.error('[BrandKit] logo.dev/unavatar error:', err)
+          return null
+        }
+      })(),
     ])
 
     // If both failed, return error
@@ -183,7 +267,7 @@ export async function POST(request: Request): Promise<NextResponse<ExtractBrandK
     }
 
     // Merge results from both sources
-    const merged = mergeBrandResults(firecrawlResult, brandfetchResult, url)
+    const merged = mergeBrandResults(firecrawlResult, brandfetchResult, logoDevResult, url)
 
     return NextResponse.json({
       success: true,

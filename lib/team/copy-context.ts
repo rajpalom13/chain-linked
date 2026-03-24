@@ -1,31 +1,52 @@
 /**
  * Copy Team Context Utility
- * @description Copies company context and brand kit from team owner to a new member
+ * @description Copies company context and brand kit from team owner to a new member.
+ * Uses a service-role client for write operations so that an admin approving a
+ * join request can write to the new member's rows without being blocked by RLS.
  * @module lib/team/copy-context
  */
 
+import { createClient } from '@supabase/supabase-js'
 import type { SupabaseClient } from '@supabase/supabase-js'
+
+/**
+ * Creates a Supabase admin client that bypasses RLS.
+ * Required because this function writes to rows owned by a different user
+ * (the new member) than the one who may be authenticated (the team admin).
+ * @returns Supabase client with service-role privileges
+ */
+function getAdminClient(): SupabaseClient {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+  return createClient(url, serviceKey)
+}
 
 /**
  * Copy company context (profile fields + brand kit) from team owner to a new member.
  * Called when a user joins a team via join request approval or invite acceptance.
  *
+ * Uses a service-role client for all database operations because the caller may
+ * be a team admin (approving a join request) who doesn't have RLS access to the
+ * new member's rows.
+ *
  * Copies:
  * - Profile fields: company_name, company_website, company_description, company_icp,
  *   company_products, company_value_props, discover_topics, discover_topics_selected
  * - Sets company_onboarding_completed and onboarding_completed to true
- * - Clones the owner's active brand kit for the new user
+ * - Replaces the new member's active brand kit with the owner's
  *
- * @param supabase - Supabase client instance
+ * @param _supabase - Supabase client instance (unused, kept for API compatibility)
  * @param teamId - Team the user is joining
  * @param newUserId - The user who just joined
  */
 export async function copyTeamContextToMember(
-  supabase: SupabaseClient,
+  _supabase: SupabaseClient,
   teamId: string,
   newUserId: string
 ) {
   try {
+    const supabase = getAdminClient()
+
     // Find the team owner
     const { data: ownerMembership } = await supabase
       .from('team_members')
@@ -93,28 +114,45 @@ export async function copyTeamContextToMember(
         .limit(1)
         .maybeSingle()
 
-      if (!existingContext) {
+      const ownerContextFields = {
+        company_name: ownerContext.company_name,
+        website_url: ownerContext.website_url,
+        industry: ownerContext.industry,
+        target_audience_input: ownerContext.target_audience_input,
+        value_proposition: ownerContext.value_proposition,
+        company_summary: ownerContext.company_summary,
+        products_and_services: ownerContext.products_and_services,
+        target_audience: ownerContext.target_audience,
+        tone_of_voice: ownerContext.tone_of_voice,
+        brand_colors: ownerContext.brand_colors,
+        status: ownerContext.status,
+      }
+
+      if (existingContext) {
+        // Update existing company_context with team owner's data
+        const { error: contextError } = await supabase
+          .from('company_context')
+          .update(ownerContextFields)
+          .eq('id', existingContext.id)
+
+        if (contextError) {
+          console.error('[copyTeamContext] Failed to update company_context:', contextError)
+        } else {
+          console.log(`[copyTeamContext] Updated company_context for member ${newUserId} with team data`)
+        }
+      } else {
+        // Insert new company_context for the member
         const { error: contextError } = await supabase
           .from('company_context')
           .insert({
             user_id: newUserId,
-            company_name: ownerContext.company_name,
-            website_url: ownerContext.website_url,
-            industry: ownerContext.industry,
-            target_audience_input: ownerContext.target_audience_input,
-            value_proposition: ownerContext.value_proposition,
-            company_summary: ownerContext.company_summary,
-            products_and_services: ownerContext.products_and_services,
-            target_audience: ownerContext.target_audience,
-            tone_of_voice: ownerContext.tone_of_voice,
-            brand_colors: ownerContext.brand_colors,
-            status: ownerContext.status,
+            ...ownerContextFields,
           })
 
         if (contextError) {
-          console.error('[copyTeamContext] Failed to copy company_context:', contextError)
+          console.error('[copyTeamContext] Failed to insert company_context:', contextError)
         } else {
-          console.log(`[copyTeamContext] Copied company_context to member ${newUserId}`)
+          console.log(`[copyTeamContext] Inserted company_context for member ${newUserId}`)
         }
       }
     }
@@ -129,39 +167,42 @@ export async function copyTeamContextToMember(
       .maybeSingle()
 
     if (ownerBrandKit) {
-      // Check if the new user already has a brand kit
-      const { data: existingKit } = await supabase
+      // Deactivate all existing brand kits for the new user
+      const { error: deactivateError } = await supabase
         .from('brand_kits')
-        .select('id')
+        .update({ is_active: false })
         .eq('user_id', newUserId)
-        .limit(1)
-        .maybeSingle()
 
-      if (!existingKit) {
-        const { error: brandKitError } = await supabase
-          .from('brand_kits')
-          .insert({
-            user_id: newUserId,
-            team_id: teamId,
-            website_url: ownerBrandKit.website_url,
-            primary_color: ownerBrandKit.primary_color,
-            secondary_color: ownerBrandKit.secondary_color,
-            accent_color: ownerBrandKit.accent_color,
-            background_color: ownerBrandKit.background_color,
-            text_color: ownerBrandKit.text_color,
-            font_primary: ownerBrandKit.font_primary,
-            font_secondary: ownerBrandKit.font_secondary,
-            logo_url: ownerBrandKit.logo_url,
-            logo_storage_path: ownerBrandKit.logo_storage_path,
-            raw_extraction: ownerBrandKit.raw_extraction,
-            is_active: true,
-          })
+      if (deactivateError) {
+        console.error('[copyTeamContext] Failed to deactivate existing brand kits:', deactivateError)
+      } else {
+        console.log(`[copyTeamContext] Deactivated existing brand kits for member ${newUserId}`)
+      }
 
-        if (brandKitError) {
-          console.error('[copyTeamContext] Failed to copy brand kit:', brandKitError)
-        } else {
-          console.log(`[copyTeamContext] Copied brand kit to member ${newUserId}`)
-        }
+      // Always insert the owner's active brand kit as a new active kit for the member
+      const { error: brandKitError } = await supabase
+        .from('brand_kits')
+        .insert({
+          user_id: newUserId,
+          team_id: teamId,
+          website_url: ownerBrandKit.website_url,
+          primary_color: ownerBrandKit.primary_color,
+          secondary_color: ownerBrandKit.secondary_color,
+          accent_color: ownerBrandKit.accent_color,
+          background_color: ownerBrandKit.background_color,
+          text_color: ownerBrandKit.text_color,
+          font_primary: ownerBrandKit.font_primary,
+          font_secondary: ownerBrandKit.font_secondary,
+          logo_url: ownerBrandKit.logo_url,
+          logo_storage_path: ownerBrandKit.logo_storage_path,
+          raw_extraction: ownerBrandKit.raw_extraction,
+          is_active: true,
+        })
+
+      if (brandKitError) {
+        console.error('[copyTeamContext] Failed to copy brand kit:', brandKitError)
+      } else {
+        console.log(`[copyTeamContext] Copied team brand kit to member ${newUserId}`)
       }
     }
   } catch (err) {
