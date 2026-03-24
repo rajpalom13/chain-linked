@@ -37,10 +37,10 @@ async function tryFetchLogo(urls: string[]): Promise<string | null> {
       continue
     }
 
-    try {
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), LOGO_VALIDATION_TIMEOUT_MS)
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), LOGO_VALIDATION_TIMEOUT_MS)
 
+    try {
       const response = await fetch(url, {
         method: 'HEAD',
         signal: controller.signal,
@@ -56,7 +56,8 @@ async function tryFetchLogo(urls: string[]): Promise<string | null> {
         }
       }
     } catch {
-      // Network error or timeout — try the next URL
+      // Network error or timeout — clean up and try the next URL
+      clearTimeout(timeout)
       continue
     }
   }
@@ -127,8 +128,8 @@ function mergeBrandResults(
     textColor: base.textColor || brandfetch.darkColor,
     fontPrimary: brandfetch.fontPrimary || base.fontPrimary,
     fontSecondary: brandfetch.fontSecondary || base.fontSecondary,
-    // Logo priority: Brandfetch > logo.dev/unavatar > Firecrawl
-    logoUrl: brandfetch.logoUrl || brandfetch.iconUrl || logoDevUrl || base.logoUrl,
+    // Logo priority: Brandfetch logo > logo.dev/unavatar > Brandfetch icon > Firecrawl
+    logoUrl: brandfetch.logoUrl || logoDevUrl || brandfetch.iconUrl || base.logoUrl,
     rawExtraction: {
       ...base.rawExtraction,
       // Append Brandfetch colors to the extraction data for reference

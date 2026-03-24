@@ -82,6 +82,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { usePageMeta } from "@/lib/dashboard-context"
 import { useAuthContext } from "@/lib/auth/auth-provider"
 import { useSettings } from "@/hooks/use-settings"
+import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { ContentRulesEditor } from "@/components/features/content-rules-editor"
 import { DefaultHashtagsEditor } from "@/components/features/default-hashtags-editor"
@@ -482,11 +483,11 @@ function SettingsContent() {
     if (!file) return
 
     if (!file.type.startsWith("image/")) {
-      alert("Please select an image file.")
+      toast.error("Please select an image file.")
       return
     }
     if (file.size > 2 * 1024 * 1024) {
-      alert("File size must be under 2MB.")
+      toast.error("File size must be under 2MB.")
       return
     }
 
@@ -510,7 +511,7 @@ function SettingsContent() {
       setBrandKit((prev) => ({ ...prev, logoUrl: publicUrlData.publicUrl }))
     } catch (err) {
       console.error("Failed to upload logo:", err)
-      alert("Failed to upload logo. Please try again.")
+      toast.error("Failed to upload logo. Please try again.")
     } finally {
       setLogoUploading(false)
       if (logoFileRef.current) logoFileRef.current.value = ""
@@ -524,7 +525,7 @@ function SettingsContent() {
   const handleLogoUrlApply = () => {
     const url = logoUrlInput.trim()
     if (!url.startsWith("http://") && !url.startsWith("https://")) {
-      alert("Please enter a valid URL starting with http:// or https://")
+      toast.error("Please enter a valid URL starting with http:// or https://")
       return
     }
     setBrandKit((prev) => ({ ...prev, logoUrl: url }))
