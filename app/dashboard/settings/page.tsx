@@ -41,6 +41,7 @@ import {
   IconShield,
   IconSun,
   IconTrash,
+  IconUpload,
   IconUser,
   IconUsers,
   IconUsersGroup,
@@ -337,6 +338,11 @@ function SettingsContent() {
     websiteUrl: "",
   })
 
+  // Logo upload state
+  const [logoUploading, setLogoUploading] = React.useState(false)
+  const [logoUrlInput, setLogoUrlInput] = React.useState("")
+  const logoFileRef = React.useRef<HTMLInputElement>(null)
+
   // Notifications state
   const [notifications, setNotifications] = React.useState<NotificationPreferences>({
     emailNotifications: true,
@@ -466,6 +472,65 @@ function SettingsContent() {
     }
   }
 
+  /**
+   * Handles logo file selection from the file picker
+   * Validates file type and size, uploads to Supabase Storage, and updates brand kit state
+   * @param e - File input change event
+   */
+  const handleLogoFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith("image/")) {
+      alert("Please select an image file.")
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      alert("File size must be under 2MB.")
+      return
+    }
+
+    setLogoUploading(true)
+    try {
+      const supabase = createClient()
+      const userId = authUser?.id
+      if (!userId) throw new Error("User not authenticated")
+
+      const timestamp = Date.now()
+      const filePath = `${userId}/${timestamp}-${file.name}`
+      const { error: uploadError } = await supabase.storage
+        .from("brand-logos")
+        .upload(filePath, file, { upsert: true })
+      if (uploadError) throw uploadError
+
+      const { data: publicUrlData } = supabase.storage
+        .from("brand-logos")
+        .getPublicUrl(filePath)
+
+      setBrandKit((prev) => ({ ...prev, logoUrl: publicUrlData.publicUrl }))
+    } catch (err) {
+      console.error("Failed to upload logo:", err)
+      alert("Failed to upload logo. Please try again.")
+    } finally {
+      setLogoUploading(false)
+      if (logoFileRef.current) logoFileRef.current.value = ""
+    }
+  }
+
+  /**
+   * Applies a manually entered URL as the brand logo
+   * Validates that the URL starts with http:// or https://
+   */
+  const handleLogoUrlApply = () => {
+    const url = logoUrlInput.trim()
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      alert("Please enter a valid URL starting with http:// or https://")
+      return
+    }
+    setBrandKit((prev) => ({ ...prev, logoUrl: url }))
+    setLogoUrlInput("")
+  }
+
   /** Generic save handler */
   const handleSave = async (section: string) => {
     setIsSaving(true)
@@ -489,6 +554,7 @@ function SettingsContent() {
               textColor: brandKit.textColor,
               fontPrimary: brandKit.fontPrimary || null,
               fontSecondary: brandKit.fontSecondary || null,
+              logoUrl: brandKit.logoUrl || null,
             }),
           })
           if (!res.ok) throw new Error("Failed to save brand kit")
@@ -1152,26 +1218,82 @@ function SettingsContent() {
             {/* Logo */}
             <div className="space-y-3">
               <Label className="text-base font-medium">Brand Logo</Label>
-              <div className="flex items-center gap-4 p-4 rounded-xl border border-dashed border-border/50">
-                {brandKit.logoUrl ? (
-                  <Image
-                    src={brandKit.logoUrl}
-                    alt="Brand logo"
-                    width={64}
-                    height={64}
-                    className="size-16 object-contain rounded"
-                    unoptimized
-                  />
-                ) : (
-                  <div className="size-16 rounded bg-muted flex items-center justify-center">
+              <div className="flex items-start gap-4">
+                {/* Current logo preview */}
+                <div className="size-20 rounded-xl border-2 border-dashed border-border/50 flex items-center justify-center overflow-hidden shrink-0">
+                  {brandKit.logoUrl ? (
+                    <Image
+                      src={brandKit.logoUrl}
+                      alt="Brand logo"
+                      width={80}
+                      height={80}
+                      className="size-full object-contain p-2"
+                      unoptimized
+                    />
+                  ) : (
                     <IconPalette className="size-8 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="flex-1 space-y-3">
+                  {/* File upload */}
+                  <div>
+                    <input
+                      ref={logoFileRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoFileSelect}
+                      className="hidden"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => logoFileRef.current?.click()}
+                      disabled={logoUploading}
+                    >
+                      {logoUploading ? (
+                        <IconLoader2 className="size-4 animate-spin" />
+                      ) : (
+                        <IconUpload className="size-4" />
+                      )}
+                      Upload Logo
+                    </Button>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      PNG, SVG, or JPG (max 2MB)
+                    </p>
                   </div>
-                )}
-                <p className="text-sm text-muted-foreground">
-                  {brandKit.logoUrl
-                    ? "Logo extracted from your website"
-                    : "No logo was detected during extraction"}
-                </p>
+                  {/* URL input */}
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Or paste a logo URL..."
+                      value={logoUrlInput}
+                      onChange={(e) => setLogoUrlInput(e.target.value)}
+                      className="text-sm"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleLogoUrlApply}
+                      disabled={!logoUrlInput.trim()}
+                    >
+                      Apply
+                    </Button>
+                  </div>
+                  {/* Remove logo */}
+                  {brandKit.logoUrl && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground"
+                      onClick={() => {
+                        setBrandKit((prev) => ({ ...prev, logoUrl: "" }))
+                        setLogoUrlInput("")
+                      }}
+                    >
+                      <IconTrash className="size-4" />
+                      Remove Logo
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
 

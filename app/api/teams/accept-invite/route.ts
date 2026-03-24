@@ -5,10 +5,25 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminSupabase } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/email/resend'
 import { WelcomeToTeamEmail } from '@/components/emails/welcome-to-team'
 import { copyTeamContextToMember } from '@/lib/team/copy-context'
+import type { SupabaseClient } from '@supabase/supabase-js'
+
+/**
+ * Creates a Supabase admin client that bypasses RLS.
+ * Required because the `team_invitations` table has no UPDATE RLS policy
+ * for invitees — only admins can manage invitations. The invitee's
+ * anon-key client silently fails to update invitation status.
+ * @returns Supabase client with service-role privileges
+ */
+function getAdminClient(): SupabaseClient {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+  return createAdminSupabase(url, serviceKey)
+}
 
 /**
  * Mask an email address for privacy (e.g. "j***@example.com")
@@ -29,6 +44,7 @@ function maskEmail(email: string): string {
  */
 export async function POST(request: Request) {
   const supabase = await createClient()
+  const adminClient = getAdminClient()
 
   const { data: { user }, error: authError } = await supabase.auth.getUser()
 
@@ -79,8 +95,8 @@ export async function POST(request: Request) {
 
     // Check expiration
     if (new Date(invitation.expires_at) < new Date()) {
-      // Update status to expired
-      await supabase
+      // Update status to expired (uses admin client to bypass RLS)
+      await adminClient
         .from('team_invitations')
         .update({ status: 'expired' })
         .eq('id', invitation.id)
@@ -97,7 +113,8 @@ export async function POST(request: Request) {
       .single()
 
     if (existingMembership) {
-      await supabase
+      // Uses admin client to bypass RLS — invitees have no UPDATE policy
+      await adminClient
         .from('team_invitations')
         .update({
           status: 'accepted',
@@ -151,7 +168,8 @@ export async function POST(request: Request) {
     }
 
     // Mark invitation accepted first (so it can be retried if member insert fails)
-    const { error: inviteUpdateError } = await supabase
+    // Uses admin client to bypass RLS — invitees have no UPDATE policy on team_invitations
+    const { error: inviteUpdateError } = await adminClient
       .from('team_invitations')
       .update({
         status: 'accepted',
@@ -175,8 +193,8 @@ export async function POST(request: Request) {
 
     if (memberError) {
       console.error('Add team member error:', memberError)
-      // Rollback invitation status so it can be retried
-      await supabase
+      // Rollback invitation status so it can be retried (uses admin client to bypass RLS)
+      await adminClient
         .from('team_invitations')
         .update({ status: 'pending' })
         .eq('id', invitation.id)
