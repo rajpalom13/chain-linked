@@ -58,6 +58,18 @@ export async function POST() {
       )
     }
 
+    // Clear linkedin_connected_at from profile so the UI reflects disconnected state
+    await supabase
+      .from('profiles')
+      .update({ linkedin_connected_at: null })
+      .eq('id', user.id)
+
+    // Remove LinkedIn profile data so the settings hook detects disconnected state
+    await supabase
+      .from('linkedin_profiles')
+      .delete()
+      .eq('user_id', user.id)
+
     return NextResponse.json({
       success: true,
       message: 'LinkedIn account disconnected',

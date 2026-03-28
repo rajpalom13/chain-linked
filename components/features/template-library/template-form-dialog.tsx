@@ -129,21 +129,22 @@ export function TemplateFormDialog({
     }
   }
 
+  /** Validation state for inline hints */
+  const nameLen = formData.name.trim().length
+  const contentLen = formData.content.trim().length
+  const hasCategory = !!formData.category
+  const nameValid = nameLen >= 3
+  const contentValid = contentLen >= 10
+  const canSubmit = nameValid && contentValid && hasCategory && !isSubmitting
+
   /**
    * Handle form submission
    */
   const handleSubmit = async () => {
-    if (!formData.name.trim() || !formData.content.trim() || !formData.category) {
-      return
-    }
-
-    if (formData.name.trim().length < 3) {
-      showError("Name must be at least 3 characters")
-      return
-    }
-
-    if (formData.content.trim().length < 10) {
-      showError("Content must be at least 10 characters")
+    if (!canSubmit) {
+      if (!hasCategory) showError("Please select a category")
+      else if (!nameValid) showError("Name must be at least 3 characters")
+      else if (!contentValid) showError("Content must be at least 10 characters")
       return
     }
 
@@ -191,6 +192,11 @@ export function TemplateFormDialog({
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             />
+            <p className={cn("text-xs", nameLen > 0 && !nameValid ? "text-destructive" : "text-muted-foreground")}>
+              {nameLen > 0 && !nameValid
+                ? `${3 - nameLen} more character${3 - nameLen !== 1 ? "s" : ""} needed`
+                : "Minimum 3 characters"}
+            </p>
           </div>
 
           {/* Category Select */}
@@ -260,6 +266,11 @@ export function TemplateFormDialog({
                 "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-none focus-visible:ring-[3px]"
               )}
             />
+            <p className={cn("text-xs", contentLen > 0 && !contentValid ? "text-destructive" : "text-muted-foreground")}>
+              {contentLen > 0 && !contentValid
+                ? `${10 - contentLen} more character${10 - contentLen !== 1 ? "s" : ""} needed`
+                : "Minimum 10 characters"}
+            </p>
           </div>
 
           {/* Tags Input */}
@@ -302,12 +313,7 @@ export function TemplateFormDialog({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={
-              isSubmitting ||
-              formData.name.trim().length < 3 ||
-              formData.content.trim().length < 10 ||
-              !formData.category
-            }
+            disabled={isSubmitting}
             className="flex-1"
           >
             {isSubmitting ? (

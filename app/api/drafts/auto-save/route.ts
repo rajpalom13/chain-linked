@@ -101,6 +101,7 @@ export async function POST(request: NextRequest) {
       const updatePayload: GeneratedPostUpdate = {
           content: trimmedContent,
           post_type: postType || 'general',
+          source: source || undefined,
           hook: topic || null,
           cta: tone || null,
           source_snippet: context || null,

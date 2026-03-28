@@ -152,13 +152,23 @@ export function ComposeAdvancedMode({
   const onMessagesChangeRef = React.useRef(onMessagesChange)
   onMessagesChangeRef.current = onMessagesChange
 
+  /** Track last notified message count + last ID to prevent redundant notifications */
+  const lastNotifiedRef = React.useRef<{ length: number; lastId: string | null }>({
+    length: 0,
+    lastId: null,
+  })
+
   React.useEffect(() => {
-    if (onMessagesChangeRef.current && messages.length > 1) {
-      onMessagesChangeRef.current(messages)
-    }
+    if (!onMessagesChangeRef.current || messages.length <= 1) return
+    const lastId = messages[messages.length - 1]?.id ?? null
+    const prev = lastNotifiedRef.current
+    if (prev.length === messages.length && prev.lastId === lastId) return
+    lastNotifiedRef.current = { length: messages.length, lastId }
+    onMessagesChangeRef.current(messages)
   }, [messages])
 
   /** Detect when a post has been generated */
+  const prevHasGeneratedRef = React.useRef(false)
   React.useEffect(() => {
     const hasPost = messages.some((m) =>
       m.parts?.some((p) => {
@@ -166,7 +176,10 @@ export function ComposeAdvancedMode({
         return part.type === 'tool-generatePost' && part.state === 'output-available'
       })
     )
-    setHasGeneratedPost(hasPost)
+    if (hasPost !== prevHasGeneratedRef.current) {
+      prevHasGeneratedRef.current = hasPost
+      setHasGeneratedPost(hasPost)
+    }
   }, [messages])
 
   /** Auto-scroll to bottom when messages change */

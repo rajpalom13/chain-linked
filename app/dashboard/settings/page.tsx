@@ -426,6 +426,7 @@ function SettingsContent() {
 
   // LinkedIn state
   const [isRefreshingLinkedIn, setIsRefreshingLinkedIn] = React.useState(false)
+  const [isDisconnecting, setIsDisconnecting] = React.useState(false)
   const [cookieStatus, setCookieStatus] = React.useState<"valid" | "expired" | "missing">("missing")
 
   // Brand Kit state
@@ -565,15 +566,23 @@ function SettingsContent() {
 
   /** Handle LinkedIn disconnect */
   const handleDisconnectLinkedIn = async () => {
+    setIsDisconnecting(true)
     try {
       const response = await fetch("/api/linkedin/disconnect", { method: "POST" })
       if (response.ok) {
         trackLinkedInAction("disconnected")
         setCookieStatus("missing")
-        window.location.reload()
+        toast.success("LinkedIn account disconnected")
+        await refetch()
+      } else {
+        const data = await response.json().catch(() => null)
+        toast.error(data?.error || "Failed to disconnect LinkedIn. Please try again.")
       }
     } catch (err) {
       console.error("Failed to disconnect LinkedIn:", err)
+      toast.error("Failed to disconnect LinkedIn. Please try again.")
+    } finally {
+      setIsDisconnecting(false)
     }
   }
 
@@ -1041,9 +1050,17 @@ function SettingsContent() {
                 <Button
                   variant="ghost"
                   onClick={handleDisconnectLinkedIn}
+                  disabled={isDisconnecting}
                   className="text-destructive hover:text-destructive"
                 >
-                  Disconnect
+                  {isDisconnecting ? (
+                    <>
+                      <IconLoader2 className="size-4 animate-spin mr-1" />
+                      Disconnecting...
+                    </>
+                  ) : (
+                    "Disconnect"
+                  )}
                 </Button>
               )}
             </div>
@@ -1819,14 +1836,78 @@ function SettingsContent() {
  */
 function AccountSection({ signOut }: { signOut: () => Promise<void> }) {
   const { theme, setTheme } = useTheme()
+  const { user } = useAuthContext()
   const [mounted, setMounted] = React.useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = React.useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = React.useState("")
   const [isDeletingAccount, setIsDeletingAccount] = React.useState(false)
+  const [isExporting, setIsExporting] = React.useState(false)
 
   React.useEffect(() => {
     setMounted(true)
   }, [])
+
+  /** Convert an array of objects to CSV string */
+  const toCsv = (data: Record<string, unknown>[]): string => {
+    if (data.length === 0) return ''
+    const headers = Object.keys(data[0])
+    const rows = data.map((row) =>
+      headers.map((h) => {
+        const val = row[h]
+        const str = val === null || val === undefined ? '' : String(val)
+        return `"${str.replace(/"/g, '""')}"`
+      }).join(',')
+    )
+    return [headers.join(','), ...rows].join('\n')
+  }
+
+  /** Handle exporting user data as CSV */
+  const handleExportData = async () => {
+    setIsExporting(true)
+    try {
+      const supabase = createClient()
+      const userId = user?.id
+      if (!userId) {
+        toast.error("You must be logged in to export data")
+        return
+      }
+
+      const [postsRes, analyticsRes, templatesRes, draftsRes] = await Promise.all([
+        supabase.from('my_posts').select('*').eq('user_id', userId),
+        supabase.from('post_analytics').select('*').eq('user_id', userId),
+        supabase.from('templates').select('*').eq('user_id', userId),
+        supabase.from('generated_posts').select('*').eq('user_id', userId).eq('status', 'draft'),
+      ])
+
+      const sections = [
+        { name: 'Posts', data: postsRes.data || [] },
+        { name: 'Analytics', data: analyticsRes.data || [] },
+        { name: 'Templates', data: templatesRes.data || [] },
+        { name: 'Drafts', data: draftsRes.data || [] },
+      ]
+
+      const csvParts = sections
+        .filter((s) => s.data.length > 0)
+        .map((s) => `--- ${s.name} ---\n${toCsv(s.data as Record<string, unknown>[])}`)
+
+      const csvContent = csvParts.join('\n\n')
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `chainlinked-export-${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      toast.success("Data exported successfully")
+    } catch (err) {
+      console.error("Export failed:", err)
+      toast.error("Failed to export data. Please try again.")
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   /**
    * Handle account deletion with API call
@@ -1875,7 +1956,40 @@ function AccountSection({ signOut }: { signOut: () => Promise<void> }) {
                 return (
                   <button
                     key={option.value}
-                    onClick={() => setTheme(option.value)}
+                    onClick={async (e) => {
+                      if (document.startViewTransition) {
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        const x = rect.left + rect.width / 2
+                        const y = rect.top + rect.height / 2
+                        const endRadius = Math.hypot(
+                          Math.max(x, window.innerWidth - x),
+                          Math.max(y, window.innerHeight - y)
+                        )
+                        const transition = document.startViewTransition(() => {
+                          setTheme(option.value)
+                        })
+                        try {
+                          await transition.ready
+                          document.documentElement.animate(
+                            {
+                              clipPath: [
+                                `circle(0px at ${x}px ${y}px)`,
+                                `circle(${endRadius}px at ${x}px ${y}px)`,
+                              ],
+                            },
+                            {
+                              duration: 400,
+                              easing: 'ease-in-out',
+                              pseudoElement: '::view-transition-new(root)',
+                            }
+                          )
+                        } catch {
+                          // View transition API may not be fully supported
+                        }
+                      } else {
+                        setTheme(option.value)
+                      }
+                    }}
                     className={cn(
                       "relative flex flex-col items-center justify-center gap-3 p-6 rounded-xl border-2 transition-all duration-300",
                       "hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5",
@@ -1943,8 +2057,15 @@ function AccountSection({ signOut }: { signOut: () => Promise<void> }) {
                 </p>
               </div>
             </div>
-            <Button variant="outline" size="sm">
-              Export
+            <Button variant="outline" size="sm" onClick={handleExportData} disabled={isExporting}>
+              {isExporting ? (
+                <>
+                  <IconLoader2 className="size-3.5 animate-spin mr-1" />
+                  Exporting...
+                </>
+              ) : (
+                "Export"
+              )}
             </Button>
           </div>
         </CardContent>

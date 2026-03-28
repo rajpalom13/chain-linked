@@ -37,7 +37,8 @@ export function useConversationPersistence(
   mode: 'advanced' | 'series'
 ): ConversationPersistenceReturn {
   const { user } = useAuthContext()
-  const supabase = createClient()
+  const supabaseRef = useRef(createClient())
+  const supabase = supabaseRef.current
 
   const [persistedMessages, setPersistedMessages] = useState<PersistedMessage[]>([])
   const [conversationId, setConversationId] = useState<string | null>(null)

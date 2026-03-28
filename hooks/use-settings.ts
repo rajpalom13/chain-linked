@@ -6,7 +6,7 @@
 
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Tables } from '@/types/database'
 
@@ -123,7 +123,8 @@ export function useSettings(): UseSettingsReturn {
   const [extensionSettings, setExtensionSettings] = useState<ExtensionSettings | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const supabase = createClient()
+  const supabaseRef = useRef(createClient())
+  const supabase = supabaseRef.current
 
   /**
    * Fetch all settings data from database

@@ -84,6 +84,7 @@ import { ComposeBasicMode } from "./compose/compose-basic-mode"
 import { ComposeAdvancedMode } from "./compose/compose-advanced-mode"
 import { EditWithAIPopup } from "./compose/edit-with-ai-popup"
 import { InlineDiffView } from "./compose/inline-diff-view"
+import { ErrorBoundary } from "@/components/error-boundary"
 
 /**
  * Props for the PostComposer component
@@ -273,7 +274,20 @@ export function PostComposer({
   const [showEmojiPicker, setShowEmojiPicker] = React.useState(false)
   const [showAIDialog, setShowAIDialog] = React.useState(false)
   const [isEditing, setIsEditing] = React.useState(false)
-  const [mediaFiles, setMediaFiles] = React.useState<MediaFile[]>([])
+  const [mediaFiles, setMediaFiles] = React.useState<MediaFile[]>(() => {
+    // Restore media from draft context if available (for tab switch persistence)
+    if (draft.mediaFiles && draft.mediaFiles.length > 0) {
+      return draft.mediaFiles.map((m) => ({
+        id: m.id,
+        file: new File([], m.name, { type: m.type }),
+        type: (m.type.startsWith('image/') ? 'image' : m.type.startsWith('video/') ? 'video' : 'document') as 'image' | 'video' | 'document',
+        previewUrl: m.previewUrl,
+        uploadProgress: 100,
+        status: 'complete' as const,
+      }))
+    }
+    return []
+  })
   const { status: apiKeyStatus } = useApiKeys()
   const hasApiKey = apiKeyStatus?.hasKey ?? false
   const [selectedGoal, setSelectedGoal] = React.useState<GoalCategory | undefined>(undefined)
@@ -396,8 +410,15 @@ export function PostComposer({
         }
         return true
       }
+      const errData = await res.json().catch(() => null)
+      console.warn('[AutoSave] Failed:', res.status, errData?.error || 'Unknown error')
+      // If the existing draftId is stale, clear it so the next save creates a new draft
+      if (res.status === 500 && draft.savedDraftId) {
+        updateDraft({ savedDraftId: undefined })
+      }
       return false
-    } catch {
+    } catch (err) {
+      console.warn('[AutoSave] Network error:', err)
       return false
     }
   }, [content, draft.savedDraftId, updateDraft])
@@ -460,6 +481,23 @@ export function PostComposer({
       textarea.removeEventListener('input', resize)
     }
   }, [isEditing, content])
+
+  // Sync media files to draft context for persistence across tab switches
+  React.useEffect(() => {
+    if (mediaFiles.length > 0) {
+      const draftMedia = mediaFiles.map((f) => ({
+        id: f.id,
+        name: f.file.name,
+        type: f.file.type || (f.type === 'image' ? 'image/png' : f.type === 'document' ? 'application/pdf' : 'video/mp4'),
+        size: f.file.size,
+        previewUrl: f.previewUrl,
+      }))
+      updateDraft({ mediaFiles: draftMedia })
+    } else if (draft.mediaFiles && draft.mediaFiles.length > 0) {
+      updateDraft({ mediaFiles: [] })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mediaFiles])
 
   // Focus textarea when entering edit mode
   React.useEffect(() => {
@@ -769,6 +807,16 @@ export function PostComposer({
   const handlePost = async () => {
     if (!onPost || isOverLimit || !content.trim()) return
 
+    // Validate media: LinkedIn doesn't support mixing images and documents in one post
+    if (mediaFiles.length > 1) {
+      const hasImage = mediaFiles.some((f) => f.type === "image")
+      const hasDocument = mediaFiles.some((f) => f.type === "document")
+      if (hasImage && hasDocument) {
+        toast.error("LinkedIn only supports an image or a document, not both. Please remove one.")
+        return
+      }
+    }
+
     setIsPosting(true)
     try {
       const result = await onPost(content, mediaFiles.length > 0 ? mediaFiles : undefined)
@@ -787,7 +835,8 @@ export function PostComposer({
       }
     } catch (error) {
       console.error("Failed to post:", error)
-      postToast.failed(error instanceof Error ? error.message : undefined)
+      const message = error instanceof Error ? error.message : "Something went wrong. Please try again."
+      postToast.failed(message)
     } finally {
       setIsPosting(false)
     }
@@ -1135,7 +1184,12 @@ export function PostComposer({
                       Start Over
                     </Button>
                   )}
-                  <ComposeModeToggle mode={composeMode} onModeChange={setComposeMode} />
+                  <ComposeModeToggle mode={composeMode} onModeChange={(newMode) => {
+                    if (content.trim() && newMode !== composeMode) {
+                      toast.info("Your content has been preserved across the mode switch.", { duration: 3000 })
+                    }
+                    setComposeMode(newMode)
+                  }} />
                 </div>
               </div>
               <CardDescription>
@@ -1202,19 +1256,28 @@ export function PostComposer({
                 />
               </div>
               <div style={{ display: composeMode === 'advanced' ? undefined : 'none' }}>
-                <ComposeAdvancedMode
-                  onGenerated={(generatedContent) => {
-                    handleContentChange(convertMarkdownToUnicode(generatedContent))
-                    trackFeatureUsed("ai_generation_advanced")
-                    showSuccess('Post generated!')
-                    setIsEditing(false)
-                  }}
-                  hasApiKey={hasApiKey}
-                  persistedMessages={persistedMessages.length > 0 ? persistedMessages as unknown as import("ai").UIMessage[] : undefined}
-                  conversationId={persistedConvoId}
-                  onMessagesChange={handleAdvancedMessagesChange}
-                  onNewChat={clearConvo}
-                />
+                <ErrorBoundary
+                  fallback={
+                    <div className="flex flex-col items-center justify-center p-6 text-center text-sm text-muted-foreground">
+                      <p className="mb-2 font-medium text-foreground">Something went wrong with the AI chat.</p>
+                      <p>Please try refreshing the page or switch to Basic mode.</p>
+                    </div>
+                  }
+                >
+                  <ComposeAdvancedMode
+                    onGenerated={(generatedContent) => {
+                      handleContentChange(convertMarkdownToUnicode(generatedContent))
+                      trackFeatureUsed("ai_generation_advanced")
+                      showSuccess('Post generated!')
+                      setIsEditing(false)
+                    }}
+                    hasApiKey={hasApiKey}
+                    persistedMessages={persistedMessages.length > 0 ? persistedMessages as unknown as import("ai").UIMessage[] : undefined}
+                    conversationId={persistedConvoId}
+                    onMessagesChange={handleAdvancedMessagesChange}
+                    onNewChat={clearConvo}
+                  />
+                </ErrorBoundary>
               </div>
             </CardContent>
           </Card>
@@ -1545,21 +1608,25 @@ export function PostComposer({
                   const hasCarousel = carouselSlideImages.length > 0
 
                   return (
-                    <div className="group/media relative">
-                      {/* Clear all button — floats top-right on hover */}
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="absolute right-2 top-2 z-20 h-6 rounded-full text-xs opacity-0 shadow-md transition-opacity group-hover/media:opacity-100"
-                        onClick={() => {
-                          mediaFiles.forEach((f) => URL.revokeObjectURL(f.previewUrl))
-                          setMediaFiles([])
-                          setCarouselSlideImages([])
-                        }}
-                      >
-                        <IconX className="mr-1 size-3" />
-                        Clear all
-                      </Button>
+                    <div className="group/media">
+                      {/* Clear all button — separate row above media */}
+                      {mediaFiles.length > 1 && (
+                        <div className="flex justify-end px-4 py-1.5 border-t">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 rounded-full text-xs text-muted-foreground hover:text-destructive gap-1"
+                            onClick={() => {
+                              mediaFiles.forEach((f) => URL.revokeObjectURL(f.previewUrl))
+                              setMediaFiles([])
+                              setCarouselSlideImages([])
+                            }}
+                          >
+                            <IconX className="size-3" />
+                            Clear all
+                          </Button>
+                        </div>
+                      )}
 
                       {/* Carousel / Document preview */}
                       {hasCarousel ? (
@@ -1713,6 +1780,32 @@ export function PostComposer({
                           ))}
                         </div>
                       ) : null}
+
+                      {/* Documents below images (when both exist) */}
+                      {docFiles.length > 0 && imageFiles.length > 0 && docFiles.map((file) => (
+                        <div key={file.id} className="group/doc relative border-t bg-muted/50">
+                          <div className="flex items-center gap-3 px-4 py-3">
+                            <div className="flex size-10 items-center justify-center rounded-md bg-red-100 dark:bg-red-900/30">
+                              <IconFile className="size-5 text-red-600 dark:text-red-400" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium">{file.file.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {(file.file.size / 1024).toFixed(0)} KB
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            variant="destructive"
+                            size="icon"
+                            className="absolute right-2 top-2 size-5 rounded-full opacity-0 shadow-md transition-opacity group-hover/doc:opacity-100"
+                            onClick={() => handleRemoveMedia(file.id)}
+                            aria-label={`Remove ${file.file.name}`}
+                          >
+                            <IconX className="size-3" />
+                          </Button>
+                        </div>
+                      ))}
                     </div>
                   )
                 })()}

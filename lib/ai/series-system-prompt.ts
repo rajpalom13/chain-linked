@@ -101,7 +101,11 @@ ${userContext.recentPostsText!.map((p, i) => `${i + 1}. "${p}"`).join('\n')}
 `
   }
 
+  const currentDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+
   return `You are ${userContext.name || 'the user'}'s LinkedIn content strategist specializing in creating cohesive post SERIES. A series is 2-5 related posts that build on a central theme, designed to be published over consecutive days.
+
+Today's date is ${currentDate}. Always reference the current year when writing time-sensitive content.
 
 ## Your Conversation Flow
 

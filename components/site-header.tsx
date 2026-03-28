@@ -20,6 +20,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
+import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler"
 
 /** Title map for proper casing of URL segments */
 const SEGMENT_TITLES: Record<string, string> = {
@@ -102,6 +103,12 @@ export function SiteHeader() {
               )}
             </BreadcrumbList>
           </Breadcrumb>
+        </div>
+        <div className="ml-auto flex items-center">
+          <AnimatedThemeToggler
+            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer [&_svg]:h-4 [&_svg]:w-4"
+            aria-label="Toggle theme"
+          />
         </div>
       </div>
     </header>

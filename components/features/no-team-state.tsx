@@ -19,7 +19,6 @@ import {
 } from '@tabler/icons-react'
 import { formatDistanceToNow } from 'date-fns'
 import { toast } from 'sonner'
-import Link from 'next/link'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -42,6 +41,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { useJoinRequests, type JoinRequest } from '@/hooks/use-join-requests'
+import { TeamSearch, type TeamSearchResult } from '@/components/features/team-search'
 
 /**
  * Props for NoTeamState component
@@ -224,14 +224,29 @@ function PendingRequestBanner({
  * @returns No team state JSX
  */
 export function NoTeamState({ onCreateTeam, isCreating, onboardingType }: NoTeamStateProps) {
-  const { myPendingRequest, isLoading: requestLoading, cancelRequest } = useJoinRequests()
+  const { myPendingRequest, isLoading: requestLoading, cancelRequest, submitRequest } = useJoinRequests()
   const [isCancelling, setIsCancelling] = useState(false)
+  const [showTeamSearch, setShowTeamSearch] = useState(false)
+  const [isSubmittingJoin, setIsSubmittingJoin] = useState(false)
   const isMember = onboardingType === 'member'
 
   const handleCancel = async () => {
     setIsCancelling(true)
     await cancelRequest()
     setIsCancelling(false)
+  }
+
+  const handleSelectTeam = async (team: TeamSearchResult) => {
+    setIsSubmittingJoin(true)
+    try {
+      await submitRequest(team.id)
+      toast.success(`Join request sent to ${team.name}`)
+      setShowTeamSearch(false)
+    } catch {
+      toast.error('Failed to send join request. Please try again.')
+    } finally {
+      setIsSubmittingJoin(false)
+    }
   }
 
   return (
@@ -268,12 +283,35 @@ export function NoTeamState({ onCreateTeam, isCreating, onboardingType }: NoTeam
             <CreateTeamDialog onCreateTeam={onCreateTeam} isCreating={isCreating} />
           )}
           {!myPendingRequest && (
-            <Button variant={isMember ? 'default' : 'outline'} size="lg" className="gap-2" asChild>
-              <Link href="/onboarding/join">
-                <IconSearch className="h-5 w-5" />
-                Find Your Team
-              </Link>
-            </Button>
+            <Dialog open={showTeamSearch} onOpenChange={setShowTeamSearch}>
+              <DialogTrigger asChild>
+                <Button variant={isMember ? 'default' : 'outline'} size="lg" className="gap-2">
+                  <IconSearch className="h-5 w-5" />
+                  Find Your Team
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <IconSearch className="h-5 w-5" />
+                    Find Your Team
+                  </DialogTitle>
+                  <DialogDescription>
+                    Search for your organization&apos;s team and send a join request.
+                  </DialogDescription>
+                </DialogHeader>
+                <TeamSearch
+                  onSelectTeam={handleSelectTeam}
+                  className="py-2"
+                />
+                {isSubmittingJoin && (
+                  <div className="flex items-center justify-center py-2 text-sm text-muted-foreground">
+                    <IconLoader2 className="size-4 animate-spin mr-2" />
+                    Sending join request...
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
           )}
         </div>
 

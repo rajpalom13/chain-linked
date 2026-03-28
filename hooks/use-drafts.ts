@@ -7,7 +7,7 @@
 
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 
@@ -86,7 +86,7 @@ function countWords(text: string): number {
  * @returns A valid DraftSource label
  */
 function parseDraftSource(source: string | null): DraftSource {
-  const validSources: DraftSource[] = ['compose', 'swipe', 'discover', 'inspiration', 'research', 'carousel']
+  const validSources: DraftSource[] = ['compose', 'swipe', 'discover', 'inspiration', 'research', 'carousel', 'series']
   if (source && validSources.includes(source as DraftSource)) {
     return source as DraftSource
   }
@@ -116,7 +116,8 @@ export function useDrafts(): UseDraftsReturn {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const supabase = createClient()
+  const supabaseRef = useRef(createClient())
+  const supabase = supabaseRef.current
 
   /**
    * Fetch drafts from all sources and unify them

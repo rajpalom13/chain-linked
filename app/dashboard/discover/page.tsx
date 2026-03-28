@@ -182,10 +182,38 @@ function SeedingBanner() {
  * Loading skeleton for the two-column content layout (main feed + sidebar)
  * @returns Rendered skeleton with featured cards, compact list items, and sidebar placeholders
  */
+/** Rotating tips shown during content loading */
+const LOADING_TIPS = [
+  "Curating the latest industry insights for you...",
+  "Finding trending topics in your areas of interest...",
+  "Analyzing top-performing content from your network...",
+  "Discovering fresh content ideas tailored to your niche...",
+  "Scanning for viral posts you can remix into your own...",
+]
+
+function LoadingTip() {
+  const [tipIndex, setTipIndex] = React.useState(0)
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      setTipIndex((prev) => (prev + 1) % LOADING_TIPS.length)
+    }, 3000)
+    return () => clearInterval(timer)
+  }, [])
+  return (
+    <p className="text-sm text-muted-foreground text-center animate-pulse">
+      {LOADING_TIPS[tipIndex]}
+    </p>
+  )
+}
+
 function ContentSkeleton() {
   return (
     <div className="flex gap-6">
       <div className="flex-1 min-w-0 space-y-4">
+        {/* Loading tip */}
+        <div className="py-2">
+          <LoadingTip />
+        </div>
         {/* Top stories skeleton */}
         <div className="h-4 w-24 bg-muted animate-pulse rounded" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -103,7 +103,11 @@ ${userContext.recentPostsText!.map((p, i) => `${i + 1}. "${p}"`).join('\n')}
 `
   }
 
+  const currentDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+
   return `You are ${userContext.name || 'the user'}'s LinkedIn content strategist. You know their brand, audience, and what performs well. You're direct, sharp, and collaborative, like a content partner who's studied their profile and analytics.
+
+Today's date is ${currentDate}. Always reference the current year when writing time-sensitive content.
 
 ## Your Conversation Flow
 
