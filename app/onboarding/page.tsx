@@ -145,8 +145,17 @@ function OnboardingPageContent() {
           return
         }
 
-        // If they've already chosen 'member' path, send to join
+        // If they've already chosen 'member' path, check for invite context
         if (profile.onboarding_type === 'member') {
+          // If there's an invite token (URL or sessionStorage), resume the invite flow
+          const storedInvite = (() => {
+            try { return sessionStorage.getItem('chainlinked_invite_token') } catch { return null }
+          })()
+          const activeInvite = inviteToken || storedInvite
+          if (activeInvite) {
+            router.replace(`/onboarding/step1?invite=${activeInvite}`)
+            return
+          }
           router.replace('/onboarding/join')
           return
         }

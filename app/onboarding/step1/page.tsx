@@ -27,14 +27,27 @@ const CURRENT_STEP = 1
  * Saves progress to database when moving to next step
  * @returns Step 1 JSX
  */
+/** sessionStorage key for persisting invite token across OAuth redirects */
+const INVITE_TOKEN_KEY = 'chainlinked_invite_token'
+
 function Step1Content() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const inviteToken = searchParams.get('invite')
+  const inviteParam = searchParams.get('invite')
   const { checking } = useOnboardingGuard()
   const { refreshProfile } = useAuthContext()
   const [linkedinConnected, setLinkedinConnected] = useState(false)
   const [saving, setSaving] = useState(false)
+
+  // Persist invite token to sessionStorage when present in URL,
+  // and recover it from sessionStorage if missing from URL (e.g., after OAuth redirect)
+  const inviteToken = (() => {
+    if (inviteParam) {
+      try { sessionStorage.setItem(INVITE_TOKEN_KEY, inviteParam) } catch {}
+      return inviteParam
+    }
+    try { return sessionStorage.getItem(INVITE_TOKEN_KEY) } catch { return null }
+  })()
 
   /**
    * Updates the current step in the database on mount
@@ -80,6 +93,9 @@ function Step1Content() {
           console.error('Error accepting invite:', err)
           toast.error('Failed to accept invitation. You can try again from your dashboard.')
         }
+
+        // Clear the stored invite token
+        try { sessionStorage.removeItem(INVITE_TOKEN_KEY) } catch {}
 
         // Complete onboarding regardless of invite acceptance result
         await completeOnboardingInDatabase()

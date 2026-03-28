@@ -62,8 +62,17 @@ export default function ConnectTools({
   const linkedinConnectedParam = searchParams.get("linkedin_connected")
   const linkedinError = searchParams.get("linkedin_error")
 
-  // Build LinkedIn connect URL with redirect back to current page
-  const linkedinConnectUrl = `/api/linkedin/connect?redirect=${encodeURIComponent(pathname)}`
+  // Build LinkedIn connect URL with redirect back to current page,
+  // preserving important query params like invite token
+  const buildRedirectPath = () => {
+    const params = new URLSearchParams()
+    // Preserve the invite token across the LinkedIn OAuth round-trip
+    const invite = searchParams.get("invite")
+    if (invite) params.set("invite", invite)
+    const qs = params.toString()
+    return qs ? `${pathname}?${qs}` : pathname
+  }
+  const linkedinConnectUrl = `/api/linkedin/connect?redirect=${encodeURIComponent(buildRedirectPath())}`
 
   /**
    * Fetch LinkedIn connection status from API
