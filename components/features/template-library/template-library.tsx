@@ -574,7 +574,7 @@ export function TemplateLibrary({
     setIsDialogOpen(true)
   }
 
-  const handleFormSubmit = (data: TemplateFormData, editingId: string | null) => {
+  const handleFormSubmit = async (data: TemplateFormData, editingId: string | null) => {
     const templateData = {
       name: data.name.trim(),
       content: data.content.trim(),
@@ -582,16 +582,23 @@ export function TemplateLibrary({
       tags: data.tags.split(",").map((tag) => tag.trim()).filter(Boolean),
       isPublic: data.isPublic,
     }
-    if (editingId) {
-      trackTemplateAction("edited", editingId)
-      onEditTemplate?.(editingId, templateData)
-    } else {
-      trackTemplateAction("created", "new")
-      onCreateTemplate?.(templateData)
+    try {
+      if (editingId) {
+        trackTemplateAction("edited", editingId)
+        await Promise.resolve(onEditTemplate?.(editingId, templateData))
+        toast.success("Template updated")
+      } else {
+        trackTemplateAction("created", "new")
+        await Promise.resolve(onCreateTemplate?.(templateData))
+        toast.success("Template created")
+      }
+    } catch (err) {
+      console.error("Template save error:", err)
+      toast.error("Failed to save template. Please try again.")
     }
   }
 
-  const buildAISuggestion = (category: string, templateName: string): AISuggestion => {
+  const buildAISuggestion = (category: string, _templateName: string): AISuggestion => {
     const defaults = CATEGORY_AI_DEFAULTS[category] ?? {
       topic: "Write a LinkedIn post about [your topic]",
       tone: "professional",
@@ -599,7 +606,7 @@ export function TemplateLibrary({
     return {
       topic: defaults.topic,
       tone: defaults.tone,
-      context: `Using the "${templateName}" template as a starting point. Fill in the bracketed placeholders with your own content.`,
+      context: "",
     }
   }
 
@@ -640,7 +647,7 @@ export function TemplateLibrary({
     })
     if (confirmed) {
       trackTemplateAction("deleted", id)
-      onDeleteTemplate?.(id)
+      await Promise.resolve(onDeleteTemplate?.(id))
       templateToast.deleted(templateToDelete?.name ?? "Template")
     }
   }
@@ -657,7 +664,7 @@ export function TemplateLibrary({
 
     setIsDeleting(true)
     for (const id of selectedIds) {
-      onDeleteTemplate?.(id)
+      await onDeleteTemplate?.(id)
     }
     setIsDeleting(false)
     clearSelection()

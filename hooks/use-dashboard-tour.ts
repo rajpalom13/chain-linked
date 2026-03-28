@@ -21,6 +21,8 @@ const ACTIVATION_DELAY = 1500
 const MAX_RETRIES = 5
 /** Delay between retries (ms) */
 const RETRY_DELAY = 500
+/** localStorage key for persisting tour dismissal */
+const TOUR_DISMISSED_KEY = 'chainlinked_tour_dismissed'
 
 /**
  * Return type for the useDashboardTour hook
@@ -80,14 +82,21 @@ export function useDashboardTour(): DashboardTourState {
   const supabaseRef = useRef(createClient())
 
   /**
-   * Mark the tour as completed in Supabase, then refresh the profile
-   * so downstream consumers immediately see dashboard_tour_completed = true
+   * Mark the tour as completed in Supabase and localStorage, then refresh
+   * the profile so downstream consumers immediately see dashboard_tour_completed = true
    */
   const completeTour = useCallback(async () => {
     if (isCompletingRef.current) return
     isCompletingRef.current = true
     setIsActive(false)
     setTargetRect(null)
+
+    // Persist dismissal to localStorage immediately for fast check on next load
+    try {
+      localStorage.setItem(TOUR_DISMISSED_KEY, 'true')
+    } catch {
+      // localStorage may be unavailable
+    }
 
     if (!user?.id) return
 
@@ -171,6 +180,12 @@ export function useDashboardTour(): DashboardTourState {
     if (!profile || !user) return
     // Don't show if already completed
     if (profile.dashboard_tour_completed) return
+    // Don't show if dismissed via localStorage (fast check before async DB)
+    try {
+      if (localStorage.getItem(TOUR_DISMISSED_KEY) === 'true') return
+    } catch {
+      // localStorage unavailable
+    }
 
     const timer = setTimeout(() => {
       setIsActive(true)
@@ -181,11 +196,11 @@ export function useDashboardTour(): DashboardTourState {
     return () => clearTimeout(timer)
   }, [pathname, profile, user, resolveStep])
 
-  // Recompute target rect on window resize
+  // Recompute target rect on window resize, scroll, and after layout stabilizes
   useEffect(() => {
     if (!isActive) return
 
-    const handleResize = () => {
+    const remeasure = () => {
       const step = TOUR_STEPS[currentStepIndex]
       if (!step) return
       const el = document.querySelector(step.targetSelector)
@@ -200,8 +215,18 @@ export function useDashboardTour(): DashboardTourState {
       }
     }
 
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
+    // Re-measure after layout stabilizes (sidebar animations, content load)
+    const stabilizeTimer = setTimeout(remeasure, 500)
+    const secondPass = setTimeout(remeasure, 1200)
+
+    window.addEventListener('resize', remeasure)
+    window.addEventListener('scroll', remeasure, true)
+    return () => {
+      clearTimeout(stabilizeTimer)
+      clearTimeout(secondPass)
+      window.removeEventListener('resize', remeasure)
+      window.removeEventListener('scroll', remeasure, true)
+    }
   }, [isActive, currentStepIndex])
 
   return {

@@ -253,7 +253,7 @@ export function PropertyPanel({
                         variant="destructive"
                         size="sm"
                         className="w-full"
-                        onClick={onDeleteElement}
+                        onClick={() => onDeleteElement()}
                       >
                         <IconTrash className="mr-2 h-3.5 w-3.5" />
                         Delete Element

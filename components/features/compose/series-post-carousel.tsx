@@ -10,9 +10,17 @@
 import * as React from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
+  IconBold,
   IconChevronLeft,
   IconChevronRight,
+  IconFile,
+  IconHash,
+  IconItalic,
+  IconList,
+  IconMoodSmile,
+  IconPhoto,
   IconWorld,
+  IconX,
   IconThumbUp,
   IconMessageCircle,
   IconRepeat,
@@ -21,7 +29,13 @@ import {
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { EmojiPicker } from "@/components/features/emoji-picker"
+import { FontPicker } from "@/components/features/font-picker"
+import type { UnicodeFontStyle } from "@/lib/unicode-fonts"
+import { transformSelection } from "@/lib/unicode-fonts"
 import type { SeriesPost } from "@/types/compose"
 
 /**
@@ -59,8 +73,66 @@ export function SeriesPostCarousel({
   const [isEditing, setIsEditing] = React.useState(false)
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
   const [direction, setDirection] = React.useState(0)
+  const [showEmojiPicker, setShowEmojiPicker] = React.useState(false)
+  const [activeFontStyle, setActiveFontStyle] = React.useState<UnicodeFontStyle>('normal')
+  /** Per-post media files stored by post index */
+  const [postMedia, setPostMedia] = React.useState<Record<number, { name: string; url: string; type: 'image' | 'document' }[]>>({})
 
   const currentPost = posts[currentIndex]
+
+  /** Apply unicode font transform to selected text */
+  const applyUnicodeFont = React.useCallback((style: UnicodeFontStyle) => {
+    const ta = textareaRef.current
+    if (!ta) return
+    const start = ta.selectionStart
+    const end = ta.selectionEnd
+    const post = posts[currentIndex]
+    if (!post) return
+    const result = transformSelection(post.post, start, end, style)
+    onContentChange(currentIndex, result.text)
+    setActiveFontStyle(style)
+    setTimeout(() => { ta.focus(); ta.setSelectionRange(start, result.newEnd) }, 0)
+  }, [posts, currentIndex, onContentChange])
+
+  /** Insert text at cursor position */
+  const insertAtCursor = React.useCallback((insert: string) => {
+    const ta = textareaRef.current
+    if (!ta) return
+    const start = ta.selectionStart
+    const post = posts[currentIndex]
+    if (!post) return
+    onContentChange(currentIndex, post.post.slice(0, start) + insert + post.post.slice(start))
+    const newPos = start + insert.length
+    setTimeout(() => { ta.focus(); ta.setSelectionRange(newPos, newPos) }, 0)
+  }, [posts, currentIndex, onContentChange])
+
+  /** Handle file attachment for the current post */
+  const handleFileAttach = React.useCallback((files: FileList, type: 'image' | 'document') => {
+    const newFiles = Array.from(files).map((file) => ({
+      name: file.name,
+      url: URL.createObjectURL(file),
+      type,
+    }))
+    setPostMedia((prev) => ({
+      ...prev,
+      [currentIndex]: [...(prev[currentIndex] || []), ...newFiles],
+    }))
+  }, [currentIndex])
+
+  /** Remove a media file from the current post */
+  const handleRemoveMedia = React.useCallback((mediaIndex: number) => {
+    setPostMedia((prev) => {
+      const current = [...(prev[currentIndex] || [])]
+      if (current[mediaIndex]) {
+        URL.revokeObjectURL(current[mediaIndex].url)
+        current.splice(mediaIndex, 1)
+      }
+      return { ...prev, [currentIndex]: current }
+    })
+  }, [currentIndex])
+
+  const currentMedia = postMedia[currentIndex] || []
+
   if (!currentPost) return null
 
   const goToPrev = () => {
@@ -203,17 +275,18 @@ export function SeriesPostCarousel({
           {/* Post Content */}
           <div className="px-4 pb-3">
             {isEditing ? (
-              <textarea
-                ref={textareaRef}
-                value={currentPost.post}
-                onChange={(e) => onContentChange(currentIndex, e.target.value)}
-                onBlur={() => setIsEditing(false)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') setIsEditing(false)
-                }}
-                className="w-full resize-none bg-transparent text-sm leading-relaxed outline-none min-h-[300px] max-h-[600px] overflow-y-auto"
-                autoFocus
-              />
+              <div>
+                <textarea
+                  ref={textareaRef}
+                  value={currentPost.post}
+                  onChange={(e) => onContentChange(currentIndex, e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') setIsEditing(false)
+                  }}
+                  className="w-full resize-none bg-transparent text-sm leading-relaxed outline-none min-h-[300px] max-h-[600px] overflow-y-auto"
+                  autoFocus
+                />
+              </div>
             ) : (
               <div
                 className="group relative cursor-text min-h-[300px]"
@@ -234,6 +307,262 @@ export function SeriesPostCarousel({
               </div>
             )}
           </div>
+
+          {/* Formatting Toolbar — visible only in edit mode, matches single post toolbar */}
+          {isEditing && (
+            <div className="flex flex-wrap items-center gap-1 border-t px-4 py-2">
+              {/* Bold */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={activeFontStyle === 'bold' || activeFontStyle === 'boldItalic' ? "secondary" : "ghost"}
+                    size="icon"
+                    className="size-7"
+                    onMouseDown={(e) => { e.preventDefault(); applyUnicodeFont('bold') }}
+                    aria-label="Bold"
+                  >
+                    <IconBold className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Bold (Ctrl+B)</TooltipContent>
+              </Tooltip>
+
+              {/* Italic */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={activeFontStyle === 'italic' || activeFontStyle === 'boldItalic' ? "secondary" : "ghost"}
+                    size="icon"
+                    className="size-7"
+                    onMouseDown={(e) => { e.preventDefault(); applyUnicodeFont('italic') }}
+                    aria-label="Italic"
+                  >
+                    <IconItalic className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Italic (Ctrl+I)</TooltipContent>
+              </Tooltip>
+
+              {/* List */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7"
+                    onMouseDown={(e) => { e.preventDefault(); insertAtCursor('\n- ') }}
+                    aria-label="List"
+                  >
+                    <IconList className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>List item</TooltipContent>
+              </Tooltip>
+
+              <Separator orientation="vertical" className="mx-1 h-6" />
+
+              {/* Hashtag */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7"
+                    onMouseDown={(e) => { e.preventDefault(); insertAtCursor('#') }}
+                    aria-label="Hashtag"
+                  >
+                    <IconHash className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Add hashtag</TooltipContent>
+              </Tooltip>
+
+              <Separator orientation="vertical" className="mx-1 h-6" />
+
+              {/* Unicode Font Picker */}
+              <FontPicker
+                activeFontStyle={activeFontStyle}
+                onFontSelect={(style) => applyUnicodeFont(style)}
+              />
+
+              <Separator orientation="vertical" className="mx-1 h-6" />
+
+              {/* Emoji Picker */}
+              <EmojiPicker
+                isOpen={showEmojiPicker}
+                onClose={() => setShowEmojiPicker(false)}
+                onOpenChange={setShowEmojiPicker}
+                onSelect={(emoji) => {
+                  insertAtCursor(emoji)
+                  setShowEmojiPicker(false)
+                }}
+              >
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  aria-label="Add emoji"
+                  onClick={(e) => { e.preventDefault(); setShowEmojiPicker(!showEmojiPicker) }}
+                >
+                  <IconMoodSmile className="size-4" />
+                </Button>
+              </EmojiPicker>
+
+              {/* Image Attachment */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7"
+                    aria-label="Add image"
+                    onClick={() => {
+                      const input = document.createElement("input")
+                      input.type = "file"
+                      input.accept = "image/*"
+                      input.multiple = true
+                      input.onchange = (e) => {
+                        const files = (e.target as HTMLInputElement).files
+                        if (files) handleFileAttach(files, 'image')
+                      }
+                      input.click()
+                    }}
+                  >
+                    <IconPhoto className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Add image</TooltipContent>
+              </Tooltip>
+
+              {/* Document Attachment */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7"
+                    aria-label="Add document"
+                    onClick={() => {
+                      const input = document.createElement("input")
+                      input.type = "file"
+                      input.accept = ".pdf,.doc,.docx"
+                      input.onchange = (e) => {
+                        const files = (e.target as HTMLInputElement).files
+                        if (files) handleFileAttach(files, 'document')
+                      }
+                      input.click()
+                    }}
+                  >
+                    <IconFile className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Add document</TooltipContent>
+              </Tooltip>
+            </div>
+          )}
+
+          {/* Media Preview — matches single post LinkedIn-style layout */}
+          {currentMedia.length > 0 && (() => {
+            const imageMedia = currentMedia.filter((m) => m.type === 'image')
+            const docMedia = currentMedia.filter((m) => m.type === 'document')
+
+            return (
+              <div className="group/media">
+                {/* Clear all — own row above media */}
+                {currentMedia.length > 1 && (
+                  <div className="flex justify-end px-4 py-1.5 border-t">
+                    <button
+                      onClick={() => {
+                        currentMedia.forEach((m) => URL.revokeObjectURL(m.url))
+                        setPostMedia((prev) => ({ ...prev, [currentIndex]: [] }))
+                      }}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
+                    >
+                      <IconX className="size-3" />
+                      Clear all
+                    </button>
+                  </div>
+                )}
+
+                {/* Document preview — full-width card like single post */}
+                {docMedia.length > 0 && imageMedia.length === 0 && (
+                  <div className="group/doc relative border-t bg-muted/50">
+                    <div className="flex items-center gap-3 px-4 py-4">
+                      <div className="flex size-12 items-center justify-center rounded-md bg-red-100 dark:bg-red-900/30">
+                        <IconFile className="size-6 text-red-600 dark:text-red-400" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{docMedia[0].name}</p>
+                        <p className="text-xs text-muted-foreground">Document</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveMedia(currentMedia.indexOf(docMedia[0]))}
+                      className="absolute right-2 top-2 size-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 shadow-md transition-opacity group-hover/doc:opacity-100"
+                      aria-label="Remove"
+                    >
+                      <IconX className="size-3" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Single image — full-width */}
+                {imageMedia.length === 1 && (
+                  <div className="group/img relative">
+                    <div className="relative aspect-[4/3] w-full overflow-hidden border-t">
+                      <img src={imageMedia[0].url} alt={imageMedia[0].name} className="w-full h-full object-cover" />
+                    </div>
+                    <button
+                      onClick={() => handleRemoveMedia(currentMedia.indexOf(imageMedia[0]))}
+                      className="absolute right-2 top-3 size-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 shadow-md transition-opacity group-hover/img:opacity-100"
+                      aria-label="Remove"
+                    >
+                      <IconX className="size-3" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Multiple images — grid */}
+                {imageMedia.length >= 2 && (
+                  <div className={cn("grid gap-0.5 border-t", imageMedia.length === 2 ? "grid-cols-2" : "grid-cols-2")}>
+                    {imageMedia.map((media, i) => (
+                      <div key={i} className={cn("group/img relative overflow-hidden", imageMedia.length === 3 && i === 0 ? "row-span-2" : "aspect-square")} style={imageMedia.length === 3 && i === 0 ? { minHeight: '16rem' } : undefined}>
+                        <img src={media.url} alt={media.name} className="w-full h-full object-cover" />
+                        <button
+                          onClick={() => handleRemoveMedia(currentMedia.indexOf(media))}
+                          className="absolute right-1 top-1 size-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 shadow-md transition-opacity group-hover/img:opacity-100"
+                          aria-label="Remove"
+                        >
+                          <IconX className="size-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Documents below images (when both exist) */}
+                {docMedia.length > 0 && imageMedia.length > 0 && docMedia.map((media, i) => (
+                  <div key={i} className="group/doc relative border-t bg-muted/50">
+                    <div className="flex items-center gap-3 px-4 py-3">
+                      <div className="flex size-10 items-center justify-center rounded-md bg-red-100 dark:bg-red-900/30">
+                        <IconFile className="size-5 text-red-600 dark:text-red-400" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{media.name}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveMedia(currentMedia.indexOf(media))}
+                      className="absolute right-2 top-2 size-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 shadow-md transition-opacity group-hover/doc:opacity-100"
+                      aria-label="Remove"
+                    >
+                      <IconX className="size-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
 
           {/* Engagement Stats */}
           <div className="text-muted-foreground flex items-center px-4 py-2 text-xs">

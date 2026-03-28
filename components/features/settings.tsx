@@ -42,6 +42,7 @@ import {
 } from "@tabler/icons-react"
 
 import type { BrandKit as SavedBrandKit } from "@/types/brand-kit"
+import { toast } from "sonner"
 import { trackSettingsChanged, trackLinkedInAction } from "@/lib/analytics"
 import { ApiKeySettings } from "@/components/features/api-key-settings"
 import { LinkedInStatusBadge } from "@/components/features/linkedin-status-badge"
@@ -250,6 +251,8 @@ export function Settings({
 
   // LinkedIn state
   const [isRefreshingLinkedIn, setIsRefreshingLinkedIn] = React.useState(false)
+  const [isDisconnecting, setIsDisconnecting] = React.useState(false)
+  const [isLinkedinConnected, setLinkedinConnected] = React.useState(linkedinConnected)
   const [cookieStatus, setCookieStatus] = React.useState<"valid" | "expired" | "missing">(
     linkedinConnected ? "valid" : "missing"
   )
@@ -345,15 +348,23 @@ export function Settings({
    * Handles disconnecting LinkedIn account
    */
   const handleDisconnectLinkedIn = async () => {
+    setIsDisconnecting(true)
     try {
       const response = await fetch('/api/linkedin/disconnect', { method: 'POST' })
       if (response.ok) {
         trackLinkedInAction("disconnected")
         setCookieStatus("missing")
-        window.location.reload()
+        setLinkedinConnected(false)
+        toast.success('LinkedIn account disconnected')
+      } else {
+        const data = await response.json().catch(() => null)
+        toast.error(data?.error || 'Failed to disconnect LinkedIn. Please try again.')
       }
     } catch (error) {
       console.error('Failed to disconnect LinkedIn:', error)
+      toast.error('Failed to disconnect LinkedIn. Please try again.')
+    } finally {
+      setIsDisconnecting(false)
     }
   }
 
@@ -388,7 +399,7 @@ export function Settings({
           await new Promise((resolve) => setTimeout(resolve, 800))
           break
         case "linkedin":
-          settings.linkedin = { connected: linkedinConnected, cookieStatus }
+          settings.linkedin = { connected: isLinkedinConnected, cookieStatus }
           await new Promise((resolve) => setTimeout(resolve, 800))
           break
         case "brandKit": {
@@ -625,13 +636,13 @@ export function Settings({
                   <div
                     className={cn(
                       "size-10 rounded-full flex items-center justify-center shadow-sm",
-                      linkedinConnected ? "bg-[#0077b5]" : "bg-muted"
+                      isLinkedinConnected ? "bg-[#0077b5]" : "bg-muted"
                     )}
                   >
                     <IconBrandLinkedin
                       className={cn(
                         "size-6",
-                        linkedinConnected ? "text-white" : "text-muted-foreground"
+                        isLinkedinConnected ? "text-white" : "text-muted-foreground"
                       )}
                     />
                   </div>
@@ -639,11 +650,11 @@ export function Settings({
                     <p className="font-medium">LinkedIn Account</p>
                     <div className="flex items-center gap-2">
                       <Badge
-                        variant={linkedinConnected ? "default" : "destructive"}
+                        variant={isLinkedinConnected ? "default" : "destructive"}
                       >
-                        {linkedinConnected ? "Connected" : "Not Connected"}
+                        {isLinkedinConnected ? "Connected" : "Not Connected"}
                       </Badge>
-                      {linkedinConnected && linkedinProfile?.lastSynced && (
+                      {isLinkedinConnected && linkedinProfile?.lastSynced && (
                         <span className="text-xs text-muted-foreground">
                           since {new Date(linkedinProfile.lastSynced).toLocaleDateString()}
                         </span>
@@ -653,7 +664,7 @@ export function Settings({
                 </div>
                 <div className="flex gap-2">
                   <Button
-                    variant={linkedinConnected ? "outline" : "default"}
+                    variant={isLinkedinConnected ? "outline" : "default"}
                     onClick={handleConnectLinkedIn}
                     disabled={isRefreshingLinkedIn}
                   >
@@ -662,15 +673,23 @@ export function Settings({
                     ) : (
                       <IconRefresh className="size-4" />
                     )}
-                    {linkedinConnected ? "Refresh" : "Connect"}
+                    {isLinkedinConnected ? "Refresh" : "Connect"}
                   </Button>
-                  {linkedinConnected && (
+                  {isLinkedinConnected && (
                     <Button
                       variant="ghost"
                       onClick={handleDisconnectLinkedIn}
+                      disabled={isDisconnecting}
                       className="text-destructive hover:text-destructive"
                     >
-                      Disconnect
+                      {isDisconnecting ? (
+                        <>
+                          <IconLoader2 className="size-4 animate-spin mr-1" />
+                          Disconnecting...
+                        </>
+                      ) : (
+                        'Disconnect'
+                      )}
                     </Button>
                   )}
                 </div>
@@ -691,7 +710,7 @@ export function Settings({
               </div>
 
               {/* Token Expiry Warning */}
-              {linkedinConnected && linkedinProfile?.lastSynced && (() => {
+              {isLinkedinConnected && linkedinProfile?.lastSynced && (() => {
                 const lastSync = new Date(linkedinProfile.lastSynced)
                 const now = new Date()
                 const daysSinceSync = Math.floor((now.getTime() - lastSync.getTime()) / (1000 * 60 * 60 * 24))
@@ -732,7 +751,7 @@ export function Settings({
               })()}
 
               {/* Connection Permissions Info */}
-              {linkedinConnected && (
+              {isLinkedinConnected && (
                 <div className="flex items-start gap-3 p-4 rounded-xl border border-border/50 bg-muted/30">
                   <IconKey className="size-5 text-muted-foreground flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
@@ -747,7 +766,7 @@ export function Settings({
               )}
 
               {/* LinkedIn Profile Information */}
-              {linkedinConnected && linkedinProfile && (
+              {isLinkedinConnected && linkedinProfile && (
                 <div className="space-y-4">
                   {/* Profile Header with Background */}
                   <div className="rounded-xl border border-border/50 overflow-hidden">

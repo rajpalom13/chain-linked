@@ -26,7 +26,11 @@ import { usePageMeta } from "@/lib/dashboard-context"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
+import { useConfirmDialog } from "@/components/ui/confirm-dialog"
 import type { ComposeTab } from "@/types/compose"
+
+/** localStorage key for suppressing tab switch warning */
+const TAB_SWITCH_WARN_KEY = 'chainlinked_suppress_tab_switch_warning'
 
 /**
  * Data structure for editing a scheduled post
@@ -46,6 +50,7 @@ function ComposeContent() {
   const supabase = createClient()
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { confirm, ConfirmDialogComponent } = useConfirmDialog()
   const { draft, updateDraft } = useDraft()
 
   // Tab state for single/series mode — check URL param for series tab
@@ -572,7 +577,26 @@ function ComposeContent() {
   return (
     <PageContent>
       {/* Compose Tabs: Single Post vs Post Series */}
-      <Tabs value={composeTab} onValueChange={(v) => setComposeTab(v as ComposeTab)}>
+      <Tabs value={composeTab} onValueChange={async (v) => {
+        if (v !== composeTab && draft.content?.trim()) {
+          try {
+            if (localStorage.getItem(TAB_SWITCH_WARN_KEY) === 'true') {
+              setComposeTab(v as ComposeTab)
+              return
+            }
+          } catch { /* ignore */ }
+          const confirmed = await confirm({
+            title: "Switch tab?",
+            description: "Your current content will be preserved, but unsaved AI chat progress may be lost.",
+            confirmText: "Switch",
+            cancelText: "Stay",
+            variant: "warning",
+            dontAskAgainKey: TAB_SWITCH_WARN_KEY,
+          })
+          if (!confirmed) return
+        }
+        setComposeTab(v as ComposeTab)
+      }}>
         <TabsList className="mb-4">
           <TabsTrigger value="single">Single Post</TabsTrigger>
           <TabsTrigger value="series">Post Series</TabsTrigger>
@@ -698,6 +722,7 @@ function ComposeContent() {
           </ErrorBoundary>
         </TabsContent>
       </Tabs>
+      <ConfirmDialogComponent />
     </PageContent>
   )
 }

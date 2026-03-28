@@ -12,6 +12,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
 
 /**
  * Variant types for the confirmation dialog.
@@ -40,6 +42,8 @@ export interface ConfirmDialogProps {
   onConfirm: () => void | Promise<void>
   /** Whether the confirm action is loading */
   isLoading?: boolean
+  /** localStorage key for "Don't show again" — when set, shows a checkbox */
+  dontAskAgainKey?: string
 }
 
 /**
@@ -71,18 +75,28 @@ export function ConfirmDialog({
   variant = "default",
   onConfirm,
   isLoading = false,
+  dontAskAgainKey,
 }: ConfirmDialogProps) {
   const [isPending, setIsPending] = React.useState(false)
+  const [dontAskAgain, setDontAskAgain] = React.useState(false)
 
   const handleConfirm = async () => {
     setIsPending(true)
     try {
+      if (dontAskAgainKey && dontAskAgain) {
+        try { localStorage.setItem(dontAskAgainKey, 'true') } catch { /* ignore */ }
+      }
       await onConfirm()
       onOpenChange(false)
     } finally {
       setIsPending(false)
     }
   }
+
+  // Reset checkbox when dialog opens
+  React.useEffect(() => {
+    if (open) setDontAskAgain(false)
+  }, [open])
 
   const loading = isLoading || isPending
 
@@ -110,6 +124,18 @@ export function ConfirmDialog({
             {description}
           </AlertDialogDescription>
         </AlertDialogHeader>
+        {dontAskAgainKey && (
+          <div className="flex items-center gap-2 pl-12">
+            <Checkbox
+              id="dont-ask-again"
+              checked={dontAskAgain}
+              onCheckedChange={(checked) => setDontAskAgain(checked === true)}
+            />
+            <Label htmlFor="dont-ask-again" className="text-sm text-muted-foreground cursor-pointer">
+              Don&apos;t show this again
+            </Label>
+          </div>
+        )}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={loading}>
             {cancelText}
@@ -171,6 +197,7 @@ export function useConfirmDialog() {
     confirmText: string
     cancelText: string
     variant: ConfirmDialogVariant
+    dontAskAgainKey?: string
     resolve: ((value: boolean) => void) | null
   }>({
     open: false,
@@ -179,6 +206,7 @@ export function useConfirmDialog() {
     confirmText: "Confirm",
     cancelText: "Cancel",
     variant: "default",
+    dontAskAgainKey: undefined,
     resolve: null,
   })
 
@@ -189,6 +217,7 @@ export function useConfirmDialog() {
       confirmText?: string
       cancelText?: string
       variant?: ConfirmDialogVariant
+      dontAskAgainKey?: string
     }): Promise<boolean> => {
       return new Promise((resolve) => {
         setDialogState({
@@ -198,6 +227,7 @@ export function useConfirmDialog() {
           confirmText: options.confirmText || "Confirm",
           cancelText: options.cancelText || "Cancel",
           variant: options.variant || "default",
+          dontAskAgainKey: options.dontAskAgainKey,
           resolve,
         })
       })
@@ -233,6 +263,7 @@ export function useConfirmDialog() {
         confirmText={dialogState.confirmText}
         cancelText={dialogState.cancelText}
         variant={dialogState.variant}
+        dontAskAgainKey={dialogState.dontAskAgainKey}
         onConfirm={handleConfirm}
       />
     ),

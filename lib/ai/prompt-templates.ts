@@ -421,6 +421,10 @@ export function getSystemPromptForType(
 
   let prompt = typePrompt
 
+  // Inject current date so AI references the correct year
+  const currentDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+  prompt += `\n\nToday's date is ${currentDate}. Always reference the current year when writing time-sensitive content.`
+
   // Add user context section
   if (userContext) {
     const contextLines: string[] = []

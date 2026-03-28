@@ -6,7 +6,7 @@
 
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthContext } from '@/lib/auth/auth-provider'
 import type { Tables, TablesUpdate } from '@/types/database'
@@ -52,7 +52,9 @@ export function useTemplates(): UseTemplatesReturn {
   const [rawTemplates, setRawTemplates] = useState<Tables<'templates'>[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const supabase = createClient()
+  const [userTeamId, setUserTeamId] = useState<string | null>(null)
+  const supabaseRef = useRef(createClient())
+  const supabase = supabaseRef.current
 
   /**
    * Fetch templates from database
@@ -75,11 +77,23 @@ export function useTemplates(): UseTemplatesReturn {
       setIsLoading(true)
       setError(null)
 
-      // Fetch templates for the user (own templates + public templates)
+      // Fetch the user's team_id for template creation
+      const { data: memberData } = await supabase
+        .from('team_members')
+        .select('team_id')
+        .eq('user_id', user!.id)
+        .limit(1)
+        .maybeSingle()
+
+      if (memberData?.team_id) {
+        setUserTeamId(memberData.team_id)
+      }
+
+      // Fetch only the user's own templates
       const { data: templatesData, error: fetchError } = await supabase
         .from('templates')
         .select('*')
-        .or(`user_id.eq.${user!.id},is_public.eq.true`)
+        .eq('user_id', user!.id)
         .order('created_at', { ascending: false })
 
       if (fetchError) {
@@ -144,6 +158,7 @@ export function useTemplates(): UseTemplatesReturn {
           tags: template.tags,
           is_public: template.isPublic,
           usage_count: 0,
+          team_id: userTeamId,
         })
 
       if (insertError) {

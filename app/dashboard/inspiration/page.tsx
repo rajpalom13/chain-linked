@@ -717,10 +717,37 @@ function SeedingBanner() {
  * Loading skeleton for the discover two-column layout
  * @returns Skeleton with featured cards and sidebar
  */
+/** Rotating tips shown during discover loading */
+const DISCOVER_LOADING_TIPS = [
+  "Curating the latest industry insights for you...",
+  "Finding trending topics in your areas of interest...",
+  "Analyzing top-performing content from your network...",
+  "Discovering fresh content ideas tailored to your niche...",
+  "Scanning for viral posts you can remix into your own...",
+]
+
+function DiscoverLoadingTip() {
+  const [tipIndex, setTipIndex] = React.useState(0)
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      setTipIndex((prev) => (prev + 1) % DISCOVER_LOADING_TIPS.length)
+    }, 3000)
+    return () => clearInterval(timer)
+  }, [])
+  return (
+    <p className="text-sm text-muted-foreground text-center animate-pulse">
+      {DISCOVER_LOADING_TIPS[tipIndex]}
+    </p>
+  )
+}
+
 function DiscoverContentSkeleton() {
   return (
     <div className="flex gap-6">
       <div className="flex-1 min-w-0 space-y-4">
+        <div className="py-2">
+          <DiscoverLoadingTip />
+        </div>
         <div className="h-4 w-24 bg-muted animate-pulse rounded" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {Array.from({ length: 3 }).map((_, i) => (
