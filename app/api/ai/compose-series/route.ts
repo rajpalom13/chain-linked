@@ -246,6 +246,10 @@ export async function POST(request: Request) {
       maxOutputTokens: 4000,
       tools,
       stopWhen: stepCountIs(10),
+      experimental_telemetry: {
+        isEnabled: true,
+        functionId: 'compose-series',
+      },
     })
 
     return result.toUIMessageStreamResponse()

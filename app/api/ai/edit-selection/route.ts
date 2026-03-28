@@ -131,6 +131,10 @@ ${instruction}
 Return ONLY the edited replacement text:`,
       temperature: 0.7,
       maxOutputTokens: 1000,
+      experimental_telemetry: {
+        isEnabled: true,
+        functionId: 'edit-selection',
+      },
     })
 
     return NextResponse.json({ editedText: result.text })

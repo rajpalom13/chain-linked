@@ -5,6 +5,7 @@
  */
 
 import OpenAI from 'openai'
+import { observeOpenAI } from '@langfuse/openai'
 
 /**
  * OpenRouter API base URL
@@ -105,7 +106,7 @@ export class OpenAIError extends Error {
  * const client = createOpenAIClient({ apiKey: 'sk-or-v1-...' })
  */
 export function createOpenAIClient(config: OpenAIClientConfig): OpenAI {
-  return new OpenAI({
+  const client = new OpenAI({
     apiKey: config.apiKey,
     baseURL: config.baseURL ?? OPENROUTER_BASE_URL,
     timeout: config.timeout ?? 30000,
@@ -114,6 +115,11 @@ export function createOpenAIClient(config: OpenAIClientConfig): OpenAI {
       'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'https://chainlinked.ai',
       'X-Title': 'ChainLinked',
     },
+  })
+
+  // Wrap with Langfuse for automatic tracing of all LLM calls
+  return observeOpenAI(client, {
+    traceName: 'chainlinked-openai',
   })
 }
 

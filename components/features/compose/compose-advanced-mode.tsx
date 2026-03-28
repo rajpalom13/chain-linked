@@ -84,7 +84,7 @@ export function ComposeAdvancedMode({
   const [customInputValue, setCustomInputValue] = React.useState('')
   const [hasGeneratedPost, setHasGeneratedPost] = React.useState(false)
   const scrollRef = React.useRef<HTMLDivElement>(null)
-  const inputRef = React.useRef<HTMLInputElement>(null)
+  const inputRef = React.useRef<HTMLTextAreaElement>(null)
   const customInputRef = React.useRef<HTMLInputElement>(null)
 
   const transport = React.useMemo(
@@ -224,6 +224,8 @@ export function ComposeAdvancedMode({
     if (!input.trim() || status !== 'ready') return
     sendMessage({ text: input.trim() })
     setInput('')
+    // Reset textarea height after submit
+    if (inputRef.current) inputRef.current.style.height = 'auto'
   }
 
   return (
@@ -542,19 +544,33 @@ export function ComposeAdvancedMode({
       </div>
 
       {/* Chat input — always visible so user can iterate after generation */}
-      <form onSubmit={onSubmit} className="flex items-center gap-2">
-        <input
+      <form onSubmit={onSubmit} className="flex items-end gap-2">
+        <textarea
           ref={inputRef}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => {
+            setInput(e.target.value)
+            // Auto-resize textarea
+            e.target.style.height = 'auto'
+            e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              if (input.trim() && status === 'ready') {
+                onSubmit(e as unknown as React.FormEvent)
+              }
+            }
+          }}
           placeholder={
             hasGeneratedPost
               ? "Ask to adjust tone, length, add a hook..."
-              : "Type your message..."
+              : "Type your message... (Shift+Enter for new line)"
           }
           disabled={status !== 'ready'}
+          rows={1}
           className={cn(
-            "flex-1 rounded-full border border-destructive/30 bg-background px-4 py-2.5 text-sm",
+            "flex-1 rounded-2xl border border-destructive/30 bg-background px-4 py-2.5 text-sm resize-none",
             "placeholder:text-muted-foreground",
             "focus:outline-none focus:ring-2 focus:ring-destructive/20 focus:border-destructive/50",
             "disabled:opacity-50 disabled:cursor-not-allowed",

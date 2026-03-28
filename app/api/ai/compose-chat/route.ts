@@ -276,6 +276,11 @@ export async function POST(request: Request) {
       maxOutputTokens: 2000,
       tools,
       stopWhen: stepCountIs(8),
+      experimental_telemetry: {
+        isEnabled: true,
+        functionId: 'compose-chat',
+        metadata: { userId: user.id, tone: tone || 'default' },
+      },
       onFinish: async ({ usage, text }) => {
         const responseTimeMs = Date.now() - startTime
         const inputTokens = usage?.inputTokens ?? 0
