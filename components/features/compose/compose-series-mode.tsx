@@ -339,7 +339,7 @@ export function ComposeSeriesMode({
   }, [messages, setMessages])
 
   return (
-    <div className="flex flex-col" style={{ height: 'calc(100vh - 320px)', minHeight: '350px', maxHeight: '600px' }}>
+    <div className="flex flex-col flex-1" style={{ minHeight: '300px', maxHeight: '480px' }}>
       {/* Chat area */}
       <div
         ref={scrollRef}
