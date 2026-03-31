@@ -13,6 +13,8 @@ import { getSystemPromptForType } from '@/lib/ai/prompt-templates'
 import { ANTI_AI_WRITING_RULES } from '@/lib/ai/anti-ai-rules'
 import { PromptService, PromptType, mapPostTypeToPromptType } from '@/lib/prompts'
 import { trackAIEvent } from '@/lib/posthog-server'
+import { PostPipeline, DEFAULT_PIPELINE_CONFIG } from '@/lib/ai/pipeline'
+import type { PipelineResult } from '@/lib/ai/pipeline'
 
 /**
  * Request body schema for post generation
@@ -30,6 +32,8 @@ interface GeneratePostRequest {
   apiKey?: string
   /** Post type ID for type-specific prompt templates (e.g., 'story', 'listicle') */
   postType?: string
+  /** Whether to run the post-generation pipeline (verification, fact-check, refine). Default: true */
+  runPipeline?: boolean
 }
 
 /**
@@ -288,7 +292,7 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = (await request.json()) as GeneratePostRequest
-    const { topic, tone = 'professional', length = 'medium', context, apiKey, postType } = body
+    const { topic, tone = 'professional', length = 'medium', context, apiKey, postType, runPipeline = true } = body
 
     // Validate required fields
     if (!topic?.trim()) {
@@ -447,9 +451,66 @@ If additional instructions exist above, they override all other guidelines.`
       assistant_response: response.content,
     }
 
+    // Run post-generation pipeline (verification, fact-check, refinement)
+    let pipelineResult: PipelineResult | null = null
+    let finalContent = response.content
+
+    if (runPipeline) {
+      try {
+        // Fetch content rules for pipeline verification
+        let pipelineRules: string[] = []
+        try {
+          const [{ data: pRules }, { data: tMember }] = await Promise.all([
+            supabase
+              .from('content_rules')
+              .select('rule_text')
+              .eq('user_id', user.id)
+              .is('team_id', null)
+              .eq('is_active', true)
+              .order('priority', { ascending: false }),
+            supabase
+              .from('team_members')
+              .select('team_id')
+              .eq('user_id', user.id)
+              .limit(1),
+          ])
+
+          let tRules: { rule_text: string }[] = []
+          if (tMember?.[0]?.team_id) {
+            const { data } = await supabase
+              .from('content_rules')
+              .select('rule_text')
+              .eq('team_id', tMember[0].team_id)
+              .eq('is_active', true)
+              .order('priority', { ascending: false })
+            tRules = data || []
+          }
+
+          pipelineRules = [...tRules, ...(pRules || [])].map((r) => r.rule_text)
+        } catch {
+          // Content rules fetch is non-blocking for pipeline
+        }
+
+        const pipeline = new PostPipeline({
+          ...DEFAULT_PIPELINE_CONFIG,
+          apiKey: openAIApiKey,
+          contentRules: pipelineRules,
+        })
+
+        pipelineResult = await pipeline.run(response.content)
+        finalContent = pipelineResult.finalContent
+      } catch (pipelineError) {
+        // Pipeline errors should never block the response
+        console.error('[Generate] Pipeline error (non-blocking):', pipelineError)
+        Sentry.captureException(pipelineError, {
+          tags: { feature: 'pipeline', caller: 'generate' },
+        })
+      }
+    }
+
     // Return generated content with AI metadata for downstream persistence
     return NextResponse.json({
-      content: response.content,
+      content: finalContent,
       metadata: {
         model: response.model,
         tokensUsed: response.totalTokens,
@@ -471,6 +532,8 @@ If additional instructions exist above, they override all other guidelines.`
         estimated_cost: estimatedCost,
         prompt_snapshot: promptSnapshot,
       },
+      /** Pipeline results (null if pipeline was skipped or failed) */
+      pipeline: pipelineResult,
     })
   } catch (error) {
     console.error('Post generation error:', error)

@@ -54,6 +54,7 @@
     "@supabase/supabase-js": "^2.90.1",
     "@tabler/icons-react": "^3.36.1",
     "@tanstack/react-table": "^8.21.3",
+    "@tavily/core": "^0.7.2",
     "@vercel/otel": "^2.1.1",
     "ai": "^6.0.105",
     "class-variance-authority": "^0.7.1",
