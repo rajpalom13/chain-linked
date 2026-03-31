@@ -181,14 +181,8 @@ export async function chatCompletion(
     const isDirectOpenAI = (client as unknown as { baseURL?: string }).baseURL?.includes('api.openai.com')
     let resolvedModel = model
     if (isDirectOpenAI && model.startsWith('openai/')) {
-      // Map OpenRouter paths to OpenAI model names
-      const modelMap: Record<string, string> = {
-        'openai/gpt-5.4': 'gpt-4o',
-        'openai/gpt-4o': 'gpt-4o',
-        'openai/gpt-4o-mini': 'gpt-4o-mini',
-        'openai/gpt-4-turbo': 'gpt-4-turbo',
-      }
-      resolvedModel = modelMap[model] || model.replace('openai/', '')
+      // Strip openai/ prefix for direct API calls (api.openai.com uses bare model names)
+      resolvedModel = model.replace('openai/', '')
     }
 
     const completion = await client.chat.completions.create({

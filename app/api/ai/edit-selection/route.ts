@@ -120,7 +120,7 @@ ${ANTI_AI_PROMPT_CONSTRAINTS}`
     })
 
     const result = await generateText({
-      model: provider(isOpenAIDirect ? 'gpt-4o' : 'openai/gpt-5.4'),
+      model: provider(isOpenAIDirect ? 'gpt-5.4' : 'openai/gpt-5.4'),
       system: systemPrompt,
       prompt: `## Full Post Content (for context)
 ${fullPostContent}

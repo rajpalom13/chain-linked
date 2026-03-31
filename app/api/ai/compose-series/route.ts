@@ -242,7 +242,7 @@ export async function POST(request: Request) {
     }
 
     const result = streamText({
-      model: provider(isOpenAIDirect ? 'gpt-4o' : 'openai/gpt-5.4'),
+      model: provider(isOpenAIDirect ? 'gpt-5.4' : 'openai/gpt-5.4'),
       system: systemPrompt,
       messages: await convertToModelMessages(messages),
       temperature: 0.8,
