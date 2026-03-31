@@ -6,6 +6,7 @@
  */
 
 import * as React from "react"
+import { createClient } from "@/lib/supabase/client"
 import type { DiscoverPost } from "@/types/database"
 
 /**
@@ -217,8 +218,8 @@ function transformToResult(
   }
 }
 
-/** Polling interval in milliseconds */
-const POLL_INTERVAL = 2000
+/** Fallback polling interval in milliseconds — real-time is primary */
+const POLL_INTERVAL = 10000
 
 /**
  * Custom hook for performing deep content research via Inngest workflow
@@ -249,6 +250,7 @@ export function useResearch() {
 
   const pollingRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
   const abortControllerRef = React.useRef<AbortController | null>(null)
+  const supabaseRef = React.useRef(createClient())
 
   /**
    * Stops polling for session status
@@ -751,6 +753,30 @@ export function useResearch() {
       }
     }
   }, [])
+
+  // Real-time subscription: listen for research_sessions changes while a
+  // session is in progress so the UI updates immediately (polling is fallback)
+  React.useEffect(() => {
+    const sessionId = state.sessionId
+    if (!sessionId || !state.isResearching) return
+
+    const supabase = supabaseRef.current
+    const channel = supabase
+      .channel(`research-rt-${sessionId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'research_sessions',
+        filter: `id=eq.${sessionId}`,
+      }, () => {
+        pollSessionStatus(sessionId)
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [state.sessionId, state.isResearching, pollSessionStatus])
 
   // Cleanup on unmount
   React.useEffect(() => {
