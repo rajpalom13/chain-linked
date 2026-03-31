@@ -65,6 +65,15 @@ export function ChatGPTConnection() {
   const [isSavingKey, setIsSavingKey] = React.useState(false)
   const [isDisconnecting, setIsDisconnecting] = React.useState(false)
 
+  // Auto-copy code and open OpenAI verification page when device flow starts
+  React.useEffect(() => {
+    if (!deviceFlow?.userCode || !deviceFlow?.verificationUrl) return
+    navigator.clipboard.writeText(deviceFlow.userCode).then(() => {
+      toast.success('Code copied to clipboard')
+    }).catch(() => { /* clipboard access denied — user can still copy manually */ })
+    window.open(deviceFlow.verificationUrl, '_blank', 'noopener,noreferrer')
+  }, [deviceFlow?.userCode, deviceFlow?.verificationUrl])
+
   /**
    * Copy the device user code to the clipboard and show a toast notification.
    * @returns Promise that resolves when the copy operation completes.
@@ -213,6 +222,14 @@ export function ChatGPTConnection() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Info banner */}
+          <div className="rounded-lg border border-green-500/20 bg-green-500/5 p-3">
+            <p className="text-xs text-green-700 dark:text-green-400">
+              <IconCheck className="inline mr-1 h-3 w-3" />
+              Code copied and OpenAI page opened. Paste the code there to authorize.
+            </p>
+          </div>
+
           {/* User code display */}
           <div className="flex flex-col items-center gap-3 rounded-lg border bg-muted/50 p-6">
             <p className="text-xs uppercase tracking-wider text-muted-foreground">
@@ -227,6 +244,7 @@ export function ChatGPTConnection() {
                 size="icon"
                 className="h-8 w-8"
                 onClick={handleCopyCode}
+                title="Copy code again"
               >
                 <IconCopy className="h-4 w-4" />
               </Button>
@@ -237,15 +255,15 @@ export function ChatGPTConnection() {
             </div>
           </div>
 
-          {/* Open OpenAI link */}
-          <Button asChild variant="default" className="w-full">
+          {/* Open OpenAI link (in case popup was blocked) */}
+          <Button asChild variant="outline" className="w-full">
             <a
               href={deviceFlow.verificationUrl}
               target="_blank"
               rel="noopener noreferrer"
             >
               <IconExternalLink className="mr-2 h-4 w-4" />
-              Open OpenAI to Enter Code
+              Open OpenAI Again
             </a>
           </Button>
 
