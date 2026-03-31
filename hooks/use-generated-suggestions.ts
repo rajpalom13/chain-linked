@@ -14,8 +14,8 @@ import type { GeneratedSuggestion, SuggestionStatus } from '@/types/database'
 /** Maximum number of active suggestions allowed */
 const MAX_ACTIVE_SUGGESTIONS = 10
 
-/** Polling interval for generation status (ms) */
-const POLLING_INTERVAL = 2000
+/** Fallback polling interval for generation status (ms) — real-time is primary */
+const POLLING_INTERVAL = 10000
 
 /**
  * Generation status response from API
@@ -418,6 +418,28 @@ export function useGeneratedSuggestions(): UseGeneratedSuggestionsReturn {
 
     checkExistingGeneration()
   }, [startPolling])
+
+  // Real-time subscription: listen for changes on the active generation run
+  // so the UI updates immediately instead of waiting for the fallback poll
+  useEffect(() => {
+    if (!currentRunId) return
+
+    const channel = supabase
+      .channel(`suggestion-gen-rt-${currentRunId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'suggestion_generation_runs',
+        filter: `id=eq.${currentRunId}`,
+      }, () => {
+        pollGenerationStatus(currentRunId)
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [currentRunId, supabase, pollGenerationStatus])
 
   // Cleanup polling on unmount
   useEffect(() => {
