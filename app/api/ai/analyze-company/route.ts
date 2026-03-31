@@ -6,9 +6,8 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { resolveApiKey } from "@/lib/ai/resolve-api-key"
+import { resolveClient } from "@/lib/ai/resolve-api-key"
 import {
-  createOpenAIClient,
   chatCompletion,
   OpenAIError,
   getErrorMessage,
@@ -125,11 +124,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get API key - check ChatGPT connection first, then fall back to OpenRouter
-    const apiKey = await resolveApiKey(supabase, user.id)
-    if (!apiKey) {
+    // Resolve AI client: OAuth/Codex first, then OpenRouter fallback
+    const openai = await resolveClient(supabase, user.id)
+    if (!openai) {
       return NextResponse.json(
-        { error: "No API key found. Connect your ChatGPT account in Settings or set OPENROUTER_API_KEY in environment." },
+        { error: "No API key available. Connect your ChatGPT account or set OPENROUTER_API_KEY." },
         { status: 400 }
       )
     }
@@ -146,9 +145,6 @@ ${targetAudience ? `Target Audience: ${targetAudience}` : ""}
 Based on the company name, website URL, and any provided hints, generate a comprehensive analysis. If you cannot access the website directly, use your knowledge of the company or infer reasonable details from the company name and industry.
 
 Return the analysis as valid JSON only.`
-
-    // Create client and make request
-    const openai = createOpenAIClient({ apiKey, timeout: 60000 })
     const response = await chatCompletion(openai, {
       systemPrompt,
       userMessage,

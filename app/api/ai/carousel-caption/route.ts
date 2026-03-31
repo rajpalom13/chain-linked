@@ -6,8 +6,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { resolveApiKey } from '@/lib/ai/resolve-api-key'
-import { createOpenAIClient, chatCompletion, OpenAIError, getErrorMessage, DEFAULT_MODEL } from '@/lib/ai/openai-client'
+import { resolveClient } from '@/lib/ai/resolve-api-key'
+import { chatCompletion, OpenAIError, getErrorMessage, DEFAULT_MODEL } from '@/lib/ai/openai-client'
 import { ANTI_AI_WRITING_RULES } from '@/lib/ai/anti-ai-rules'
 
 /**
@@ -68,13 +68,13 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
-    // Get API key - check ChatGPT connection first, then fall back to OpenRouter
-    const apiKey = user
-      ? await resolveApiKey(supabase, user.id)
-      : process.env.OPENROUTER_API_KEY || null
-    if (!apiKey) {
+    // Resolve AI client: OAuth/Codex first, then OpenRouter fallback
+    const openai = user
+      ? await resolveClient(supabase, user.id)
+      : null
+    if (!openai) {
       return NextResponse.json(
-        { error: 'No API key found. Connect your ChatGPT account in Settings or set OPENROUTER_API_KEY in environment.' },
+        { error: 'No API key available. Connect your ChatGPT account or set OPENROUTER_API_KEY.' },
         { status: 400 }
       )
     }
@@ -91,7 +91,6 @@ export async function POST(request: NextRequest) {
     userMessage += `\nGenerate the caption now.`
 
     // Generate caption
-    const openai = createOpenAIClient({ apiKey })
     const response = await chatCompletion(openai, {
       systemPrompt: CAROUSEL_CAPTION_SYSTEM_PROMPT,
       userMessage,

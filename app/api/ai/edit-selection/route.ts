@@ -52,13 +52,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No instruction provided' }, { status: 400 })
     }
 
-    const openRouterKey = await resolveApiKey(supabase, user.id)
-    if (!openRouterKey) {
+    const resolved = await resolveApiKey(supabase, user.id)
+    if (!resolved) {
       return NextResponse.json(
         { error: 'No API key found. Connect your ChatGPT account in Settings or set OPENROUTER_API_KEY in environment.' },
         { status: 400 }
       )
     }
+    const openRouterKey = resolved.apiKey
 
     // Build system prompt for selection editing
     let systemPrompt = `You are a precise text editor for LinkedIn posts. Your job is to edit the selected text according to the user's instruction.

@@ -7,9 +7,9 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { resolveApiKey } from '@/lib/ai/resolve-api-key'
+import { resolveClient } from '@/lib/ai/resolve-api-key'
 import { z } from 'zod'
-import { createOpenAIClient, DEFAULT_MODEL } from '@/lib/ai/openai-client'
+import { DEFAULT_MODEL } from '@/lib/ai/openai-client'
 import {
   buildCarouselSystemPrompt,
   buildCarouselUserPrompt,
@@ -247,11 +247,11 @@ export async function POST(request: NextRequest) {
 
     const input = validationResult.data as CarouselGenerationInput
 
-    // Get API key - check ChatGPT connection first, then fall back to OpenRouter
-    const apiKey = await resolveApiKey(supabase, user.id)
-    if (!apiKey) {
+    // Resolve AI client: OAuth/Codex first, then OpenRouter fallback
+    const client = await resolveClient(supabase, user.id)
+    if (!client) {
       return NextResponse.json(
-        { success: false, error: 'No API key found. Connect your ChatGPT account in Settings or set OPENROUTER_API_KEY in environment.' },
+        { success: false, error: 'No API key available. Connect your ChatGPT account or set OPENROUTER_API_KEY.' },
         { status: 400 }
       )
     }
@@ -267,8 +267,7 @@ export async function POST(request: NextRequest) {
     // Track start time for response metrics
     const aiStartTime = Date.now()
 
-    // Initialize OpenRouter client (same shared helper as compose route)
-    const client = createOpenAIClient({ apiKey })
+    // Use resolved client (routes to Codex or OpenRouter based on auth method)
 
     // Track AI generation start
     try { trackAIEvent(user.id, 'ai_generation_started', { feature: 'carousel', topic: input.topic, tone: input.tone, totalSlides: input.templateAnalysis.totalSlides }) } catch {}

@@ -59,13 +59,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Get API key - check ChatGPT connection first, then fall back to OpenRouter
-    const openAIApiKey = apiKey?.trim() || await resolveApiKey(supabase, user.id)
-    if (!openAIApiKey) {
+    const resolved = apiKey?.trim() ? { apiKey: apiKey.trim() } : await resolveApiKey(supabase, user.id)
+    if (!resolved) {
       return NextResponse.json(
         { error: 'No API key found. Connect your ChatGPT account in Settings or set OPENROUTER_API_KEY in environment.' },
         { status: 400 }
       )
     }
+    const openAIApiKey = resolved.apiKey
 
     // Fetch content rules (personal + team, same pattern as generate route)
     let contentRules: string[] = []

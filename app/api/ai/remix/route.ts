@@ -8,9 +8,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { createClient } from '@/lib/supabase/server'
-import { createOpenAIClient, chatCompletion, DEFAULT_MODEL } from '@/lib/ai/openai-client'
+import { chatCompletion, DEFAULT_MODEL } from '@/lib/ai/openai-client'
 import { decrypt } from '@/lib/crypto'
-import { resolveApiKey } from '@/lib/ai/resolve-api-key'
+import { resolveClient } from '@/lib/ai/resolve-api-key'
 import { PromptService, PromptType, mapToneToPromptType } from '@/lib/prompts'
 import { trackAIEvent } from '@/lib/posthog-server'
 
@@ -400,12 +400,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get API key - check ChatGPT connection first, then fall back to OpenRouter
-    const openAIApiKey = apiKey?.trim() || await resolveApiKey(supabase, user.id)
+    // Resolve AI client: OAuth/Codex first, then OpenRouter fallback
+    const openai = await resolveClient(supabase, user.id)
 
-    if (!openAIApiKey) {
+    if (!openai) {
       return NextResponse.json(
-        { error: 'No API key found. Connect your ChatGPT account in Settings or set OPENROUTER_API_KEY in environment.', code: 'no_api_key' },
+        { error: 'No API key available. Connect your ChatGPT account or set OPENROUTER_API_KEY.', code: 'no_api_key' },
         { status: 400 }
       )
     }
@@ -474,8 +474,7 @@ export async function POST(request: NextRequest) {
     // Track response timing for analytics
     const startTime = Date.now()
 
-    // Create OpenAI client with user's API key and explicit timeout
-    const openai = createOpenAIClient({ apiKey: openAIApiKey, timeout: 45000 })
+    // Use resolved client (routes to Codex or OpenRouter based on auth method)
 
     // Track AI generation start
     try { trackAIEvent(user.id, 'ai_generation_started', { feature: 'remix', tone, length }) } catch {}

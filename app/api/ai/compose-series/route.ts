@@ -159,13 +159,14 @@ export async function POST(request: Request) {
       tone?: string
     }
 
-    const openRouterKey = await resolveApiKey(supabase, user.id)
-    if (!openRouterKey) {
+    const resolved = await resolveApiKey(supabase, user.id)
+    if (!resolved) {
       return new Response(
         JSON.stringify({ error: 'No API key found. Connect your ChatGPT account in Settings or set OPENROUTER_API_KEY in environment.' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       )
     }
+    const openRouterKey = resolved.apiKey
 
     const userContext = await getUserContext(user.id, tone)
     let systemPrompt = buildSeriesConversationPrompt(userContext, tone)

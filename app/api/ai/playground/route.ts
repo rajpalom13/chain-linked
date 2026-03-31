@@ -8,10 +8,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
 import { createClient } from "@/lib/supabase/server"
-import { resolveApiKey } from "@/lib/ai/resolve-api-key"
+import { resolveClient } from "@/lib/ai/resolve-api-key"
 import {
   chatCompletion,
-  createOpenAIClient,
   DEFAULT_MODEL,
   getErrorMessage,
   OpenAIError,
@@ -100,10 +99,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Both system and user prompts are required" }, { status: 400 })
     }
 
-    const resolvedKey = apiKey?.trim() || await resolveApiKey(supabase, user.id)
-    if (!resolvedKey) {
+    const client = await resolveClient(supabase, user.id)
+    if (!client) {
       return NextResponse.json(
-        { error: "No API key found. Connect your ChatGPT account in Settings or set OPENROUTER_API_KEY in environment." },
+        { error: "No API key available. Connect your ChatGPT account or set OPENROUTER_API_KEY." },
         { status: 400 }
       )
     }
@@ -113,8 +112,6 @@ export async function POST(request: NextRequest) {
     const resolvedTemperature = clamp(temperature ?? 0.7, 0, 2)
     const resolvedMaxTokens = clamp(maxTokens ?? 1200, 100, 4000)
     const resolvedTopP = topP !== undefined ? clamp(topP, 0, 1) : undefined
-
-    const client = createOpenAIClient({ apiKey: resolvedKey })
 
     // Build the completion request - include top_p only if explicitly set
     const completionRequest = {

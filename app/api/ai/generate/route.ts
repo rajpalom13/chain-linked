@@ -15,7 +15,7 @@ import { PromptService, PromptType, mapPostTypeToPromptType } from '@/lib/prompt
 import { trackAIEvent } from '@/lib/posthog-server'
 import { PostPipeline, DEFAULT_PIPELINE_CONFIG } from '@/lib/ai/pipeline'
 import type { PipelineResult } from '@/lib/ai/pipeline'
-import { resolveApiKey } from '@/lib/ai/resolve-api-key'
+import { resolveClient, resolveApiKey } from '@/lib/ai/resolve-api-key'
 
 /**
  * Request body schema for post generation
@@ -306,12 +306,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Topic is required' }, { status: 400 })
     }
 
-    // Resolve API key: OAuth connection first, then OpenRouter fallback
-    const openAIApiKey = await resolveApiKey(supabase, user.id)
-
-    if (!openAIApiKey) {
+    // Resolve AI client: OAuth/Codex first, then OpenRouter fallback
+    const resolvedProvider = await resolveApiKey(supabase, user.id)
+    if (!resolvedProvider) {
       return NextResponse.json({ error: 'No API key available. Connect your ChatGPT account or set OPENROUTER_API_KEY.' }, { status: 400 })
     }
+    const openAIApiKey = resolvedProvider.apiKey
 
     // Fetch user context for personalization
     const userContext = await getUserContext(user.id, tone)
@@ -395,8 +395,8 @@ If additional instructions exist above, they override all other guidelines.`
     // Track start time for response metrics
     const startTime = Date.now()
 
-    // Create OpenAI client with API key
-    const openai = createOpenAIClient({ apiKey: openAIApiKey })
+    // Create OpenAI client (routes to Codex or OpenRouter based on auth method)
+    const openai = await resolveClient(supabase, user.id) || createOpenAIClient({ apiKey: openAIApiKey })
 
     // Track AI generation start
     try { trackAIEvent(user.id, 'ai_generation_started', { feature: 'generate', topic, tone, length, postType: postType ?? null }) } catch {}
