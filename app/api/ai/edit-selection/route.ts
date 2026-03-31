@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { generateText } from 'ai'
 import { createClient } from '@/lib/supabase/server'
+import { resolveApiKey } from '@/lib/ai/resolve-api-key'
 import { ANTI_AI_PROMPT_CONSTRAINTS } from '@/lib/ai/anti-ai-rules'
 
 /**
@@ -51,10 +52,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No instruction provided' }, { status: 400 })
     }
 
-    const openRouterKey = process.env.OPENROUTER_API_KEY
+    const openRouterKey = await resolveApiKey(supabase, user.id)
     if (!openRouterKey) {
       return NextResponse.json(
-        { error: 'OpenRouter API key is required.' },
+        { error: 'No API key found. Connect your ChatGPT account in Settings or set OPENROUTER_API_KEY in environment.' },
         { status: 400 }
       )
     }

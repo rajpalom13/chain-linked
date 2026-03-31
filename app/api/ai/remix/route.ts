@@ -10,6 +10,7 @@ import * as Sentry from '@sentry/nextjs'
 import { createClient } from '@/lib/supabase/server'
 import { createOpenAIClient, chatCompletion, DEFAULT_MODEL } from '@/lib/ai/openai-client'
 import { decrypt } from '@/lib/crypto'
+import { resolveApiKey } from '@/lib/ai/resolve-api-key'
 import { PromptService, PromptType, mapToneToPromptType } from '@/lib/prompts'
 import { trackAIEvent } from '@/lib/posthog-server'
 
@@ -399,41 +400,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get API key - either from request, database, or environment variable
-    let openAIApiKey = apiKey?.trim()
-
-    if (!openAIApiKey) {
-      // Try to fetch encrypted key from database first
-      try {
-        const { data: apiKeyData } = await supabase
-          .from('user_api_keys')
-          .select('encrypted_key, is_valid')
-          .eq('user_id', user.id)
-          .eq('provider', 'openai')
-          .single()
-
-        if (apiKeyData?.is_valid && apiKeyData.encrypted_key) {
-          // Decrypt the API key
-          try {
-            openAIApiKey = decrypt(apiKeyData.encrypted_key)
-          } catch (decryptError) {
-            console.error('Failed to decrypt API key:', decryptError)
-          }
-        }
-      } catch {
-        // Table might not exist, continue to fallback
-        console.log('user_api_keys table not available, using environment variable')
-      }
-    }
-
-    // Fallback to environment variable (OpenRouter)
-    if (!openAIApiKey) {
-      openAIApiKey = process.env.OPENROUTER_API_KEY
-    }
+    // Get API key - check ChatGPT connection first, then fall back to OpenRouter
+    const openAIApiKey = apiKey?.trim() || await resolveApiKey(supabase, user.id)
 
     if (!openAIApiKey) {
       return NextResponse.json(
-        { error: 'No OpenRouter API key found. Please set OPENROUTER_API_KEY in environment or add your API key in Settings.', code: 'no_api_key' },
+        { error: 'No API key found. Connect your ChatGPT account in Settings or set OPENROUTER_API_KEY in environment.', code: 'no_api_key' },
         { status: 400 }
       )
     }

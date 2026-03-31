@@ -16,6 +16,7 @@ import { buildComposeConversationPrompt } from '@/lib/ai/compose-system-prompt'
 import { trackAIEvent } from '@/lib/posthog-server'
 import { PromptService } from '@/lib/prompts/prompt-service'
 import { PromptType } from '@/lib/prompts/prompt-types'
+import { resolveApiKey } from '@/lib/ai/resolve-api-key'
 
 /**
  * Safely parses a JSON column value into a string array
@@ -187,10 +188,10 @@ export async function POST(request: Request) {
       tone?: string
     }
 
-    const openRouterKey = process.env.OPENROUTER_API_KEY
+    const openRouterKey = await resolveApiKey(supabase, user.id)
     if (!openRouterKey) {
       return new Response(
-        JSON.stringify({ error: 'OpenRouter API key is required.' }),
+        JSON.stringify({ error: 'No API key available. Connect your ChatGPT account or set OPENROUTER_API_KEY.' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       )
     }

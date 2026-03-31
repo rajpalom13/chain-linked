@@ -10,6 +10,7 @@ import { streamText, tool, convertToModelMessages, stepCountIs, type UIMessage }
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { resolveApiKey } from '@/lib/ai/resolve-api-key'
 import { buildSeriesConversationPrompt } from '@/lib/ai/series-system-prompt'
 
 /**
@@ -158,10 +159,10 @@ export async function POST(request: Request) {
       tone?: string
     }
 
-    const openRouterKey = process.env.OPENROUTER_API_KEY
+    const openRouterKey = await resolveApiKey(supabase, user.id)
     if (!openRouterKey) {
       return new Response(
-        JSON.stringify({ error: 'OpenRouter API key is required.' }),
+        JSON.stringify({ error: 'No API key found. Connect your ChatGPT account in Settings or set OPENROUTER_API_KEY in environment.' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       )
     }

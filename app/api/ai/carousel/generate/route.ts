@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { resolveApiKey } from '@/lib/ai/resolve-api-key'
 import { z } from 'zod'
 import { createOpenAIClient, DEFAULT_MODEL } from '@/lib/ai/openai-client'
 import {
@@ -91,12 +92,13 @@ interface GenerationResponse {
 }
 
 /**
- * Gets the API key from environment (same pattern as compose route)
+ * Gets the API key from environment (legacy fallback, prefer resolveApiKey)
+ * @deprecated Use resolveApiKey() instead
  */
 function getApiKey(): string {
   const systemKey = process.env.OPENROUTER_API_KEY
   if (!systemKey) {
-    throw new Error('No API key available. Please set OPENROUTER_API_KEY in environment.')
+    throw new Error('No API key available. Connect your ChatGPT account in Settings or set OPENROUTER_API_KEY in environment.')
   }
   return systemKey
 }
@@ -245,8 +247,14 @@ export async function POST(request: NextRequest) {
 
     const input = validationResult.data as CarouselGenerationInput
 
-    // Get API key (same pattern as compose route)
-    const apiKey = getApiKey()
+    // Get API key - check ChatGPT connection first, then fall back to OpenRouter
+    const apiKey = await resolveApiKey(supabase, user.id)
+    if (!apiKey) {
+      return NextResponse.json(
+        { success: false, error: 'No API key found. Connect your ChatGPT account in Settings or set OPENROUTER_API_KEY in environment.' },
+        { status: 400 }
+      )
+    }
 
     // Fetch user context for personalisation (profile, company, recent posts, wishlist)
     const userContext = await fetchUserContext(supabase, user.id, input.tone)

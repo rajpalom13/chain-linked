@@ -15,6 +15,7 @@ import { PromptService, PromptType, mapPostTypeToPromptType } from '@/lib/prompt
 import { trackAIEvent } from '@/lib/posthog-server'
 import { PostPipeline, DEFAULT_PIPELINE_CONFIG } from '@/lib/ai/pipeline'
 import type { PipelineResult } from '@/lib/ai/pipeline'
+import { resolveApiKey } from '@/lib/ai/resolve-api-key'
 
 /**
  * Request body schema for post generation
@@ -305,11 +306,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Topic is required' }, { status: 400 })
     }
 
-    // Get API key from request or environment variable (OpenRouter)
-    const openAIApiKey = apiKey?.trim() || process.env.OPENROUTER_API_KEY
+    // Resolve API key: OAuth connection first, then OpenRouter fallback
+    const openAIApiKey = await resolveApiKey(supabase, user.id)
 
     if (!openAIApiKey) {
-      return NextResponse.json({ error: 'OpenRouter API key is required. Please set OPENROUTER_API_KEY in environment.' }, { status: 400 })
+      return NextResponse.json({ error: 'No API key available. Connect your ChatGPT account or set OPENROUTER_API_KEY.' }, { status: 400 })
     }
 
     // Fetch user context for personalization

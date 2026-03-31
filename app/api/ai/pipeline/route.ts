@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { createClient } from '@/lib/supabase/server'
+import { resolveApiKey } from '@/lib/ai/resolve-api-key'
 import { PostPipeline, DEFAULT_PIPELINE_CONFIG } from '@/lib/ai/pipeline'
 
 /**
@@ -57,11 +58,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Content is required' }, { status: 400 })
     }
 
-    // Get API key
-    const openAIApiKey = apiKey?.trim() || process.env.OPENROUTER_API_KEY
+    // Get API key - check ChatGPT connection first, then fall back to OpenRouter
+    const openAIApiKey = apiKey?.trim() || await resolveApiKey(supabase, user.id)
     if (!openAIApiKey) {
       return NextResponse.json(
-        { error: 'OpenRouter API key is required. Please set OPENROUTER_API_KEY in environment.' },
+        { error: 'No API key found. Connect your ChatGPT account in Settings or set OPENROUTER_API_KEY in environment.' },
         { status: 400 }
       )
     }

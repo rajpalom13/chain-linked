@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
 import { createClient } from "@/lib/supabase/server"
+import { resolveApiKey } from "@/lib/ai/resolve-api-key"
 import {
   chatCompletion,
   createOpenAIClient,
@@ -15,7 +16,6 @@ import {
   getErrorMessage,
   OpenAIError,
 } from "@/lib/ai/openai-client"
-import { decrypt } from "@/lib/crypto"
 import { PromptService, PromptType } from "@/lib/prompts"
 
 /**
@@ -70,41 +70,6 @@ function estimateCost(model: string, promptTokens: number, completionTokens: num
 }
 
 /**
- * Attempts to resolve an OpenRouter API key for the current user
- * @param requestKey - API key provided in the request
- * @returns API key string if available
- */
-async function resolveApiKey(requestKey?: string) {
-  if (requestKey?.trim()) {
-    return requestKey.trim()
-  }
-
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (user) {
-    const { data: apiKeyData } = await supabase
-      .from("user_api_keys")
-      .select("encrypted_key, is_valid")
-      .eq("user_id", user.id)
-      .eq("provider", "openai")
-      .single()
-
-    if (apiKeyData?.is_valid && apiKeyData.encrypted_key) {
-      try {
-        return decrypt(apiKeyData.encrypted_key)
-      } catch (error) {
-        console.error("Failed to decrypt API key:", error)
-      }
-    }
-  }
-
-  return process.env.OPENROUTER_API_KEY
-}
-
-/**
  * Clamps a number between min and max
  * @param value - The value to clamp
  * @param min - Minimum allowed value
@@ -135,10 +100,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Both system and user prompts are required" }, { status: 400 })
     }
 
-    const resolvedKey = await resolveApiKey(apiKey)
+    const resolvedKey = apiKey?.trim() || await resolveApiKey(supabase, user.id)
     if (!resolvedKey) {
       return NextResponse.json(
-        { error: "No OpenRouter API key found. Add your key in Settings or set OPENROUTER_API_KEY." },
+        { error: "No API key found. Connect your ChatGPT account in Settings or set OPENROUTER_API_KEY in environment." },
         { status: 400 }
       )
     }

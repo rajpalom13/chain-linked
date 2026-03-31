@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { resolveApiKey } from "@/lib/ai/resolve-api-key"
 import {
   createOpenAIClient,
   chatCompletion,
@@ -111,15 +112,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get API key from environment
-    const apiKey = process.env.OPENROUTER_API_KEY
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "AI service is not configured. Please set OPENROUTER_API_KEY." },
-        { status: 503 }
-      )
-    }
-
     // Authenticate user
     const supabase = await createClient()
     const {
@@ -130,6 +122,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Unauthorized. Please sign in." },
         { status: 401 }
+      )
+    }
+
+    // Get API key - check ChatGPT connection first, then fall back to OpenRouter
+    const apiKey = await resolveApiKey(supabase, user.id)
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: "No API key found. Connect your ChatGPT account in Settings or set OPENROUTER_API_KEY in environment." },
+        { status: 400 }
       )
     }
 

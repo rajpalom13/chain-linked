@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { resolveApiKey } from '@/lib/ai/resolve-api-key'
 import { createOpenAIClient, chatCompletion, OpenAIError, getErrorMessage, DEFAULT_MODEL } from '@/lib/ai/openai-client'
 import { ANTI_AI_WRITING_RULES } from '@/lib/ai/anti-ai-rules'
 
@@ -63,18 +64,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get API key from environment
-    const apiKey = process.env.OPENROUTER_API_KEY
+    // Authenticate user
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    // Get API key - check ChatGPT connection first, then fall back to OpenRouter
+    const apiKey = user
+      ? await resolveApiKey(supabase, user.id)
+      : process.env.OPENROUTER_API_KEY || null
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'AI API key not configured' },
-        { status: 500 }
+        { error: 'No API key found. Connect your ChatGPT account in Settings or set OPENROUTER_API_KEY in environment.' },
+        { status: 400 }
       )
     }
-
-    // Verify authentication (optional - caption still works without user context)
-    const supabase = await createClient()
-    await supabase.auth.getUser()
 
     // Build user message
     let userMessage = `Write a LinkedIn caption for my carousel post.\n\n`
