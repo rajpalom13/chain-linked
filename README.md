@@ -33,7 +33,8 @@ ChainLinked also includes a companion Chrome extension that captures LinkedIn da
 
 ### Post Composer
 - Rich text editor powered by Lexical with live LinkedIn preview
-- AI-powered content generation via OpenRouter (GPT-4o, GPT-4o-mini)
+- AI-powered content generation via OpenRouter (GPT-5.4)
+- **Multi-step quality pipeline**: every generated post goes through LLM-based content rules verification, Tavily-powered fact-checking, and automatic refinement
 - @mention support with LinkedIn member search and resolution
 - Unicode font styling (bold, italic, serif, script, monospace, and more)
 - Configurable default hashtags per user
@@ -50,7 +51,7 @@ ChainLinked also includes a companion Chrome extension that captures LinkedIn da
 
 ### Analytics Dashboard
 - Personal and team performance tracking
-- **Real-time updates via Supabase Realtime** -- dashboard and analytics refresh automatically when the Chrome extension syncs new data (no page reload needed)
+- **Real-time updates via Supabase Realtime** -- dashboard, analytics, drafts, team activity, invitations, join requests, and suggestions all refresh automatically via Supabase Realtime subscriptions (no page reload needed)
 - Daily snapshot pipeline with absolute and delta modes
 - Data table shows absolute daily values (impressions, reactions, comments, etc.)
 - Trend charts show daily gains (deltas) for growth visualization
@@ -126,6 +127,20 @@ ChainLinked also includes a companion Chrome extension that captures LinkedIn da
 - Configurable research depth (basic vs. deep)
 - Content remix: transform any post or article into your voice and format
 
+### Post Quality Pipeline
+- **Content rules verification** -- a second LLM pass checks every generated post against user-configured and team-level content rules, reporting violations with severity and fix suggestions
+- **Fact-checking** -- extracts verifiable claims from the post, searches each claim via Tavily, then assesses accuracy with source-backed verdicts (supported / refuted / unverifiable)
+- **Auto-refinement** -- if the verification or fact-check steps find errors, the pipeline surgically fixes only the flagged issues while preserving the author's voice and style
+- Pipeline runs automatically on every generation (opt-out via `runPipeline: false`) and is also available as a standalone `POST /api/ai/pipeline` endpoint
+- Pipeline status UI component shows step-by-step progress, timing, and issue details
+
+### ChatGPT OAuth Connection
+- **Device-code OAuth flow** -- users connect their ChatGPT account (Plus/Pro) without entering an API key, using OpenAI's Codex device-code flow with PKCE
+- Manual API key entry as a fallback
+- Connection status, email, and plan type displayed in Settings
+- Token refresh support and secure storage in Supabase with RLS
+- One-click disconnect
+
 ### Prompt Management
 - Version-controlled prompt system for AI generation
 - Prompt playground for testing and iteration
@@ -142,10 +157,10 @@ ChainLinked also includes a companion Chrome extension that captures LinkedIn da
 | **UI** | React 19.2.3, shadcn/ui (new-york style), Tailwind CSS v4 |
 | **Database** | Supabase (PostgreSQL) with Row Level Security and Realtime subscriptions |
 | **Auth** | Supabase Auth (email/password, Google OAuth) |
-| **AI / LLM** | OpenRouter (GPT-4o, GPT-4o-mini) via OpenAI SDK, Vercel AI SDK |
+| **AI / LLM** | OpenRouter (GPT-5.4) via OpenAI SDK, Vercel AI SDK, ChatGPT OAuth (Codex device-code flow) |
 | **Background Jobs** | Inngest (15 workflow functions, cron schedules) |
 | **Web Scraping** | Firecrawl (website analysis), Apify (LinkedIn scraping) |
-| **Research** | Perplexity API (sonar-pro), Tavily (web search) |
+| **Research** | Perplexity API (sonar-pro), Tavily (web search + fact-checking) |
 | **Brand Extraction** | Brandfetch, Logo.dev |
 | **Email** | Resend + React Email (transactional emails) |
 | **Charts** | Recharts 2.15.4 |
@@ -191,7 +206,8 @@ graph TB
 
     subgraph "External APIs"
         LI[LinkedIn APIs]
-        OR[OpenRouter - GPT-4o]
+        OR[OpenRouter - GPT-5.4]
+        OA[OpenAI ChatGPT OAuth]
         FC[Firecrawl]
         BF[Brandfetch / Logo.dev]
         AP[Apify]
@@ -204,11 +220,14 @@ graph TB
     Browser -->|Requests| API
     Browser -->|SSR| SSR
     Ext -->|Data Sync| Supa
+    Supa -->|Realtime| Browser
     SSR --> Supa
     API --> Supa
     API --> Auth
     API --> LI
     API --> OR
+    API --> OA
+    API -->|Fact-Check| TV
     API -->|Trigger Events| Inngest
     Inngest --> Supa
     Inngest --> OR
@@ -261,6 +280,8 @@ chainlinked/
 ├── hooks/                      # 50+ custom React hooks
 ├── lib/
 │   ├── ai/                     # AI client, prompts, quality filters, style analysis
+│   │   └── pipeline/           # Post quality pipeline (verify, fact-check, refine)
+│   ├── auth/                   # OpenAI OAuth (device-code flow, PKCE, token management)
 │   ├── apify/                  # LinkedIn scraping integration
 │   ├── brandfetch/             # Brand extraction
 │   ├── canvas-templates/       # Carousel canvas templates
@@ -274,7 +295,7 @@ chainlinked/
 │   ├── prompts/                # Prompt management utilities
 │   ├── research/               # Tavily search client
 │   ├── store/                  # Client-side state stores
-│   ├── supabase/               # Supabase client (server, browser, middleware)
+│   ├── supabase/               # Supabase client (server, browser, middleware, realtime utilities)
 │   ├── team/                   # Team management utilities
 │   └── unicode-fonts.ts        # Unicode font transformations
 ├── types/                      # TypeScript type definitions
@@ -364,6 +385,27 @@ graph TB
     H --> I[Quality Filter]
     I --> J[Save to Supabase]
     F -->|No| J
+```
+
+### Post Quality Pipeline
+
+```mermaid
+graph LR
+    A[AI Generates Post] --> B{Run Pipeline?}
+    B -->|Yes| C[Verify Content Rules]
+    C --> D[Fact-Check via Tavily]
+    D --> E{Issues Found?}
+    E -->|Yes| F[Auto-Refine Post]
+    F --> G[Return Final Post]
+    E -->|No| G
+    B -->|No| G
+
+    C --> C1[LLM checks each rule]
+    C1 --> C2[Returns violations + severity]
+
+    D --> D1[Extract verifiable claims]
+    D1 --> D2[Search each claim via Tavily]
+    D2 --> D3[LLM assesses accuracy]
 ```
 
 ### Analytics Pipeline
@@ -475,7 +517,12 @@ Copy `.env.example` to `.env.local` and configure the following groups:
 ### AI and LLM
 | Variable | Description |
 |---|---|
-| `OPENROUTER_API_KEY` | OpenRouter API key (routes to GPT-4o, GPT-4o-mini) |
+| `OPENROUTER_API_KEY` | OpenRouter API key (routes to GPT-5.4) |
+
+### ChatGPT OAuth (Optional)
+| Variable | Description |
+|---|---|
+| `OPENAI_CLIENT_ID` | OpenAI Codex OAuth client ID (defaults to public Codex CLI ID) |
 
 ### Research
 | Variable | Description |
@@ -535,7 +582,7 @@ Copy `.env.example` to `.env.local` and configure the following groups:
 
 ## Database
 
-ChainLinked uses **Supabase PostgreSQL** with **Row Level Security (RLS)** enabled on all tables. The schema is managed through 33 SQL migration files in `supabase/migrations/`.
+ChainLinked uses **Supabase PostgreSQL** with **Row Level Security (RLS)** enabled on all tables. The schema is managed through SQL migration files in `supabase/migrations/`.
 
 Key table groups:
 
@@ -544,7 +591,8 @@ Key table groups:
 - **Content** -- `scheduled_posts`, `drafts`, `my_posts`, `post_analytics`
 - **Analytics** -- `daily_account_snapshots`, `daily_post_snapshots`, `post_analytics_daily`, `post_analytics_accumulative`, `profile_analytics_daily`, `profile_analytics_accumulative`, `analytics_summary_cache`, `linkedin_analytics`, `analytics_history`
 - **Discovery** -- `discover_posts`, `feed_posts`, `wishlist_collections`
-- **AI and Research** -- `company_context`, `research_tables`, `swipe_suggestions`, `prompt_system`
+- **AI and Research** -- `company_context`, `research_tables`, `swipe_suggestions`, `prompt_system`, `content_rules`
+- **OAuth** -- `openai_connections` (ChatGPT OAuth tokens and manual API keys), `openai_device_sessions` (temporary device code sessions)
 - **Templates** -- `carousel_templates`, post templates
 - **Extension** -- `captured_apis`, `capture_stats`, `extension_settings`, `sync_metadata`, `connections`, `comments`, `followers`
 

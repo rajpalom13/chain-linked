@@ -262,9 +262,10 @@ function useAllTeamPosts(limit: number = 100) {
 // ============================================================================
 
 /**
- * Get icon for a post type
- * @param type - The post type
- * @returns Icon component or null
+ * Renders an icon corresponding to a LinkedIn post type
+ * @param props - Component props
+ * @param props.type - The post type (image, video, article, poll, or text)
+ * @returns Tabler icon element for the given type, or null for text posts
  */
 function PostTypeIcon({ type }: { type?: TeamActivityItem['postType'] }) {
   switch (type) {
@@ -415,6 +416,11 @@ function PostGridCard({
 
 /**
  * Full post detail modal with complete content and remix action
+ * @param props - Component props
+ * @param props.post - The team activity item to display in full detail
+ * @param props.onClose - Callback to close the modal
+ * @param props.onRemix - Callback to remix this post into a new draft
+ * @returns Modal overlay with post content, media, metrics, and action bar
  */
 function PostDetailPopup({
   post,
@@ -557,7 +563,10 @@ function PostDetailPopup({
 // ============================================================================
 
 /**
- * Team Activity content with filters, search, and grid
+ * Team Activity content with filters, search, and grid.
+ * Fetches all team posts and renders a filterable, sortable grid with
+ * search, author/type filters, and a post detail popup.
+ * @returns JSX element containing the full team activity interface
  */
 function TeamActivityContent() {
   const router = useRouter()

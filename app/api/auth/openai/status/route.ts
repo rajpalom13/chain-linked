@@ -12,9 +12,11 @@ export const dynamic = 'force-dynamic'
 /**
  * Check the current OpenAI connection status.
  *
- * @returns JSON with connection details:
- *   - `{ connected: false }` if no active connection.
- *   - `{ connected: true, method, email, planType }` if connected.
+ * @returns JSON with one of:
+ *   - `{ connected: false }` (200) if no active connection exists.
+ *   - `{ connected: true, method, email, planType }` (200) if connected.
+ *   - `{ error: "Unauthorized" }` (401) if the user is not authenticated.
+ *   - `{ error: string }` (500) on internal errors.
  */
 export async function GET() {
   try {

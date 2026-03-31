@@ -275,7 +275,13 @@ async function getUserContext(userId: string, tone?: string) {
 
 /**
  * POST /api/ai/generate
- * Generates a LinkedIn post using OpenAI with user context
+ * Generates a LinkedIn post using OpenAI with user context.
+ * Optionally runs the post-generation pipeline (verification, fact-check, refinement)
+ * on the generated content before returning it.
+ *
+ * @param request - The incoming Next.js request containing a GeneratePostRequest JSON body
+ * @returns JSON response with `{ content, metadata, aiMetadata, pipeline }` on success,
+ *   or `{ error: string }` with an appropriate HTTP status on failure
  */
 export async function POST(request: NextRequest) {
   try {

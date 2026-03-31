@@ -15,7 +15,10 @@ export const dynamic = 'force-dynamic'
  *
  * Deletes both the connection record and any active device sessions.
  *
- * @returns JSON with `{ success: true }` or error.
+ * @returns JSON with one of:
+ *   - `{ success: true }` (200) when the connection is removed.
+ *   - `{ error: "Unauthorized" }` (401) if the user is not authenticated.
+ *   - `{ error: string }` (500) on internal errors.
  */
 export async function POST() {
   try {

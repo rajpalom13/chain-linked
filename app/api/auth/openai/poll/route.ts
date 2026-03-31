@@ -19,10 +19,12 @@ export const dynamic = 'force-dynamic'
  * Poll the active OpenAI device code session for authorization status.
  *
  * @returns JSON with one of:
- *   - `{ status: "pending" }` - User has not yet authorized.
- *   - `{ status: "expired" }` - Device code session expired.
- *   - `{ status: "authorized", email, planType }` - Successfully authorized.
- *   - `{ error: string }` with status 404 if no active session, or 500 on error.
+ *   - `{ status: "pending" }` (200) - User has not yet authorized.
+ *   - `{ status: "expired" }` (200) - Device code session expired.
+ *   - `{ status: "authorized", email, planType }` (200) - Successfully authorized.
+ *   - `{ error: "Unauthorized" }` (401) if the user is not authenticated.
+ *   - `{ error: "No active device code session" }` (404) if no pending session exists.
+ *   - `{ error: string }` (500) on token storage or internal errors.
  */
 export async function POST() {
   try {

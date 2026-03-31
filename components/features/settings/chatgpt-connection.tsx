@@ -66,7 +66,8 @@ export function ChatGPTConnection() {
   const [isDisconnecting, setIsDisconnecting] = React.useState(false)
 
   /**
-   * Copy the device user code to clipboard.
+   * Copy the device user code to the clipboard and show a toast notification.
+   * @returns Promise that resolves when the copy operation completes.
    */
   const handleCopyCode = React.useCallback(async () => {
     if (!deviceFlow?.userCode) return
@@ -79,7 +80,9 @@ export function ChatGPTConnection() {
   }, [deviceFlow?.userCode])
 
   /**
-   * Handle manual API key submission.
+   * Validate and persist a manually entered OpenAI API key.
+   * Resets the input field and hides the form on success.
+   * @returns Promise that resolves when the save operation completes.
    */
   const handleSaveApiKey = React.useCallback(async () => {
     if (!apiKeyValue.trim()) return
@@ -97,7 +100,8 @@ export function ChatGPTConnection() {
   }, [apiKeyValue, saveApiKey, error])
 
   /**
-   * Handle disconnect with confirmation.
+   * Disconnect the current OpenAI account and show a status toast.
+   * @returns Promise that resolves when the disconnect operation completes.
    */
   const handleDisconnect = React.useCallback(async () => {
     setIsDisconnecting(true)

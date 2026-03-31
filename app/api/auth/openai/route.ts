@@ -21,7 +21,13 @@ export const dynamic = 'force-dynamic'
  *   Request body (JSON) - One of:
  *   - `{ mode: "device-code" }` - Starts the OAuth device code flow.
  *   - `{ apiKey: "sk-..." }` - Validates and stores a manual API key.
- * @returns JSON response with flow data or error.
+ * @returns JSON response with one of:
+ *   - `{ userCode, verificationUrl, expiresIn, interval }` (200) on device-code success.
+ *   - `{ success: true, method: "manual" }` (200) on valid API key.
+ *   - `{ error: "Unauthorized" }` (401) if the user is not authenticated.
+ *   - `{ error: "Invalid API key" }` (400) if the API key fails validation.
+ *   - `{ error: string }` (400) if the request body is malformed.
+ *   - `{ error: string }` (500) on internal/database errors.
  */
 export async function POST(request: Request) {
   try {

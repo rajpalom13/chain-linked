@@ -31,6 +31,10 @@ interface PipelineRequest {
  * POST /api/ai/pipeline
  * Runs the post-generation pipeline on provided content.
  * Requires authentication. Fetches content rules from the database.
+ *
+ * @param request - The incoming Next.js request containing a PipelineRequest JSON body
+ * @returns JSON response with shape `{ pipeline: PipelineResult }` on success,
+ *   or `{ error: string }` with an appropriate HTTP status on failure
  */
 export async function POST(request: NextRequest) {
   try {
