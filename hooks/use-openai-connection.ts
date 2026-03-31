@@ -67,12 +67,15 @@ export function useOpenAIConnection(): UseOpenAIConnectionReturn {
   const [error, setError] = useState<string | null>(null)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
+  const isPollingActiveRef = useRef(false)
+
   /**
-   * Stop the polling interval and reset device flow state.
+   * Stop the polling and reset device flow state.
    */
   const stopPolling = useCallback(() => {
+    isPollingActiveRef.current = false
     if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current)
+      clearTimeout(pollIntervalRef.current)
       pollIntervalRef.current = null
     }
     setIsPolling(false)
@@ -121,47 +124,58 @@ export function useOpenAIConnection(): UseOpenAIConnectionReturn {
       setDeviceFlow(data)
       setIsPolling(true)
 
-      // Start polling at the specified interval
+      // Start sequential polling (setTimeout instead of setInterval to prevent stacking)
       const pollMs = (data.interval || 5) * 1000
-      pollIntervalRef.current = setInterval(async () => {
+      isPollingActiveRef.current = true
+
+      const pollOnce = async () => {
+        if (!isPollingActiveRef.current) return
         try {
           const pollRes = await fetch('/api/auth/openai/poll', {
             method: 'POST',
           })
 
+          if (!isPollingActiveRef.current) return
+
           if (!pollRes.ok) {
             const pollData = await pollRes.json()
-            // 404 means no session - stop polling
             if (pollRes.status === 404) {
               stopPolling()
               setDeviceFlow(null)
               setError(pollData.error || 'Device session not found')
               return
             }
-            return
-          }
+          } else {
+            const pollData = await pollRes.json()
 
-          const pollData = await pollRes.json()
-
-          if (pollData.status === 'authorized') {
-            stopPolling()
-            setDeviceFlow(null)
-            setStatus({
-              connected: true,
-              method: 'oauth-device',
-              email: pollData.email,
-              planType: pollData.planType,
-            })
-          } else if (pollData.status === 'expired') {
-            stopPolling()
-            setDeviceFlow(null)
-            setError('Device code expired. Please try again.')
+            if (pollData.status === 'authorized') {
+              stopPolling()
+              setDeviceFlow(null)
+              setStatus({
+                connected: true,
+                method: 'oauth-device',
+                email: pollData.email,
+                planType: pollData.planType,
+              })
+              return
+            } else if (pollData.status === 'expired') {
+              stopPolling()
+              setDeviceFlow(null)
+              setError('Device code expired. Please try again.')
+              return
+            }
           }
-          // 'pending' continues polling
         } catch {
-          // Polling errors are non-fatal, will retry on next interval
+          // Polling errors are non-fatal, will retry
         }
-      }, pollMs)
+        // Schedule next poll only after current one completes
+        if (isPollingActiveRef.current) {
+          pollIntervalRef.current = setTimeout(pollOnce, pollMs)
+        }
+      }
+
+      // Start first poll after initial delay
+      pollIntervalRef.current = setTimeout(pollOnce, pollMs)
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Failed to start device flow'
@@ -237,11 +251,12 @@ export function useOpenAIConnection(): UseOpenAIConnectionReturn {
     fetchStatus()
   }, [fetchStatus])
 
-  // Cleanup polling interval on unmount
+  // Cleanup polling on unmount
   useEffect(() => {
     return () => {
+      isPollingActiveRef.current = false
       if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current)
+        clearTimeout(pollIntervalRef.current)
       }
     }
   }, [])

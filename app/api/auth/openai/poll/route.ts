@@ -111,7 +111,7 @@ export async function POST() {
           {
             user_id: user.id,
             auth_method: 'oauth-device',
-            api_key: tokens.accessToken,
+            api_key: null, // api_key is only for manual entries; OAuth uses access_token
             access_token: tokens.accessToken,
             refresh_token: tokens.refreshToken,
             id_token: tokens.idToken,

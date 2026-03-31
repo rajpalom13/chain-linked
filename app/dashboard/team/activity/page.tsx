@@ -223,12 +223,19 @@ function useAllTeamPosts(limit: number = 100) {
 
   // Real-time subscription: auto-refetch when my_posts table changes
   useEffect(() => {
-    if (!user) return
+    if (!user?.id) return
 
     const channel = supabase
       .channel(`team-activity-rt-${user.id}`)
       .on('postgres_changes', {
-        event: '*',
+        event: 'INSERT',
+        schema: 'public',
+        table: 'my_posts',
+      }, () => {
+        fetchPosts()
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
         schema: 'public',
         table: 'my_posts',
       }, () => {
@@ -239,7 +246,7 @@ function useAllTeamPosts(limit: number = 100) {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [user, supabase, fetchPosts])
+  }, [user?.id, supabase, fetchPosts])
 
   return {
     posts,

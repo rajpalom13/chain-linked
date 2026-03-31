@@ -86,7 +86,12 @@ Return the corrected post now.`
       maxTokens: 1500,
     })
 
-    const refinedContent = response.content.trim()
+    // Strip markdown fences and quotes LLMs sometimes add
+    const refinedContent = response.content
+      .replace(/^```(?:\w+)?\s*\n?/i, '')
+      .replace(/\n?```\s*$/i, '')
+      .replace(/^["']|["']$/g, '')
+      .trim()
 
     // Sanity check: if the LLM returned something wildly different in length, flag it
     const lengthRatio = refinedContent.length / postContent.length
