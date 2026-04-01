@@ -470,9 +470,24 @@ function ComposeContent() {
       throw new Error(data.error || data.message || 'Failed to post to LinkedIn')
     }
 
+    // Delete saved draft from database after successful post
+    if (savedDraftIdRef.current) {
+      try {
+        const supabase = (await import('@/lib/supabase/client')).createClient()
+        await supabase
+          .from('generated_posts')
+          .delete()
+          .eq('id', savedDraftIdRef.current)
+        savedDraftIdRef.current = undefined
+        updateDraft({ savedDraftId: undefined })
+      } catch {
+        // Draft cleanup is non-blocking
+      }
+    }
+
     // Return data so PostComposer can detect draft responses
     return data
-  }, [fileToBase64])
+  }, [fileToBase64, updateDraft])
 
   /**
    * Handle scheduling a post

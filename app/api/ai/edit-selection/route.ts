@@ -11,6 +11,7 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { generateText } from 'ai'
 import { createClient } from '@/lib/supabase/server'
 import { resolveApiKey } from '@/lib/ai/resolve-api-key'
+import { codexChatCompletion } from '@/lib/ai/codex-client'
 import { ANTI_AI_PROMPT_CONSTRAINTS } from '@/lib/ai/anti-ai-rules'
 
 /**
@@ -60,7 +61,8 @@ export async function POST(request: NextRequest) {
       )
     }
     const aiApiKey = resolved.apiKey
-    const isOpenAIDirect = resolved.provider === 'openai-direct'
+    const isOAuth = resolved.provider === 'openai-oauth'
+    const openRouterKey = process.env.OPENROUTER_API_KEY
 
     // Build system prompt for selection editing
     let systemPrompt = `You are a precise text editor for LinkedIn posts. Your job is to edit the selected text according to the user's instruction.
@@ -113,14 +115,24 @@ ${ANTI_AI_PROMPT_CONSTRAINTS}`
       // Content rules injection is non-blocking
     }
 
+    // If OAuth connected and no OpenRouter key, use Codex Responses API
+    if (isOAuth) {
+      const userMessage = `## Full Post Content (for context)\n${fullPostContent}\n\n## Selected Text to Edit\n${selectedText}\n\n## Editing Instruction\n${instruction}\n\nReturn ONLY the edited replacement text:`
+      const codexResult = await codexChatCompletion(
+        aiApiKey, resolved.accountId,
+        { model: 'gpt-5.4', systemPrompt, userMessage }
+      )
+      return NextResponse.json({ editedText: codexResult.content })
+    }
+
     const provider = createOpenAICompatible({
-      name: isOpenAIDirect ? 'openai' : 'openrouter',
+      name: 'openrouter',
       apiKey: aiApiKey,
-      baseURL: isOpenAIDirect ? 'https://api.openai.com/v1' : 'https://openrouter.ai/api/v1',
+      baseURL: 'https://openrouter.ai/api/v1',
     })
 
     const result = await generateText({
-      model: provider(isOpenAIDirect ? 'gpt-5.4' : 'openai/gpt-5.4'),
+      model: provider('openai/gpt-5.4'),
       system: systemPrompt,
       prompt: `## Full Post Content (for context)
 ${fullPostContent}

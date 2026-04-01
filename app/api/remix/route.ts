@@ -13,6 +13,8 @@ import {
   getErrorMessage,
   DEFAULT_MODEL,
 } from '@/lib/ai/openai-client'
+import { codexChatCompletion } from '@/lib/ai/codex-client'
+import { resolveApiKey } from '@/lib/ai/resolve-api-key'
 import {
   getRemixSystemPrompt,
   formatRemixUserMessage,
@@ -135,6 +137,34 @@ export async function POST(request: Request) {
     console.log('user_api_keys table not available, using environment variable')
   }
 
+  // Build prompts
+  const systemPrompt = getRemixSystemPrompt(tone, instructions)
+  const userMessage = formatRemixUserMessage(content)
+
+  // Try Codex OAuth first (uses ChatGPT subscription)
+  if (!apiKey) {
+    try {
+      const resolved = await resolveApiKey(supabase, user.id)
+      if (resolved?.provider === 'openai-oauth') {
+        const codexResult = await codexChatCompletion(resolved.apiKey, resolved.accountId, {
+          model: 'gpt-5.4', systemPrompt, userMessage,
+        })
+        // Return in the same shape as the OpenRouter path below
+        return NextResponse.json({
+          remix: codexResult.content,
+          metadata: {
+            model: codexResult.model,
+            tokensUsed: codexResult.totalTokens,
+            tone,
+            hasInstructions: !!instructions,
+          },
+        })
+      }
+    } catch {
+      // Fall through to OpenRouter
+    }
+  }
+
   // Fallback to environment variable (OpenRouter)
   if (!apiKey) {
     apiKey = process.env.OPENROUTER_API_KEY
@@ -143,7 +173,7 @@ export async function POST(request: Request) {
   if (!apiKey) {
     return NextResponse.json(
       {
-        error: 'No API key found. Please set OPENROUTER_API_KEY in environment or add your API key in Settings.',
+        error: 'No API key found. Connect your ChatGPT account or set OPENROUTER_API_KEY.',
         code: 'no_api_key'
       },
       { status: 400 }
@@ -153,16 +183,12 @@ export async function POST(request: Request) {
   // Create OpenAI client
   const client = createOpenAIClient({ apiKey })
 
-  // Build prompts
-  const systemPrompt = getRemixSystemPrompt(tone, instructions)
-  const userMessage = formatRemixUserMessage(content)
-
   try {
-    // Make OpenRouter API call with GPT-4.1
+    // Make OpenRouter API call
     const response = await chatCompletion(client, {
       systemPrompt,
       userMessage,
-      model: DEFAULT_MODEL, // GPT-4.1 via OpenRouter
+      model: DEFAULT_MODEL,
       temperature: 0.7,
       maxTokens: 1024,
     })

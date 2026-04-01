@@ -10,7 +10,8 @@ import * as Sentry from '@sentry/nextjs'
 import { createClient } from '@/lib/supabase/server'
 import { chatCompletion, DEFAULT_MODEL } from '@/lib/ai/openai-client'
 import { decrypt } from '@/lib/crypto'
-import { resolveClient } from '@/lib/ai/resolve-api-key'
+import { resolveClient, resolveApiKey } from '@/lib/ai/resolve-api-key'
+import { codexChatCompletion } from '@/lib/ai/codex-client'
 import { PromptService, PromptType, mapToneToPromptType } from '@/lib/prompts'
 import { trackAIEvent } from '@/lib/posthog-server'
 
@@ -400,10 +401,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Resolve AI client: OAuth/Codex first, then OpenRouter fallback
-    const openai = await resolveClient(supabase, user.id)
+    // Resolve AI provider: OAuth/Codex first, then OpenRouter fallback
+    const resolvedProvider = await resolveApiKey(supabase, user.id)
 
-    if (!openai) {
+    if (!resolvedProvider) {
       return NextResponse.json(
         { error: 'No API key available. Connect your ChatGPT account or set OPENROUTER_API_KEY.', code: 'no_api_key' },
         { status: 400 }
@@ -474,19 +475,39 @@ export async function POST(request: NextRequest) {
     // Track response timing for analytics
     const startTime = Date.now()
 
-    // Use resolved client (routes to Codex or OpenRouter based on auth method)
-
     // Track AI generation start
     try { trackAIEvent(user.id, 'ai_generation_started', { feature: 'remix', tone, length }) } catch {}
 
-    // Generate remixed post with GPT-4.1 via OpenRouter
-    const response = await chatCompletion(openai, {
-      systemPrompt,
-      userMessage,
-      model: DEFAULT_MODEL, // Use GPT-4.1 via OpenRouter for best quality
-      temperature: 0.85, // Slightly higher for creative transformation
-      maxTokens: 1500,
-    })
+    // Route through Codex Responses API (ChatGPT subscription) or OpenRouter
+    let response: { content: string; model: string; promptTokens: number; completionTokens: number; totalTokens: number; finishReason?: string | null }
+
+    if (resolvedProvider.provider === 'openai-oauth') {
+      // Use Codex Responses API — bills against ChatGPT subscription
+      response = {
+        ...await codexChatCompletion(
+          resolvedProvider.apiKey,
+          resolvedProvider.accountId,
+          { model: 'gpt-5.4', systemPrompt, userMessage, temperature: 0.85, maxTokens: 1500 }
+        ),
+        finishReason: 'stop',
+      }
+    } else {
+      // Use OpenRouter via OpenAI SDK
+      const openai = await resolveClient(supabase, user.id)
+      if (!openai) {
+        return NextResponse.json(
+          { error: 'AI service unavailable. Please check your API key configuration.', code: 'no_api_key' },
+          { status: 400 }
+        )
+      }
+      response = await chatCompletion(openai, {
+        systemPrompt,
+        userMessage,
+        model: DEFAULT_MODEL,
+        temperature: 0.85,
+        maxTokens: 1500,
+      })
+    }
 
     const responseTimeMs = Date.now() - startTime
 

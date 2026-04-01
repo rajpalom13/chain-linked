@@ -7,9 +7,11 @@
  * @module app/dashboard/analytics/page
  */
 
-import { useState, useCallback, useMemo } from "react"
+import { useState, useCallback } from "react"
 import { useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
+import { IconInfoCircle } from "@tabler/icons-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AnalyticsSkeleton } from "@/components/skeletons/page-skeletons"
 import { PageContent } from "@/components/shared/page-content"
 import { AnalyticsFilterBar } from "@/components/features/analytics-filter-bar"
@@ -33,7 +35,7 @@ import {
 function getDefaultFilters(searchParams: URLSearchParams): AnalyticsV3Filters {
   return {
     metric: searchParams.get("metric") || "impressions",
-    period: searchParams.get("period") || "30d",
+    period: searchParams.get("period") || "7d",
     startDate: searchParams.get("startDate") || undefined,
     endDate: searchParams.get("endDate") || undefined,
     contentType: searchParams.get("contentType") || "all",
@@ -50,6 +52,9 @@ function AnalyticsContent() {
   const searchParams = useSearchParams()
   const [filters, setFilters] = useState<AnalyticsV3Filters>(() => getDefaultFilters(searchParams))
   const { data, absoluteData, summary, comparisonData, multiData, multiAbsoluteData, engagementBreakdown, isLoading, error } = useAnalyticsV3(filters)
+
+  // Earliest date in the data — used for filter unlock logic
+  const dataStartDate = absoluteData?.[0]?.date
 
   /**
    * Handle granularity changes from the data table
@@ -72,13 +77,26 @@ function AnalyticsContent() {
         </p>
       </div>
 
+      {/* Data Capture Info Banner */}
+      <Alert>
+        <IconInfoCircle className="size-4" />
+        <AlertTitle>How your data is captured</AlertTitle>
+        <AlertDescription>
+          Analytics are collected daily by the ChainLinked browser extension while you browse LinkedIn.
+          Each day, a snapshot of your profile metrics (impressions, followers, engagement, etc.) is saved.
+          The charts below show <strong>daily changes</strong> — how much each metric grew or declined per day.
+          More days of browsing with the extension = more data points and unlocked time ranges.
+        </AlertDescription>
+      </Alert>
+
       {/* FE-001: Filter Bar */}
-      <AnalyticsFilterBar filters={filters} onFiltersChange={setFilters} dataStartDate={absoluteData?.[0]?.date} />
+      <AnalyticsFilterBar filters={filters} onFiltersChange={setFilters} dataStartDate={dataStartDate} />
 
       {/* FE-002: Summary Bar */}
       <AnalyticsSummaryBar
         summary={summary}
         metric={filters.metric}
+        period={filters.period}
         isLoading={isLoading}
       />
 
@@ -90,12 +108,12 @@ function AnalyticsContent() {
       >
         <motion.div variants={staggerItemVariants}>
           <AnalyticsTrendChart
-            data={absoluteData}
+            data={data}
             comparisonData={comparisonData}
             metric={filters.metric}
             compareActive={filters.compare}
             isLoading={isLoading}
-            multiData={multiAbsoluteData}
+            multiData={multiData}
           />
         </motion.div>
       </motion.div>

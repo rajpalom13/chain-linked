@@ -15,6 +15,8 @@ import {
   getErrorMessage,
   DEFAULT_MODEL,
 } from "@/lib/ai/openai-client"
+import { codexChatCompletion } from "@/lib/ai/codex-client"
+import { resolveApiKey } from "@/lib/ai/resolve-api-key"
 
 /**
  * Request body for company context analysis
@@ -114,15 +116,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get API key from environment
-    const apiKey = process.env.OPENROUTER_API_KEY
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "AI service is not configured. Please contact support." },
-        { status: 503 }
-      )
-    }
-
     // Authenticate user
     const supabase = await createClient()
     const {
@@ -147,15 +140,28 @@ Based on this website, provide detailed company context. If you cannot directly 
 
 Return the analysis as valid JSON only.`
 
-    // Create client and make request
-    const openai = createOpenAIClient({ apiKey, timeout: 90000 })
-    const response = await chatCompletion(openai, {
-      systemPrompt,
-      userMessage,
-      model: DEFAULT_MODEL,
-      temperature: 0.3, // Lower temperature for more consistent structured output
-      maxTokens: 2500,
-    })
+    // Try Codex OAuth first, then OpenRouter
+    let response: { content: string; model?: string; totalTokens?: number }
+
+    const resolved = await resolveApiKey(supabase, user.id)
+    if (resolved?.provider === 'openai-oauth') {
+      const codexResult = await codexChatCompletion(resolved.apiKey, resolved.accountId, {
+        model: 'gpt-5.4', systemPrompt, userMessage,
+      })
+      response = codexResult
+    } else {
+      const apiKey = process.env.OPENROUTER_API_KEY
+      if (!apiKey) {
+        return NextResponse.json(
+          { error: "AI service is not configured. Connect your ChatGPT account or set OPENROUTER_API_KEY." },
+          { status: 503 }
+        )
+      }
+      const openai = createOpenAIClient({ apiKey, timeout: 90000 })
+      response = await chatCompletion(openai, {
+        systemPrompt, userMessage, model: DEFAULT_MODEL, temperature: 0.3, maxTokens: 2500,
+      })
+    }
 
     // Parse JSON response
     let analysisData: CompanyContextResult

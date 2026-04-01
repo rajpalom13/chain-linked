@@ -32,6 +32,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import type { AnalyticsV3Filters } from "@/hooks/use-analytics-v3"
 
@@ -50,10 +51,7 @@ const CONTENT_TYPE_OPTIONS = [
 /** Preset time periods */
 const PERIOD_OPTIONS = ["7d", "30d", "90d", "1y"] as const
 
-/**
- * Props for the AnalyticsFilterBar component
- */
-/** Maps period codes to their required number of days of data */
+/** Number of days each period covers */
 const PERIOD_DAYS: Record<string, number> = {
   '7d': 7,
   '30d': 30,
@@ -61,12 +59,31 @@ const PERIOD_DAYS: Record<string, number> = {
   '1y': 365,
 }
 
+/**
+ * Check if a period filter should be unlocked based on the user's earliest data date.
+ * 7D is always available if any data exists. Other periods require the user's
+ * min(date) to be on or before the required start date for that period.
+ */
+function isPeriodUnlocked(period: string, dataStartDate: string | undefined): boolean {
+  if (!dataStartDate) return period === '7d'
+  if (period === '7d') return true
+
+  const days = PERIOD_DAYS[period]
+  if (!days) return false
+
+  const requiredStart = new Date()
+  requiredStart.setDate(requiredStart.getDate() - days)
+  const userStart = new Date(dataStartDate + 'T00:00:00')
+
+  return userStart <= requiredStart
+}
+
 interface AnalyticsFilterBarProps {
   /** Current filter values */
   filters: AnalyticsV3Filters
   /** Callback when any filter changes */
   onFiltersChange: (filters: AnalyticsV3Filters) => void
-  /** Earliest date with data (YYYY-MM-DD) — used to grey out periods without enough data */
+  /** Earliest date with data (YYYY-MM-DD) */
   dataStartDate?: string
 }
 
@@ -78,10 +95,6 @@ interface AnalyticsFilterBarProps {
  * @returns Filter bar with metric selector, period toggle, content type, and compare controls
  */
 export function AnalyticsFilterBar({ filters, onFiltersChange, dataStartDate }: AnalyticsFilterBarProps) {
-  // Calculate how many days of data we have
-  const daysOfData = dataStartDate
-    ? Math.floor((Date.now() - new Date(dataStartDate + 'T00:00:00').getTime()) / (1000 * 60 * 60 * 24)) + 1
-    : 0
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -159,23 +172,35 @@ export function AnalyticsFilterBar({ filters, onFiltersChange, dataStartDate }: 
           className="hidden sm:flex"
         >
           {PERIOD_OPTIONS.map((p) => {
-            const requiredDays = PERIOD_DAYS[p] || 0
-            const hasEnoughData = daysOfData > 0 && daysOfData >= requiredDays
-            return (
+            const unlocked = isPeriodUnlocked(p, dataStartDate)
+            const days = PERIOD_DAYS[p]
+            const item = (
               <ToggleGroupItem
                 key={p}
                 value={p}
                 aria-label={`Last ${p}`}
-                disabled={!hasEnoughData}
+                disabled={!unlocked}
                 className={cn(
                   "transition-all data-[state=on]:bg-primary/10 data-[state=on]:text-primary",
-                  !hasEnoughData && "opacity-40 cursor-not-allowed"
+                  !unlocked && "opacity-40 cursor-not-allowed"
                 )}
-                title={!hasEnoughData ? `Need ${requiredDays} days of data (have ${daysOfData})` : undefined}
               >
                 {p.toUpperCase()}
               </ToggleGroupItem>
             )
+            if (!unlocked && days) {
+              return (
+                <Tooltip key={p}>
+                  <TooltipTrigger asChild>
+                    <span>{item}</span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Requires {days}+ days of data. Keep syncing with the extension to unlock.
+                  </TooltipContent>
+                </Tooltip>
+              )
+            }
+            return item
           })}
         </ToggleGroup>
 
@@ -193,11 +218,10 @@ export function AnalyticsFilterBar({ filters, onFiltersChange, dataStartDate }: 
           </SelectTrigger>
           <SelectContent>
             {PERIOD_OPTIONS.map((p) => {
-              const requiredDays = PERIOD_DAYS[p] || 0
-              const hasEnoughData = daysOfData > 0 && daysOfData >= requiredDays
+              const unlocked = isPeriodUnlocked(p, dataStartDate)
               return (
-                <SelectItem key={p} value={p} disabled={!hasEnoughData}>
-                  Last {p.toUpperCase()}{!hasEnoughData ? ' (not enough data)' : ''}
+                <SelectItem key={p} value={p} disabled={!unlocked}>
+                  Last {p.toUpperCase()}
                 </SelectItem>
               )
             })}
@@ -210,9 +234,7 @@ export function AnalyticsFilterBar({ filters, onFiltersChange, dataStartDate }: 
             <Button
               variant={filters.period === "custom" ? "default" : "outline"}
               size="sm"
-              className={cn("gap-1.5", daysOfData === 0 && "opacity-40 cursor-not-allowed")}
-              disabled={daysOfData === 0}
-              title={daysOfData === 0 ? "No data available yet" : undefined}
+              className="gap-1.5"
             >
               <IconCalendar className="size-3.5" />
               <span className="hidden sm:inline">Custom</span>

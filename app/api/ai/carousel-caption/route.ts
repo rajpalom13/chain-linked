@@ -6,7 +6,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { resolveClient } from '@/lib/ai/resolve-api-key'
+import { resolveClient, resolveApiKey } from '@/lib/ai/resolve-api-key'
+import { codexChatCompletion } from '@/lib/ai/codex-client'
 import { chatCompletion, OpenAIError, getErrorMessage, DEFAULT_MODEL } from '@/lib/ai/openai-client'
 import { ANTI_AI_WRITING_RULES } from '@/lib/ai/anti-ai-rules'
 
@@ -68,17 +69,6 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
-    // Resolve AI client: OAuth/Codex first, then OpenRouter fallback
-    const openai = user
-      ? await resolveClient(supabase, user.id)
-      : null
-    if (!openai) {
-      return NextResponse.json(
-        { error: 'No API key available. Connect your ChatGPT account or set OPENROUTER_API_KEY.' },
-        { status: 400 }
-      )
-    }
-
     // Build user message
     let userMessage = `Write a LinkedIn caption for my carousel post.\n\n`
     userMessage += `Carousel content:\n${carouselContent.slice(0, 3000)}\n\n`
@@ -90,14 +80,40 @@ export async function POST(request: NextRequest) {
     userMessage += `Tone: ${tone}\n`
     userMessage += `\nGenerate the caption now.`
 
-    // Generate caption
-    const response = await chatCompletion(openai, {
-      systemPrompt: CAROUSEL_CAPTION_SYSTEM_PROMPT,
-      userMessage,
-      model: DEFAULT_MODEL,
-      temperature: 0.8,
-      maxTokens: 800,
-    })
+    // Resolve provider: OAuth/Codex first, then OpenRouter fallback
+    const resolvedProvider = user
+      ? await resolveApiKey(supabase, user.id)
+      : null
+
+    let response: { content: string; model: string; promptTokens: number; completionTokens: number; totalTokens: number }
+
+    if (resolvedProvider?.provider === 'openai-oauth') {
+      // Use Codex Responses API — bills against ChatGPT subscription
+      response = await codexChatCompletion(
+        resolvedProvider.apiKey,
+        resolvedProvider.accountId,
+        { model: 'gpt-5.4', systemPrompt: CAROUSEL_CAPTION_SYSTEM_PROMPT, userMessage }
+      )
+    } else {
+      // Use OpenRouter via OpenAI SDK
+      const openai = user
+        ? await resolveClient(supabase, user.id)
+        : null
+      if (!openai) {
+        return NextResponse.json(
+          { error: 'No API key available. Connect your ChatGPT account or set OPENROUTER_API_KEY.' },
+          { status: 400 }
+        )
+      }
+
+      response = await chatCompletion(openai, {
+        systemPrompt: CAROUSEL_CAPTION_SYSTEM_PROMPT,
+        userMessage,
+        model: DEFAULT_MODEL,
+        temperature: 0.8,
+        maxTokens: 800,
+      })
+    }
 
     return NextResponse.json({
       content: response.content,

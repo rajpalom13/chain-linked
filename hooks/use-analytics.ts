@@ -209,12 +209,16 @@ export function useAnalytics(userId?: string): UseAnalyticsReturn {
       const profile = profileResult.data
 
       if (snapshots.length === 0) {
-        // No snapshots yet — show zeros
-        setMetrics(DEFAULT_METRICS)
-        setChartData(EMPTY_CHART_DATA)
-        setMetadata({ lastUpdated: new Date().toISOString(), captureMethod: null })
-        setPeriodLabel('no syncs yet')
-        setRawData([])
+        // No snapshots yet — only reset to zeros if we don't already have data.
+        // This prevents the "glitch to 0" during real-time refetch race conditions
+        // where the query runs while a snapshot write is still being committed.
+        if (!metrics || metrics.followers.value === 0) {
+          setMetrics(DEFAULT_METRICS)
+          setChartData(EMPTY_CHART_DATA)
+          setMetadata({ lastUpdated: new Date().toISOString(), captureMethod: null })
+          setPeriodLabel('no syncs yet')
+          setRawData([])
+        }
         setIsLoading(false)
         return
       }
@@ -233,11 +237,24 @@ export function useAnalytics(userId?: string): UseAnalyticsReturn {
       const engagements = latest.total_engagements
       const engagementRate = impressions > 0 ? (engagements / impressions) * 100 : 0
 
-      // Change values: compare latest vs previous snapshot day
-      const impChange = previous ? computeChange(latest.total_impressions, previous.total_impressions) : 0
-      const engChange = previous ? computeChange(latest.total_engagements, previous.total_engagements) : 0
-      const follChange = previous ? computeChange(latest.followers, previous.followers) : 0
-      const pvChange = previous ? computeChange(latest.profile_views, previous.profile_views) : 0
+      // Change values: compare daily deltas (new activity today vs yesterday)
+      // Using cumulative totals would show near-zero changes since the base is large
+      const thirdDay = snapshots.length >= 3 ? snapshots[2] : null
+
+      // Daily delta = difference between consecutive snapshots
+      const todayImp = previous ? latest.total_impressions - previous.total_impressions : latest.total_impressions
+      const yesterdayImp = previous && thirdDay ? previous.total_impressions - thirdDay.total_impressions : 0
+      const todayEng = previous ? latest.total_engagements - previous.total_engagements : latest.total_engagements
+      const yesterdayEng = previous && thirdDay ? previous.total_engagements - thirdDay.total_engagements : 0
+      const todayFoll = previous ? latest.followers - previous.followers : 0
+      const yesterdayFoll = previous && thirdDay ? previous.followers - thirdDay.followers : 0
+      const todayPV = previous ? latest.profile_views - previous.profile_views : latest.profile_views
+      const yesterdayPV = previous && thirdDay ? previous.profile_views - thirdDay.profile_views : 0
+
+      const impChange = previous ? computeChange(todayImp, yesterdayImp) : 0
+      const engChange = previous ? computeChange(todayEng, yesterdayEng) : 0
+      const follChange = previous ? computeChange(todayFoll, yesterdayFoll) : 0
+      const pvChange = previous ? computeChange(todayPV, yesterdayPV) : 0
 
       // Period label
       if (previous) {

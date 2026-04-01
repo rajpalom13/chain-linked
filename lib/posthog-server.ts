@@ -4,9 +4,21 @@ let posthogClient: PostHog | null = null
 
 export function getPostHogServer(): PostHog | null {
   const key = process.env.NEXT_PUBLIC_POSTHOG_KEY
-  const host = process.env.NEXT_PUBLIC_POSTHOG_HOST
+  let host = process.env.NEXT_PUBLIC_POSTHOG_HOST
 
   if (!key || !host) return null
+
+  // The client-side host is a relative path (/ingest) for the Next.js proxy.
+  // Server-side needs an absolute URL — use the app URL or PostHog cloud directly.
+  if (host.startsWith('/')) {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL
+    if (appUrl) {
+      host = `${appUrl}${host}`
+    } else {
+      // Can't construct a valid URL — skip server-side tracking
+      return null
+    }
+  }
 
   if (!posthogClient) {
     posthogClient = new PostHog(key, {

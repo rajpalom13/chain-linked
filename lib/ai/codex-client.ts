@@ -1,100 +1,255 @@
 /**
- * ChatGPT Codex Backend Client
+ * ChatGPT Codex Responses API Client
  *
- * Creates an OpenAI-compatible client that routes through the ChatGPT Codex
- * backend (chatgpt.com/backend-api) instead of the standard OpenAI API.
- * This allows ChatGPT Plus/Pro subscribers to use their subscription for
- * API calls via OAuth tokens.
- *
- * Key differences from standard OpenAI/OpenRouter:
- * - Base URL: chatgpt.com/backend-api (not api.openai.com or openrouter.ai)
- * - Uses Chat Completions endpoint with Codex-specific headers
- * - Requires: chatgpt-account-id, originator headers
- * - Forces store=false
+ * Routes through chatgpt.com/backend-api/codex/responses using the user's
+ * ChatGPT Plus/Pro subscription. Uses the Responses API format (not Chat
+ * Completions) with mandatory streaming.
  *
  * @module lib/ai/codex-client
  */
 
-import OpenAI from 'openai'
-import { observeOpenAI } from '@langfuse/openai'
+/** Codex backend endpoint */
+const CODEX_URL = 'https://chatgpt.com/backend-api/codex/responses'
 
-/** Codex backend base URL */
-const CODEX_BASE_URL = 'https://chatgpt.com/backend-api'
+/** Default model for Codex — gpt-4o is NOT supported, must use gpt-5.x */
+const CODEX_MODEL = 'gpt-5.4'
 
 /**
- * Creates an OpenAI-compatible client routed through the ChatGPT Codex backend.
- *
- * @param accessToken - OAuth access token from device-code flow
- * @param accountId - ChatGPT account ID for routing
- * @returns OpenAI client configured for Codex backend
+ * Build standard Codex request headers.
  */
-export function createCodexClient(accessToken: string, accountId?: string | null): OpenAI {
-  const codexFetch: typeof globalThis.fetch = async (input, init) => {
-    let url = typeof input === 'string'
-      ? input
-      : input instanceof URL
-        ? input.toString()
-        : (input as Request).url
+function buildHeaders(
+  accessToken: string,
+  accountId: string | null | undefined,
+  accept = 'text/event-stream'
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Authorization': `Bearer ${accessToken}`,
+    'Content-Type': 'application/json',
+    'Accept': accept,
+  }
+  if (accountId) {
+    headers['chatgpt-account-id'] = accountId
+  }
+  return headers
+}
 
-    // Rewrite chat/completions URL for Codex
-    // The SDK calls /v1/chat/completions, we need /codex/v1/chat/completions
-    url = url.replace(
-      CODEX_BASE_URL + '/v1/',
-      CODEX_BASE_URL + '/codex/v1/'
-    )
+/**
+ * Parse the SSE stream from the Codex Responses API and extract the full text.
+ * The stream emits events like response.output_text.delta with text chunks,
+ * and response.completed with the final response including usage.
+ */
+async function consumeCodexStream(response: Response): Promise<{
+  content: string
+  model: string
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+}> {
+  const reader = response.body?.getReader()
+  if (!reader) throw new Error('No response body')
 
-    // Add Codex-specific headers
-    const headers = new Headers(init?.headers || {})
-    if (accountId) {
-      headers.set('chatgpt-account-id', accountId)
-    }
-    headers.set('originator', 'codex_cli_rs')
+  const decoder = new TextDecoder()
+  let content = ''
+  let model = CODEX_MODEL
+  let promptTokens = 0
+  let completionTokens = 0
+  let buffer = ''
 
-    // Modify request body to add store=false
-    let modifiedInit = init
-    if (init?.body && typeof init.body === 'string') {
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+
+    // Process complete SSE events
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || '' // Keep incomplete line in buffer
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue
+      const jsonStr = line.slice(6)
+      if (jsonStr === '[DONE]') continue
+
       try {
-        const body = JSON.parse(init.body)
-        body.store = false
+        const event = JSON.parse(jsonStr)
 
-        // Map OpenRouter model paths to standard model names
-        if (body.model && body.model.startsWith('openai/')) {
-          body.model = body.model.replace('openai/', '')
+        // Collect text deltas
+        if (event.type === 'response.output_text.delta' && event.delta) {
+          content += event.delta
         }
 
-        modifiedInit = { ...init, body: JSON.stringify(body) }
+        // Get usage from completed response
+        if (event.type === 'response.completed' && event.response) {
+          model = event.response.model || model
+          if (event.response.usage) {
+            promptTokens = event.response.usage.input_tokens ?? 0
+            completionTokens = event.response.usage.output_tokens ?? 0
+          }
+        }
       } catch {
-        // Body parsing failed — pass through unchanged
+        // Skip malformed JSON lines
       }
     }
-
-    const response = await globalThis.fetch(url, { ...modifiedInit, headers })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error(`[codex-client] ${response.status}:`, errorText.substring(0, 500))
-      return new Response(errorText, {
-        status: response.status,
-        headers: response.headers,
-      })
-    }
-
-    return response
   }
 
-  const client = new OpenAI({
-    apiKey: accessToken,
-    baseURL: CODEX_BASE_URL + '/v1',
-    timeout: 60000,
-    maxRetries: 1,
-    fetch: codexFetch,
-    defaultHeaders: {
+  return {
+    content,
+    model,
+    promptTokens,
+    completionTokens,
+    totalTokens: promptTokens + completionTokens,
+  }
+}
+
+/**
+ * Non-streaming chat completion via Codex Responses API.
+ * Internally streams (required by the endpoint) but collects the full response.
+ * Automatically falls back to OpenRouter if Codex rejects the request (e.g. content moderation).
+ */
+export async function codexChatCompletion(
+  accessToken: string,
+  accountId: string | null | undefined,
+  options: {
+    model?: string
+    systemPrompt: string
+    userMessage: string
+    /** Temperature for OpenRouter fallback (Codex ignores this) */
+    temperature?: number
+    /** Max tokens for OpenRouter fallback (Codex ignores this) */
+    maxTokens?: number
+  }
+): Promise<{
+  content: string
+  model: string
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+}> {
+  const instructions = (options.systemPrompt || 'You are a helpful assistant.').toString()
+  const userContent = (options.userMessage || '').toString()
+
+  // Try Codex with sanitized content (ASCII-only, since Codex rejects non-ASCII).
+  // If it fails, fall back to OpenRouter with the ORIGINAL content to preserve quality.
+  const toAscii = (s: string) =>
+    s.normalize('NFKD')
+     .replace(/[\u0300-\u036f]/g, '')
+     .replace(/\{\{#if\s+[^}]*\}\}/g, '')
+     .replace(/\{\{\/if\}\}/g, '')
+     .replace(/\{\{([^}]+)\}\}/g, '$1')
+     .replace(/[^\x20-\x7E\n\r\t]/g, '')
+
+  const body = {
+    model: options.model || CODEX_MODEL,
+    instructions: toAscii(instructions),
+    input: [{ role: 'user' as const, content: toAscii(userContent) }],
+    store: false,
+    stream: true,
+  }
+
+  const response = await fetch(CODEX_URL, {
+    method: 'POST',
+    headers: buildHeaders(accessToken, accountId),
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    // Fall back to OpenRouter with ORIGINAL unsanitized content (preserves quality)
+    const openRouterKey = process.env.OPENROUTER_API_KEY
+    if (openRouterKey) {
+      return openRouterFallback(openRouterKey, options)
+    }
+    const errorText = await response.text()
+    throw new Error(`Codex API error (${response.status}): ${errorText.substring(0, 200)}`)
+  }
+
+  return consumeCodexStream(response)
+}
+
+/**
+ * OpenRouter fallback for when Codex rejects a request.
+ */
+async function openRouterFallback(
+  apiKey: string,
+  options: { model?: string; systemPrompt: string; userMessage: string; temperature?: number; maxTokens?: number }
+): Promise<{
+  content: string
+  model: string
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+}> {
+  const model = 'openai/gpt-5.4'
+  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
       'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'https://chainlinked.ai',
       'X-Title': 'ChainLinked',
     },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: options.systemPrompt },
+        { role: 'user', content: options.userMessage },
+      ],
+      max_tokens: options.maxTokens ?? 1500,
+      temperature: options.temperature ?? 0.85,
+    }),
   })
 
-  return observeOpenAI(client, {
-    traceName: 'chainlinked-codex',
+  if (!res.ok) {
+    const errText = await res.text()
+    throw new Error(`OpenRouter fallback failed (${res.status}): ${errText.substring(0, 200)}`)
+  }
+
+  const data = await res.json()
+  const choice = data.choices?.[0]
+  return {
+    content: choice?.message?.content || '',
+    model: data.model || model,
+    promptTokens: data.usage?.prompt_tokens ?? 0,
+    completionTokens: data.usage?.completion_tokens ?? 0,
+    totalTokens: data.usage?.total_tokens ?? 0,
+  }
+}
+
+/**
+ * Returns the raw SSE Response from the Codex Responses API for streaming to clients.
+ */
+export async function codexStreamResponse(
+  accessToken: string,
+  accountId: string | null | undefined,
+  options: {
+    model?: string
+    systemPrompt: string
+    messages: Array<{ role: string; content: string }>
+  }
+): Promise<Response> {
+  const input = options.messages.map(msg => ({
+    role: msg.role === 'system' ? 'developer' : msg.role,
+    content: msg.content,
+  }))
+
+  const body = {
+    model: options.model || CODEX_MODEL,
+    instructions: options.systemPrompt,
+    input,
+    store: false,
+    stream: true,
+  }
+
+  const response = await fetch(CODEX_URL, {
+    method: 'POST',
+    headers: buildHeaders(accessToken, accountId),
+    body: JSON.stringify(body),
   })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    console.error(`[codex-client] Stream ${response.status}:`, errorText.substring(0, 500))
+    throw new Error(`Codex API error (${response.status}): ${errorText.substring(0, 200)}`)
+  }
+
+  return response
 }

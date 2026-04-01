@@ -864,7 +864,11 @@ export function PostComposer({
       } else {
         trackPostCreated("text", "manual")
         clearDraft()
-        setContent("")
+        clearConvo()
+        handleContentChange('')
+        setIsEditing(false)
+        setMediaFiles([])
+        setAiResetKey((k) => k + 1)
         postToast.published()
       }
     } catch (error) {
@@ -926,7 +930,11 @@ export function PostComposer({
       postToast.scheduled(formattedDate)
 
       clearDraft()
-      setContent("")
+      clearConvo()
+      handleContentChange('')
+      setIsEditing(false)
+      setMediaFiles([])
+      setAiResetKey((k) => k + 1)
       router.push("/dashboard/schedule")
     } catch (error) {
       console.error("Failed to schedule post:", error)
@@ -1190,7 +1198,7 @@ export function PostComposer({
                     setMediaFiles([])
                     setAiResetKey((k) => k + 1)
                   }}
-                  className="text-[11px] text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                  className="text-xs font-medium text-muted-foreground hover:text-destructive transition-colors shrink-0 px-2 py-1 rounded-md hover:bg-destructive/10"
                 >
                   {composeMode === 'advanced' ? 'New Chat' : 'Start Over'}
                 </button>
@@ -1401,10 +1409,10 @@ export function PostComposer({
                         />
                       </div>
                     ) : (
-                      /* Preview mode: rendered content with double-click to edit */
+                      /* Preview mode: rendered content with click to edit */
                       <div
                         className="group relative cursor-text min-h-[120px]"
-                        onDoubleClick={enterEditMode}
+                        onClick={enterEditMode}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') enterEditMode()
                         }}
@@ -1426,19 +1434,19 @@ export function PostComposer({
                             </p>
                           </div>
                         )}
-                        {/* Double-click hint on hover */}
+                        {/* Click hint on hover */}
                         <div className="absolute inset-0 flex items-center justify-center rounded-md bg-muted/30 opacity-0 transition-opacity group-hover:opacity-100 pointer-events-none">
                           <span className="rounded-full bg-background/90 px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-sm">
-                            Double-click to edit
+                            Click to edit
                           </span>
                         </div>
                       </div>
                     )}
                   </div>
 
-                  {/* Formatting Toolbar — visible only in edit mode */}
+                  {/* Formatting Toolbar — always visible when content exists */}
                   <AnimatePresence>
-                    {isEditing && (
+                    {(isEditing || content.trim()) && (
                       <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}

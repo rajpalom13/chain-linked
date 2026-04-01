@@ -16,6 +16,7 @@ import { trackAIEvent } from '@/lib/posthog-server'
 import { PostPipeline, DEFAULT_PIPELINE_CONFIG } from '@/lib/ai/pipeline'
 import type { PipelineResult } from '@/lib/ai/pipeline'
 import { resolveClient, resolveApiKey } from '@/lib/ai/resolve-api-key'
+import { codexChatCompletion } from '@/lib/ai/codex-client'
 
 /**
  * Request body schema for post generation
@@ -395,20 +396,33 @@ If additional instructions exist above, they override all other guidelines.`
     // Track start time for response metrics
     const startTime = Date.now()
 
-    // Create OpenAI client (routes to Codex or OpenRouter based on auth method)
-    const openai = await resolveClient(supabase, user.id) || createOpenAIClient({ apiKey: openAIApiKey })
-
     // Track AI generation start
     try { trackAIEvent(user.id, 'ai_generation_started', { feature: 'generate', topic, tone, length, postType: postType ?? null }) } catch {}
 
-    // Generate post with GPT-4.1 via OpenRouter for best quality
-    const response = await chatCompletion(openai, {
-      systemPrompt,
-      userMessage,
-      model: DEFAULT_MODEL, // Use GPT-4.1 via OpenRouter for best quality
-      temperature: 0.8, // Higher creativity for engaging content
-      maxTokens: 1500, // Allow for longer responses
-    })
+    // Route through Codex Responses API (ChatGPT subscription) or OpenRouter
+    let response: { content: string; model: string; promptTokens: number; completionTokens: number; totalTokens: number; finishReason?: string | null }
+
+    if (resolvedProvider.provider === 'openai-oauth') {
+      // Use Codex Responses API — bills against ChatGPT subscription
+      response = {
+        ...await codexChatCompletion(
+          resolvedProvider.apiKey,
+          resolvedProvider.accountId,
+          { model: 'gpt-5.4', systemPrompt, userMessage, temperature: 0.8, maxTokens: 1500 }
+        ),
+        finishReason: 'stop',
+      }
+    } else {
+      // Use OpenRouter via OpenAI SDK
+      const openai = createOpenAIClient({ apiKey: openAIApiKey })
+      response = await chatCompletion(openai, {
+        systemPrompt,
+        userMessage,
+        model: DEFAULT_MODEL,
+        temperature: 0.8,
+        maxTokens: 1500,
+      })
+    }
 
     const responseTimeMs = Date.now() - startTime
 
@@ -462,7 +476,11 @@ If additional instructions exist above, they override all other guidelines.`
     let pipelineResult: PipelineResult | null = null
     let finalContent = response.content
 
-    if (runPipeline) {
+    // Pipeline uses its own OpenAI client via OpenRouter — skip if no OpenRouter key
+    const pipelineApiKey = resolvedProvider.provider === 'openai-oauth'
+      ? process.env.OPENROUTER_API_KEY
+      : resolvedProvider.apiKey
+    if (runPipeline && pipelineApiKey) {
       try {
         // Fetch content rules for pipeline verification
         let pipelineRules: string[] = []
@@ -500,7 +518,7 @@ If additional instructions exist above, they override all other guidelines.`
 
         const pipeline = new PostPipeline({
           ...DEFAULT_PIPELINE_CONFIG,
-          apiKey: openAIApiKey,
+          apiKey: pipelineApiKey,
           contentRules: pipelineRules,
         })
 

@@ -8,6 +8,8 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { createOpenAIClient, chatCompletion } from "@/lib/ai/openai-client"
+import { codexChatCompletion } from "@/lib/ai/codex-client"
+import { resolveApiKey } from "@/lib/ai/resolve-api-key"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 
@@ -90,30 +92,49 @@ interface QueryResult {
  * @param query - The raw user search query
  * @returns Parsed search intent with terms, clusters, tags, and intent description
  */
-async function analyzeSearchIntent(query: string): Promise<SearchIntent> {
+async function analyzeSearchIntent(query: string, supabase?: SupabaseClient<Database>, userId?: string): Promise<SearchIntent> {
+  const systemPrompt = `You are a search intent analyzer for a LinkedIn content platform. Given a user's search query, extract:
+1. searchTerms: 2-5 alternative search phrases/keywords to find relevant posts (include the original query and variations)
+2. clusters: Which of these 8 clusters are most relevant: ${CLUSTERS.join(", ")} (pick 1-3, or empty if none match)
+3. tags: 2-5 lowercase-hyphenated tags that would match posts about this topic (e.g. "machine-learning", "cold-outreach", "content-strategy")
+4. intent: A one-sentence description of what the user is looking for
+
+Return ONLY valid JSON, no markdown fences.`
+  const userMessage = `Search query: "${query}"`
+
+  // Try Codex OAuth first
+  if (supabase && userId) {
+    try {
+      const resolved = await resolveApiKey(supabase, userId)
+      if (resolved?.provider === 'openai-oauth') {
+        const codexResult = await codexChatCompletion(resolved.apiKey, resolved.accountId, {
+          model: 'gpt-5.4', systemPrompt, userMessage,
+        })
+        const cleaned = codexResult.content.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim()
+        const parsed = JSON.parse(cleaned)
+        return {
+          searchTerms: Array.isArray(parsed.searchTerms) ? parsed.searchTerms.slice(0, 5) : [query],
+          clusters: Array.isArray(parsed.clusters) ? parsed.clusters.filter((c: string) => CLUSTERS.includes(c as (typeof CLUSTERS)[number])) : [],
+          tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 5) : [],
+          intent: typeof parsed.intent === "string" ? parsed.intent : query,
+        }
+      }
+    } catch {
+      // Fall through to OpenRouter
+    }
+  }
+
   const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) {
-    // Fallback: simple keyword extraction when no API key is available
-    return {
-      searchTerms: [query],
-      clusters: [],
-      tags: [],
-      intent: query,
-    }
+    return { searchTerms: [query], clusters: [], tags: [], intent: query }
   }
 
   const client = createOpenAIClient({ apiKey, timeout: 15000 })
 
   try {
     const response = await chatCompletion(client, {
-      systemPrompt: `You are a search intent analyzer for a LinkedIn content platform. Given a user's search query, extract:
-1. searchTerms: 2-5 alternative search phrases/keywords to find relevant posts (include the original query and variations)
-2. clusters: Which of these 8 clusters are most relevant: ${CLUSTERS.join(", ")} (pick 1-3, or empty if none match)
-3. tags: 2-5 lowercase-hyphenated tags that would match posts about this topic (e.g. "machine-learning", "cold-outreach", "content-strategy")
-4. intent: A one-sentence description of what the user is looking for
-
-Return ONLY valid JSON, no markdown fences.`,
-      userMessage: `Search query: "${query}"`,
+      systemPrompt,
+      userMessage,
       temperature: 0.1,
       maxTokens: 300,
       model: "openai/gpt-5.4-mini",
@@ -467,7 +488,7 @@ export async function GET(request: Request) {
   }
 
   // Step 1: Analyze search intent with LLM
-  const searchMeta = await analyzeSearchIntent(query)
+  const searchMeta = await analyzeSearchIntent(query, supabase, user.id)
 
   // Step 2: Build sanitized search conditions from all search terms
   const searchConditions = searchMeta.searchTerms

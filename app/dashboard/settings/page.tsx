@@ -406,6 +406,9 @@ function SettingsContent() {
     updateProfile,
   } = useSettings()
 
+  const { currentUserRole } = useTeam()
+  const canManageBrandKit = currentUserRole === 'owner' || currentUserRole === 'admin'
+
   // Active section - support ?section= URL param for deep linking
   const searchParams = useSearchParams()
 
@@ -1406,8 +1409,8 @@ function SettingsContent() {
                       Apply
                     </Button>
                   </div>
-                  {/* Remove logo */}
-                  {brandKit.logoUrl && (
+                  {/* Remove logo — only admins/owners can remove the team logo */}
+                  {brandKit.logoUrl && canManageBrandKit && (
                     <Button
                       variant="ghost"
                       size="sm"

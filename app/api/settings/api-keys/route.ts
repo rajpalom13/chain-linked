@@ -93,6 +93,20 @@ export async function GET(request: Request) {
     // Check if environment variable is set (server-side key via OpenRouter)
     const hasEnvKey = !!process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== 'your_openrouter_key_here'
 
+    // Check if user has an active ChatGPT OAuth connection
+    let hasOAuthConnection = false
+    try {
+      const { data: oauthConn } = await supabase
+        .from('openai_connections')
+        .select('is_active')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .maybeSingle()
+      hasOAuthConnection = !!oauthConn
+    } catch {
+      // Non-blocking
+    }
+
     // Handle database errors gracefully
     // PGRST116 = no rows found (expected when user has no key)
     // 42P01 = table doesn't exist (table not created yet)
@@ -102,27 +116,27 @@ export async function GET(request: Request) {
       // This allows the UI to work even if the table hasn't been set up yet
       console.warn('API key fetch warning:', fetchError.code, fetchError.message)
 
-      // Return response with env key status
+      // Return response with env key or OAuth status
       const defaultResponse: ApiKeyStatusResponse = {
-        hasKey: hasEnvKey,
+        hasKey: hasEnvKey || hasOAuthConnection,
         provider: 'openai',
-        keyHint: hasEnvKey ? '(Server-configured)' : null,
-        isValid: hasEnvKey,
+        keyHint: hasEnvKey ? '(Server-configured)' : hasOAuthConnection ? '(ChatGPT connected)' : null,
+        isValid: hasEnvKey || hasOAuthConnection,
         lastValidated: null,
       }
       return NextResponse.json(defaultResponse)
     }
 
     // If user has a key in the database, use that
-    // Otherwise, fall back to environment variable
+    // Otherwise, fall back to environment variable or OAuth connection
     const hasUserKey = !!apiKeyData
-    const hasKey = hasUserKey || hasEnvKey
+    const hasKey = hasUserKey || hasEnvKey || hasOAuthConnection
 
     const response: ApiKeyStatusResponse = {
       hasKey,
       provider: 'openai',
-      keyHint: apiKeyData?.key_hint || (hasEnvKey ? '(Server-configured)' : null),
-      isValid: apiKeyData?.is_valid ?? hasEnvKey,
+      keyHint: apiKeyData?.key_hint || (hasEnvKey ? '(Server-configured)' : hasOAuthConnection ? '(ChatGPT connected)' : null),
+      isValid: apiKeyData?.is_valid ?? hasEnvKey ?? hasOAuthConnection,
       lastValidated: apiKeyData?.last_validated_at || null,
     }
 

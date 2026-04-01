@@ -63,6 +63,7 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 
 /**
  * Team member role type
@@ -528,15 +529,15 @@ export function Settings({
               {/* Avatar Section */}
               <div className="flex items-center gap-4 p-4 rounded-xl border border-border/50 bg-muted/20">
                 <Avatar className="size-20 ring-2 ring-border/50 shadow-sm">
-                  {(user.avatarUrl || linkedinProfile?.avatarUrl) ? (
-                    <AvatarImage src={user.avatarUrl || linkedinProfile?.avatarUrl} alt={profileName} />
+                  {(linkedinProfile?.avatarUrl || user.avatarUrl) ? (
+                    <AvatarImage src={linkedinProfile?.avatarUrl || user.avatarUrl} alt={profileName} />
                   ) : null}
                   <AvatarFallback className="text-xl bg-primary/10 text-primary">
                     {getInitials(profileName)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="space-y-1.5">
-                  {(user.avatarUrl || linkedinProfile?.avatarUrl) ? (
+                  {(linkedinProfile?.avatarUrl || user.avatarUrl) ? (
                     <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                       <IconBrandLinkedin className="size-4 text-[#0A66C2]" />
                       <span>Synced from LinkedIn</span>
@@ -568,7 +569,17 @@ export function Settings({
 
               {/* Email Input */}
               <div className="space-y-2">
-                <Label htmlFor="profile-email">Email Address</Label>
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="profile-email">Email Address</Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <IconAlertCircle className="size-3.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-[260px]">
+                      This email is used for notifications, password resets, and scheduled post confirmations. Changing it does not affect your login method.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 <div className="relative">
                   <IconMail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                   <Input

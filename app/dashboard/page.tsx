@@ -213,16 +213,19 @@ function GettingStartedChecklist({
   extensionInstalled,
   hasCreatedPost,
   hasScheduledPosts,
+  chatGPTConnected,
   onDismiss,
 }: {
   linkedInConnected: boolean
   extensionInstalled: boolean
   hasCreatedPost: boolean
   hasScheduledPosts: boolean
+  chatGPTConnected: boolean
   onDismiss: () => void
 }) {
   const steps = [
     { label: "Connect LinkedIn", done: linkedInConnected, href: "/dashboard/settings" },
+    { label: "Connect ChatGPT", done: chatGPTConnected, href: "/dashboard/settings?section=ai-api-keys" },
     { label: "Install extension", done: extensionInstalled, href: "/dashboard/settings" },
     { label: "Create first post", done: hasCreatedPost, href: "/dashboard/compose" },
     { label: "Schedule content", done: hasScheduledPosts, href: "/dashboard/schedule" },
@@ -268,7 +271,7 @@ function GettingStartedChecklist({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
             {steps.map((step) => (
               <Link
                 key={step.label}
@@ -450,6 +453,14 @@ function DashboardContent() {
   const { metrics, isLoading: analyticsLoading, periodLabel, todayCapture } = useAnalytics(user?.id)
   const { posts: recentPosts, isLoading: postsLoading } = useMyRecentPosts(user?.id, 9)
 
+  // Check ChatGPT OAuth connection status
+  const [chatGPTConnected, setChatGPTConnected] = useState(false)
+  useEffect(() => {
+    fetch('/api/auth/openai/status').then(r => r.ok ? r.json() : null).then(data => {
+      if (data?.connected) setChatGPTConnected(true)
+    }).catch(() => {})
+  }, [])
+
   /** Derive display name and avatar for the recent posts section */
   const userInfo = useMemo(() => {
     const linkedinProfile = profile?.linkedin_profile
@@ -622,6 +633,27 @@ function DashboardContent() {
         </div>
       )}
 
+      {/* ChatGPT Connection Banner — show when not connected */}
+      {!chatGPTConnected && !analyticsLoading && (
+        <div className="mx-4 lg:mx-6">
+          <Link
+            href="/dashboard/settings?section=ai-api-keys"
+            className="flex items-center gap-3 rounded-lg border border-violet-500/50 bg-violet-500/10 p-3 hover:bg-violet-500/15 transition-colors"
+          >
+            <IconSparkles className="size-5 shrink-0 text-violet-600 dark:text-violet-400" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-violet-700 dark:text-violet-300">
+                Connect your ChatGPT account
+              </p>
+              <p className="text-xs text-violet-600/80 dark:text-violet-400/80">
+                Power AI features like post generation, remixes, and carousel captions with your ChatGPT Plus subscription — no API credits needed.
+              </p>
+            </div>
+            <IconChevronRight className="size-4 shrink-0 text-violet-500" />
+          </Link>
+        </div>
+      )}
+
       {/* Today's Data Capture Banner */}
       {!analyticsLoading && todayCapture && (
         <div className="mx-4 lg:mx-6">
@@ -685,6 +717,7 @@ function DashboardContent() {
           extensionInstalled={extensionInstalled === true}
           hasCreatedPost={hasCreatedPost}
           hasScheduledPosts={hasScheduledContent}
+          chatGPTConnected={chatGPTConnected}
           onDismiss={dismissChecklist}
         />
       )}

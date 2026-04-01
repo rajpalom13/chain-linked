@@ -166,8 +166,13 @@ export async function POST(request: Request) {
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       )
     }
-    const aiApiKey = resolved.apiKey
-    const isOpenAIDirect = resolved.provider === 'openai-direct'
+    const openRouterKey = process.env.OPENROUTER_API_KEY
+    if (!openRouterKey) {
+      return new Response(
+        JSON.stringify({ error: 'Post series requires OpenRouter. Please set OPENROUTER_API_KEY or use Basic mode.' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
 
     const userContext = await getUserContext(user.id, tone)
     let systemPrompt = buildSeriesConversationPrompt(userContext, tone)
@@ -209,9 +214,9 @@ export async function POST(request: Request) {
     }
 
     const provider = createOpenAICompatible({
-      name: isOpenAIDirect ? 'openai' : 'openrouter',
-      apiKey: aiApiKey,
-      baseURL: isOpenAIDirect ? 'https://api.openai.com/v1' : 'https://openrouter.ai/api/v1',
+      name: 'openrouter',
+      apiKey: openRouterKey,
+      baseURL: 'https://openrouter.ai/api/v1',
     })
 
     const tools = {
@@ -242,7 +247,7 @@ export async function POST(request: Request) {
     }
 
     const result = streamText({
-      model: provider(isOpenAIDirect ? 'gpt-5.4' : 'openai/gpt-5.4'),
+      model: provider('openai/gpt-5.4'),
       system: systemPrompt,
       messages: await convertToModelMessages(messages),
       temperature: 0.8,

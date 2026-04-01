@@ -6,7 +6,8 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { resolveClient } from "@/lib/ai/resolve-api-key"
+import { resolveApiKey, resolveClient } from "@/lib/ai/resolve-api-key"
+import { codexChatCompletion } from "@/lib/ai/codex-client"
 import {
   chatCompletion,
   OpenAIError,
@@ -124,15 +125,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Resolve AI client: OAuth/Codex first, then OpenRouter fallback
-    const openai = await resolveClient(supabase, user.id)
-    if (!openai) {
-      return NextResponse.json(
-        { error: "No API key available. Connect your ChatGPT account or set OPENROUTER_API_KEY." },
-        { status: 400 }
-      )
-    }
-
     // Build prompts
     const systemPrompt = buildAnalysisSystemPrompt(companyName, industry, targetAudience)
     const userMessage = `Please analyze this company website and extract the structured business context.
@@ -145,13 +137,40 @@ ${targetAudience ? `Target Audience: ${targetAudience}` : ""}
 Based on the company name, website URL, and any provided hints, generate a comprehensive analysis. If you cannot access the website directly, use your knowledge of the company or infer reasonable details from the company name and industry.
 
 Return the analysis as valid JSON only.`
-    const response = await chatCompletion(openai, {
-      systemPrompt,
-      userMessage,
-      model: DEFAULT_MODEL,
-      temperature: 0.4,
-      maxTokens: 2000,
-    })
+
+    // Route through Codex (ChatGPT subscription) or OpenRouter
+    let response: { content: string; model: string; promptTokens: number; completionTokens: number; totalTokens: number; finishReason?: string | null }
+
+    const resolved = await resolveApiKey(supabase, user.id)
+
+    if (resolved?.provider === 'openai-oauth') {
+      // Use Codex Responses API — bills against ChatGPT subscription
+      response = {
+        ...await codexChatCompletion(
+          resolved.apiKey,
+          resolved.accountId,
+          { model: 'gpt-5.4', systemPrompt, userMessage }
+        ),
+        finishReason: 'stop',
+      }
+    } else {
+      // Use OpenRouter via OpenAI SDK
+      const openai = await resolveClient(supabase, user.id)
+      if (!openai) {
+        return NextResponse.json(
+          { error: "No API key available. Connect your ChatGPT account or set OPENROUTER_API_KEY." },
+          { status: 400 }
+        )
+      }
+
+      response = await chatCompletion(openai, {
+        systemPrompt,
+        userMessage,
+        model: DEFAULT_MODEL,
+        temperature: 0.4,
+        maxTokens: 2000,
+      })
+    }
 
     // Parse JSON response
     let analysisData: CompanyAnalysisResult

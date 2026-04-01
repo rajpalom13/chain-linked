@@ -311,8 +311,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const installed = await detectExtension(true)
     setExtensionInstalled(installed)
     // After detection, read the cached status (populated by the PING response)
-    const status = getCachedExtensionStatus()
-    setExtensionStatus(status)
+    let status = getCachedExtensionStatus()
+    // PING response may not have arrived yet — retry once after a short delay
+    if (installed && !status) {
+      await new Promise((r) => setTimeout(r, 500))
+      status = getCachedExtensionStatus()
+    }
+    if (status) {
+      setExtensionStatus(status)
+    }
   }, [])
 
   /**

@@ -51,7 +51,7 @@ const ENDPOINT_PATHS: Record<SyncEndpointType, string> = {
   myPosts:
     '/voyager/api/graphql' +
     '?includeWebMetadata=true' +
-    '&variables=(count:20,start:0,profileUrn:{profileUrn})' +
+    '&variables=(count:100,start:0,profileUrn:{profileUrn})' +
     '&queryId=voyagerFeedDashProfileUpdates.4af00b28d60ed0f1488018948daad822',
 
   profileViews: '/voyager/api/identity/wvmpCards',

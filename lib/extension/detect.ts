@@ -371,10 +371,16 @@ export function isPromptDismissed(): boolean {
       return true
     }
 
-    // Check session dismissal (sessionStorage - resets on logout/tab close)
-    const sessionDismissed = sessionStorage.getItem(SESSION_DISMISS_KEY)
-    if (sessionDismissed === 'true') {
-      return true
+    // Check session dismissal with 4-hour expiry
+    const sessionDismissedAt = sessionStorage.getItem(SESSION_DISMISS_KEY)
+    if (sessionDismissedAt) {
+      const dismissedTime = parseInt(sessionDismissedAt, 10)
+      const fourHoursMs = 4 * 60 * 60 * 1000
+      if (Date.now() - dismissedTime < fourHoursMs) {
+        return true
+      }
+      // Expired — clear it
+      sessionStorage.removeItem(SESSION_DISMISS_KEY)
     }
 
     return false
@@ -398,8 +404,8 @@ export function dismissPrompt(permanent = false): void {
       // Permanent: store in localStorage (survives logout)
       localStorage.setItem(DISMISS_PROMPT_KEY, 'true')
     } else {
-      // Temporary: store in sessionStorage (resets when user logs out or closes tab)
-      sessionStorage.setItem(SESSION_DISMISS_KEY, 'true')
+      // Temporary: store timestamp in sessionStorage (expires after 4 hours)
+      sessionStorage.setItem(SESSION_DISMISS_KEY, String(Date.now()))
     }
   } catch (error) {
     console.warn('[Extension Detection] Error dismissing prompt:', error)

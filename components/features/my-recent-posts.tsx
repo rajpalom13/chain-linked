@@ -30,7 +30,9 @@ import {
   IconArticle,
   IconMoodEmpty,
   IconThumbUp,
+  IconPencil,
 } from "@tabler/icons-react"
+import { Badge } from "@/components/ui/badge"
 import {
   staggerGridContainerVariants,
   staggerScaleItemVariants,
@@ -51,6 +53,7 @@ export interface MyRecentPost {
   impressions: number | null
   posted_at: string | null
   created_at: string | null
+  is_repost: boolean | null
 }
 
 /**
@@ -100,7 +103,7 @@ export function useMyRecentPosts(userId: string | undefined, limit = 9) {
       setIsLoading(true)
       const { data, error } = await supabaseRef.current
         .from("my_posts")
-        .select("id, content, media_type, media_urls, reactions, comments, reposts, impressions, posted_at, created_at")
+        .select("id, content, media_type, media_urls, reactions, comments, reposts, impressions, posted_at, created_at, is_repost" as never)
         .eq("user_id", userId)
         .order("posted_at", { ascending: false })
         .limit(limit)
@@ -109,7 +112,7 @@ export function useMyRecentPosts(userId: string | undefined, limit = 9) {
         console.warn("Recent posts fetch warning:", error.message)
         setPosts([])
       } else {
-        setPosts(data || [])
+        setPosts((data || []) as unknown as MyRecentPost[])
       }
     } catch (err) {
       console.error("Recent posts fetch error:", err)
@@ -186,6 +189,20 @@ function PostGridCard({
               </p>
             </div>
           )}
+          {/* Post type badge */}
+          <div className="absolute top-1.5 left-1.5">
+            {post.is_repost ? (
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-0.5 bg-amber-500/90 text-white border-0">
+                <IconRepeat className="size-2.5" />
+                Reposted
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-0.5 bg-primary/90 text-primary-foreground border-0">
+                <IconPencil className="size-2.5" />
+                Created
+              </Badge>
+            )}
+          </div>
           {post.media_type && imageUrl && (
             <div className="absolute top-1.5 right-1.5 rounded bg-black/60 p-0.5">
               <IconPhoto className="size-3 text-white" />
@@ -281,8 +298,21 @@ function LinkedInPostDialog({
                 {getInitials(authorName)}
               </AvatarFallback>
             </Avatar>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold truncate">{authorName}</p>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold truncate">{authorName}</p>
+                {post.is_repost ? (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-0.5 shrink-0">
+                    <IconRepeat className="size-2.5" />
+                    Reposted
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5 shrink-0">
+                    <IconPencil className="size-2.5" />
+                    Created
+                  </Badge>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground">
                 {relativeTime(post.posted_at)}
               </p>

@@ -283,26 +283,22 @@ export async function GET(request: Request) {
     }
 
     // 6. Compute summary statistics
-    // Use absolute values for total and average since delta-based calculations
-    // show misleading zeros when data arrives in batches rather than incrementally.
     const absolute = buildTimeseries(snapshots, column, 'absolute')
-    let total: number
-    let average: number
+    const deltas = buildTimeseries(snapshots, column, 'delta')
 
-    // Latest absolute value = the real total
+    // Latest absolute value = lifetime cumulative total
     const latestAbsolute = snapshots.length > 0
       ? Math.round(Number(snapshots[snapshots.length - 1][column] ?? 0) * 100) / 100
       : 0
 
-    total = latestAbsolute
+    // Period total = sum of daily deltas (impressions/engagements gained in this period)
+    const periodTotal = deltas.reduce((sum, p) => sum + p.value, 0)
+    const total = Math.round(periodTotal * 100) / 100
 
-    // Average based on absolute values across the period
-    if (absolute.length > 0) {
-      const absSum = absolute.reduce((sum, p) => sum + p.value, 0)
-      average = Math.round((absSum / absolute.length) * 100) / 100
-    } else {
-      average = 0
-    }
+    // Daily average of deltas across the period
+    const average = deltas.length > 0
+      ? Math.round((periodTotal / deltas.length) * 100) / 100
+      : 0
 
     // % change vs comparison period
     let change = 0

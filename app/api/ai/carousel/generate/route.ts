@@ -7,7 +7,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { resolveClient } from '@/lib/ai/resolve-api-key'
+import { resolveClient, resolveApiKey } from '@/lib/ai/resolve-api-key'
+import { codexChatCompletion } from '@/lib/ai/codex-client'
 import { z } from 'zod'
 import { DEFAULT_MODEL } from '@/lib/ai/openai-client'
 import {
@@ -247,14 +248,8 @@ export async function POST(request: NextRequest) {
 
     const input = validationResult.data as CarouselGenerationInput
 
-    // Resolve AI client: OAuth/Codex first, then OpenRouter fallback
-    const client = await resolveClient(supabase, user.id)
-    if (!client) {
-      return NextResponse.json(
-        { success: false, error: 'No API key available. Connect your ChatGPT account or set OPENROUTER_API_KEY.' },
-        { status: 400 }
-      )
-    }
+    // Resolve provider: OAuth/Codex first, then OpenRouter fallback
+    const resolvedProvider = await resolveApiKey(supabase, user.id)
 
     // Fetch user context for personalisation (profile, company, recent posts, wishlist)
     const userContext = await fetchUserContext(supabase, user.id, input.tone)
@@ -267,31 +262,61 @@ export async function POST(request: NextRequest) {
     // Track start time for response metrics
     const aiStartTime = Date.now()
 
-    // Use resolved client (routes to Codex or OpenRouter based on auth method)
-
     // Track AI generation start
     try { trackAIEvent(user.id, 'ai_generation_started', { feature: 'carousel', topic: input.topic, tone: input.tone, totalSlides: input.templateAnalysis.totalSlides }) } catch {}
 
-    // Call AI using the same model as compose route
-    const completion = await client.chat.completions.create({
-      model: DEFAULT_MODEL,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.7,
-      max_tokens: 2000
-    })
+    // Route through Codex (ChatGPT subscription) or OpenRouter
+    let aiResponse: { content: string; model: string; promptTokens: number; completionTokens: number; totalTokens: number }
+
+    if (resolvedProvider?.provider === 'openai-oauth') {
+      // Use Codex Responses API — bills against ChatGPT subscription
+      aiResponse = await codexChatCompletion(
+        resolvedProvider.apiKey,
+        resolvedProvider.accountId,
+        { model: 'gpt-5.4', systemPrompt, userMessage: userPrompt }
+      )
+    } else {
+      // Use OpenRouter via OpenAI SDK
+      const client = await resolveClient(supabase, user.id)
+      if (!client) {
+        return NextResponse.json(
+          { success: false, error: 'No API key available. Connect your ChatGPT account or set OPENROUTER_API_KEY.' },
+          { status: 400 }
+        )
+      }
+
+      const completion = await client.chat.completions.create({
+        model: DEFAULT_MODEL,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 2000
+      })
+
+      const responseContent = completion.choices[0]?.message?.content
+      if (!responseContent) {
+        throw new Error('No response from AI')
+      }
+
+      aiResponse = {
+        content: responseContent,
+        model: DEFAULT_MODEL,
+        promptTokens: completion.usage?.prompt_tokens || 0,
+        completionTokens: completion.usage?.completion_tokens || 0,
+        totalTokens: completion.usage?.total_tokens || 0,
+      }
+    }
 
     const aiResponseTimeMs = Date.now() - aiStartTime
 
-    const responseContent = completion.choices[0]?.message?.content
-    if (!responseContent) {
+    if (!aiResponse.content) {
       throw new Error('No response from AI')
     }
 
     // Parse response
-    const contentMap = parseCarouselResponse(responseContent, input.templateAnalysis.slots)
+    const contentMap = parseCarouselResponse(aiResponse.content, input.templateAnalysis.slots)
     if (!contentMap) {
       throw new Error('Failed to parse AI response')
     }
@@ -319,23 +344,32 @@ export async function POST(request: NextRequest) {
 
     // Generate a LinkedIn caption for the carousel (non-blocking secondary call)
     let caption: string | undefined
+    const captionSystemPrompt = 'You are a LinkedIn content expert. Write a compelling LinkedIn post caption to accompany a carousel document. The caption should hook readers and encourage them to swipe through the slides. Keep it under 500 characters. Do NOT repeat slide content verbatim — tease key insights. Include relevant hashtags at the end.'
+    const captionUserMessage = `Topic: ${input.topic}\nTone: ${input.tone}\nSlide content summary:\n${slots.map(s => s.content).join('\n')}`
+
     try {
-      const captionCompletion = await client.chat.completions.create({
-        model: DEFAULT_MODEL,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a LinkedIn content expert. Write a compelling LinkedIn post caption to accompany a carousel document. The caption should hook readers and encourage them to swipe through the slides. Keep it under 500 characters. Do NOT repeat slide content verbatim — tease key insights. Include relevant hashtags at the end.'
-          },
-          {
-            role: 'user',
-            content: `Topic: ${input.topic}\nTone: ${input.tone}\nSlide content summary:\n${slots.map(s => s.content).join('\n')}`
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 300
-      })
-      caption = captionCompletion.choices[0]?.message?.content || undefined
+      if (resolvedProvider?.provider === 'openai-oauth') {
+        const captionResponse = await codexChatCompletion(
+          resolvedProvider.apiKey,
+          resolvedProvider.accountId,
+          { model: 'gpt-5.4', systemPrompt: captionSystemPrompt, userMessage: captionUserMessage }
+        )
+        caption = captionResponse.content || undefined
+      } else {
+        const client = await resolveClient(supabase, user.id)
+        if (client) {
+          const captionCompletion = await client.chat.completions.create({
+            model: DEFAULT_MODEL,
+            messages: [
+              { role: 'system', content: captionSystemPrompt },
+              { role: 'user', content: captionUserMessage }
+            ],
+            temperature: 0.7,
+            max_tokens: 300
+          })
+          caption = captionCompletion.choices[0]?.message?.content || undefined
+        }
+      }
     } catch (captionError) {
       // Caption generation is best-effort; don't fail the whole request
       console.warn('[Carousel] Caption generation failed:', captionError)
@@ -348,9 +382,9 @@ export async function POST(request: NextRequest) {
       slots,
       caption,
       metadata: {
-        tokensUsed: completion.usage?.total_tokens || 0,
+        tokensUsed: aiResponse.totalTokens || 0,
         generationTime,
-        model: DEFAULT_MODEL
+        model: resolvedProvider?.provider === 'openai-oauth' ? 'gpt-5.4' : DEFAULT_MODEL
       }
     }
 
@@ -366,10 +400,10 @@ export async function POST(request: NextRequest) {
         promptVersion: 1,
         userId: user.id,
         feature: 'carousel',
-        inputTokens: completion.usage?.prompt_tokens,
-        outputTokens: completion.usage?.completion_tokens,
-        totalTokens: completion.usage?.total_tokens,
-        model: DEFAULT_MODEL,
+        inputTokens: aiResponse.promptTokens,
+        outputTokens: aiResponse.completionTokens,
+        totalTokens: aiResponse.totalTokens,
+        model: resolvedProvider?.provider === 'openai-oauth' ? 'gpt-5.4' : DEFAULT_MODEL,
         responseTimeMs: aiResponseTimeMs,
         success: true,
         metadata: {
@@ -386,7 +420,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Track AI generation completed
-    try { trackAIEvent(user.id, 'ai_generation_completed', { feature: 'carousel', topic: input.topic, tone: input.tone, model: DEFAULT_MODEL, tokens: completion.usage?.total_tokens ?? 0, response_time_ms: generationTime, slotsGenerated: slots.length }) } catch {}
+    try { trackAIEvent(user.id, 'ai_generation_completed', { feature: 'carousel', topic: input.topic, tone: input.tone, model: resolvedProvider?.provider === 'openai-oauth' ? 'gpt-5.4' : DEFAULT_MODEL, tokens: aiResponse.totalTokens ?? 0, response_time_ms: generationTime, slotsGenerated: slots.length }) } catch {}
 
     return NextResponse.json(response)
 

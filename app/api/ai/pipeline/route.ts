@@ -58,15 +58,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Content is required' }, { status: 400 })
     }
 
-    // Get API key - check ChatGPT connection first, then fall back to OpenRouter
-    const resolved = apiKey?.trim() ? { apiKey: apiKey.trim() } : await resolveApiKey(supabase, user.id)
-    if (!resolved) {
+    // Get API key — pipeline always runs via OpenRouter (it creates its own client)
+    let openAIApiKey = apiKey?.trim() || undefined
+    if (!openAIApiKey) {
+      const resolved = await resolveApiKey(supabase, user.id)
+      if (resolved?.provider === 'openai-oauth') {
+        // Codex access_token can't be used with the pipeline (OpenRouter-only)
+        openAIApiKey = process.env.OPENROUTER_API_KEY
+      } else {
+        openAIApiKey = resolved?.apiKey
+      }
+    }
+    if (!openAIApiKey) {
       return NextResponse.json(
         { error: 'No API key found. Connect your ChatGPT account in Settings or set OPENROUTER_API_KEY in environment.' },
         { status: 400 }
       )
     }
-    const openAIApiKey = resolved.apiKey
 
     // Fetch content rules (personal + team, same pattern as generate route)
     let contentRules: string[] = []

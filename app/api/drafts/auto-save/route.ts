@@ -75,6 +75,10 @@ export async function POST(request: NextRequest) {
     let body: AutoSaveDraftRequest
     try {
       const text = await request.text()
+      if (!text || text.trim().length === 0) {
+        // Empty body from sendBeacon during page unload — ignore silently
+        return NextResponse.json({ success: true, skipped: true })
+      }
       body = JSON.parse(text) as AutoSaveDraftRequest
     } catch {
       return NextResponse.json(

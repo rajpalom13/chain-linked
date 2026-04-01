@@ -16,6 +16,7 @@ import {
 } from "@tabler/icons-react"
 
 import { Card, CardContent } from "@/components/ui/card"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { AnalyticsSummary } from "@/hooks/use-analytics-v3"
@@ -49,6 +50,8 @@ interface AnalyticsSummaryBarProps {
   summary: AnalyticsSummary | null
   /** Currently selected metric */
   metric: string
+  /** Currently selected period (e.g. "7d", "30d") */
+  period: string
   /** Whether data is loading */
   isLoading: boolean
 }
@@ -61,7 +64,16 @@ interface AnalyticsSummaryBarProps {
  * @param props.isLoading - Whether data is loading
  * @returns Summary bar card with animated numbers
  */
-export function AnalyticsSummaryBar({ summary, metric, isLoading }: AnalyticsSummaryBarProps) {
+/** Human-readable period labels */
+const PERIOD_LABELS: Record<string, string> = {
+  '7d': 'Last 7 Days',
+  '30d': 'Last 30 Days',
+  '90d': 'Last 90 Days',
+  '1y': 'Last Year',
+  'custom': 'Custom Range',
+}
+
+export function AnalyticsSummaryBar({ summary, metric, period, isLoading }: AnalyticsSummaryBarProps) {
   if (isLoading) {
     return (
       <Card className="border-border/50">
@@ -92,13 +104,12 @@ export function AnalyticsSummaryBar({ summary, metric, isLoading }: AnalyticsSum
 
   const TrendIcon = isNeutral ? IconMinus : isPositive ? IconTrendingUp : IconTrendingDown
 
-  // Show accumulative total as the main figure when available (absolute lifetime total)
-  const totalValue = summary.accumulativeTotal != null && !isRate
-    ? summary.accumulativeTotal
-    : summary.total
+  // Period total = sum of deltas for the selected time range (impressions gained, etc.)
+  const totalValue = summary.total
+  const periodName = PERIOD_LABELS[period] || period
   const totalLabel = isRate
     ? "Avg Rate"
-    : `Total ${label}`
+    : `${label} · ${periodName}`
 
   // "All" mode: don't show a combined total — it's meaningless to sum different metrics.
   // Instead show a high-level overview.
@@ -130,38 +141,58 @@ export function AnalyticsSummaryBar({ summary, metric, isLoading }: AnalyticsSum
         <CardContent className="py-4 pr-10">
           <div className="grid grid-cols-3 gap-4">
             {/* Total */}
-            <div>
-              <p className="text-xs font-medium text-muted-foreground">
-                {totalLabel}
-              </p>
-              <p className="text-2xl font-bold tabular-nums text-primary">
-                <AnimatedNumber
-                  value={totalValue}
-                  decimals={isRate ? 2 : 0}
-                  suffix={isRate ? "%" : ""}
-                />
-              </p>
-            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-help">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {totalLabel}
+                  </p>
+                  <p className="text-2xl font-bold tabular-nums text-primary">
+                    <AnimatedNumber
+                      value={totalValue}
+                      decimals={isRate ? 2 : 0}
+                      suffix={isRate ? "%" : ""}
+                    />
+                  </p>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                {isRate
+                  ? "Average engagement rate for the selected period"
+                  : `Total ${label.toLowerCase()} gained during the selected period (not lifetime cumulative)`}
+              </TooltipContent>
+            </Tooltip>
 
             {/* Average */}
-            <div>
-              <p className="text-xs font-medium text-muted-foreground">
-                {isRate ? "Avg Rate (Period)" : "Daily Average"}
-              </p>
-              <p className="text-2xl font-bold tabular-nums">
-                <AnimatedNumber
-                  value={summary.average}
-                  decimals={isRate ? 2 : (summary.average < 10 ? 1 : 0)}
-                  suffix={isRate ? "%" : ""}
-                />
-              </p>
-            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-help">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {isRate ? "Avg Rate (Period)" : "Daily Average"}
+                  </p>
+                  <p className="text-2xl font-bold tabular-nums">
+                    <AnimatedNumber
+                      value={summary.average}
+                      decimals={isRate ? 2 : (summary.average < 10 ? 1 : 0)}
+                      suffix={isRate ? "%" : ""}
+                    />
+                  </p>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                {isRate
+                  ? "Average engagement rate per day in this period"
+                  : `Average daily ${label.toLowerCase()} gained per day in this period`}
+              </TooltipContent>
+            </Tooltip>
 
             {/* Change */}
-            <div>
-              <p className="text-xs font-medium text-muted-foreground">
-                vs Previous Period
-              </p>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-help">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    vs Previous Period
+                  </p>
               {hasComparison ? (
                 <div className="flex items-center gap-1.5">
                   <p
@@ -189,7 +220,12 @@ export function AnalyticsSummaryBar({ summary, metric, isLoading }: AnalyticsSum
                   Not enough prior data
                 </p>
               )}
-            </div>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                Percentage change compared to the equivalent prior period (e.g. last 7 days vs the 7 days before that)
+              </TooltipContent>
+            </Tooltip>
           </div>
         </CardContent>
       </Card>

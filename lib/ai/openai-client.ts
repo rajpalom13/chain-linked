@@ -32,6 +32,8 @@ export interface OpenAIClientConfig {
   maxRetries?: number
   /** Optional custom base URL (defaults to OpenRouter) */
   baseURL?: string
+  /** Optional extra headers to merge with defaults */
+  defaultHeaders?: Record<string, string>
 }
 
 /**
@@ -118,6 +120,7 @@ export function createOpenAIClient(config: OpenAIClientConfig): OpenAI {
     defaultHeaders: {
       'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'https://chainlinked.ai',
       'X-Title': 'ChainLinked',
+      ...config.defaultHeaders,
     },
   })
 

@@ -8,7 +8,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
 import { createClient } from "@/lib/supabase/server"
-import { resolveClient } from "@/lib/ai/resolve-api-key"
+import { resolveApiKey, resolveClient } from "@/lib/ai/resolve-api-key"
+import { codexChatCompletion } from "@/lib/ai/codex-client"
 import {
   chatCompletion,
   DEFAULT_MODEL,
@@ -99,35 +100,51 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Both system and user prompts are required" }, { status: 400 })
     }
 
-    const client = await resolveClient(supabase, user.id)
-    if (!client) {
-      return NextResponse.json(
-        { error: "No API key available. Connect your ChatGPT account or set OPENROUTER_API_KEY." },
-        { status: 400 }
-      )
-    }
-
     // Validate and clamp parameters
     const resolvedModel = model || DEFAULT_MODEL
     const resolvedTemperature = clamp(temperature ?? 0.7, 0, 2)
     const resolvedMaxTokens = clamp(maxTokens ?? 1200, 100, 4000)
     const resolvedTopP = topP !== undefined ? clamp(topP, 0, 1) : undefined
 
-    // Build the completion request - include top_p only if explicitly set
-    const completionRequest = {
-      systemPrompt,
-      userMessage: userPrompt,
-      model: resolvedModel,
-      temperature: resolvedTemperature,
-      maxTokens: resolvedMaxTokens,
-    }
-
     // Track start time for response metrics
     const startTime = Date.now()
 
-    // The chatCompletion function uses the OpenAI SDK which supports top_p
-    // We need to pass it through; for now we use the existing interface
-    const response = await chatCompletion(client, completionRequest)
+    // Route through Codex (ChatGPT subscription) or OpenRouter
+    let response: { content: string; model: string; promptTokens: number; completionTokens: number; totalTokens: number; finishReason?: string | null }
+
+    const resolved = await resolveApiKey(supabase, user.id)
+
+    if (resolved?.provider === 'openai-oauth') {
+      // Use Codex Responses API — bills against ChatGPT subscription
+      response = {
+        ...await codexChatCompletion(
+          resolved.apiKey,
+          resolved.accountId,
+          { model: 'gpt-5.4', systemPrompt, userMessage: userPrompt }
+        ),
+        finishReason: 'stop',
+      }
+    } else {
+      // Use OpenRouter via OpenAI SDK
+      const client = await resolveClient(supabase, user.id)
+      if (!client) {
+        return NextResponse.json(
+          { error: "No API key available. Connect your ChatGPT account or set OPENROUTER_API_KEY." },
+          { status: 400 }
+        )
+      }
+
+      // Build the completion request - include top_p only if explicitly set
+      const completionRequest = {
+        systemPrompt,
+        userMessage: userPrompt,
+        model: resolvedModel,
+        temperature: resolvedTemperature,
+        maxTokens: resolvedMaxTokens,
+      }
+
+      response = await chatCompletion(client, completionRequest)
+    }
 
     const responseTimeMs = Date.now() - startTime
     const cost = estimateCost(resolvedModel, response.promptTokens, response.completionTokens)

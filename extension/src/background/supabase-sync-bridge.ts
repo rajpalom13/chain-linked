@@ -1237,50 +1237,63 @@ export async function migrateExistingData(): Promise<{
  * @param table - The Supabase table name ('my_posts' or 'feed_posts')
  * @param currentUrns - Set of activity_urn values that currently exist on LinkedIn
  */
+/**
+ * Reconcile posts in Supabase against the set LinkedIn actually returned.
+ *
+ * Only deletes posts whose `posted_at` falls within the window of posts
+ * LinkedIn returned (i.e., newer than or equal to `oldestReturnedDate`).
+ * Posts older than that window are preserved — we can't know if they were
+ * deleted on LinkedIn or just fell off the API's pagination limit.
+ *
+ * @param table - The Supabase table to reconcile
+ * @param currentUrns - Set of activity URNs from the current LinkedIn response
+ * @param oldestReturnedDate - ISO date string of the oldest post LinkedIn returned.
+ *   Only posts on or after this date are candidates for deletion.
+ *   If not provided, reconciliation is skipped for safety.
+ */
 export async function reconcilePosts(
   table: 'my_posts' | 'feed_posts',
   currentUrns: Set<string>,
+  oldestReturnedDate?: string,
 ): Promise<void> {
   if (!currentUserId || currentUrns.size === 0) return;
+  // Without a date boundary we can't safely determine which posts are truly deleted
+  if (!oldestReturnedDate) return;
 
   try {
     const supabase = (self as unknown as { supabase?: { from: (table: string) => unknown } }).supabase;
     if (!supabase) return;
 
-    /**
-     * QueryBuilder type matching the lightweight Supabase client in lib/supabase/client.js.
-     * Filters (.eq, .in) are chainable and mutate the builder; terminal methods
-     * (.execute/.delete/.update) are async and consume the accumulated filters.
-     */
     type QueryBuilder = {
       select: (cols: string) => QueryBuilder;
       eq: (col: string, val: string) => QueryBuilder;
+      gte: (col: string, val: string) => QueryBuilder;
       in: (col: string, vals: string[]) => QueryBuilder;
       delete: () => Promise<{ data?: unknown; error?: { message: string } | null }>;
       then: (resolve: (v: { data?: { activity_urn: string }[]; error?: { message: string } | null }) => void, reject?: (e: unknown) => void) => void;
     };
 
-    // Use a fresh query builder for SELECT (filters accumulate on the instance)
+    // Only fetch posts within the window LinkedIn returned
     const selectClient = supabase.from(table) as QueryBuilder;
     const { data: existingRows, error: fetchError } = await selectClient
       .select('activity_urn')
-      .eq('user_id', currentUserId) as { data?: { activity_urn: string }[]; error?: { message: string } | null };
+      .eq('user_id', currentUserId)
+      .gte('posted_at', oldestReturnedDate) as { data?: { activity_urn: string }[]; error?: { message: string } | null };
 
     if (fetchError || !existingRows) {
       console.warn(`[SyncBridge] reconcilePosts: failed to fetch ${table}:`, fetchError?.message);
       return;
     }
 
-    // Find URNs that are in Supabase but NOT in the current LinkedIn data
+    // Posts in Supabase within this window but NOT in LinkedIn's response = deleted
     const staleUrns = existingRows
       .map((r) => r.activity_urn)
       .filter((urn) => !currentUrns.has(urn));
 
     if (staleUrns.length === 0) return;
 
-    console.log(`[SyncBridge] reconcilePosts: removing ${staleUrns.length} stale rows from ${table}`);
+    console.log(`[SyncBridge] reconcilePosts: removing ${staleUrns.length} deleted posts from ${table} (window: >=${oldestReturnedDate})`);
 
-    // Use a NEW query builder for DELETE — filters must be set BEFORE calling .delete()
     const deleteClient = supabase.from(table) as QueryBuilder;
     const { error: deleteError } = await deleteClient
       .eq('user_id', currentUserId)
@@ -1290,7 +1303,7 @@ export async function reconcilePosts(
     if (deleteError) {
       console.error(`[SyncBridge] reconcilePosts: delete failed for ${table}:`, deleteError.message);
     } else {
-      console.log(`[SyncBridge] reconcilePosts: removed ${staleUrns.length} stale rows from ${table}`);
+      console.log(`[SyncBridge] reconcilePosts: removed ${staleUrns.length} deleted posts from ${table}`);
     }
   } catch (err) {
     console.error(`[SyncBridge] reconcilePosts error:`, err);

@@ -444,8 +444,12 @@ export function CanvasEditor({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(exportPayload),
           })
-            .then((res) => {
+            .then(async (res) => {
               if (res.ok) {
+                const data = await res.json();
+                if (data.id) {
+                  carouselDraftIdRef.current = data.id;
+                }
                 toast.info('Carousel text saved as draft');
               }
             })

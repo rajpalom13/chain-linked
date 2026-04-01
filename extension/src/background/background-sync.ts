@@ -1195,7 +1195,8 @@ async function processAudienceData(data: unknown): Promise<void> {
  * `AUTO_CAPTURE_API` handler for myPosts in the service worker, saving
  * to the `'linkedin_my_posts'` chrome.storage.local key.
  *
- * Posts are deduplicated by `activity_urn` and capped at the most recent 100.
+ * Posts are deduplicated by `activity_urn` and capped at the most recent 500 locally.
+ * All posts are also synced to Supabase where they persist indefinitely.
  *
  * @param data - Raw response from the myPosts Voyager endpoint.
  */
@@ -1288,14 +1289,16 @@ async function processMyPostsData(data: unknown): Promise<void> {
       }
     }
 
-    // Convert back to array, sort by posted date (newest first), and trim
+    // Convert back to array, sort by posted date (newest first), and trim.
+    // Keep 500 posts locally so metrics stay updated for older posts.
+    // All posts are also synced to Supabase where they persist forever.
     const mergedPosts = Array.from(postMap.values())
       .sort((a, b) => {
         const aTime = Number(a.posted_at ?? a.capturedAt ?? 0);
         const bTime = Number(b.posted_at ?? b.capturedAt ?? 0);
         return bTime - aTime;
       })
-      .slice(0, 100);
+      .slice(0, 500);
 
     // Save to local storage
     await chrome.storage.local.set({ [STORAGE_KEYS.MY_POSTS]: mergedPosts });
@@ -1437,21 +1440,27 @@ async function processMyPostsData(data: unknown): Promise<void> {
       console.log(`${LOG_PREFIX} Enriched ${detailedFetchCount}/${allUrns.length} posts with detailed analytics (dashPostAnalytics)`);
     }
 
-    // Trigger sync for all queued posts, then reconcile stale rows
+    // Trigger sync for all queued posts to Supabase, then reconcile
+    // deleted posts within the window LinkedIn returned.
     setTimeout(async () => {
       try {
         const result = await processPendingChanges();
         console.log(`${LOG_PREFIX} Supabase sync: ${result.success} success, ${result.failed} failed`);
 
-        // Reconcile: remove posts from Supabase that are no longer on LinkedIn.
-        // The mergedPosts array contains every post we know about — anything
-        // in Supabase but NOT in this set was deleted or removed on LinkedIn.
+        // Reconcile deleted posts: only within the date window LinkedIn returned.
+        // Posts OLDER than the oldest returned post are preserved in Supabase —
+        // we can't tell if they were deleted or just fell off the API pagination.
         const currentUrns = new Set<string>();
+        let oldestDate: string | undefined;
         for (const post of mergedPosts) {
           const urn = post.activity_urn as string;
           if (urn) currentUrns.add(urn);
+          const postedAt = post.posted_at as string | undefined;
+          if (postedAt && (!oldestDate || postedAt < oldestDate)) {
+            oldestDate = postedAt;
+          }
         }
-        await reconcilePosts('my_posts', currentUrns);
+        await reconcilePosts('my_posts', currentUrns, oldestDate);
       } catch (err) {
         console.error(`${LOG_PREFIX} Supabase sync error:`, err);
       }
