@@ -225,7 +225,7 @@ function GettingStartedChecklist({
 }) {
   const steps = [
     { label: "Connect LinkedIn", done: linkedInConnected, href: "/dashboard/settings" },
-    { label: "Connect ChatGPT", done: chatGPTConnected, href: "/dashboard/settings?section=ai-api-keys" },
+    { label: "Connect ChatGPT", done: chatGPTConnected, href: "/dashboard/settings?section=brand-kit" },
     { label: "Install extension", done: extensionInstalled, href: "/dashboard/settings" },
     { label: "Create first post", done: hasCreatedPost, href: "/dashboard/compose" },
     { label: "Schedule content", done: hasScheduledPosts, href: "/dashboard/schedule" },
@@ -637,7 +637,7 @@ function DashboardContent() {
       {!chatGPTConnected && !analyticsLoading && (
         <div className="mx-4 lg:mx-6">
           <Link
-            href="/dashboard/settings?section=ai-api-keys"
+            href="/dashboard/settings?section=brand-kit"
             className="flex items-center gap-3 rounded-lg border border-violet-500/50 bg-violet-500/10 p-3 hover:bg-violet-500/15 transition-colors"
           >
             <IconSparkles className="size-5 shrink-0 text-violet-600 dark:text-violet-400" />
